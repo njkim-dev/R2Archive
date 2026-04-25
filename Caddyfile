@@ -1,0 +1,29 @@
+:3000
+
+encode gzip
+
+header {
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+    Cross-Origin-Opener-Policy "same-origin"
+}
+
+# 스크린샷 업로드(500KB~2MB)를 고려해 10MB까지 허용.
+request_body {
+    max_size 10MB
+}
+
+# API 및 정적 이미지 요청은 FastAPI로 프록시
+@backend path /api/* /static/*
+handle @backend {
+    reverse_proxy localhost:8000
+}
+
+# React SPA
+root * /srv
+route {
+    try_files {path} {path}/ /index.html
+    file_server
+}
