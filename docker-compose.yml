@@ -1,0 +1,14 @@
+services:
+  r2music-archive:
+    build:
+      context: .
+      args:
+        VITE_API_URL: ""
+    ports:
+      - "3004:3000"
+    volumes:
+      - ./rnr_image:/app/rnr_image:ro
+      - ./record_screenshots:/app/record_screenshots
+    env_file:
+      - backend/.env
+    restart: unless-stopped
