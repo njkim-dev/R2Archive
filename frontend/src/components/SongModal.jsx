@@ -721,6 +721,10 @@ function MobileDetail({ song, detail, onClose }) {
   const [perceivedStats, setPerceivedStats] = useState(null)
   const bodyRef = useRef(null)
   const anonId = getAnonId()
+  const user = useStore(s => s.user)
+  const favorites = useStore(s => s.favorites)
+  const toggleFavorite = useStore(s => s.toggleFavorite)
+  const isFav = favorites?.has(song.id)
 
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const catLabel = { star: '별 (1.5–3.5)', moon: '달 (4–6.5)', sun: '해 (7–12)' }[cat]
@@ -805,11 +809,17 @@ function MobileDetail({ song, detail, onClose }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           {song.youtube_url ? '음악 듣기' : '음악 없음'}
         </button>
-        <button className="mob-act-btn mob-act-ghost" disabled style={{ opacity: 0.4 }} title="로그인 후 이용 가능">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          className="mob-act-btn mob-act-ghost"
+          disabled={!user}
+          style={!user ? { opacity: 0.4 } : (isFav ? { color: 'var(--accent, #ff6b9d)' } : {})}
+          title={user ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+          onClick={() => { if (user) toggleFavorite(song.id) }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
           </svg>
-          즐겨찾기
+          {isFav ? '즐겨찾기 해제' : '즐겨찾기'}
         </button>
       </div>
 
@@ -880,7 +890,7 @@ function MobileDetail({ song, detail, onClose }) {
 
 export default function SongModal() {
   const isMobile = useMobile()
-  const { modalOpen, modalSong, closeModal, openFeedback } = useStore()
+  const { modalOpen, modalSong, closeModal, openFeedback, user, favorites, toggleFavorite } = useStore()
   const [tab, setTab] = useState('overview')
   const [detail, setDetail] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -1013,11 +1023,17 @@ export default function SongModal() {
             ) : (
               <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>음악 없음</button>
             )}
-            <button className="btn btn-ghost" onClick={() => {}} title="즐겨찾기 (로그인 필요)">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <button
+              className="btn btn-ghost"
+              disabled={!user}
+              style={!user ? { opacity: 0.5 } : (favorites?.has(song.id) ? { color: 'var(--accent, #ff6b9d)' } : {})}
+              title={user ? (favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
+              onClick={() => { if (user) toggleFavorite(song.id) }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={favorites?.has(song.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
               </svg>
-              즐겨찾기
+              {favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기'}
             </button>
             <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
               {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
