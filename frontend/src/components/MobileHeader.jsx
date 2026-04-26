@@ -20,7 +20,7 @@ export default function MobileHeader({ totalFiltered }) {
     meta, bpmMin, bpmMax,
     openMobileSheet,
     sort, user,
-    openLogin, logout, openOnboarding,
+    openLogin, logout, openOnboarding, openMyPage,
   } = useStore()
 
   const activeChip = useMemo(() => {
@@ -77,8 +77,8 @@ export default function MobileHeader({ totalFiltered }) {
                 <button
                   type="button"
                   className="mob-icon-btn"
-                  onClick={openOnboarding}
-                  title="프로필 수정"
+                  onClick={openMyPage}
+                  title="마이페이지"
                   style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
                 >
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--accent, #ff6b9d)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>

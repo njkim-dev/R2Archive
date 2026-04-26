@@ -10,6 +10,7 @@ import SongModal from './components/SongModal'
 import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
+import MyPageModal from './components/MyPageModal'
 import MobileHeader from './components/MobileHeader'
 import FilterSheet from './components/FilterSheet'
 import { useMobile } from './hooks/useMobile'
@@ -93,6 +94,7 @@ export default function App() {
         <FilterSheet />
         <LoginModal />
         <OnboardingModal />
+        <MyPageModal />
       </div>
     )
   }
@@ -113,6 +115,7 @@ export default function App() {
       <LoginModal />
       <OnboardingModal />
       <FeedbackModal />
+      <MyPageModal />
     </div>
   )
 }

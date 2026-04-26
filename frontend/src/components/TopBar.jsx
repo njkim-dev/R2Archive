@@ -9,7 +9,7 @@ const SEARCH_MODES = [
 ]
 
 export default function TopBar({ filteredCount }) {
-  const { search, setSearch, searchMode, setSearchMode, meta, sort, openLogin, user, logout, openOnboarding } = useStore()
+  const { search, setSearch, searchMode, setSearchMode, meta, sort, openLogin, user, logout, openOnboarding, openMyPage } = useStore()
   const inputRef = useRef(null)
   const [modeOpen, setModeOpen] = useState(false)
   const modeRef = useRef(null)
@@ -111,11 +111,16 @@ export default function TopBar({ filteredCount }) {
           <button
             type="button"
             className="user-chip-open"
-            onClick={openOnboarding}
-            title="프로필 수정"
+            onClick={openMyPage}
+            title="마이페이지"
           >
             <div className="user-avatar">{((user.nickname || '?')[0] || '?').toUpperCase()}</div>
             <span className="user-name">{user.nickname || '...'}</span>
+          </button>
+          <button className="user-logout" onClick={openOnboarding} title="프로필 수정" style={{ marginRight: 2 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
           </button>
           <button className="user-logout" onClick={logout} title="로그아웃">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
