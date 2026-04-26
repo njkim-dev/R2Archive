@@ -555,13 +555,22 @@ function RankingRow({ r, rank, onShowScreenshot }) {
   const medalIdx = typeof rank === 'number' && rank <= 3 ? rank - 1 : -1
   const displayRank = medalIdx >= 0 ? MEDALS[medalIdx] : (typeof rank === 'number' ? `#${rank}` : rank)
   const initial = ((r.nickname || '?')[0] || '?').toUpperCase()
+  const [memoOpen, setMemoOpen] = useState(false)
+  // 서버가 권한에 따라 memo를 마스킹해서 보내므로 여기서는 값 존재 여부만 체크.
+  const hasMemo = !!(r.memo && r.memo.trim())
   return (
-    <div className={`rk-row${medalIdx >= 0 ? ' top' : ''}${r.is_mine ? ' me' : ''}`}>
+    <div className={`rk-row${medalIdx >= 0 ? ' top' : ''}${r.is_mine ? ' me' : ''}`} style={{ flexWrap: 'wrap' }}>
       <span className={`rk-rank${medalIdx >= 0 ? ' medal' : ''}`}>{displayRank}</span>
       <div className="rk-player">
         <div className="rk-avatar">{initial}</div>
         <div className="rk-nick">
-          {r.nickname}
+          <span
+            onClick={hasMemo ? () => setMemoOpen(o => !o) : undefined}
+            style={{ cursor: hasMemo ? 'pointer' : 'default', textDecoration: hasMemo ? 'underline dotted var(--fg-4)' : 'none', textUnderlineOffset: 2 }}
+            title={hasMemo ? '한마디 보기' : undefined}
+          >
+            {r.nickname}
+          </span>
           {r.is_mine && <span className="rk-me-tag">나</span>}
           {r.screenshot_url && (
             <button
@@ -598,11 +607,20 @@ function RankingRow({ r, rank, onShowScreenshot }) {
         <div className="rk-score-l">판정 %</div>
       </div>
       <div className="rk-date">{r.created_at?.slice(0, 10).replace(/-/g, '.')}</div>
+      {hasMemo && memoOpen && (
+        <div style={{ flexBasis: '100%', marginTop: 6, padding: '6px 10px', background: 'var(--surface-1)', borderRadius: 6, fontSize: 12.5, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          “{r.memo}”
+          {!r.memo_public && r.is_mine && (
+            <span style={{ marginLeft: 8, fontSize: 10.5, color: 'var(--fg-4)' }}>· 비공개</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 function CommentsTab({ song }) {
+  const user = useStore(s => s.user)
   const [comments, setComments] = useState(null)
   const [nick, setNick] = useState('')
   const [body, setBody] = useState('')
@@ -612,14 +630,20 @@ function CommentsTab({ song }) {
     getComments(song.id).then(setComments)
   }, [song.id])
 
+  const effectiveNick = user?.nickname || nick
+
   const handleSubmit = async () => {
     if (!body.trim()) return
     setSubmitting(true)
     try {
-      await addComment(song.id, { nickname: nick.trim() || null, content: body.trim() })
+      await addComment(song.id, {
+        nickname: user?.nickname || nick.trim() || null,
+        content: body.trim(),
+      })
       const fresh = await getComments(song.id)
       setComments(fresh)
-      setBody(''); setNick('')
+      setBody('')
+      if (!user) setNick('')
     } catch (_) {
     } finally {
       setSubmitting(false)
@@ -629,15 +653,21 @@ function CommentsTab({ song }) {
   return (
     <div>
       <div className="comment-form">
-        <div className="avatar-me">{nick?.[0] || '익'}</div>
+        <div className="avatar-me">{effectiveNick?.[0] || '익'}</div>
         <div style={{ flex: 1 }}>
-          <input
-            type="text"
-            className="comment-nick-input"
-            placeholder="닉네임 (비우면 자동 부여)"
-            value={nick}
-            onChange={e => setNick(e.target.value)}
-          />
+          {user ? (
+            <div className="comment-nick-input" style={{ color: 'var(--fg-2)', cursor: 'default', userSelect: 'none' }}>
+              {user.nickname}
+            </div>
+          ) : (
+            <input
+              type="text"
+              className="comment-nick-input"
+              placeholder="닉네임 (비우면 자동 부여)"
+              value={nick}
+              onChange={e => setNick(e.target.value)}
+            />
+          )}
           <textarea
             className="comment-body-input"
             placeholder="이 곡에 대한 팁이나 감상을 남겨보세요…"

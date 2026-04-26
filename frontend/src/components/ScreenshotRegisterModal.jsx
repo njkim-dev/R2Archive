@@ -89,7 +89,7 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
     setIdx(0); setPhase('register')
   }
 
-  const handleSubmitOne = async ({ score, selectedSong, youtube_url }) => {
+  const handleSubmitOne = async ({ score, selectedSong, youtube_url, memo, memo_public }) => {
     const currentShot = shots[idx]
     try {
       // visibility는 가입 시 설정한 user.default_visibility를 따름
@@ -98,6 +98,8 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
         nickname: user.nickname,
         judgment_percent: parseFloat(score),
         youtube_url: youtube_url || null,
+        memo: memo || null,
+        memo_public: !!memo_public,
       })
       // 스크린샷 파일을 서버에 업로드해 기록에 첨부 (프로필에서 show_screenshot 해제 시에도 저장, API 응답에서 노출 제어)
       // routers/records.py upload_record_screenshot()
@@ -267,6 +269,8 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
   const [selectedSong, setSelectedSong] = useState(null)
   const [songQuery, setSongQuery] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [memo, setMemo] = useState('')
+  const [memoPublic, setMemoPublic] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [offset, setOffset] = useState({ x: 0, y: 0 })   // object-position in px
   const [imgDim, setImgDim] = useState(null)             // { w, h } natural
@@ -336,6 +340,8 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
     setSelectedSong(null)
     setSongQuery('')
     setYoutubeUrl('')
+    setMemo('')
+    setMemoPublic(false)
   }, [shot.id])  // eslint-disable-line
 
   // 사용자가 이미 수동 입력했다면 OCR 결과로 덮어쓰지 않음.
@@ -378,6 +384,8 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
       score: trimmed,
       selectedSong,
       youtube_url: youtubeUrl.trim() || null,
+      memo: memo.trim() || null,
+      memo_public: memoPublic,
     })
     setSubmitting(false)
   }
@@ -463,6 +471,31 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
                 onChange={e => setYoutubeUrl(e.target.value)}
                 placeholder="https://youtu.be/…"
               />
+            </div>
+
+            <div className="rr-field">
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <label style={{ marginBottom: 0 }}>
+                  한마디 <span style={{ color: 'var(--fg-4)', textTransform: 'none', letterSpacing: 0 }}>(선택, 최대 20자)</span>
+                </label>
+                <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>{memo.length}/20</span>
+              </div>
+              <input
+                type="text"
+                value={memo}
+                onChange={e => setMemo(e.target.value.slice(0, 20))}
+                maxLength={20}
+                placeholder="이 판에 대한 짧은 소감"
+              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: 'var(--fg-3)', cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={memoPublic}
+                  onChange={e => setMemoPublic(e.target.checked)}
+                  style={{ width: 14, height: 14, margin: 0, padding: 0, flexShrink: 0, accentColor: 'var(--accent)' }}
+                />
+                <span>한마디 공개 (랭킹에서 닉네임 클릭 시 다른 사람도 볼 수 있음)</span>
+              </label>
             </div>
           </div>
         </div>
