@@ -161,6 +161,10 @@ const useStore = create((set, get) => ({
 
   openLogin: () => set({ loginOpen: true }),
   closeLogin: () => set({ loginOpen: false }),
+
+  myPageOpen: false,
+  openMyPage: () => set({ myPageOpen: true }),
+  closeMyPage: () => set({ myPageOpen: false }),
 }))
 
 export default useStore

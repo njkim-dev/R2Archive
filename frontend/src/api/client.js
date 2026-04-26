@@ -38,9 +38,6 @@ export const getRecords = (id) => api.get(`/songs/${id}/records`).then(r => r.da
 export const addRecord = (id, body) => api.post(`/songs/${id}/records`, body).then(r => r.data)
 export const getRanking = (id) => api.get(`/songs/${id}/ranking`).then(r => r.data)
 export const getMyRecordsForSong = (id) => api.get(`/songs/${id}/records/me`).then(r => r.data)
-export const patchRecordVisibility = (recordId, visibility) =>
-  api.patch(`/records/${recordId}`, { visibility }).then(r => r.data)
-
 export const parseScreenshot = (file) => {
   const fd = new FormData()
   fd.append('image', file)
@@ -72,5 +69,11 @@ export const addFavorite = (songId) =>
   api.post(`/users/me/favorites/${songId}`).then(r => r.data)
 export const removeFavorite = (songId) =>
   api.delete(`/users/me/favorites/${songId}`).then(r => r.data)
+export const getMyRecords = () => api.get('/users/me/records').then(r => r.data)
+export const getMyComments = () => api.get('/users/me/comments').then(r => r.data)
+export const deleteMyRecord = (recordId) =>
+  api.delete(`/users/me/records/${recordId}`).then(r => r.data)
+export const deleteMyComment = (commentId) =>
+  api.delete(`/users/me/comments/${commentId}`).then(r => r.data)
 export const oauthLoginUrl = (provider, remember = false) =>
   `/api/auth/${provider}/login?remember=${remember ? '1' : '0'}`

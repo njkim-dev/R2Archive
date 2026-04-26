@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
+from auth import get_current_user_id
 from database import get_conn
 from models import CommentCreate, CommentResponse
 from rate_limit import limiter, ip_song_key
@@ -31,6 +32,7 @@ def get_comments(song_id: int):
 @router.post("/{song_id}/comments", response_model=CommentResponse, status_code=201)
 @limiter.limit("5/minute;20/hour", key_func=ip_song_key)
 def add_comment(request: Request, song_id: int, body: CommentCreate):
+    current_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
             if not body.nickname or not body.nickname.strip():
@@ -41,9 +43,9 @@ def add_comment(request: Request, song_id: int, body: CommentCreate):
                 nickname = body.nickname.strip()
 
             cur.execute(
-                "INSERT INTO comments (song_id, nickname, content) "
-                "VALUES (%s, %s, %s) RETURNING id, created_at",
-                (song_id, nickname, body.content)
+                "INSERT INTO comments (song_id, nickname, content, user_id) "
+                "VALUES (%s, %s, %s, %s) RETURNING id, created_at",
+                (song_id, nickname, body.content, current_uid)
             )
             row = cur.fetchone()
         conn.commit()

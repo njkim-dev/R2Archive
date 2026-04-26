@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 
 import psycopg2
@@ -7,6 +8,8 @@ from pydantic import BaseModel, Field
 from auth import fetch_user, require_user_id
 from database import get_conn
 from rate_limit import limiter
+
+_SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent.parent / "record_screenshots"
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -156,3 +159,126 @@ def remove_favorite(request: Request, song_id: int):
             )
         conn.commit()
     return {"ok": True}
+
+
+@router.get("/me/records")
+def get_my_records(request: Request):
+    """마이페이지: 내가 등록한 모든 기록 (스크린샷/유튜브 포함). 곡 정보도 함께 반환."""
+    uid = require_user_id(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT r.id, r.song_id, s.name AS song_name, s.artist, s.level, s.image,
+                       r.nickname, r.score, r.judgment_percent, r.combo,
+                       r.youtube_url, r.youtube_title, r.memo, r.visibility,
+                       r.created_at, r.screenshot_filename, r.memo_public
+                FROM records r
+                JOIN songs s ON s.id = r.song_id
+                WHERE r.user_id = %s
+                ORDER BY r.created_at DESC
+                """,
+                (uid,),
+            )
+            rows = cur.fetchall()
+
+    return {
+        "records": [
+            {
+                "id": r[0],
+                "song_id": r[1],
+                "song_name": r[2],
+                "artist": r[3],
+                "song_level": float(r[4]) if r[4] is not None else None,
+                "song_image": r[5],
+                "nickname": r[6],
+                "score": r[7],
+                "judgment_percent": float(r[8]) if r[8] is not None else None,
+                "combo": r[9],
+                "youtube_url": r[10],
+                "youtube_title": r[11],
+                "memo": r[12],
+                "visibility": r[13],
+                "created_at": r[14].isoformat() if r[14] else None,
+                "has_screenshot": bool(r[15]),
+                "memo_public": bool(r[16]),
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.get("/me/comments")
+def get_my_comments(request: Request):
+    """마이페이지: 로그인 후 작성한 본인 댓글만. user_id NULL 인 비로그인 시절 댓글은 제외."""
+    uid = require_user_id(request)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.id, c.song_id, s.name AS song_name, s.artist, s.image,
+                       c.nickname, c.content, c.created_at
+                FROM comments c
+                JOIN songs s ON s.id = c.song_id
+                WHERE c.user_id = %s
+                ORDER BY c.created_at DESC
+                """,
+                (uid,),
+            )
+            rows = cur.fetchall()
+
+    return {
+        "comments": [
+            {
+                "id": r[0],
+                "song_id": r[1],
+                "song_name": r[2],
+                "artist": r[3],
+                "song_image": r[4],
+                "nickname": r[5],
+                "content": r[6],
+                "created_at": r[7].isoformat() if r[7] else None,
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.delete("/me/records/{record_id}", status_code=204)
+def delete_my_record(request: Request, record_id: int):
+    uid = require_user_id(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT user_id, screenshot_path FROM records WHERE id = %s",
+                (record_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="기록을 찾을 수 없습니다")
+            if row[0] is None or int(row[0]) != int(uid):
+                raise HTTPException(status_code=403, detail="본인의 기록만 삭제할 수 있습니다")
+            screenshot_path = row[1]
+            cur.execute("DELETE FROM records WHERE id = %s", (record_id,))
+        conn.commit()
+    if screenshot_path:
+        try:
+            (_SCREENSHOTS_DIR / screenshot_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+@router.delete("/me/comments/{comment_id}", status_code=204)
+def delete_my_comment(request: Request, comment_id: int):
+    uid = require_user_id(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_id FROM comments WHERE id = %s", (comment_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다")
+            if row[0] is None or int(row[0]) != int(uid):
+                raise HTTPException(status_code=403, detail="본인의 댓글만 삭제할 수 있습니다")
+            cur.execute("DELETE FROM comments WHERE id = %s", (comment_id,))
+        conn.commit()
