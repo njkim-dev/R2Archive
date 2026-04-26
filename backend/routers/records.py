@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 
 from auth import fetch_user, get_current_user_id, require_user_id
 from database import get_conn
-from models import RecordCreate, RecordResponse, RecordUpdate
+from models import RecordCreate, RecordResponse
 from rate_limit import limiter, ip_song_key
 
 _YT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{11}$')
@@ -67,7 +67,7 @@ def _mask_nickname(nickname: str, visibility: str, is_mine: bool) -> str:
 def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
     (rid, nickname, score, judgment_percent, combo, youtube_url,
      youtube_title, memo, visibility, created_at, row_user_id,
-     screenshot_path, owner_show) = (*r, None, False)[:13]
+     screenshot_path, owner_show, memo_public) = (*r, None, False, False)[:14]
 
     is_mine = (current_uid is not None
                and row_user_id is not None
@@ -78,6 +78,8 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
         if screenshot_path and (owner_show or is_mine)
         else None
     )
+    # memo_public=true 이거나 본인 기록일 때만 노출.
+    visible_memo = memo if (memo_public or is_mine) else None
     return RecordResponse(
         id=rid,
         nickname=_mask_nickname(nickname or "", visibility or "public", is_mine),
@@ -86,7 +88,8 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
         combo=combo,
         youtube_url=youtube_url,
         youtube_title=youtube_title,
-        memo=memo,
+        memo=visible_memo,
+        memo_public=bool(memo_public),
         visibility=visibility or "public",
         is_mine=is_mine,
         screenshot_url=screenshot_url,
@@ -110,7 +113,7 @@ def get_records(request: Request, song_id: int):
                 SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                        r.score, r.judgment_percent, r.combo, r.youtube_url,
                        r.youtube_title, r.memo, r.visibility, r.created_at, r.user_id,
-                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE)
+                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE), r.memo_public
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s
@@ -136,7 +139,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                 """
                 SELECT id, nickname, score, judgment_percent, combo, youtube_url,
                        youtube_title, memo, visibility, created_at, user_id,
-                       screenshot_path, owner_show_screenshot
+                       screenshot_path, owner_show_screenshot, memo_public
                 FROM (
                     SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                            r.score, r.judgment_percent, r.combo, r.youtube_url,
@@ -144,6 +147,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                            r.user_id, r.anon_id,
                            r.screenshot_path,
                            COALESCE(u.show_screenshot, FALSE) AS owner_show_screenshot,
+                           r.memo_public,
                            ROW_NUMBER() OVER (
                                PARTITION BY COALESCE(r.user_id::text, 'anon:' || r.anon_id)
                                ORDER BY r.judgment_percent DESC NULLS LAST, r.created_at ASC
@@ -174,7 +178,7 @@ def get_my_records_for_song(request: Request, song_id: int):
                 SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                        r.score, r.judgment_percent, r.combo, r.youtube_url,
                        r.youtube_title, r.memo, r.visibility, r.created_at, r.user_id,
-                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE)
+                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE), r.memo_public
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s AND r.user_id = %s
@@ -222,14 +226,14 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 """
                 INSERT INTO records
                     (song_id, user_id, anon_id, nickname, score, judgment_percent,
-                     combo, youtube_url, youtube_title, memo, visibility)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     combo, youtube_url, youtube_title, memo, memo_public, visibility)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
                     song_id, current_uid, body.anon_id, nickname,
                     body.score, body.judgment_percent, body.combo,
-                    body.youtube_url, youtube_title, body.memo, visibility,
+                    body.youtube_url, youtube_title, body.memo, body.memo_public, visibility,
                 ),
             )
             r = cur.fetchone()
@@ -244,41 +248,11 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
         youtube_url=body.youtube_url,
         youtube_title=youtube_title,
         memo=body.memo,
+        memo_public=body.memo_public,
         visibility=visibility,
         is_mine=current_uid is not None,
         created_at=r[1],
     )
-
-
-@router.patch("/records/{record_id}", response_model=RecordResponse)
-def update_record_visibility(request: Request, record_id: int, body: RecordUpdate):
-    uid = require_user_id(request)
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT user_id FROM records WHERE id = %s", (record_id,))
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="기록을 찾을 수 없습니다")
-            if row[0] is None or int(row[0]) != int(uid):
-                raise HTTPException(status_code=403, detail="본인의 기록만 수정할 수 있습니다")
-
-            cur.execute(
-                """
-                UPDATE records SET visibility = %s
-                WHERE id = %s
-                RETURNING id, nickname, score, judgment_percent, combo, youtube_url,
-                          youtube_title, memo, visibility, created_at, user_id,
-                          screenshot_path
-                """,
-                (body.visibility, record_id),
-            )
-            updated = cur.fetchone()
-            cur.execute("SELECT show_screenshot FROM users WHERE id = %s", (uid,))
-            su = cur.fetchone()
-            owner_show = bool(su[0]) if su else False
-        conn.commit()
-    # _row_to_response 튜플 형태: (..., user_id, screenshot_path, owner_show)
-    return _row_to_response(tuple(list(updated) + [owner_show]), uid)
 
 
 @router.post("/records/{record_id}/screenshot")
