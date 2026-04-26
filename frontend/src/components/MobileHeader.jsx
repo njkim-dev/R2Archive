@@ -20,6 +20,7 @@ export default function MobileHeader({ totalFiltered }) {
     meta, bpmMin, bpmMax,
     openMobileSheet,
     sort, user,
+    openLogin, logout, openOnboarding,
   } = useStore()
 
   const activeChip = useMemo(() => {
@@ -70,12 +71,43 @@ export default function MobileHeader({ totalFiltered }) {
       <div className="mob-top-inner">
         <div className="mob-top-row">
           <div className="mob-app-title">알투<b>비트</b> <span className="mob-sub">아카이브</span></div>
-          <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="필터">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
-            </svg>
-            {hasBadge && <span className="mob-badge" />}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {user ? (
+              <>
+                <button
+                  type="button"
+                  className="mob-icon-btn"
+                  onClick={openOnboarding}
+                  title="프로필 수정"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
+                >
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--accent, #ff6b9d)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
+                    {((user.nickname || '?')[0] || '?').toUpperCase()}
+                  </div>
+                </button>
+                <button className="mob-icon-btn" onClick={logout} title="로그아웃">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <button className="mob-icon-btn" onClick={openLogin} title="로그인" aria-label="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                  <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+                로그인
+              </button>
+            )}
+            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="필터">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
+              </svg>
+              {hasBadge && <span className="mob-badge" />}
+            </button>
+          </div>
         </div>
 
         <label className={`mob-search${search ? ' has-val' : ''}`}>
