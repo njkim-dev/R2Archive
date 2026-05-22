@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
+import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
-import { filterSongs } from '../utils/helpers'
+import { filterSongs, dedupeByNameArtistMaxLevel } from '../utils/helpers'
 
 const CATEGORIES = [
   {
@@ -19,13 +20,13 @@ const CATEGORIES = [
 
 export default function Sidebar({ songs, filtered }) {
   const {
-    meta, user,
+    meta, user, openLogin,
     category, setCategory,
     quick, setQuick,
     levelMin, levelMax, setLevelMin, setLevelMax,
     bpmMin, bpmMax, setBpmMin, setBpmMax,
     artists, toggleArtist, clearArtists,
-    favorites, played,
+    favorites, played, playedAll,
   } = useStore()
 
   const hist = useMemo(() => {
@@ -40,15 +41,17 @@ export default function Sidebar({ songs, filtered }) {
 
   const filteredCounts = useMemo(() => {
     const base = filterSongs(songs, { search: '', category, quick: 'all', artists: new Set() }).exact
+    // 카테고리 필터 ON일 때만 cross-channel 확장된 playedAll 사용 (SongsPage 필터와 동일 정책).
+    const playedSet = category ? playedAll : played
     return {
       all:      base.length,
       new:      base.filter(s => s.is_new).length,
       variants: base.filter(s => s.is_change).length,
-      played:   base.filter(s => s.play_count > 0).length,
+      played:   dedupeByNameArtistMaxLevel(base.filter(s => s.play_count > 0)).length,
       favorite: user ? base.filter(s => favorites.has(s.id)).length : 0,
-      my_played: user ? base.filter(s => played.has(s.id)).length : 0,
+      my_played: user ? base.filter(s => playedSet.has(s.id)).length : 0,
     }
-  }, [songs, category, user, favorites, played])
+  }, [songs, category, user, favorites, played, playedAll])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
@@ -71,6 +74,31 @@ export default function Sidebar({ songs, filtered }) {
         <div>
           <div className="brand-title">알투비트 아카이브</div>
           <div className="brand-sub">Songs Viewer · v2</div>
+        </div>
+      </div>
+
+      <div className="side-section">
+        <div className="side-label"><span>페이지</span></div>
+        <div className="page-nav">
+          <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+            <span>곡 목록</span>
+          </NavLink>
+          <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+            <span>판정 랭킹</span>
+          </NavLink>
+          <NavLink
+            to="/groups"
+            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
+            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+          >
+            <span>그룹</span>
+          </NavLink>
+          <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+            <span>과거 피망곡</span>
+          </NavLink>
+          <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+            <span>피드백</span>
+          </NavLink>
         </div>
       </div>
 

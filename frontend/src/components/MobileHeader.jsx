@@ -1,15 +1,24 @@
 import { useMemo } from 'react'
 import useStore from '../store/useStore'
+import MobilePageNav from './MobilePageNav'
 
+// PC 사이드바와 동일한 5각 별 SVG. 즐겨찾기(★)와 시각적으로 구분되게 SVG 사용.
+const StarIcon = (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L1 9.5l7.1-.6L12 2z"/>
+  </svg>
+)
+
+// flag: true인 칩은 다른 칩과 독립적으로 토글된다 (single-select 그룹에서 빠짐).
 const CHIPS = [
   { key: 'all',       label: '전체',       icon: '♩' },
-  { key: 'star',      label: '별',         icon: '✦', range: '1.5–3.5', cat: true },
+  { key: 'star',      label: '별',         icon: StarIcon, range: '1.5–3.5', cat: true },
   { key: 'moon',      label: '달',         icon: '☾', range: '4–6.5',   cat: true },
   { key: 'sun',       label: '해',         icon: '☀', range: '7–12',    cat: true },
-  { key: 'new',       label: '신곡',       icon: '◉' },
-  { key: 'variant',   label: '변속곡' },
-  { key: 'favorite',  label: '즐겨찾기',   icon: '★', needLogin: true },
-  { key: 'my_played', label: '내 플레이',  icon: '♪', needLogin: true },
+  { key: 'new',       label: '신곡',       icon: '◉', flag: true },
+  { key: 'variant',   label: '변속곡',                 flag: true },
+  { key: 'favorite',  label: '즐겨찾기',   icon: '★', flag: true, needLogin: true },
+  { key: 'my_played', label: '내 플레이',  icon: '♪', flag: true, needLogin: true },
 ]
 
 export default function MobileHeader({ totalFiltered }) {
@@ -17,28 +26,49 @@ export default function MobileHeader({ totalFiltered }) {
     search, setSearch,
     category, setCategory,
     quick, setQuick,
+    flagNew, flagVariants, flagFavorite, flagMyPlayed,
+    toggleFlagNew, toggleFlagVariants, toggleFlagFavorite, toggleFlagMyPlayed,
+    setFlagNew, setFlagVariants, setFlagFavorite, setFlagMyPlayed,
     meta, bpmMin, bpmMax,
     openMobileSheet,
     sort, user,
     openLogin, logout, openOnboarding, openMyPage,
   } = useStore()
 
+  // PC 사이드바에서 quick='new'/'variants'/'favorite'/'my_played'가 설정된 채로 모바일로 넘어왔을 때도
+  // 해당 칩이 활성으로 보이도록 quick과 flag를 OR로 합쳐 표시.
+  const isNewOn = flagNew || quick === 'new'
+  const isVarOn = flagVariants || quick === 'variants'
+  const isFavOn = flagFavorite || quick === 'favorite'
+  const isMyPlayedOn = flagMyPlayed || quick === 'my_played'
+
   const activeChip = useMemo(() => {
-    if (quick === 'new') return 'new'
-    if (quick === 'variants') return 'variant'
-    if (quick === 'favorite') return 'favorite'
-    if (quick === 'my_played') return 'my_played'
     if (category === 'star') return 'star'
     if (category === 'moon') return 'moon'
     if (category === 'sun') return 'sun'
     return 'all'
-  }, [category, quick])
+  }, [category])
 
   const hasBadge = useMemo(() => {
     return bpmMin !== meta?.bpm_min || bpmMax !== meta?.bpm_max
   }, [bpmMin, bpmMax, meta])
 
+  // 독립 flag 토글 헬퍼: 현재 ON이면 flag와 레거시 quick 둘 다 정리, OFF면 flag만 켠다.
+  const toggleIndependent = (isOn, flagVal, setFlag, toggleFlag, quickKey) => {
+    if (isOn) {
+      if (flagVal) setFlag(false)
+      if (quick === quickKey) setQuick('all')
+    } else {
+      toggleFlag()
+    }
+  }
+
   const handleChip = (chip) => {
+    if (chip === 'new')      return toggleIndependent(isNewOn,     flagNew,      setFlagNew,      toggleFlagNew,      'new')
+    if (chip === 'variant')  return toggleIndependent(isVarOn,     flagVariants, setFlagVariants, toggleFlagVariants, 'variants')
+    if (chip === 'favorite') return toggleIndependent(isFavOn,     flagFavorite, setFlagFavorite, toggleFlagFavorite, 'favorite')
+    if (chip === 'my_played') return toggleIndependent(isMyPlayedOn, flagMyPlayed, setFlagMyPlayed, toggleFlagMyPlayed, 'my_played')
+
     if (chip === activeChip) return
     if (chip === 'all') {
       if (category) setCategory(category)
@@ -47,13 +77,8 @@ export default function MobileHeader({ totalFiltered }) {
     }
     if (chip === 'star' || chip === 'moon' || chip === 'sun') {
       setCategory(chip)   // 레벨 범위 자동 리셋 포함
-      setQuick('all')     // 이전 quick 필터(new/fav 등) 해제
       return
     }
-    // new / variant / favorite / my_played: 카테고리 해제 후 quick 설정
-    if (category) setCategory(category)
-    const quickMap = { new: 'new', variant: 'variants', favorite: 'favorite', my_played: 'my_played' }
-    setQuick(quickMap[chip])
   }
 
   const sortLabel = useMemo(() => {
@@ -110,6 +135,8 @@ export default function MobileHeader({ totalFiltered }) {
           </div>
         </div>
 
+        <MobilePageNav />
+
         <label className={`mob-search${search ? ' has-val' : ''}`}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--fg-4)' }}>
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -131,17 +158,29 @@ export default function MobileHeader({ totalFiltered }) {
         </label>
 
         <div className="mob-chips">
-          {CHIPS.filter(c => !c.needLogin || user).map(({ key, label, icon, range }) => (
-            <button
-              key={key}
-              className={`mob-chip${activeChip === key ? ' on' : ''}`}
-              onClick={() => handleChip(key)}
-            >
-              {icon && <span className="mob-chip-icon" style={key === 'new' ? { color: 'var(--new)' } : {}}>{icon}</span>}
-              {label}
-              {range && <span style={{ color: 'var(--fg-4)', fontSize: '10.5px' }}>{range}</span>}
-            </button>
-          ))}
+          {CHIPS.filter(c => !c.needLogin || user).map(({ key, label, icon, range, flag }) => {
+            let isOn
+            if (flag) {
+              isOn = key === 'new' ? isNewOn
+                : key === 'variant' ? isVarOn
+                : key === 'favorite' ? isFavOn
+                : key === 'my_played' ? isMyPlayedOn
+                : false
+            } else {
+              isOn = activeChip === key
+            }
+            return (
+              <button
+                key={key}
+                className={`mob-chip${isOn ? ' on' : ''}`}
+                onClick={() => handleChip(key)}
+              >
+                {icon && <span className="mob-chip-icon" style={key === 'new' ? { color: 'var(--new)' } : {}}>{icon}</span>}
+                {label}
+                {range && <span style={{ color: 'var(--fg-4)', fontSize: '10.5px' }}>{range}</span>}
+              </button>
+            )
+          })}
         </div>
       </div>
     </header>

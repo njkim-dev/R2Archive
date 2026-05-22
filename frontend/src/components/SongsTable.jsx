@@ -1,8 +1,8 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react'
+import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
 import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../store/useStore'
-import { levelBarColor, bpmWaveBars, fmt, artworkBg } from '../utils/helpers'
+import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg } from '../utils/helpers'
 import { logPlay } from '../api/client'
 
 function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
@@ -41,7 +41,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
           <span className="mob-lv" data-cat={cat}>Lv {song.level.toFixed(1)}</span>
           {song.is_change && <><span className="mob-sep">·</span><span style={{ color: 'var(--accent)', fontWeight: 600 }}>⇄ 변속</span></>}
           <span className="mob-sep">·</span>
-          <span>{song.bpm.toFixed(1)} BPM</span>
+          <span>{fmtBpm(song.bpm)} BPM</span>
           {song.user_level_avg != null && (
             <><span className="mob-sep">·</span><span style={{ color: 'var(--fg-3)' }}>체감 {song.user_level_avg.toFixed(1)}</span></>
           )}
@@ -90,18 +90,34 @@ function TableHeader({ sort, onSort }) {
   )
 }
 
-function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
+function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav, isAdmin }) {
+  const [copied, setCopied] = useState(false)
   const lvInt = Math.floor(song.level)
   const lvDec = song.level % 1 === 0 ? '.0' : '.5'
   const comboPct = Math.min(100, (song.combo / 2000) * 100)
+  // BPM에 따른 곡명/아티스트/BPM 텍스트 색상 티어. CSS 쪽 [data-bpm-tier]에서 사용.
+  const bpmTier =
+    song.bpm >= 220 ? 'hot'
+      : song.bpm >= 200 ? 'warm'
+      : song.bpm < 120 ? 'cool'
+      : undefined
+
+  const handleCopyName = (e) => {
+    e.stopPropagation()
+    if (copied) return
+    navigator.clipboard?.writeText(song.name).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    }).catch(() => {})
+  }
 
   return (
     <div
       className="tbl-row"
+      data-bpm-tier={bpmTier}
       style={{ ...style, gridTemplateColumns: COL_TEMPLATE }}
       onClick={() => onClick(song)}
     >
-      {/* # / new tag */}
       <div className="td">
         <div className="idx-cell">
           {song.is_new && <span className="new-tag">NEW</span>}
@@ -114,7 +130,6 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
         </div>
       </div>
 
-      {/* 곡명 */}
       <div className="td">
         <div className="title-cell">
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
@@ -129,6 +144,24 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
             }
           </div>
           <span className="title-main">{song.name}</span>
+          {isAdmin && (
+            <button
+              className={`copy-name-btn${copied ? ' copied' : ''}`}
+              title={copied ? '곡명 복사됨' : '곡명 복사'}
+              onClick={handleCopyName}
+            >
+              {copied ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              )}
+            </button>
+          )}
           {song.youtube_url && (
             <span
               style={{ color: 'var(--accent)', fontSize: 15, lineHeight: 1, cursor: 'pointer', flexShrink: 0 }}
@@ -137,19 +170,17 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
                 e.stopPropagation()
                 logPlay(song.id)
                 useStore.getState().markPlayed(song.id)
-                window.open(song.youtube_url, '_blank')
+                window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
               }}
             >♪</span>
           )}
         </div>
       </div>
 
-      {/* 아티스트 */}
-      <div className="td" style={{ color: 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {song.artist}
       </div>
 
-      {/* 난이도 */}
       <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }}>
         <span className="level-val">
           <span className="int">{lvInt}</span>
@@ -157,7 +188,6 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
         </span>
       </div>
 
-      {/* 유저 난이도 */}
       <div className="td num">
         {song.user_level_avg != null
           ? <span className="user-lv">{song.user_level_avg.toFixed(1)}</span>
@@ -165,15 +195,13 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
         }
       </div>
 
-      {/* BPM */}
       <div className="td num bpm-cell">
-        <span className="bpm-num">{song.bpm.toFixed(1)}</span>
+        <span className="bpm-num">{fmtBpm(song.bpm)}</span>
         <div className="bpm-wave">
           {bpmWaveBars(song.bpm).map((style, i) => <div key={i} className="bar" style={style} />)}
         </div>
       </div>
 
-      {/* 콤보 */}
       <div className="td num">
         <span className="combo-num">{fmt(song.combo)}</span>
         <div className="combo-bar">
@@ -181,15 +209,12 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
         </div>
       </div>
 
-      {/* 시간 */}
       <div className="td num" style={{ color: 'var(--fg-2)' }}>{song.time}</div>
 
-      {/* 재생 */}
       <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
         {song.play_count ? fmt(song.play_count) : '—'}
       </div>
 
-      {/* 변속 */}
       <div className="td center">
         <span className={`variant${song.is_change ? ' has' : ''}`}>
           {song.is_change ? '✓' : '×'}
@@ -202,7 +227,7 @@ function SongRow({ song, index, style, onClick, isFav, canFav, onToggleFav }) {
 const SEPARATOR = { __type: 'separator' }
 
 export default function SongsTable({ exact, fuzzy, isMobile = false }) {
-  const { sort, setSort, openModal, search, user, favorites, toggleFavorite } = useStore()
+  const { sort, setSort, openModal, search, user, favorites, toggleFavorite, isAdmin } = useStore()
   const canFav = !!user
   const listRef = useRef(null)
   const scrollOffsetRef = useRef(0)
@@ -262,8 +287,8 @@ export default function SongsTable({ exact, fuzzy, isMobile = false }) {
     if (isMobile) {
       return <MobileCard song={item} style={style} onClick={handleRowClick} isFav={isFav} canFav={canFav} onToggleFav={toggleFavorite} />
     }
-    return <SongRow song={item} index={index} style={style} onClick={handleRowClick} isFav={isFav} canFav={canFav} onToggleFav={toggleFavorite} />
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite])
+    return <SongRow song={item} index={index} style={style} onClick={handleRowClick} isFav={isFav} canFav={canFav} onToggleFav={toggleFavorite} isAdmin={isAdmin} />
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
