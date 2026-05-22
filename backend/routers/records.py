@@ -5,9 +5,10 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 import httpx
-from pydantic import BaseModel, Field
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+from typing import Optional
 
 from auth import fetch_user, get_current_user_id, require_user_id
 from database import get_conn
@@ -80,7 +81,6 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
         if screenshot_path and (owner_show or is_mine)
         else None
     )
-    # memo_public=true 이거나 본인 기록일 때만 노출.
     visible_memo = memo if (memo_public or is_mine) else None
     return RecordResponse(
         id=rid,
@@ -103,10 +103,10 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
 
 @router.get("/songs/{song_id}/records", response_model=list[RecordResponse])
 def get_records(request: Request, song_id: int):
-    """기존 성과 등록 탭용. YouTube URL/메모 기반 기록만 반환.
-    스크린샷 기반 판정% 기록(judgment_percent IS NOT NULL)은 '랭킹' 탭 전용이므로 제외한다.
-    visibility=private은 본인 것이 아니면 숨긴다.
-    로그인 유저의 닉네임은 users.nickname 최신값으로 치환.
+    """곡 상세 '플레이 영상' 탭. 두 종류를 함께 반환:
+      - judgment_percent IS NULL 인 기록 (영상/메모 기반, visibility 정책 적용)
+      - is_play_video = TRUE 인 기록 (스크린샷 등록 시 옵션 체크 — visibility 무관 노출)
+    is_play_video 기록은 visibility/memo_public을 'public'으로 강제 — 사용자가 명시적으로 공개 등록한 것.
     """
     current_uid = get_current_user_id(request)
     with get_conn() as conn:
@@ -115,13 +115,21 @@ def get_records(request: Request, song_id: int):
                 """
                 SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                        r.score, r.judgment_percent, r.combo, r.youtube_url,
-                       r.youtube_title, r.memo, r.visibility, r.created_at, r.user_id,
-                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE), r.memo_public
+                       r.youtube_title, r.memo,
+                       CASE WHEN r.is_play_video THEN 'public' ELSE r.visibility END AS visibility,
+                       r.created_at, r.user_id,
+                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE),
+                       (r.memo_public OR r.is_play_video) AS memo_public
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s
-                  AND r.judgment_percent IS NULL
-                  AND (r.visibility <> 'private' OR r.user_id = %s)
+                  AND (
+                    r.is_play_video = TRUE
+                    OR (
+                      r.judgment_percent IS NULL
+                      AND (r.visibility <> 'private' OR r.user_id = %s)
+                    )
+                  )
                 ORDER BY r.score DESC NULLS LAST, r.created_at ASC
                 """,
                 (song_id, current_uid),
@@ -132,7 +140,7 @@ def get_records(request: Request, song_id: int):
 
 @router.get("/songs/{song_id}/ranking", response_model=list[RecordResponse])
 def get_ranking(request: Request, song_id: int, limit: int = 10):
-    """판정 랭킹 TOP N. 유저별 최고 judgment_percent 1건, 비공개는 미표시.
+    """판정 랭킹 TOP N. 유저별 최고 judgment_percent 1건, 비공개·수동입력은 미표시.
     로그인 유저의 닉네임은 users.nickname 최신값으로 치환.
     """
     current_uid = get_current_user_id(request)
@@ -219,10 +227,8 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 detail="YouTube 주소 형식이 올바르지 않습니다 (https://youtu.be/<id> 또는 https://www.youtube.com/watch?v=<id>)",
             )
         youtube_title = await _fetch_youtube_title(body.youtube_url)
-        if body.register_as_play_video and youtube_title is None:
-            raise HTTPException(status_code=422, detail="Unavailable YouTube videos cannot be registered")
-
-    is_play_video = bool(body.register_as_play_video and body.youtube_url)
+        if youtube_title is None:
+            raise HTTPException(status_code=422, detail="비공개 영상은 등록할 수 없습니다.")
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -232,6 +238,7 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 if row and body.combo > row[0]:
                     raise HTTPException(status_code=422, detail="콤보가 곡의 최대값을 초과합니다")
 
+            is_play_video = bool(body.register_as_play_video and body.youtube_url)
             cur.execute(
                 """
                 INSERT INTO records
@@ -418,23 +425,23 @@ def my_screenshot_filenames(request: Request):
     return {"filenames": [r[0] for r in rows if r[0]]}
 
 class PlayVideoCreate(BaseModel):
-    nickname: str = Field(default="", max_length=30)
+    nickname: str = Field(min_length=1, max_length=30)
     youtube_url: str = Field(min_length=1, max_length=500)
-    description: str | None = Field(default=None, max_length=2000)
+    description: Optional[str] = Field(default=None, max_length=2000)
 
 
 class PlayVideoResponse(BaseModel):
     id: int
     nickname: str
     youtube_url: str
-    youtube_title: str | None = None
-    description: str | None
+    youtube_title: Optional[str] = None
+    description: Optional[str]
     created_at: str
 
 
 @router.get("/songs/{song_id}/play-videos", response_model=list[PlayVideoResponse])
 def get_play_videos(song_id: int):
-    """Song detail play videos are stored in achievements, not records."""
+    """곡 상세 '플레이 영상' 탭. achievements 테이블에서 등록순(최신 → 과거)으로 반환."""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -458,9 +465,7 @@ def get_play_videos(song_id: int):
             rows = cur.fetchall()
     return [
         PlayVideoResponse(
-            id=r[0],
-            nickname=r[1] or "",
-            youtube_url=r[2] or "",
+            id=r[0], nickname=r[1] or "", youtube_url=r[2] or "",
             youtube_title=r[3],
             description=r[4],
             created_at=r[5].isoformat() if r[5] else "",
@@ -478,14 +483,15 @@ async def add_play_video(request: Request, song_id: int, body: PlayVideoCreate):
     if not nickname and user_row and user_row.get("nickname"):
         nickname = user_row["nickname"]
     if not nickname:
-        raise HTTPException(status_code=422, detail="Nickname is required")
+        raise HTTPException(status_code=422, detail="닉네임을 입력해주세요")
 
     if not _extract_video_id(body.youtube_url):
-        raise HTTPException(status_code=422, detail="Invalid YouTube URL")
-
-    # achievements has no youtube_title column; oEmbed is only used to reject unavailable videos.
+        raise HTTPException(
+            status_code=422,
+            detail="YouTube 주소 형식이 올바르지 않습니다 (https://youtu.be/<id> 또는 https://www.youtube.com/watch?v=<id>)",
+        )
     if (await _fetch_youtube_title(body.youtube_url)) is None:
-        raise HTTPException(status_code=422, detail="Unavailable YouTube videos cannot be registered")
+        raise HTTPException(status_code=422, detail="비공개 영상은 등록할 수 없습니다.")
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -502,9 +508,7 @@ async def add_play_video(request: Request, song_id: int, body: PlayVideoCreate):
         conn.commit()
 
     return PlayVideoResponse(
-        id=r[0],
-        nickname=nickname,
-        youtube_url=body.youtube_url,
-        description=body.description,
+        id=r[0], nickname=nickname,
+        youtube_url=body.youtube_url, description=body.description,
         created_at=r[1].isoformat(),
     )
