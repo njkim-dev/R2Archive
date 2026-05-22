@@ -8,8 +8,13 @@ import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
 import MyPageModal from './components/MyPageModal'
 import SongsPage from './pages/SongsPage'
+import PmangSongsPage from './pages/PmangSongsPage'
+import RankingsPage from './pages/RankingsPage'
 import GroupsPage from './pages/GroupsPage'
 import GroupDetailPage from './pages/GroupDetailPage'
+import PersonalCategoriesPage from './pages/PersonalCategoriesPage'
+import PersonalCategoryDetailPage from './pages/PersonalCategoryDetailPage'
+import PersonalCategorySubscribersPage from './pages/PersonalCategorySubscribersPage'
 import FeedbackPage from './pages/FeedbackPage'
 
 export default function App() {
@@ -33,6 +38,7 @@ export default function App() {
     }
   }, [])  // eslint-disable-line
 
+  // 곡 상세 모달은 #song=<id> 해시로 표현. 라우트(/, /rankings)와 직교 — 어느 페이지에서든 해시가 있으면 모달이 열림.
   useEffect(() => {
     const openFromHash = () => {
       const match = location.hash.match(/^#song=(\d+)$/)
@@ -42,6 +48,7 @@ export default function App() {
       const song = songs.find(x => x.id === id)
       if (!song) { alert('존재하지 않는 곡입니다. URL을 확인해주세요.'); return }
       const { modalOpen, closeModal } = useStore.getState()
+      // 이미 열려있는 모달을 다른 곡으로 전환하려면 닫고 다시 열어야 SongModal의 useEffect가 다시 발동.
       if (modalOpen) {
         closeModal()
         setTimeout(() => openModal(song), 150)
@@ -66,16 +73,21 @@ export default function App() {
         if (song) open(song)
       }
     }).catch(console.error)
-  }, [])  // eslint-disable-line
+  }, [])
 
   return (
     <>
       <Routes>
         <Route path="/" element={<SongsPage />} />
+        <Route path="/pmang-songs" element={<PmangSongsPage />} />
+        <Route path="/rankings" element={<RankingsPage />} />
+        <Route path="/rankings/:nickname" element={<RankingsPage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/groups/:gid" element={<GroupDetailPage />} />
+        <Route path="/personal-categories" element={<PersonalCategoriesPage />} />
+        <Route path="/personal-categories/:code/subscribers" element={<PersonalCategorySubscribersPage />} />
+        <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
         <Route path="/feedback" element={<FeedbackPage />} />
-        <Route path="*" element={<SongsPage />} />
       </Routes>
       <SongModal />
       <LoginModal />

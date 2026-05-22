@@ -74,6 +74,10 @@ export const uploadRecordScreenshot = (recordId, file) => {
 export const getAuthMe = () => api.get('/auth/me').then(r => r.data)
 export const getAdminStatus = () => api.get('/auth/admin-status').then(r => r.data).catch(() => ({ is_admin: false }))
 export const logoutApi = () => api.post('/auth/logout').then(r => r.data)
+export const getYoutubeCandidates = (status = 'pending') =>
+  api.get('/admin/youtube-candidates', { params: { status } }).then(r => r.data)
+export const getPmangYoutubeCandidates = (status = 'pending') =>
+  api.get('/admin/pmang-youtube-candidates', { params: { status } }).then(r => r.data)
 export const patchMe = (body) => api.patch('/users/me', body).then(r => r.data)
 export const checkNickname = (q) =>
   api.get('/users/check-nickname', { params: { q } }).then(r => r.data)
@@ -100,12 +104,16 @@ export const lookupRankingUser = (nickname) =>
   api.get('/rankings/users/lookup', { params: { nickname } }).then(r => r.data)
 export const getUserRankingRecords = (userId) =>
   api.get(`/rankings/users/${userId}/records`).then(r => r.data)
+
+// ---------- Groups ----------
 export const getMyGroups = () => api.get('/me/groups').then(r => r.data)
 export const getGroupDetail = (gid) => api.get(`/groups/${gid}`).then(r => r.data)
 export const createGroup = (body) => api.post('/groups', body).then(r => r.data)
 export const joinGroup = (body) => api.post('/groups/join', body).then(r => r.data)
 export const lookupGroupByCode = (code) =>
   api.get(`/groups/by-code/${encodeURIComponent(code)}`).then(r => r.data)
+
+// ---------- Feedback ----------
 export const listFeedback = (params = {}) =>
   api.get('/feedback', { params }).then(r => r.data)
 export const createFeedback = (body) =>
@@ -131,3 +139,26 @@ export const getGroupLeaderboard = (gid) => api.get(`/groups/${gid}/leaderboard`
 export const getGroupFeed = (gid, limit = 80) =>
   api.get(`/groups/${gid}/feed`, { params: { limit } }).then(r => r.data)
 export const getGroupSongFirsts = (gid) => api.get(`/groups/${gid}/song-firsts`).then(r => r.data)
+
+// ---------- Personal Categories ----------
+export const getMyPersonalCategories = () => api.get('/me/personal-categories').then(r => r.data)
+export const getEditablePersonalCategories = () => api.get('/me/personal-categories/editable').then(r => r.data)
+export const getPublicPersonalCategories = () => api.get('/personal-categories/public').then(r => r.data)
+export const getMySubscribedPersonalCategories = () => api.get('/me/personal-category-subscriptions').then(r => r.data)
+export const createPersonalCategory = (body) => api.post('/personal-categories', body).then(r => r.data)
+export const patchPersonalCategory = (categoryId, body) =>
+  api.patch(`/personal-categories/${categoryId}`, body).then(r => r.data)
+export const getPersonalCategoryByCode = (code) =>
+  api.get(`/personal-categories/by-code/${encodeURIComponent(code)}`).then(r => r.data)
+export const subscribePersonalCategory = (code) =>
+  api.post(`/personal-categories/by-code/${encodeURIComponent(code)}/subscribe`).then(r => r.data)
+export const unsubscribePersonalCategory = (code) =>
+  api.delete(`/personal-categories/by-code/${encodeURIComponent(code)}/subscribe`).then(r => r.data)
+export const setPersonalCategoryMemberRole = (categoryId, memberUserId, role) =>
+  api.patch(`/personal-categories/${categoryId}/members/${memberUserId}/role`, { role }).then(r => r.data)
+export const deletePersonalCategoryMember = (categoryId, memberUserId) =>
+  api.delete(`/personal-categories/${categoryId}/members/${memberUserId}`).then(r => r.data)
+export const addSongToPersonalCategory = (categoryId, songId) =>
+  api.post(`/personal-categories/${categoryId}/songs`, { song_id: songId }).then(r => r.data)
+export const deleteSongFromPersonalCategory = (categoryId, songId) =>
+  api.delete(`/personal-categories/${categoryId}/songs/${songId}`).then(r => r.data)

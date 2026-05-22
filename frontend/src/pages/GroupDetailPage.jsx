@@ -80,6 +80,7 @@ function Hero({ g, hue, isOwner, isStaff, pendingCount, onCopyCode, onRegen, onG
             <button className="gd-btn primary" onClick={() => navigate(`/rankings?group=${g.id}`)}>
               이 그룹 랭킹 보기
             </button>
+            {/* 가입 코드 표시·복사: owner/manager + admin. 재발급은 owner만 (아래) */}
             {canSeeCode && !g.code_revoked && g.join_code && (
               <button className="gd-btn ghost" onClick={onCopyCode}>
                 <span className="gd-code-pill mono">{g.join_code}</span>
@@ -107,6 +108,7 @@ function Hero({ g, hue, isOwner, isStaff, pendingCount, onCopyCode, onRegen, onG
   )
 }
 
+// ---------- Tabs ----------
 function TabsStrip({ tab, setTab, isStaff, pendingCount, memberCount }) {
   const tabs = [
     { key: 'leaderboard', label: '리더보드' },
@@ -132,11 +134,14 @@ function TabsStrip({ tab, setTab, isStaff, pendingCount, memberCount }) {
   )
 }
 
+// 핀 이동 헬퍼 — 모든 탭에서 동일하게 사용.
 function jumpToPin(navigate, userId, nickname) {
   const q = new URLSearchParams({ pinUser: String(userId), pinNick: nickname || '' })
   navigate(`/rankings?${q.toString()}`)
 }
 
+// 검색 비허용 사용자는 클릭해도 랭킹 페이지로 가지 않게 차단.
+// memberMap: Map<user_id, { searchable, ... }>
 function safeJumpToPin(navigate, userId, nickname, memberMap, currentUserId) {
   const info = memberMap?.get(userId)
   if (info && info.searchable === 'private' && userId !== currentUserId) {
@@ -146,9 +151,11 @@ function safeJumpToPin(navigate, userId, nickname, memberMap, currentUserId) {
   jumpToPin(navigate, userId, nickname)
 }
 
+// ---------- Leaderboard tab ----------
 function LeaderboardTab({ leaderboard, currentUserId, navigate, memberMap, isMobile = false }) {
   const [sort, setSort] = useState({ key: 'rank', dir: 'asc' })
 
+  // 합성 점수 (디자인 시안과 동일): avg*0.5 + log(numSongs+1)*8 + top99*0.6
   const enriched = useMemo(() => {
     const out = leaderboard.map(s => {
       const avg = s.avg_jp ?? 0
@@ -355,6 +362,7 @@ function LeaderboardTab({ leaderboard, currentUserId, navigate, memberMap, isMob
   )
 }
 
+// ---------- Feed tab ----------
 function FeedTab({ feed, navigate, memberMap, currentUserId }) {
   const { songs, openModal } = useStore()
   const [viewerUrl, setViewerUrl] = useState(null)   // 스크린샷 보기
@@ -376,6 +384,7 @@ function FeedTab({ feed, navigate, memberMap, currentUserId }) {
     )
   }
 
+  // 일자별 그룹핑
   const groups = []
   let currentDay = null
   for (const ev of feed) {
@@ -429,6 +438,7 @@ function FeedTab({ feed, navigate, memberMap, currentUserId }) {
                           {isHigh ? ' 🏆' : isMid ? ' ✨' : ''}
                         </>}
                   </div>
+                  {/* 스크린샷/유튜브 아이콘 — 권한 통과 시 백엔드가 URL 채워줌 */}
                   {ev.kind === 'score' && (ev.screenshot_url || ev.youtube_url) && (
                     <div className="gd-feed-actions">
                       {ev.screenshot_url && (
@@ -484,6 +494,7 @@ function FeedTab({ feed, navigate, memberMap, currentUserId }) {
   )
 }
 
+// ---------- Firsts tab ----------
 function FirstsTab({ songFirsts, currentUserId, navigate, memberMap }) {
   const total = songFirsts.reduce((s, r) => s + r.num_firsts, 0)
   if (total === 0) {
@@ -538,11 +549,13 @@ function FirstsTab({ songFirsts, currentUserId, navigate, memberMap }) {
   )
 }
 
+// ---------- Members tab ----------
 function MembersTab({ g, leaderboard, currentUserId, navigate, memberMap }) {
   const { setRole, kick, transfer } = useGroupsStore()
   const isOwner = g.my_role === 'owner'
   const isStaff = isOwner || g.my_role === 'manager'
 
+  // member detail에 통계 합성
   const enriched = useMemo(() => {
     const lbMap = new Map(leaderboard.map(s => [s.user_id, s]))
     return g.members.map(m => ({ ...m, stat: lbMap.get(m.user_id) }))
@@ -607,6 +620,7 @@ function MembersTab({ g, leaderboard, currentUserId, navigate, memberMap }) {
   )
 }
 
+// ---------- Manage (applications) tab ----------
 function ManageTab({ g }) {
   const { accept, reject } = useGroupsStore()
 
@@ -645,6 +659,7 @@ function ManageTab({ g }) {
   )
 }
 
+// ---------- Settings tab ----------
 function SettingsTab({ g, navigate }) {
   const { patch, regenCode, revokeCode, remove, leave } = useGroupsStore()
   const isOwner = g.my_role === 'owner'
@@ -737,6 +752,7 @@ function SettingsTab({ g, navigate }) {
                 }}>
                   {g.code_revoked ? '폐기됨' : (g.join_code || '—')}
                 </span>
+                {/* 재발급/폐기는 owner 전용 */}
                 {isOwner && <button className="gd-btn ghost sm" onClick={onRegen}>재발급</button>}
                 {isOwner && !g.code_revoked && <button className="gd-btn warn sm" onClick={onRevoke}>폐기</button>}
               </div>
@@ -765,6 +781,8 @@ function SettingsTab({ g, navigate }) {
   )
 }
 
+// ---------- Page ----------
+// 가입 코드 형식 (XXXX-XXXX, 영숫자) 감지용.
 const JOIN_CODE_RE = /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/
 
 export default function GroupDetailPage() {
@@ -777,6 +795,8 @@ export default function GroupDetailPage() {
   const [tab, setTab] = useState('leaderboard')
   const [error, setError] = useState(null)
 
+  // /groups/<코드> 형식이면 join 흐름으로 리다이렉트 (로그인 여부 무관).
+  // GroupsPage가 ?code=<코드>를 보고 자동으로 가입 모달을 띄움.
   const isJoinCode = JOIN_CODE_RE.test(String(gidParam || ''))
 
   useEffect(() => {
@@ -799,12 +819,15 @@ export default function GroupDetailPage() {
 
   useEffect(() => { if (user) fetchMyGroups() }, [user, fetchMyGroups])
 
+  // user_id → 멤버 정보(searchable 등) lookup. 검색 비허용 사용자 클릭 차단용.
+  // 모든 hook은 early-return 이전에 호출돼야 React 규칙 위반이 없음.
   const memberMap = useMemo(() => {
     const m = new Map()
     for (const mem of (detail?.members || [])) m.set(mem.user_id, mem)
     return m
   }, [detail?.members])
 
+  // 모바일 wrapping은 분기마다 반복되므로 헬퍼로 묶음.
   const mobileShell = (content) => (
     <div className="app-mobile">{content}</div>
   )
@@ -818,6 +841,7 @@ export default function GroupDetailPage() {
     </div>
   )
 
+  // 비로그인 → 로그인 안내
   if (!user) {
     const inner = (
       <div className="gd-blocked">
@@ -858,6 +882,7 @@ export default function GroupDetailPage() {
   const hue = hueOf(g.id)
 
   const onCopyCode = async () => {
+    // 코드만이 아니라 즉시 가입 가능한 URL을 복사 — 받은 사람이 클릭만 하면 가입 모달이 열림.
     const url = `${window.location.origin}/groups/${g.join_code}`
     try {
       await navigator.clipboard.writeText(url)
@@ -1019,6 +1044,13 @@ function PageNav({ user }) {
           onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
         >
           <span>그룹</span>
+        </NavLink>
+        <NavLink
+          to="/personal-categories"
+          className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
+          onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+        >
+          <span>개인 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>

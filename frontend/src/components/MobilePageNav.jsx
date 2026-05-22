@@ -5,6 +5,7 @@ const PAGES = [
   { to: '/',            label: '곡',       end: true },
   { to: '/rankings',    label: '랭킹' },
   { to: '/groups',      label: '그룹',     needLogin: true },
+  { to: '/personal-categories', label: '카테고리', needLogin: true },
   { to: '/pmang-songs', label: '피망곡' },
   { to: '/feedback',    label: '피드백' },
 ]
