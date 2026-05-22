@@ -18,7 +18,12 @@ request_body {
 # API 및 정적 이미지 요청은 FastAPI로 프록시
 @backend path /api/* /static/*
 handle @backend {
-    reverse_proxy localhost:8000
+    reverse_proxy localhost:8000 {
+        # 외부에서 위조한 X-Forwarded-For를 제거하고 Caddy가 본 실제 client IP만 설정.
+        # rate_limit.py가 XFF 첫 항목을 신뢰하므로, 이 처리 없이는 클라이언트가 헤더를 직접 박아 IP rate limit 우회 가능.
+        header_up -X-Forwarded-For
+        header_up X-Forwarded-For {remote_host}
+    }
 }
 
 # React SPA
