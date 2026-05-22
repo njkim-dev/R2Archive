@@ -78,6 +78,8 @@ export const addFavorite = (songId) =>
 export const removeFavorite = (songId) =>
   api.delete(`/users/me/favorites/${songId}`).then(r => r.data)
 export const getMyRecords = () => api.get('/users/me/records').then(r => r.data)
+export const saveManualRecords = (entries) =>
+  api.put('/users/me/records/manual', { entries }).then(r => r.data)
 export const getMyComments = () => api.get('/users/me/comments').then(r => r.data)
 export const deleteMyRecord = (recordId) =>
   api.delete(`/users/me/records/${recordId}`).then(r => r.data)
@@ -85,3 +87,11 @@ export const deleteMyComment = (commentId) =>
   api.delete(`/users/me/comments/${commentId}`).then(r => r.data)
 export const oauthLoginUrl = (provider, remember = false) =>
   `/api/auth/${provider}/login?remember=${remember ? '1' : '0'}`
+
+export const getRankings = (groupId = null) =>
+  api.get('/rankings/songs', { params: groupId ? { group_id: groupId } : {} }).then(r => r.data)
+export const searchRankingUsers = (q) => api.get('/rankings/users', { params: { q } }).then(r => r.data)
+export const lookupRankingUser = (nickname) =>
+  api.get('/rankings/users/lookup', { params: { nickname } }).then(r => r.data)
+export const getUserRankingRecords = (userId) =>
+  api.get(`/rankings/users/${userId}/records`).then(r => r.data)

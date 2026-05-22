@@ -129,8 +129,19 @@ class RecordResponse(BaseModel):
     memo_public: bool = False
     visibility: str = "public"
     is_mine: bool = False
+    is_manual: bool = False
     # 스크린샷이 업로드되어 있고 소유자가 공개(show_screenshot=true)한 경우에만 채워짐.
     screenshot_url: Optional[str] = None
     # 소유자가 스크린샷/미디어 공유를 허용했는지 (버튼 노출 판단용)
     owner_show_screenshot: bool = False
     created_at: datetime
+
+
+class ManualRecordEntry(BaseModel):
+    song_id: int = Field(ge=1)
+    judgment_percent: Optional[float] = Field(default=None, ge=0.0, le=99.0)
+    youtube_url: Optional[str] = Field(default=None, max_length=300)
+
+
+class ManualRecordsBulk(BaseModel):
+    entries: list[ManualRecordEntry] = Field(default_factory=list, max_length=2000)

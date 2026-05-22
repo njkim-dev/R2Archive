@@ -2,12 +2,16 @@ from pathlib import Path
 from typing import Optional
 
 import psycopg2
+import asyncio
+import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import fetch_user, require_user_id
 from database import get_conn
+from models import ManualRecordsBulk
 from rate_limit import limiter
+from routers.records import _extract_video_id
 
 _SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent.parent / "record_screenshots"
 
@@ -172,7 +176,7 @@ def get_my_records(request: Request):
                 SELECT r.id, r.song_id, s.name AS song_name, s.artist, s.level, s.image,
                        r.nickname, r.score, r.judgment_percent, r.combo,
                        r.youtube_url, r.youtube_title, r.memo, r.visibility,
-                       r.created_at, r.screenshot_filename, r.memo_public
+                       r.created_at, r.screenshot_filename, r.memo_public, r.is_manual
                 FROM records r
                 JOIN songs s ON s.id = r.song_id
                 WHERE r.user_id = %s
@@ -202,6 +206,7 @@ def get_my_records(request: Request):
                 "created_at": r[14].isoformat() if r[14] else None,
                 "has_screenshot": bool(r[15]),
                 "memo_public": bool(r[16]),
+                "is_manual": bool(r[17]),
             }
             for r in rows
         ]
@@ -243,6 +248,170 @@ def get_my_comments(request: Request):
             for r in rows
         ]
     }
+
+
+async def _verify_youtube_url(url: str) -> tuple[bool, str | None]:
+    """oEmbed로 URL 유효성 + 제목 조회. (valid, title) 반환. 401/404/timeout은 모두 invalid."""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(
+                "https://www.youtube.com/oembed",
+                params={"url": url, "format": "json"},
+            )
+        if r.status_code != 200:
+            return False, None
+        data = r.json()
+        title = data.get("title")
+        return True, (title.strip()[:200] if isinstance(title, str) else None)
+    except Exception:
+        return False, None
+
+
+@router.put("/me/records/manual")
+async def save_manual_records(request: Request, body: ManualRecordsBulk):
+    """랭킹 페이지 편집 모드의 일괄 저장.
+
+    동작:
+      - judgment_percent + youtube_url 둘 다 있는 entry: manual row + URL → 랭킹 합류
+      - judgment_percent만 있는 entry: manual row (자가신고, 랭킹 미반영)
+      - 둘 다 없는 entry: 기존 manual row 삭제
+      - youtube_url만 있는 entry: 무시 (URL 단독 등록 막음)
+
+    URL 검증:
+      1) 정규식으로 형식 확인
+      2) oEmbed 병렬 호출로 실제 영상 존재 확인
+      - 하나라도 실패 시 트랜잭션 진행 안 하고 422 + invalid 배열 응답.
+        invalid에는 song_id/song_title/artist/url 포함 → 프론트에서 안내 모달.
+    """
+    uid = require_user_id(request)
+    user_row = fetch_user(uid)
+    if not user_row:
+        raise HTTPException(status_code=403, detail="로그인이 필요합니다")
+    nickname = user_row.get("nickname") or ""
+    if not nickname:
+        raise HTTPException(status_code=422, detail="닉네임을 먼저 설정해주세요")
+    visibility = user_row.get("default_visibility") or "public"
+
+    invalid_song_ids: list[int] = []
+    invalid_url_map: dict[int, str] = {}
+    to_verify: list[tuple] = []
+
+    normalized_urls: dict[int, str] = {}
+
+    for i, entry in enumerate(body.entries):
+        raw_url = (entry.youtube_url or "").strip()
+        if not raw_url:
+            continue
+        if entry.judgment_percent is None:
+            continue
+        vid = _extract_video_id(raw_url)
+        if not vid:
+            invalid_song_ids.append(entry.song_id)
+            invalid_url_map[entry.song_id] = raw_url
+            continue
+        normalized_urls[i] = raw_url
+        to_verify.append((i, entry.song_id, raw_url))
+
+    titles: dict[int, str | None] = {}
+
+    if to_verify:
+        async def _check(item):
+            idx, sid, url = item
+            ok, title = await _verify_youtube_url(url)
+            return idx, sid, url, ok, title
+
+        results = await asyncio.gather(*[_check(it) for it in to_verify], return_exceptions=False)
+        for idx, sid, url, ok, title in results:
+            if not ok:
+                invalid_song_ids.append(sid)
+                invalid_url_map[sid] = url
+            else:
+                titles[idx] = title
+
+    if invalid_song_ids:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name, artist FROM songs WHERE id = ANY(%s)",
+                    (list(set(invalid_song_ids)),),
+                )
+                song_info = {r[0]: {"song_title": r[1], "artist": r[2]} for r in cur.fetchall()}
+        invalid_payload = []
+        for sid in invalid_song_ids:
+            info = song_info.get(sid, {"song_title": "", "artist": ""})
+            invalid_payload.append({
+                "song_id": sid,
+                "song_title": info["song_title"],
+                "artist": info["artist"],
+                "url": invalid_url_map.get(sid, ""),
+            })
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_youtube_urls", "invalid": invalid_payload},
+        )
+
+    inserted = 0
+    updated = 0
+    deleted = 0
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for i, entry in enumerate(body.entries):
+                jp = entry.judgment_percent
+                yt_url = normalized_urls.get(i)
+                yt_title = titles.get(i)
+
+                cur.execute(
+                    "SELECT id FROM records "
+                    "WHERE user_id = %s AND song_id = %s AND is_manual = TRUE "
+                    "ORDER BY created_at DESC",
+                    (uid, entry.song_id),
+                )
+                existing_ids = [r[0] for r in cur.fetchall()]
+
+                if jp is None:
+                    if existing_ids:
+                        cur.execute(
+                            "DELETE FROM records WHERE id = ANY(%s)",
+                            (existing_ids,),
+                        )
+                        deleted += len(existing_ids)
+                    continue
+
+                if existing_ids:
+                    keep_id = existing_ids[0]
+                    cur.execute(
+                        """
+                        UPDATE records
+                        SET judgment_percent = %s, visibility = %s,
+                            nickname = %s, youtube_url = %s, youtube_title = %s,
+                            created_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (jp, visibility, nickname, yt_url, yt_title, keep_id),
+                    )
+                    updated += 1
+                    if len(existing_ids) > 1:
+                        cur.execute(
+                            "DELETE FROM records WHERE id = ANY(%s)",
+                            (existing_ids[1:],),
+                        )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO records
+                            (song_id, user_id, nickname, judgment_percent,
+                             visibility, is_manual, youtube_url, youtube_title)
+                        VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s)
+                        """,
+                        (entry.song_id, uid, nickname, jp, visibility, yt_url, yt_title),
+                    )
+                    inserted += 1
+        conn.commit()
+
+    return {"ok": True, "inserted": inserted, "updated": updated, "deleted": deleted}
+
+
 
 
 @router.delete("/me/records/{record_id}", status_code=204)
