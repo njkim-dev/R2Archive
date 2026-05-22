@@ -289,7 +289,7 @@ function RecordsTab({ song }) {
   useEffect(() => { setNick(user?.nickname || '') }, [user?.id, user?.nickname])
 
   useEffect(() => {
-    getPlayVideos(song.id).then(setRecords).catch(() => setRecords([]))
+    getPlayVideos(song.id).then(setRecords)
   }, [song.id])
 
   const isValidYtUrl = (u) =>
@@ -330,7 +330,7 @@ function RecordsTab({ song }) {
       setDone(true); setUrl(''); setYtTitle(null); setMemo('')
     } catch (e) {
       const detail = e?.response?.data?.detail
-      alert(typeof detail === 'string' ? detail : 'Failed to register play video')
+      alert(typeof detail === 'string' ? detail : '플레이 영상 등록에 실패했어요')
     } finally {
       setSubmitting(false)
     }
@@ -356,10 +356,10 @@ function RecordsTab({ song }) {
 
         <div style={{ display: 'grid', gap: 10, marginBottom: 10 }}>
           {!user && (
-          <div className="rf-field">
-            <label>닉네임</label>
-            <input value={nick} onChange={e => setNick(e.target.value)} placeholder="닉네임" />
-          </div>
+            <div className="rf-field">
+              <label>닉네임</label>
+              <input value={nick} onChange={e => setNick(e.target.value)} placeholder="닉네임" />
+            </div>
           )}
           <div className="rf-field">
             <label>YouTube URL</label>
