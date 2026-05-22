@@ -20,6 +20,14 @@ api.interceptors.response.use(
 
 export const getSongs = () => api.get('/songs').then(r => r.data)
 export const getMeta = () => api.get('/meta').then(r => r.data)
+export const getPmangSongs = () => api.get('/pmang-songs').then(r => r.data)
+export const getPmangComments = (id) => api.get(`/pmang-songs/${id}/comments`).then(r => r.data)
+export const addPmangComment = (id, body) => api.post(`/pmang-songs/${id}/comments`, body).then(r => r.data)
+export const getPmangRecords = (id) => api.get(`/pmang-songs/${id}/records`).then(r => r.data)
+export const addPmangRecord = (id, body) => api.post(`/pmang-songs/${id}/records`, body).then(r => r.data)
+export const getMyPmangFavorites = () => api.get('/users/me/pmang-favorites').then(r => r.data)
+export const addPmangFavorite = (id) => api.post(`/users/me/pmang-favorites/${id}`).then(r => r.data)
+export const removePmangFavorite = (id) => api.delete(`/users/me/pmang-favorites/${id}`).then(r => r.data)
 export const getSong = (id) => api.get(`/songs/${id}`).then(r => r.data)
 export const logPlay = (id) => api.post(`/songs/${id}/play`, { session_id: getSessionId() }).catch(() => {})
 

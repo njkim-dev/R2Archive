@@ -10,9 +10,10 @@ from slowapi import _rate_limit_exceeded_handler
 
 from database import init_pool
 from rate_limit import limiter
-from routers import songs, comments, perceived, feedback, records, auth_oauth, users, parse_screenshot
+from routers import songs, comments, perceived, feedback, records, auth_oauth, users, parse_screenshot, pmang_songs, pmang_user
 
 STATIC_DIR = Path(__file__).parent.parent / "rnr_image"
+PMANG_STATIC_DIR = Path(__file__).parent.parent / "pmang_image"
 
 _default_origins = "http://localhost:5173,http://localhost:3000"
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",")]
@@ -46,8 +47,12 @@ app.include_router(records.router)
 app.include_router(parse_screenshot.router)
 app.include_router(auth_oauth.router)
 app.include_router(users.router)
+app.include_router(pmang_songs.router)
+app.include_router(pmang_user.router)
 
 if STATIC_DIR.exists():
     app.mount("/static/rnr_image", StaticFiles(directory=str(STATIC_DIR)), name="rnr_image")
+if PMANG_STATIC_DIR.exists():
+    app.mount("/static/pmang_image", StaticFiles(directory=str(PMANG_STATIC_DIR)), name="pmang_image")
 
 # records.py ) record_screenshots 는 Caddy 정적 서빙이 아닌, /api/records/{id}/screenshot 라우터가 권한 검사 후 직접 서빙함.
