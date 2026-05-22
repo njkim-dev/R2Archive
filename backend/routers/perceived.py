@@ -1,8 +1,9 @@
 """체감 난이도 투표.
 
-IP 등 사용자 개인정보를 수집하지 않고, 비회원 투표 참여를 유도하기 위해 rate limit으로만 어뷰징 방어함
+IP 등 사용자 개인정보를 수집하지 않고, 비회원 투표 참여를 유도하기 위해 rate limit으로만 어뷰징 방어함.
 """
 from fastapi import APIRouter, HTTPException, Request
+from auth import get_current_user_id
 from database import get_conn
 from models import PerceivedCreate, PerceivedUpdate, PerceivedDelete, PerceivedStats
 from rate_limit import limiter, ip_song_key
@@ -17,7 +18,8 @@ def _level_to_bin(level: float) -> int:
 
 
 @router.get("/{song_id}/perceived/stats", response_model=PerceivedStats)
-def get_perceived_stats(song_id: int, anon_id: str = ""):
+def get_perceived_stats(request: Request, song_id: int, anon_id: str = ""):
+    uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -27,10 +29,19 @@ def get_perceived_stats(song_id: int, anon_id: str = ""):
             votes = [float(r[0]) for r in cur.fetchall()]
 
             my_vote = None
-            if anon_id:
+            if uid is not None:
                 cur.execute(
                     "SELECT level, opinion FROM perceived_difficulty "
-                    "WHERE song_id = %s AND anon_id = %s",
+                    "WHERE song_id = %s AND user_id = %s",
+                    (song_id, uid)
+                )
+                row = cur.fetchone()
+                if row:
+                    my_vote = {"level": float(row[0]), "opinion": row[1]}
+            elif anon_id:
+                cur.execute(
+                    "SELECT level, opinion FROM perceived_difficulty "
+                    "WHERE song_id = %s AND anon_id = %s AND user_id IS NULL",
                     (song_id, anon_id)
                 )
                 row = cur.fetchone()
@@ -48,19 +59,53 @@ def get_perceived_stats(song_id: int, anon_id: str = ""):
 @router.post("/{song_id}/perceived", status_code=201)
 @limiter.limit("10/hour", key_func=ip_song_key)
 def submit_perceived(request: Request, song_id: int, body: PerceivedCreate):
+    uid = get_current_user_id(request)
+    if uid is None and not body.anon_id:
+        raise HTTPException(status_code=422, detail="식별자가 없습니다")
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id FROM perceived_difficulty WHERE song_id = %s AND anon_id = %s",
-                (song_id, body.anon_id)
-            )
-            if cur.fetchone():
-                raise HTTPException(status_code=409, detail="이미 투표했습니다. 수정은 PUT을 사용해주세요")
-            cur.execute(
-                "INSERT INTO perceived_difficulty (song_id, anon_id, level, opinion) "
-                "VALUES (%s, %s, %s, %s)",
-                (song_id, body.anon_id, body.level, body.opinion)
-            )
+            if uid is not None:
+                cur.execute(
+                    "SELECT id FROM perceived_difficulty WHERE song_id = %s AND user_id = %s",
+                    (song_id, uid)
+                )
+                if cur.fetchone():
+                    raise HTTPException(
+                        status_code=409,
+                        detail="이미 투표했습니다. 수정은 PUT을 사용해주세요"
+                    )
+                migrated = False
+                if body.anon_id:
+                    cur.execute(
+                        "UPDATE perceived_difficulty "
+                        "SET user_id = %s, anon_id = NULL, level = %s, opinion = %s, updated_at = NOW() "
+                        "WHERE song_id = %s AND anon_id = %s AND user_id IS NULL",
+                        (uid, body.level, body.opinion, song_id, body.anon_id)
+                    )
+                    migrated = cur.rowcount > 0
+                if not migrated:
+                    cur.execute(
+                        "INSERT INTO perceived_difficulty (song_id, user_id, level, opinion) "
+                        "VALUES (%s, %s, %s, %s)",
+                        (song_id, uid, body.level, body.opinion)
+                    )
+            else:
+                cur.execute(
+                    "SELECT id FROM perceived_difficulty "
+                    "WHERE song_id = %s AND anon_id = %s AND user_id IS NULL",
+                    (song_id, body.anon_id)
+                )
+                if cur.fetchone():
+                    raise HTTPException(
+                        status_code=409,
+                        detail="이미 투표했습니다. 수정은 PUT을 사용해주세요"
+                    )
+                cur.execute(
+                    "INSERT INTO perceived_difficulty (song_id, anon_id, level, opinion) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (song_id, body.anon_id, body.level, body.opinion)
+                )
         conn.commit()
     return {"ok": True}
 
@@ -68,15 +113,44 @@ def submit_perceived(request: Request, song_id: int, body: PerceivedCreate):
 @router.put("/{song_id}/perceived")
 @limiter.limit("10/hour", key_func=ip_song_key)
 def update_perceived(request: Request, song_id: int, body: PerceivedUpdate):
+    uid = get_current_user_id(request)
+    if uid is None and not body.anon_id:
+        raise HTTPException(status_code=422, detail="식별자가 없습니다")
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE perceived_difficulty SET level=%s, opinion=%s, updated_at=NOW() "
-                "WHERE song_id=%s AND anon_id=%s",
-                (body.level, body.opinion, song_id, body.anon_id)
-            )
-            if cur.rowcount == 0:
-                raise HTTPException(status_code=404, detail="투표 내역이 없습니다. 등록은 POST를 사용해주세요")
+            if uid is not None:
+                cur.execute(
+                    "UPDATE perceived_difficulty "
+                    "SET level=%s, opinion=%s, updated_at=NOW() "
+                    "WHERE song_id=%s AND user_id=%s",
+                    (body.level, body.opinion, song_id, uid)
+                )
+                affected = cur.rowcount
+                if affected == 0 and body.anon_id:
+                    cur.execute(
+                        "UPDATE perceived_difficulty "
+                        "SET user_id=%s, anon_id=NULL, level=%s, opinion=%s, updated_at=NOW() "
+                        "WHERE song_id=%s AND anon_id=%s AND user_id IS NULL",
+                        (uid, body.level, body.opinion, song_id, body.anon_id)
+                    )
+                    affected = cur.rowcount
+                if affected == 0:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="투표 내역이 없습니다. 등록은 POST를 사용해주세요"
+                    )
+            else:
+                cur.execute(
+                    "UPDATE perceived_difficulty SET level=%s, opinion=%s, updated_at=NOW() "
+                    "WHERE song_id=%s AND anon_id=%s AND user_id IS NULL",
+                    (body.level, body.opinion, song_id, body.anon_id)
+                )
+                if cur.rowcount == 0:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="투표 내역이 없습니다. 등록은 POST를 사용해주세요"
+                    )
         conn.commit()
     return {"ok": True}
 
@@ -84,13 +158,34 @@ def update_perceived(request: Request, song_id: int, body: PerceivedUpdate):
 @router.delete("/{song_id}/perceived")
 @limiter.limit("10/hour", key_func=ip_song_key)
 def delete_perceived(request: Request, song_id: int, body: PerceivedDelete):
+    uid = get_current_user_id(request)
+    if uid is None and not body.anon_id:
+        raise HTTPException(status_code=422, detail="식별자가 없습니다")
+
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM perceived_difficulty WHERE song_id=%s AND anon_id=%s",
-                (song_id, body.anon_id)
-            )
-            if cur.rowcount == 0:
-                raise HTTPException(status_code=404, detail="투표 내역이 없습니다")
+            if uid is not None:
+                cur.execute(
+                    "DELETE FROM perceived_difficulty WHERE song_id=%s AND user_id=%s",
+                    (song_id, uid)
+                )
+                total = cur.rowcount
+                if body.anon_id:
+                    cur.execute(
+                        "DELETE FROM perceived_difficulty "
+                        "WHERE song_id=%s AND anon_id=%s AND user_id IS NULL",
+                        (song_id, body.anon_id)
+                    )
+                    total += cur.rowcount
+                if total == 0:
+                    raise HTTPException(status_code=404, detail="투표 내역이 없습니다")
+            else:
+                cur.execute(
+                    "DELETE FROM perceived_difficulty "
+                    "WHERE song_id=%s AND anon_id=%s AND user_id IS NULL",
+                    (song_id, body.anon_id)
+                )
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="투표 내역이 없습니다")
         conn.commit()
     return {"ok": True}

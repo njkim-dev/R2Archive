@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from auth import get_current_user_id
+from auth import get_current_user_id, fetch_user
 from database import get_conn
 from models import CommentCreate, CommentResponse
 from rate_limit import limiter, ip_song_key
@@ -35,7 +35,12 @@ def add_comment(request: Request, song_id: int, body: CommentCreate):
     current_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            if not body.nickname or not body.nickname.strip():
+            if current_uid is not None:
+                user_row = fetch_user(current_uid)
+                nickname = (user_row.get("nickname") or "").strip() if user_row else ""
+                if not nickname:
+                    raise HTTPException(status_code=422, detail="닉네임을 먼저 설정해주세요")
+            elif not body.nickname or not body.nickname.strip():
                 cur.execute("SELECT nextval('anon_comment_seq')")
                 seq = cur.fetchone()[0]
                 nickname = f"댓글작성자{seq}"
