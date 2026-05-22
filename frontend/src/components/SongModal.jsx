@@ -921,6 +921,12 @@ function MobileDetail({ song, detail, onClose }) {
   )
 }
 
+function catFromLevel(lv) {
+  if (lv >= 7) return 'sun'
+  if (lv >= 4) return 'moon'
+  return 'star'
+}
+
 export default function SongModal() {
   const isMobile = useMobile()
   const { modalOpen, modalSong, closeModal, openFeedback, user, favorites, toggleFavorite } = useStore()
@@ -978,7 +984,11 @@ export default function SongModal() {
     const song = detail ?? modalSong
     if (!song) return null
     return (
-      <div className={`mob-detail${modalOpen ? ' open' : ''}`} aria-hidden={!modalOpen}>
+      <div
+        className={`mob-detail${modalOpen ? ' open' : ''}`}
+        data-cat={catFromLevel(song.level)}
+        aria-hidden={!modalOpen}
+      >
         <MobileDetail
           song={song}
           detail={detail}
@@ -1011,7 +1021,11 @@ export default function SongModal() {
   }
 
   return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeModal()}>
+    <div
+      className="modal-backdrop"
+      data-cat={catFromLevel(song.level)}
+      onClick={e => e.target === e.currentTarget && closeModal()}
+    >
       <div className="modal">
           <div className="m-hero">
           <div className="m-top">
