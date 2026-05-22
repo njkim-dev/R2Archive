@@ -35,7 +35,9 @@ export const getComments = (id) => api.get(`/songs/${id}/comments`).then(r => r.
 export const addComment = (id, body) => api.post(`/songs/${id}/comments`, body).then(r => r.data)
 
 export const getPerceivedStats = (id, anonId) =>
-  api.get(`/songs/${id}/perceived/stats`, { params: { anon_id: anonId } }).then(r => r.data)
+  api.get(`/songs/${id}/perceived/stats`, {
+    params: anonId ? { anon_id: anonId } : {},
+  }).then(r => r.data)
 export const submitPerceived = (id, body) => api.post(`/songs/${id}/perceived`, body).then(r => r.data)
 export const updatePerceived = (id, body) => api.put(`/songs/${id}/perceived`, body).then(r => r.data)
 export const deletePerceived = (id, body) => api.delete(`/songs/${id}/perceived`, { data: body }).then(r => r.data)

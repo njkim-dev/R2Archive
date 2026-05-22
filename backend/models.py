@@ -75,19 +75,19 @@ class CommentResponse(BaseModel):
 
 
 class PerceivedCreate(BaseModel):
-    anon_id: str = Field(min_length=8, max_length=64)
+    anon_id: Optional[str] = Field(default=None, min_length=8, max_length=64)
     level: float = Field(ge=0.5, le=12.0)
     opinion: Optional[str] = Field(default=None, max_length=500)
 
 
 class PerceivedUpdate(BaseModel):
-    anon_id: str = Field(min_length=8, max_length=64)
+    anon_id: Optional[str] = Field(default=None, min_length=8, max_length=64)
     level: float = Field(ge=0.5, le=12.0)
     opinion: Optional[str] = Field(default=None, max_length=500)
 
 
 class PerceivedDelete(BaseModel):
-    anon_id: str = Field(min_length=8, max_length=64)
+    anon_id: Optional[str] = Field(default=None, min_length=8, max_length=64)
 
 
 class PerceivedStats(BaseModel):

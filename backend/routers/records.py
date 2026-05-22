@@ -367,7 +367,7 @@ def get_record_screenshot(request: Request, record_id: int):
             )
             row = cur.fetchone()
     if not row or not row[1]:
-        raise HTTPException(status_code=404, detail="Screenshot not found")
+        raise HTTPException(status_code=404, detail="스크린샷을 찾을 수 없습니다")
     owner_uid, path, owner_show, owner_searchable = row
     is_mine = (current_uid is not None and owner_uid is not None
                and int(owner_uid) == int(current_uid))
@@ -390,14 +390,14 @@ def get_record_screenshot(request: Request, record_id: int):
                     if cur2.fetchone():
                         allowed = True
         if not allowed:
-            raise HTTPException(status_code=403, detail="Screenshot is not shared")
+            raise HTTPException(status_code=403, detail="공유되지 않은 스크린샷입니다")
 
     safe_name = Path(path).name
     file_path = (_SCREENSHOTS_DIR / safe_name).resolve()
     if not str(file_path).startswith(str(_SCREENSHOTS_DIR.resolve())):
-        raise HTTPException(status_code=404, detail="Screenshot not found")
+        raise HTTPException(status_code=404, detail="스크린샷을 찾을 수 없습니다")
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Screenshot file does not exist")
+        raise HTTPException(status_code=404, detail="스크린샷 파일이 존재하지 않습니다")
     return FileResponse(
         str(file_path),
         headers={"Cache-Control": "private, max-age=60"},

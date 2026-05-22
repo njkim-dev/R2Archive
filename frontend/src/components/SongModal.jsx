@@ -135,16 +135,18 @@ function PerceivedSection({ song }) {
   const [opinion, setOpinion] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const updateSongPerceived = useStore(s => s.updateSongPerceived)
+  const user = useStore(s => s.user)
   const anonId = getAnonId()
+  const statsAnonId = user ? '' : anonId
 
   useEffect(() => {
     setSubmitted(false)
-    getPerceivedStats(song.id, anonId).then(data => {
+    getPerceivedStats(song.id, statsAnonId).then(data => {
       setStats(data)
       setSelected(data.my_vote ? data.my_vote.level : null)
       setOpinion('')
     })
-  }, [song.id])
+  }, [song.id, user?.id])
 
   const allSteps = []
   for (let v = 0.5; v <= 12.0 + 1e-9; v += 0.5) allSteps.push(+v.toFixed(1))
@@ -162,7 +164,7 @@ function PerceivedSection({ song }) {
       } else {
         await submitPerceived(song.id, payload)
       }
-      const fresh = await getPerceivedStats(song.id, anonId)
+      const fresh = await getPerceivedStats(song.id, statsAnonId)
       setStats(fresh)
       setSubmitted(true)
       updateSongPerceived(song.id, fresh.avg ?? null, fresh.total_votes ?? 0)
@@ -763,8 +765,8 @@ function MobileDetail({ song, detail, onClose }) {
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   useEffect(() => {
-    getPerceivedStats(song.id, anonId).then(setPerceivedStats)
-  }, [song.id])
+    getPerceivedStats(song.id, user ? '' : anonId).then(setPerceivedStats)
+  }, [song.id, user?.id])
 
   useEffect(() => {
     const el = bodyRef.current
