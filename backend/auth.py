@@ -69,6 +69,14 @@ def require_user_id(request: Request) -> int:
     return uid
 
 
+def require_admin(request: Request) -> dict:
+    uid = require_user_id(request)
+    user = fetch_user(uid)
+    if user is None or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
+    return user
+
+
 def fetch_user(user_id: int) -> Optional[dict]:
     with get_conn() as conn:
         with conn.cursor() as cur:

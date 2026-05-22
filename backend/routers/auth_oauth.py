@@ -117,7 +117,7 @@ def me(request: Request):
 def admin_status(request: Request):
     uid = get_current_user_id(request)
     if uid is None:
-        raise HTTPException(status_code=401, detail="Login required")
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다")
     user = fetch_user(uid)
     return {"is_admin": bool(user and user.get("is_admin"))}
 
