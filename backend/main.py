@@ -10,7 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from database import init_pool
 from rate_limit import limiter
-from routers import songs, comments, perceived, feedback, records, auth_oauth, users, parse_screenshot, pmang_songs, pmang_user
+from routers import songs, comments, perceived, feedback, records, auth_oauth, users, parse_screenshot, rankings, pmang_songs, pmang_user
 
 STATIC_DIR = Path(__file__).parent.parent / "rnr_image"
 PMANG_STATIC_DIR = Path(__file__).parent.parent / "pmang_image"
@@ -47,6 +47,7 @@ app.include_router(records.router)
 app.include_router(parse_screenshot.router)
 app.include_router(auth_oauth.router)
 app.include_router(users.router)
+app.include_router(rankings.router)
 app.include_router(pmang_songs.router)
 app.include_router(pmang_user.router)
 

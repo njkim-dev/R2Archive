@@ -65,9 +65,10 @@ def _mask_nickname(nickname: str, visibility: str, is_mine: bool) -> str:
 
 
 def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
+    extended = (*r, None, False, False, False)[:15]
     (rid, nickname, score, judgment_percent, combo, youtube_url,
      youtube_title, memo, visibility, created_at, row_user_id,
-     screenshot_path, owner_show, memo_public) = (*r, None, False, False)[:14]
+     screenshot_path, owner_show, memo_public, is_manual) = extended
 
     is_mine = (current_uid is not None
                and row_user_id is not None
@@ -92,6 +93,7 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
         memo_public=bool(memo_public),
         visibility=visibility or "public",
         is_mine=is_mine,
+        is_manual=bool(is_manual),
         screenshot_url=screenshot_url,
         owner_show_screenshot=bool(owner_show),
         created_at=created_at,
@@ -139,7 +141,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                 """
                 SELECT id, nickname, score, judgment_percent, combo, youtube_url,
                        youtube_title, memo, visibility, created_at, user_id,
-                       screenshot_path, owner_show_screenshot, memo_public
+                       screenshot_path, owner_show_screenshot, memo_public, is_manual
                 FROM (
                     SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                            r.score, r.judgment_percent, r.combo, r.youtube_url,
@@ -148,6 +150,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                            r.screenshot_path,
                            COALESCE(u.show_screenshot, FALSE) AS owner_show_screenshot,
                            r.memo_public,
+                           r.is_manual,
                            ROW_NUMBER() OVER (
                                PARTITION BY COALESCE(r.user_id::text, 'anon:' || r.anon_id)
                                ORDER BY r.judgment_percent DESC NULLS LAST, r.created_at ASC
@@ -157,6 +160,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                     WHERE r.song_id = %s
                       AND r.judgment_percent IS NOT NULL
                       AND r.visibility IN ('public', 'anonymous')
+                      AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                 ) t
                 WHERE rn = 1
                 ORDER BY judgment_percent DESC NULLS LAST, created_at ASC
@@ -178,7 +182,8 @@ def get_my_records_for_song(request: Request, song_id: int):
                 SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                        r.score, r.judgment_percent, r.combo, r.youtube_url,
                        r.youtube_title, r.memo, r.visibility, r.created_at, r.user_id,
-                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE), r.memo_public
+                       r.screenshot_path, COALESCE(u.show_screenshot, FALSE), r.memo_public,
+                       r.is_manual
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s AND r.user_id = %s
