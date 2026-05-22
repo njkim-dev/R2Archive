@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link2, Check } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
+import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
 import { artworkBg, fmt, fmtBpm, getAnonId } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
+import PersonalCategoryPicker from './PersonalCategoryPicker'
 
 function BpmGraph({ timeline, songTime }) {
   const tooltipRef = useRef(null)
@@ -137,6 +138,8 @@ function PerceivedSection({ song }) {
   const updateSongPerceived = useStore(s => s.updateSongPerceived)
   const user = useStore(s => s.user)
   const anonId = getAnonId()
+  // 로그인 사용자는 stats GET에서 anon_id를 보내지 않는다 (URL/로그 노출 방지).
+  // 본인 식별은 서버가 세션 user_id로 처리.
   const statsAnonId = user ? '' : anonId
 
   useEffect(() => {
@@ -157,6 +160,8 @@ function PerceivedSection({ song }) {
 
   const handleSubmit = async () => {
     if (selected == null) return
+    // 로그인 사용자도 anon_id는 함께 전송 — 서버가 과거 익명 투표 행을 본인 계정으로 승계할 때 사용.
+    // POST/PUT body는 access log에 남지 않으므로 stats GET과 달리 노출 우려 없음.
     const payload = { anon_id: anonId, level: selected, opinion: opinion || null }
     try {
       if (stats?.my_vote) {
@@ -281,17 +286,22 @@ function RecordsTab({ song }) {
   const [url, setUrl] = useState('')
   const [ytTitle, setYtTitle] = useState(null)
   const [ytLoading, setYtLoading] = useState(false)
+  // 로그인 상태면 회원 닉네임을 자동 사용 — 입력 필드는 숨김.
   const [nick, setNick] = useState(user?.nickname || '')
   const [memo, setMemo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+  const anonId = getAnonId()
 
+  // user 변경(로그인/로그아웃 등)에 nick state 동기화.
   useEffect(() => { setNick(user?.nickname || '') }, [user?.id, user?.nickname])
 
   useEffect(() => {
+    // 본 게임 플레이 영상은 achievements 테이블에서 조회 (records는 랭킹 전용).
     getPlayVideos(song.id).then(setRecords)
   }, [song.id])
 
+  // 서버(_extract_video_id)와 동일한 엄격도: 11자 비디오 ID만 허용
   const isValidYtUrl = (u) =>
     /^https:\/\/youtu\.be\/[A-Za-z0-9_-]{11}(?:[/?#&].*)?$/.test(u) ||
     /^https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:.*&)?v=[A-Za-z0-9_-]{11}(?:[&#].*)?$/.test(u)
@@ -316,10 +326,15 @@ function RecordsTab({ song }) {
   }
 
   const handleSubmit = async () => {
+    // 로그인 사용자는 회원 닉네임 자동 사용. nick state는 useState/useEffect로
+    // user.nickname을 따라가지만, submit 시점에 직접 user.nickname을 읽어
+    // 초기 렌더 직후 race나 동기화 누락을 우회한다.
     const effectiveNickname = (user?.nickname || nick || '').trim()
     if (!effectiveNickname || !url.trim()) return
     setSubmitting(true)
     try {
+      // 플레이 영상은 achievements 테이블 (records와 분리). 백엔드 라우터 별도.
+      // achievements 스키마는 description 컬럼만 가짐(memo 컬럼 없음) — body 키도 description로 매핑.
       await addPlayVideo(song.id, {
         nickname: effectiveNickname,
         youtube_url: url,
@@ -329,6 +344,7 @@ function RecordsTab({ song }) {
       setRecords(fresh)
       setDone(true); setUrl(''); setYtTitle(null); setMemo('')
     } catch (e) {
+      // 422 응답이면 백엔드 detail 메시지 그대로 표시 (예: "비공개 영상은 등록할 수 없습니다.")
       const detail = e?.response?.data?.detail
       alert(typeof detail === 'string' ? detail : '플레이 영상 등록에 실패했어요')
     } finally {
@@ -765,6 +781,7 @@ function MobileDetail({ song, detail, onClose }) {
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   useEffect(() => {
+    // 로그인 사용자는 anon_id를 쿼리에 싣지 않음 (로그 노출 방지).
     getPerceivedStats(song.id, user ? '' : anonId).then(setPerceivedStats)
   }, [song.id, user?.id])
 
@@ -854,6 +871,10 @@ function MobileDetail({ song, detail, onClose }) {
           </svg>
           {isFav ? '즐겨찾기 해제' : '즐겨찾기'}
         </button>
+        <PersonalCategoryPicker
+          songId={song.id}
+          className="mob-act-btn mob-act-ghost pcat-mobile-action"
+        />
       </div>
 
       <div className="mob-stats">
@@ -921,6 +942,8 @@ function MobileDetail({ song, detail, onClose }) {
   )
 }
 
+// 모달의 카테고리 색상은 곡 자체의 난이도로 결정 (별=Lv 1.5~3.5, 달=Lv 4~6.5, 해=Lv 7+).
+// MobileCard 등 다른 곳과 동일한 분기.
 function catFromLevel(lv) {
   if (lv >= 7) return 'sun'
   if (lv >= 4) return 'moon'
@@ -929,6 +952,9 @@ function catFromLevel(lv) {
 
 export default function SongModal() {
   const isMobile = useMobile()
+  // SongModal은 App.jsx 루트에서 <Routes> 바깥에 렌더링되어 페이지의 [data-cat] cascade를
+  // 받지 못한다. 그래서 모달 자체에 data-cat을 직접 부여한다 — 단, 페이지 필터가 아니라
+  // 열려 있는 곡의 난이도 기반으로 결정해 매 곡마다 색이 자연스럽게 바뀌도록 한다.
   const { modalOpen, modalSong, closeModal, openFeedback, user, favorites, toggleFavorite } = useStore()
   const [tab, setTab] = useState('overview')
   const [detail, setDetail] = useState(null)
@@ -1082,6 +1108,7 @@ export default function SongModal() {
               </svg>
               {favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기'}
             </button>
+            <PersonalCategoryPicker songId={song.id} className="btn btn-ghost" />
             <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
               {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
             </button>

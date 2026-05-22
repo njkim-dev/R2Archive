@@ -26,8 +26,9 @@ export default function PmangSidebar({
   artists, toggleArtist, clearArtists,
   topArtists,
   favorites,
+  pmangYoutubeCandidates = [],
 }) {
-  const { user, openLogin } = useStore()
+  const { user, openLogin, isAdmin } = useStore()
 
   const hist = useMemo(() => {
     const lo = levelBounds[0]
@@ -48,7 +49,9 @@ export default function PmangSidebar({
   const filteredCounts = useMemo(() => ({
     all: songs.length,
     favorite: user ? songs.filter(s => favorites?.has(s.id)).length : 0,
-  }), [songs, user, favorites])
+    no_music: songs.filter(s => !s.youtube_url).length,
+    youtube_candidates: pmangYoutubeCandidates.length,
+  }), [songs, user, favorites, pmangYoutubeCandidates])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
@@ -86,6 +89,13 @@ export default function PmangSidebar({
           >
             <span>그룹</span>
           </NavLink>
+          <NavLink
+            to="/personal-categories"
+            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
+            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+          >
+            <span>개인 카테고리</span>
+          </NavLink>
           <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
             <span>과거 피망곡</span>
           </NavLink>
@@ -101,7 +111,10 @@ export default function PmangSidebar({
           {[
             { key: 'all',      label: '전체 곡',           count: filteredCounts.all },
             { key: 'favorite', label: '★ 내 즐겨찾기',     count: filteredCounts.favorite, needLogin: true },
-          ].map(({ key, label, count, needLogin }) => {
+            { key: 'no_music', label: '음악 없음', count: filteredCounts.no_music, adminOnly: true },
+            { key: 'youtube_candidates', label: '후보곡', count: filteredCounts.youtube_candidates, adminOnly: true },
+          ].map(({ key, label, count, needLogin, adminOnly }) => {
+            if (adminOnly && !isAdmin) return null
             const disabled = needLogin && !user
             return (
               <button

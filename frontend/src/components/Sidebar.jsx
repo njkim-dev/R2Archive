@@ -27,6 +27,7 @@ export default function Sidebar({ songs, filtered }) {
     bpmMin, bpmMax, setBpmMin, setBpmMax,
     artists, toggleArtist, clearArtists,
     favorites, played, playedAll,
+    isAdmin,
   } = useStore()
 
   const hist = useMemo(() => {
@@ -40,9 +41,14 @@ export default function Sidebar({ songs, filtered }) {
   }, [songs])
 
   const filteredCounts = useMemo(() => {
-    const base = filterSongs(songs, { search: '', category, quick: 'all', artists: new Set() }).exact
-    // 카테고리 필터 ON일 때만 cross-channel 확장된 playedAll 사용 (SongsPage 필터와 동일 정책).
     const playedSet = category ? playedAll : played
+    const base = filterSongs(songs, {
+      search: '', searchMode: 'both',
+      levelMin, levelMax, bpmMin, bpmMax,
+      category, quick: 'all', artists,
+      favorites, played: playedSet,
+    }).exact
+    // 카테고리 필터 ON일 때만 cross-channel 확장된 playedAll 사용 (SongsPage 필터와 동일 정책).
     return {
       all:      base.length,
       new:      base.filter(s => s.is_new).length,
@@ -50,8 +56,9 @@ export default function Sidebar({ songs, filtered }) {
       played:   dedupeByNameArtistMaxLevel(base.filter(s => s.play_count > 0)).length,
       favorite: user ? base.filter(s => favorites.has(s.id)).length : 0,
       my_played: user ? base.filter(s => playedSet.has(s.id)).length : 0,
+      no_music: base.filter(s => !s.youtube_url).length,
     }
-  }, [songs, category, user, favorites, played, playedAll])
+  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, user, favorites, played, playedAll])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
@@ -93,6 +100,13 @@ export default function Sidebar({ songs, filtered }) {
           >
             <span>그룹</span>
           </NavLink>
+          <NavLink
+            to="/personal-categories"
+            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
+            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+          >
+            <span>개인 카테고리</span>
+          </NavLink>
           <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
             <span>과거 피망곡</span>
           </NavLink>
@@ -112,7 +126,9 @@ export default function Sidebar({ songs, filtered }) {
             { key: 'favorite', label: '★ 내 즐겨찾기',         count: filteredCounts.favorite, needLogin: true },
             { key: 'my_played', label: '내가 플레이한 곡',      count: filteredCounts.my_played, needLogin: true },
             { key: 'played',   label: '전체 유저 플레이 곡',    count: filteredCounts.played },
-          ].map(({ key, label, count, needLogin }) => {
+            { key: 'no_music', label: '음악 없음', count: filteredCounts.no_music, adminOnly: true },
+          ].map(({ key, label, count, needLogin, adminOnly }) => {
+            if (adminOnly && !isAdmin) return null
             const disabled = needLogin && !user
             return (
               <button

@@ -10,7 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from database import init_pool
 from rate_limit import limiter
-from routers import songs, comments, perceived, feedback, records, auth_oauth, users, parse_screenshot, rankings, groups, feedback_items, pmang_songs, pmang_user
+from routers import songs, comments, perceived, feedback, records, auth_oauth, users, parse_screenshot, rankings, groups, personal_categories, feedback_items, pmang_songs, pmang_user, youtube_candidates
 
 STATIC_DIR = Path(__file__).parent.parent / "rnr_image"
 PMANG_STATIC_DIR = Path(__file__).parent.parent / "pmang_image"
@@ -34,7 +34,7 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,   # 세션 쿠키 송수신
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
@@ -49,13 +49,13 @@ app.include_router(auth_oauth.router)
 app.include_router(users.router)
 app.include_router(rankings.router)
 app.include_router(groups.router)
+app.include_router(personal_categories.router)
 app.include_router(feedback_items.router)
 app.include_router(pmang_songs.router)
 app.include_router(pmang_user.router)
+app.include_router(youtube_candidates.router)
 
 if STATIC_DIR.exists():
     app.mount("/static/rnr_image", StaticFiles(directory=str(STATIC_DIR)), name="rnr_image")
 if PMANG_STATIC_DIR.exists():
     app.mount("/static/pmang_image", StaticFiles(directory=str(PMANG_STATIC_DIR)), name="pmang_image")
-
-# records.py ) record_screenshots 는 Caddy 정적 서빙이 아닌, /api/records/{id}/screenshot 라우터가 권한 검사 후 직접 서빙함.
