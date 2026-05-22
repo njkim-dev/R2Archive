@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link2, Check } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay } from '../api/client'
+import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
 import { artworkBg, fmt, getAnonId } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 
@@ -274,21 +274,22 @@ function PerceivedSection({ song }) {
 }
 
 function RecordsTab({ song }) {
+  const user = useStore(s => s.user)
   const [records, setRecords] = useState(null)
   const [url, setUrl] = useState('')
   const [ytTitle, setYtTitle] = useState(null)
   const [ytLoading, setYtLoading] = useState(false)
-  const [nick, setNick] = useState('')
+  const [nick, setNick] = useState(user?.nickname || '')
   const [memo, setMemo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
-  const anonId = getAnonId()
+
+  useEffect(() => { setNick(user?.nickname || '') }, [user?.id, user?.nickname])
 
   useEffect(() => {
-    getRecords(song.id).then(setRecords)
+    getPlayVideos(song.id).then(setRecords).catch(() => setRecords([]))
   }, [song.id])
 
-  // 서버(_extract_video_id)와 동일한 엄격도: 11자 비디오 ID만 허용
   const isValidYtUrl = (u) =>
     /^https:\/\/youtu\.be\/[A-Za-z0-9_-]{11}(?:[/?#&].*)?$/.test(u) ||
     /^https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:.*&)?v=[A-Za-z0-9_-]{11}(?:[&#].*)?$/.test(u)
@@ -313,27 +314,25 @@ function RecordsTab({ song }) {
   }
 
   const handleSubmit = async () => {
-    if (!nick.trim()) return
+    const effectiveNickname = (user?.nickname || nick || '').trim()
+    if (!effectiveNickname || !url.trim()) return
     setSubmitting(true)
     try {
-      // youtube_title은 서버가 oEmbed로 직접 조회하므로 보내지 않음.
-      // 클라이언트 측 ytTitle은 제출 전 미리보기 UX 용도.
-      await addRecord(song.id, {
-        anon_id: anonId,
-        nickname: nick.trim(),
-        youtube_url: url || null,
-        memo: memo || null,
+      await addPlayVideo(song.id, {
+        nickname: effectiveNickname,
+        youtube_url: url,
+        description: memo || null,
       })
-      const fresh = await getRecords(song.id)
+      const fresh = await getPlayVideos(song.id)
       setRecords(fresh)
       setDone(true); setUrl(''); setYtTitle(null); setMemo('')
-    } catch (_) {
+    } catch (e) {
+      const detail = e?.response?.data?.detail
+      alert(typeof detail === 'string' ? detail : 'Failed to register play video')
     } finally {
       setSubmitting(false)
     }
   }
-
-  const medals = ['🥇', '🥈', '🥉']
 
   return (
     <div>
@@ -354,10 +353,12 @@ function RecordsTab({ song }) {
         </div>
 
         <div style={{ display: 'grid', gap: 10, marginBottom: 10 }}>
+          {!user && (
           <div className="rf-field">
             <label>닉네임</label>
             <input value={nick} onChange={e => setNick(e.target.value)} placeholder="닉네임" />
           </div>
+          )}
           <div className="rf-field">
             <label>YouTube URL</label>
             <input
@@ -391,8 +392,8 @@ function RecordsTab({ song }) {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => { setUrl(''); setNick(''); setMemo(''); setYtTitle(null); setDone(false) }}>초기화</button>
-          <button className="btn btn-primary" style={{ fontSize: 12 }} disabled={submitting || !nick.trim() || ytTitle === false} onClick={handleSubmit}>
+          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => { setUrl(''); setNick(user?.nickname || ''); setMemo(''); setYtTitle(null); setDone(false) }}>초기화</button>
+          <button className="btn btn-primary" style={{ fontSize: 12 }} disabled={submitting || (!user?.nickname && !nick.trim()) || !url.trim() || ytTitle === false} onClick={handleSubmit}>
             {done ? '등록 완료 ✓' : submitting ? '등록 중…' : '플레이 영상 등록'}
           </button>
         </div>
@@ -410,7 +411,7 @@ function RecordsTab({ song }) {
         <div className="leaderboard">
           {records.map((r, i) => (
             <div key={r.id} className={`lb-row${i < 3 ? ' top' : ''}`}>
-              <span className="lb-rank">{i < 3 ? medals[i] : `#${i + 1}`}</span>
+              <span className="lb-rank">#{i + 1}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <div className="lb-avatar">{r.nickname[0]}</div>
                 <div style={{ minWidth: 0 }}>
