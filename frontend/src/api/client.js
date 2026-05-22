@@ -44,6 +44,8 @@ export const submitFeedback = (id, body) => api.post(`/songs/${id}/feedback`, bo
 
 export const getRecords = (id) => api.get(`/songs/${id}/records`).then(r => r.data)
 export const addRecord = (id, body) => api.post(`/songs/${id}/records`, body).then(r => r.data)
+export const getPlayVideos = (id) => api.get(`/songs/${id}/play-videos`).then(r => r.data)
+export const addPlayVideo = (id, body) => api.post(`/songs/${id}/play-videos`, body).then(r => r.data)
 export const getRanking = (id) => api.get(`/songs/${id}/ranking`).then(r => r.data)
 export const getMyRecordsForSong = (id) => api.get(`/songs/${id}/records/me`).then(r => r.data)
 export const parseScreenshot = (file) => {

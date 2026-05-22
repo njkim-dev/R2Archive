@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 import httpx
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
@@ -398,3 +399,84 @@ def my_screenshot_filenames(request: Request):
             )
             rows = cur.fetchall()
     return {"filenames": [r[0] for r in rows if r[0]]}
+
+class PlayVideoCreate(BaseModel):
+    nickname: str = Field(default="", max_length=30)
+    youtube_url: str = Field(min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class PlayVideoResponse(BaseModel):
+    id: int
+    nickname: str
+    youtube_url: str
+    description: str | None
+    created_at: str
+
+
+@router.get("/songs/{song_id}/play-videos", response_model=list[PlayVideoResponse])
+def get_play_videos(song_id: int):
+    """Song detail play videos are stored in achievements, not records."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, nickname, youtube_url, description, created_at
+                FROM achievements
+                WHERE song_id = %s
+                ORDER BY created_at DESC NULLS LAST, id DESC
+                """,
+                (song_id,),
+            )
+            rows = cur.fetchall()
+    return [
+        PlayVideoResponse(
+            id=r[0],
+            nickname=r[1] or "",
+            youtube_url=r[2] or "",
+            description=r[3],
+            created_at=r[4].isoformat() if r[4] else "",
+        )
+        for r in rows
+    ]
+
+
+@router.post("/songs/{song_id}/play-videos", response_model=PlayVideoResponse, status_code=201)
+@limiter.limit("20/hour", key_func=ip_song_key)
+async def add_play_video(request: Request, song_id: int, body: PlayVideoCreate):
+    nickname = (body.nickname or "").strip()
+    current_uid = get_current_user_id(request)
+    user_row = fetch_user(current_uid) if current_uid is not None else None
+    if not nickname and user_row and user_row.get("nickname"):
+        nickname = user_row["nickname"]
+    if not nickname:
+        raise HTTPException(status_code=422, detail="Nickname is required")
+
+    if not _extract_video_id(body.youtube_url):
+        raise HTTPException(status_code=422, detail="Invalid YouTube URL")
+
+    # achievements has no youtube_title column; oEmbed is only used to reject unavailable videos.
+    if (await _fetch_youtube_title(body.youtube_url)) is None:
+        raise HTTPException(status_code=422, detail="Unavailable YouTube videos cannot be registered")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO achievements
+                    (song_id, nickname, youtube_url, description)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, created_at
+                """,
+                (song_id, nickname, body.youtube_url, body.description),
+            )
+            r = cur.fetchone()
+        conn.commit()
+
+    return PlayVideoResponse(
+        id=r[0],
+        nickname=nickname,
+        youtube_url=body.youtube_url,
+        description=body.description,
+        created_at=r[1].isoformat(),
+    )
