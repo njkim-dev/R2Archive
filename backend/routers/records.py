@@ -348,39 +348,50 @@ async def upload_record_screenshot(
 
 @router.get("/records/{record_id}/screenshot")
 def get_record_screenshot(request: Request, record_id: int):
-    """기록 스크린샷을 권한 검사 후 직접 서빙.
-    본인이거나, 소유자가 show_screenshot=TRUE 설정하면서, visibility가 'private' 가 아닐 때만 허용.
-    """
     current_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT r.user_id, r.screenshot_path, r.visibility, "
-                "       COALESCE(u.show_screenshot, FALSE) "
+                "SELECT r.user_id, r.screenshot_path, "
+                "       COALESCE(u.show_screenshot, FALSE), "
+                "       COALESCE(u.searchable, 'public') "
                 "FROM records r LEFT JOIN users u ON u.id = r.user_id "
                 "WHERE r.id = %s",
                 (record_id,),
             )
             row = cur.fetchone()
     if not row or not row[1]:
-        raise HTTPException(status_code=404, detail="스크린샷을 찾을 수 없습니다")
-    owner_uid, path, visibility, owner_show = row
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+    owner_uid, path, owner_show, owner_searchable = row
     is_mine = (current_uid is not None and owner_uid is not None
                and int(owner_uid) == int(current_uid))
     if not is_mine:
-        if (visibility or "public") == "private":
-            raise HTTPException(status_code=404, detail="스크린샷을 찾을 수 없습니다")
-        if not owner_show:
-            raise HTTPException(status_code=403, detail="공유되지 않은 스크린샷입니다")
+        allowed = False
+        if owner_show:
+            allowed = True
+        elif owner_searchable == "group" and current_uid is not None and owner_uid is not None:
+            with get_conn() as conn2:
+                with conn2.cursor() as cur2:
+                    cur2.execute(
+                        """
+                        SELECT 1 FROM group_members me
+                        JOIN group_members them ON them.group_id = me.group_id
+                        WHERE me.user_id = %s AND them.user_id = %s
+                        LIMIT 1
+                        """,
+                        (current_uid, int(owner_uid)),
+                    )
+                    if cur2.fetchone():
+                        allowed = True
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Screenshot is not shared")
 
     safe_name = Path(path).name
     file_path = (_SCREENSHOTS_DIR / safe_name).resolve()
     if not str(file_path).startswith(str(_SCREENSHOTS_DIR.resolve())):
-        raise HTTPException(status_code=404, detail="스크린샷을 찾을 수 없습니다")
+        raise HTTPException(status_code=404, detail="Screenshot not found")
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="스크린샷 파일이 존재하지 않습니다")
-    # 캐시는 same-user 단위로만. 권한이 바뀌면(공유 OFF) 캐시가 남아 있어도
-    # 새 요청은 위 권한 검사로 차단됨. 다만 즉시 반영을 위해 짧은 max-age 사용.
+        raise HTTPException(status_code=404, detail="Screenshot file does not exist")
     return FileResponse(
         str(file_path),
         headers={"Cache-Control": "private, max-age=60"},
