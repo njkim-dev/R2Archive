@@ -74,7 +74,7 @@ def fetch_user(user_id: int) -> Optional[dict]:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, provider, nickname, default_visibility, onboarded, "
-                "       created_at, show_screenshot "
+                "       created_at, show_screenshot, searchable, is_admin "
                 "FROM users WHERE id = %s",
                 (user_id,),
             )
@@ -89,6 +89,8 @@ def fetch_user(user_id: int) -> Optional[dict]:
         "onboarded": r[4],
         "created_at": r[5],
         "show_screenshot": bool(r[6]),
+        "searchable": r[7],
+        "is_admin": bool(r[8]),
     }
 
 

@@ -3,9 +3,10 @@ import useStore from '../store/useStore'
 import { patchMe, checkNickname } from '../api/client'
 
 export default function OnboardingModal() {
-  const { onboardingOpen, closeOnboarding, user, setUser } = useStore()
+  const { onboardingOpen, closeOnboarding, user, setUser, refreshUser } = useStore()
   const [nickname, setNickname] = useState('')
   const [visibility, setVisibility] = useState('public')
+  const [searchable, setSearchable] = useState('public')
   const [showScreenshot, setShowScreenshot] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -13,9 +14,14 @@ export default function OnboardingModal() {
   const debRef = useRef(null)
 
   useEffect(() => {
+    if (onboardingOpen) refreshUser()
+  }, [onboardingOpen, refreshUser])
+
+  useEffect(() => {
     if (onboardingOpen) {
       setNickname(user?.nickname || '')
       setVisibility(user?.default_visibility || 'public')
+      setSearchable(user?.searchable || 'public')
       setShowScreenshot(!!user?.show_screenshot)
       setErr('')
       setNickStatus(null)
@@ -62,7 +68,8 @@ export default function OnboardingModal() {
       const { user: updated } = await patchMe({
         nickname: nick,
         default_visibility: visibility,
-        show_screenshot: showScreenshot,
+        searchable,
+        show_screenshot: visibility === 'public' && showScreenshot,
       })
       setUser(updated)
       closeOnboarding()
@@ -111,8 +118,8 @@ export default function OnboardingModal() {
           <input
             type="text"
             value={nickname}
-            onChange={e => setNickname(e.target.value)}
-            placeholder="1~30자"
+            onChange={e => setNickname(e.target.value.replace(/\s/g, ''))}
+            placeholder="1~30자 (띄어쓰기 불가)"
             maxLength={30}
             autoFocus
           />
@@ -126,9 +133,9 @@ export default function OnboardingModal() {
           <label>랭킹 공개 여부</label>
           <div className="onb-vis-col">
             {[
-              { v: 'public',    title: '공개',        desc: '닉네임과 함께 랭킹에 노출' },
-              { v: 'anonymous', title: '익명으로 공개', desc: '"익명"으로 랭킹에 노출' },
-              { v: 'private',   title: '비공개',      desc: '랭킹에 노출되지 않음 (본인만 열람)' },
+              { v: 'public',    title: '공개',        desc: '닉네임과 함께 랭킹에 노출해요' },
+              { v: 'anonymous', title: '익명으로 공개', desc: '익명으로 랭킹에 노출해요' },
+              { v: 'private',   title: '비공개',      desc: '랭킹에 노출되지 않아요' },
             ].map(opt => (
               <label key={opt.v} className={`onb-vis-opt${visibility === opt.v ? ' on' : ''}`}>
                 <input
@@ -147,13 +154,46 @@ export default function OnboardingModal() {
         </div>
 
         <div className="onb-field">
-          <label className="onb-checkbox">
+          <label>검색 허용</label>
+          <div className="onb-vis-col">
+            {[
+              { v: 'public',  title: '모두에게 검색 허용', desc: '누구나 닉네임으로 나를 검색할 수 있어요' },
+              { v: 'group',   title: '동일 그룹 멤버에게만', desc: '내가 가입한 그룹의 멤버만 나를 검색할 수 있어요' },
+              { v: 'private', title: '검색 비허용',         desc: '아무도 나를 검색으로 찾을 수 없어요' },
+            ].map(opt => (
+              <label key={opt.v} className={`onb-vis-opt${searchable === opt.v ? ' on' : ''}`}>
+                <input
+                  type="radio"
+                  name="searchable"
+                  checked={searchable === opt.v}
+                  onChange={() => setSearchable(opt.v)}
+                />
+                <div>
+                  <b>{opt.title}</b>
+                  <span>{opt.desc}</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="onb-field">
+          {/* 스크린샷 공유는 visibility='public'일 때만 의미가 있음 — 익명/비공개에선 자동 비활성. */}
+          <label className={`onb-checkbox${visibility === 'public' ? '' : ' disabled'}`}>
             <input
               type="checkbox"
-              checked={showScreenshot}
+              checked={visibility === 'public' && showScreenshot}
               onChange={e => setShowScreenshot(e.target.checked)}
+              disabled={visibility !== 'public'}
             />
-            <span>랭킹 등록 시 내 스크린샷 & YouTube 링크를 다른 사람이 볼 수 있게 합니다</span>
+            <span>
+              랭킹 등록 시 내 스크린샷 & YouTube 링크를 다른 사람이 볼 수 있게 합니다
+              {visibility !== 'public' && (
+                <em style={{ display: 'block', fontSize: 11, color: 'var(--fg-4)', marginTop: 3, fontStyle: 'normal' }}>
+                  ('익명' 또는 '비공개' 선택 시 사용할 수 없어요)
+                </em>
+              )}
+            </span>
           </label>
         </div>
 

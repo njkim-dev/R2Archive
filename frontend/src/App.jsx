@@ -8,6 +8,8 @@ import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
 import MyPageModal from './components/MyPageModal'
 import SongsPage from './pages/SongsPage'
+import GroupsPage from './pages/GroupsPage'
+import GroupDetailPage from './pages/GroupDetailPage'
 
 export default function App() {
   const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding } = useStore()
@@ -69,6 +71,8 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<SongsPage />} />
+        <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/groups/:gid" element={<GroupDetailPage />} />
         <Route path="*" element={<SongsPage />} />
       </Routes>
       <SongModal />

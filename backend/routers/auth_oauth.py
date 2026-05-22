@@ -106,10 +106,20 @@ def me(request: Request):
         "id": user["id"],
         "nickname": user["nickname"],
         "default_visibility": user["default_visibility"],
+        "searchable": user.get("searchable", "public"),
         "onboarded": user["onboarded"],
         "provider": user["provider"],
         "show_screenshot": user.get("show_screenshot", False),
     }}
+
+
+@router.get("/admin-status")
+def admin_status(request: Request):
+    uid = get_current_user_id(request)
+    if uid is None:
+        raise HTTPException(status_code=401, detail="Login required")
+    user = fetch_user(uid)
+    return {"is_admin": bool(user and user.get("is_admin"))}
 
 
 @router.post("/logout")

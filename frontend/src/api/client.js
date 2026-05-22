@@ -70,6 +70,7 @@ export const uploadRecordScreenshot = (recordId, file) => {
 }
 
 export const getAuthMe = () => api.get('/auth/me').then(r => r.data)
+export const getAdminStatus = () => api.get('/auth/admin-status').then(r => r.data).catch(() => ({ is_admin: false }))
 export const logoutApi = () => api.post('/auth/logout').then(r => r.data)
 export const patchMe = (body) => api.patch('/users/me', body).then(r => r.data)
 export const checkNickname = (q) =>
@@ -97,3 +98,28 @@ export const lookupRankingUser = (nickname) =>
   api.get('/rankings/users/lookup', { params: { nickname } }).then(r => r.data)
 export const getUserRankingRecords = (userId) =>
   api.get(`/rankings/users/${userId}/records`).then(r => r.data)
+export const getMyGroups = () => api.get('/me/groups').then(r => r.data)
+export const getGroupDetail = (gid) => api.get(`/groups/${gid}`).then(r => r.data)
+export const createGroup = (body) => api.post('/groups', body).then(r => r.data)
+export const joinGroup = (body) => api.post('/groups/join', body).then(r => r.data)
+export const lookupGroupByCode = (code) =>
+  api.get(`/groups/by-code/${encodeURIComponent(code)}`).then(r => r.data)
+export const patchGroup = (gid, body) => api.patch(`/groups/${gid}`, body).then(r => r.data)
+export const deleteGroup = (gid) => api.delete(`/groups/${gid}`).then(r => r.data)
+export const regenGroupCode = (gid) => api.post(`/groups/${gid}/regen-code`).then(r => r.data)
+export const revokeGroupCode = (gid) => api.post(`/groups/${gid}/revoke-code`).then(r => r.data)
+export const acceptGroupApp = (gid, aid) =>
+  api.post(`/groups/${gid}/applications/${aid}/accept`).then(r => r.data)
+export const rejectGroupApp = (gid, aid) =>
+  api.post(`/groups/${gid}/applications/${aid}/reject`).then(r => r.data)
+export const setGroupMemberRole = (gid, mid, role) =>
+  api.patch(`/groups/${gid}/members/${mid}/role`, { role }).then(r => r.data)
+export const kickGroupMember = (gid, mid) =>
+  api.delete(`/groups/${gid}/members/${mid}`).then(r => r.data)
+export const transferGroupOwner = (gid, toUserId) =>
+  api.post(`/groups/${gid}/transfer-owner`, { to_user_id: toUserId }).then(r => r.data)
+export const leaveGroup = (gid) => api.post(`/groups/${gid}/leave`).then(r => r.data)
+export const getGroupLeaderboard = (gid) => api.get(`/groups/${gid}/leaderboard`).then(r => r.data)
+export const getGroupFeed = (gid, limit = 80) =>
+  api.get(`/groups/${gid}/feed`, { params: { limit } }).then(r => r.data)
+export const getGroupSongFirsts = (gid) => api.get(`/groups/${gid}/song-firsts`).then(r => r.data)

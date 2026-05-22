@@ -22,6 +22,7 @@ _USER_FIELD_SQL = {
     "nickname": "nickname = %s",
     "default_visibility": "default_visibility = %s",
     "show_screenshot": "show_screenshot = %s",
+    "searchable": "searchable = %s",
 }
 
 
@@ -31,6 +32,7 @@ class MeUpdate(BaseModel):
         default=None, pattern=r"^(public|anonymous|private)$"
     )
     show_screenshot: Optional[bool] = None
+    searchable: Optional[str] = Field(default=None, pattern=r"^(public|group|private)$")
 
 
 def _is_nickname_taken(cur, nickname: str, exclude_user_id: int | None) -> bool:
@@ -83,6 +85,8 @@ def update_me(request: Request, body: MeUpdate):
         updates.append(("default_visibility", body.default_visibility))
     if body.show_screenshot is not None:
         updates.append(("show_screenshot", body.show_screenshot))
+    if body.searchable is not None:
+        updates.append(("searchable", body.searchable))
 
     if not updates:
         raise HTTPException(status_code=422, detail="변경할 항목이 없습니다")
