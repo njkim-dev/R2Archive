@@ -104,6 +104,12 @@ export const createGroup = (body) => api.post('/groups', body).then(r => r.data)
 export const joinGroup = (body) => api.post('/groups/join', body).then(r => r.data)
 export const lookupGroupByCode = (code) =>
   api.get(`/groups/by-code/${encodeURIComponent(code)}`).then(r => r.data)
+export const listFeedback = (params = {}) =>
+  api.get('/feedback', { params }).then(r => r.data)
+export const createFeedback = (body) =>
+  api.post('/feedback', body).then(r => r.data)
+export const voteFeedback = (id) =>
+  api.post(`/feedback/${id}/vote`).then(r => r.data)
 export const patchGroup = (gid, body) => api.patch(`/groups/${gid}`, body).then(r => r.data)
 export const deleteGroup = (gid) => api.delete(`/groups/${gid}`).then(r => r.data)
 export const regenGroupCode = (gid) => api.post(`/groups/${gid}/regen-code`).then(r => r.data)
