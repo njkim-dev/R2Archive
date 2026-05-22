@@ -1,28 +1,16 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import useStore from './store/useStore'
 import { getSongs, getMeta } from './api/client'
-import { filterSongs, sortSongs } from './utils/helpers'
-import Sidebar from './components/Sidebar'
-import TopBar from './components/TopBar'
-import FilterBar from './components/FilterBar'
-import SongsTable from './components/SongsTable'
 import SongModal from './components/SongModal'
 import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
 import MyPageModal from './components/MyPageModal'
-import MobileHeader from './components/MobileHeader'
-import FilterSheet from './components/FilterSheet'
-import { useMobile } from './hooks/useMobile'
+import SongsPage from './pages/SongsPage'
 
 export default function App() {
-  const isMobile = useMobile()
-  const {
-    songs, setSongs, initFromMeta, openModal,
-    search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, artists,
-    sort, favorites, played,
-    refreshUser, user, openOnboarding,
-  } = useStore()
+  const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding } = useStore()
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
 
@@ -58,7 +46,6 @@ export default function App() {
         openModal(song)
       }
     }
-
     window.addEventListener('hashchange', openFromHash)
     return () => window.removeEventListener('hashchange', openFromHash)
   }, [songs])
@@ -76,46 +63,19 @@ export default function App() {
         if (song) open(song)
       }
     }).catch(console.error)
-  }, [])
-
-  const filtered = useMemo(() => {
-    const { exact, fuzzy } = filterSongs(songs, { search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, artists, favorites, played })
-    return { exact: sortSongs(exact, sort), fuzzy: sortSongs(fuzzy, sort) }
-  }, [songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, artists, sort, favorites, played])
-
-  const totalFiltered = filtered.exact.length + filtered.fuzzy.length
-
-  if (isMobile) {
-    return (
-      <div className="app-mobile">
-        <MobileHeader totalFiltered={totalFiltered} />
-        <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile />
-        <SongModal />
-        <FilterSheet />
-        <LoginModal />
-        <OnboardingModal />
-        <MyPageModal />
-      </div>
-    )
-  }
+  }, [])  // eslint-disable-line
 
   return (
-    <div className="app">
-      <aside className="side">
-        <Sidebar songs={songs} filtered={filtered.exact} />
-      </aside>
-
-      <main className="main">
-        <TopBar filteredCount={totalFiltered} totalCount={songs.length} />
-        <FilterBar />
-        <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} />
-      </main>
-
+    <>
+      <Routes>
+        <Route path="/" element={<SongsPage />} />
+        <Route path="*" element={<SongsPage />} />
+      </Routes>
       <SongModal />
       <LoginModal />
       <OnboardingModal />
       <FeedbackModal />
       <MyPageModal />
-    </div>
+    </>
   )
 }
