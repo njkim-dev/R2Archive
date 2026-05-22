@@ -115,6 +115,7 @@ class RecordCreate(BaseModel):
     memo_public: bool = False
     # 개인 성과는 서버에 공개 여부를 요청에 담지 않음 -> 서버가 유저의 default_visibility를 사용하고 수신만 허용.
     visibility: Optional[str] = Field(default=None, pattern=r"^(public|anonymous|private)$")
+    register_as_play_video: bool = False
 
 
 class RecordResponse(BaseModel):

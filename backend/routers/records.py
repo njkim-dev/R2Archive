@@ -219,6 +219,10 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 detail="YouTube 주소 형식이 올바르지 않습니다 (https://youtu.be/<id> 또는 https://www.youtube.com/watch?v=<id>)",
             )
         youtube_title = await _fetch_youtube_title(body.youtube_url)
+        if body.register_as_play_video and youtube_title is None:
+            raise HTTPException(status_code=422, detail="Unavailable YouTube videos cannot be registered")
+
+    is_play_video = bool(body.register_as_play_video and body.youtube_url)
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -232,14 +236,16 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 """
                 INSERT INTO records
                     (song_id, user_id, anon_id, nickname, score, judgment_percent,
-                     combo, youtube_url, youtube_title, memo, memo_public, visibility)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     combo, youtube_url, youtube_title, memo, memo_public, visibility,
+                     is_play_video)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
                     song_id, current_uid, body.anon_id, nickname,
                     body.score, body.judgment_percent, body.combo,
                     body.youtube_url, youtube_title, body.memo, body.memo_public, visibility,
+                    is_play_video,
                 ),
             )
             r = cur.fetchone()
@@ -421,6 +427,7 @@ class PlayVideoResponse(BaseModel):
     id: int
     nickname: str
     youtube_url: str
+    youtube_title: str | None = None
     description: str | None
     created_at: str
 
@@ -432,12 +439,21 @@ def get_play_videos(song_id: int):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, nickname, youtube_url, description, created_at
+                SELECT id, nickname, youtube_url, NULL AS youtube_title,
+                       description, created_at
                 FROM achievements
                 WHERE song_id = %s
+                  AND youtube_url IS NOT NULL
+                UNION ALL
+                SELECT -id AS id, nickname, youtube_url, youtube_title,
+                       memo AS description, created_at
+                FROM records
+                WHERE song_id = %s
+                  AND is_play_video = TRUE
+                  AND youtube_url IS NOT NULL
                 ORDER BY created_at DESC NULLS LAST, id DESC
                 """,
-                (song_id,),
+                (song_id, song_id),
             )
             rows = cur.fetchall()
     return [
@@ -445,8 +461,9 @@ def get_play_videos(song_id: int):
             id=r[0],
             nickname=r[1] or "",
             youtube_url=r[2] or "",
-            description=r[3],
-            created_at=r[4].isoformat() if r[4] else "",
+            youtube_title=r[3],
+            description=r[4],
+            created_at=r[5].isoformat() if r[5] else "",
         )
         for r in rows
     ]
