@@ -32,7 +32,9 @@ class MeUpdate(BaseModel):
         default=None, pattern=r"^(public|anonymous|private)$"
     )
     show_screenshot: Optional[bool] = None
-    searchable: Optional[str] = Field(default=None, pattern=r"^(public|group|private)$")
+    searchable: Optional[str] = Field(
+        default=None, pattern=r"^(public|group|private)$"
+    )
 
 
 def _is_nickname_taken(cur, nickname: str, exclude_user_id: int | None) -> bool:
@@ -139,7 +141,18 @@ def get_my_flags(request: Request):
                 (uid,),
             )
             played = [r[0] for r in cur.fetchall()]
-    return {"favorites": favorites, "played": played}
+            cur.execute(
+                """
+                SELECT DISTINCT s2.id
+                FROM user_plays up
+                JOIN songs s1 ON s1.id = up.song_id
+                JOIN songs s2 ON s2.name = s1.name AND s2.artist = s1.artist
+                WHERE up.user_id = %s
+                """,
+                (uid,),
+            )
+            played_all = [r[0] for r in cur.fetchall()]
+    return {"favorites": favorites, "played": played, "played_all": played_all}
 
 
 @router.post("/me/favorites/{song_id}", status_code=201)
@@ -414,8 +427,6 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
         conn.commit()
 
     return {"ok": True, "inserted": inserted, "updated": updated, "deleted": deleted}
-
-
 
 
 @router.delete("/me/records/{record_id}", status_code=204)
