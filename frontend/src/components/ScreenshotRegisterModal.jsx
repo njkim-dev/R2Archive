@@ -89,7 +89,7 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
     setIdx(0); setPhase('register')
   }
 
-  const handleSubmitOne = async ({ score, selectedSong, youtube_url, memo, memo_public }) => {
+  const handleSubmitOne = async ({ score, selectedSong, youtube_url, memo, memo_public, register_as_play_video }) => {
     const currentShot = shots[idx]
     try {
       // visibility는 가입 시 설정한 user.default_visibility를 따름
@@ -100,6 +100,7 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
         youtube_url: youtube_url || null,
         memo: memo || null,
         memo_public: !!memo_public,
+        register_as_play_video: !!register_as_play_video,
       })
       // 스크린샷 파일을 서버에 업로드해 기록에 첨부 (프로필에서 show_screenshot 해제 시에도 저장, API 응답에서 노출 제어)
       // routers/records.py upload_record_screenshot()
@@ -271,6 +272,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [memo, setMemo] = useState('')
   const [memoPublic, setMemoPublic] = useState(false)
+  const [registerAsPlayVideo, setRegisterAsPlayVideo] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [offset, setOffset] = useState({ x: 0, y: 0 })   // object-position in px
   const [imgDim, setImgDim] = useState(null)             // { w, h } natural
@@ -342,6 +344,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
     setYoutubeUrl('')
     setMemo('')
     setMemoPublic(false)
+    setRegisterAsPlayVideo(false)
   }, [shot.id])  // eslint-disable-line
 
   // 사용자가 이미 수동 입력했다면 OCR 결과로 덮어쓰지 않음.
@@ -386,6 +389,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
       youtube_url: youtubeUrl.trim() || null,
       memo: memo.trim() || null,
       memo_public: memoPublic,
+      register_as_play_video: registerAsPlayVideo && !!youtubeUrl.trim(),
     })
     setSubmitting(false)
   }
@@ -496,6 +500,18 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
                 />
                 <span>한마디 공개 (랭킹에서 닉네임 클릭 시 다른 사람도 볼 수 있음)</span>
               </label>
+              {/* YouTube URL이 입력됐을 때만 표시. 체크하면 visibility 무관하게 플레이 영상 탭에 노출됨 */}
+              {youtubeUrl.trim() && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: 'var(--fg-3)', cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={registerAsPlayVideo}
+                    onChange={e => setRegisterAsPlayVideo(e.target.checked)}
+                    style={{ width: 14, height: 14, margin: 0, padding: 0, flexShrink: 0, accentColor: 'var(--accent)' }}
+                  />
+                  <span>플레이 영상에 등록 <span style={{ color: 'var(--fg-4)' }}>(음악 카탈로그의 플레이 영상 탭에 등록됩니다)</span></span>
+                </label>
+              )}
             </div>
           </div>
         </div>
