@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link2, Check } from 'lucide-react'
 import useStore from '../store/useStore'
 import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
-import { artworkBg, fmt, getAnonId } from '../utils/helpers'
+import { artworkBg, fmt, fmtBpm, getAnonId } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 
 function BpmGraph({ timeline, songTime }) {
@@ -734,7 +734,7 @@ function MobileBpmTimeline({ timeline }) {
             <div key={i} className="mob-bpm-entry">
               <span className="mob-bpm-time">{fmtTime(pt.time)}</span>
               <span className="mob-bpm-sep">:</span>
-              <span className="mob-bpm-val">{pt.bpm % 1 === 0 ? pt.bpm : pt.bpm.toFixed(1)}</span>
+              <span className="mob-bpm-val">{fmtBpm(pt.bpm)}</span>
               {delta != null && (
                 <span className="mob-bpm-delta" style={{ color: delta > 0 ? 'oklch(0.75 0.18 25)' : 'var(--ok)' }}>
                   {delta > 0 ? `+${delta % 1 === 0 ? delta : delta.toFixed(1)}` : delta % 1 === 0 ? delta : delta.toFixed(1)}
@@ -827,7 +827,7 @@ function MobileDetail({ song, detail, onClose }) {
           )}
           {song.is_change && <span className="mob-h-tag">변속</span>}
           {song.is_new && <span className="mob-h-tag mob-h-tag-new">NEW</span>}
-          <span className="mob-h-tag">{song.bpm.toFixed(1)} BPM</span>
+          <span className="mob-h-tag">{fmtBpm(song.bpm)} BPM</span>
           <span className="mob-h-tag">{song.time}</span>
         </div>
       </div>
