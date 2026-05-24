@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from auth import get_current_user_id, require_admin
 from database import get_conn
-from models import SongListItem, SongDetail, MetaResponse, BpmPoint, PlayLogCreate
+from models import SongListItem, SongDetail, MetaResponse, BpmPoint, PlayLogCreate, SongServerCounterpart
 from rate_limit import limiter
 
 router = APIRouter(prefix="/api", tags=["songs"])
@@ -28,6 +28,15 @@ def _parse_bpm_timeline(raw: str) -> list[BpmPoint]:
         except Exception:
             continue
     return points
+
+
+def _is_admin(cur, request: Request) -> bool:
+    uid = get_current_user_id(request)
+    if uid is None:
+        return False
+    cur.execute("SELECT is_admin FROM users WHERE id = %s", (uid,))
+    row = cur.fetchone()
+    return bool(row and row[0])
 
 
 @router.get("/meta", response_model=MetaResponse)
@@ -207,12 +216,13 @@ def get_removed_songs(request: Request):
 
 @router.get("/songs/{song_id}", response_model=SongDetail)
 def get_song(request: Request, song_id: int):
+    counterpart = None
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, name, artist, level, bpm, combo, "
                 "COALESCE(real_time, time) AS time, "
-                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE) "
+                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index "
                 "FROM songs WHERE id = %s",
                 (song_id,)
             )
@@ -221,6 +231,7 @@ def get_song(request: Request, song_id: int):
                 raise HTTPException(status_code=404, detail="곡을 찾을 수 없습니다")
             if row[11]:
                 require_admin(request)
+            viewer_is_admin = _is_admin(cur, request)
 
             # name+artist 기준으로 동일 곡 전체 집계
             cur.execute(
@@ -241,7 +252,36 @@ def get_song(request: Request, song_id: int):
             )
             play_count_week = cur.fetchone()[0]
 
-    sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, image, _is_removed = row
+            cur.execute(
+                """
+                SELECT x.id, x.name, COALESCE(x.artist, ''), COALESCE(x.is_removed, FALSE)
+                FROM song_server_links l
+                JOIN xyx_songs x ON x.id = l.xyx_song_id
+                WHERE l.kr_song_id = %s
+                  AND l.confidence = 100
+                  AND (COALESCE(x.is_removed, FALSE) IS FALSE OR %s)
+                ORDER BY
+                  COALESCE(x.is_removed, FALSE) ASC,
+                  CASE WHEN ABS(COALESCE(x.level, 0)::float - COALESCE(%s, 0)::float) < 0.0001 THEN 0 ELSE 1 END,
+                  CASE WHEN x.game_index = %s THEN 0 ELSE 1 END,
+                  CASE WHEN l.match_source = 'user_confirmed' THEN 0 ELSE 1 END,
+                  l.updated_at DESC,
+                  x.id
+                LIMIT 1
+                """,
+                (song_id, viewer_is_admin, row[3], row[12]),
+            )
+            counterpart_row = cur.fetchone()
+            if counterpart_row:
+                counterpart = SongServerCounterpart(
+                    server="xyx",
+                    id=int(counterpart_row[0]),
+                    name=counterpart_row[1] or "",
+                    artist=counterpart_row[2] or "",
+                    is_removed=bool(counterpart_row[3]),
+                )
+
+    sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index = row
     base_bpm = float(bpm or 0)
     timeline = _parse_bpm_timeline(change_bpm or "")
     if timeline:
@@ -267,6 +307,7 @@ def get_song(request: Request, song_id: int):
         is_change=bool(change_bpm),
         image=image or None,
         bpm_timeline=timeline,
+        counterpart=counterpart,
     )
 
 

@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite } from '../api/client'
+import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates } from '../api/client'
 
 const useStore = create((set, get) => ({
+  // user: { id, nickname, default_visibility, onboarded, provider } | null
   user: null,
   authLoaded: false,
   // 관리자 여부 — /auth/me에는 포함하지 않고 별도 /auth/admin-status로 분리 조회.
@@ -17,21 +18,26 @@ const useStore = create((set, get) => ({
         get().refreshFlags()
         get().refreshPmangFavorites()
         // 관리자 상태는 별도 호출. 실패해도(비로그인/네트워크) false로 폴백.
-        getAdminStatus().then(d => set({ isAdmin: !!d.is_admin })).catch(() => set({ isAdmin: false }))
+        getAdminStatus().then(d => {
+          const isAdmin = !!d.is_admin
+          set({ isAdmin })
+          if (isAdmin) get().refreshPmangYoutubeCandidates()
+          else set({ pmangYoutubeCandidates: [] })
+        }).catch(() => set({ isAdmin: false, pmangYoutubeCandidates: [] }))
       } else {
-        set({ favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false })
+        set({ favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, pmangYoutubeCandidates: [] })
       }
     } catch {
-      set({ user: null, authLoaded: true, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false })
+      set({ user: null, authLoaded: true, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, pmangYoutubeCandidates: [] })
     }
   },
   setUser: (user) => set({ user }),
   logout: async () => {
     try { await logoutApi() } catch {}
-    set({ user: null, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false })
+    set({ user: null, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, pmangYoutubeCandidates: [] })
   },
 
-  favorites: new Set(),
+  favorites: new Set(),   // Set<song_id>
   played: new Set(),      // 실제 플레이한 song_id (채널별 분리)
   playedAll: new Set(),   // 동일 곡의 모든 채널 인스턴스 포함 (카테고리 필터 ON일 때 사용)
   refreshFlags: async () => {
@@ -92,6 +98,15 @@ const useStore = create((set, get) => ({
     }
   },
 
+  pmangYoutubeCandidates: [],
+  refreshPmangYoutubeCandidates: async () => {
+    try {
+      const data = await getPmangYoutubeCandidates('pending')
+      set({ pmangYoutubeCandidates: (data || []).map(x => ({ ...x, youtube_candidate: true })) })
+    } catch {
+      set({ pmangYoutubeCandidates: [] })
+    }
+  },
   markPlayed: (songId) => set(s => {
     if (!s.user) return {}
     if (s.played.has(songId)) return {}
@@ -120,13 +135,13 @@ const useStore = create((set, get) => ({
   error: null,
 
   search: '',
-  searchMode: 'both',
+  searchMode: 'both',   // 'both' | 'name' | 'artist'
   levelMin: 7,
   levelMax: 12,
   bpmMin: null,
   bpmMax: null,
-  category: 'sun',
-  quick: 'all',
+  category: 'sun',     // null | 'star' | 'moon' | 'sun'
+  quick: 'all',         // all | new | played | variants
   // 모바일 칩에서 신곡/변속곡/즐겨찾기/내플레이를 다른 필터와 동시 선택 가능하게 하기 위한 독립 플래그.
   // helpers.passesFilters에서 quick과 AND로 적용된다.
   flagNew: false,
@@ -140,10 +155,10 @@ const useStore = create((set, get) => ({
   openMobileSheet: () => set({ mobileSheetOpen: true }),
   closeMobileSheet: () => set({ mobileSheetOpen: false }),
 
-  modalSong: null,
+  modalSong: null,      // song detail object from GET /songs/:id
   modalOpen: false,
 
-  feedbackSong: null,
+  feedbackSong: null,   // { id, name, artist }
   feedbackOpen: false,
 
   loginOpen: false,
@@ -162,13 +177,36 @@ const useStore = create((set, get) => ({
     bpmMin: meta.bpm_min,
     bpmMax: meta.bpm_max,
   }),
+  restoreListState: (saved) => set(s => {
+    if (!saved || typeof saved !== 'object') return {}
+    const numberOr = (value, fallback) =>
+      value === null || value === undefined || value === ''
+        ? fallback
+        : (Number.isFinite(Number(value)) ? Number(value) : fallback)
+    return {
+      search: typeof saved.search === 'string' ? saved.search : s.search,
+      searchMode: ['both', 'name', 'artist'].includes(saved.searchMode) ? saved.searchMode : s.searchMode,
+      levelMin: numberOr(saved.levelMin, s.levelMin),
+      levelMax: numberOr(saved.levelMax, s.levelMax),
+      bpmMin: numberOr(saved.bpmMin, s.bpmMin),
+      bpmMax: numberOr(saved.bpmMax, s.bpmMax),
+      category: saved.category === 'star' || saved.category === 'moon' || saved.category === 'sun' ? saved.category : null,
+      quick: saved.quick || s.quick,
+      flagNew: !!saved.flagNew,
+      flagVariants: !!saved.flagVariants,
+      flagFavorite: !!saved.flagFavorite,
+      flagMyPlayed: !!saved.flagMyPlayed,
+      artists: new Set(Array.isArray(saved.artists) ? saved.artists : []),
+      sort: saved.sort && typeof saved.sort === 'object' ? saved.sort : s.sort,
+    }
+  }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
 
   setSearch: (search) => set({ search }),
   setSearchMode: (searchMode) => set({ searchMode }),
-  setLevelMin: (v) => set({ levelMin: v, category: null }),
-  setLevelMax: (v) => set({ levelMax: v, category: null }),
+  setLevelMin: (v) => set({ levelMin: v }),
+  setLevelMax: (v) => set({ levelMax: v }),
   setBpmMin: (v) => set({ bpmMin: v }),
   setBpmMax: (v) => set({ bpmMax: v }),
 

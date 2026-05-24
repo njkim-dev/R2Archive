@@ -1,12 +1,20 @@
 """체감 난이도 투표.
 
 IP 등 사용자 개인정보를 수집하지 않고, 비회원 투표 참여를 유도하기 위해 rate limit으로만 어뷰징 방어함.
+
+식별 정책:
+  - 로그인 사용자: user_id로 식별. anon_id가 와도 본인 식별자로 신뢰하지 않음.
+    → 타인이 anon_id를 알아도 본인 투표를 변조/삭제할 수 없음.
+  - 비회원: anon_id로 식별 (기존 정책 유지).
+  - 마이그레이션: 로그인 사용자가 첫 POST/PUT/DELETE 시점에 body.anon_id로
+    과거 익명 투표 행이 있으면 user_id 행으로 자동 승계.
 """
 from fastapi import APIRouter, HTTPException, Request
 from auth import get_current_user_id
 from database import get_conn
 from models import PerceivedCreate, PerceivedUpdate, PerceivedDelete, PerceivedStats
 from rate_limit import limiter, ip_song_key
+from routers.perceived_sync import mirror_perceived_delete, mirror_perceived_vote
 
 router = APIRouter(prefix="/api/songs", tags=["perceived"])
 
@@ -90,6 +98,7 @@ def submit_perceived(request: Request, song_id: int, body: PerceivedCreate):
                         "VALUES (%s, %s, %s, %s)",
                         (song_id, uid, body.level, body.opinion)
                     )
+                mirror_perceived_vote(cur, "kr", song_id, uid, body.anon_id, body.level, body.opinion)
             else:
                 cur.execute(
                     "SELECT id FROM perceived_difficulty "
@@ -106,6 +115,7 @@ def submit_perceived(request: Request, song_id: int, body: PerceivedCreate):
                     "VALUES (%s, %s, %s, %s)",
                     (song_id, body.anon_id, body.level, body.opinion)
                 )
+                mirror_perceived_vote(cur, "kr", song_id, None, body.anon_id, body.level, body.opinion)
         conn.commit()
     return {"ok": True}
 
@@ -140,6 +150,7 @@ def update_perceived(request: Request, song_id: int, body: PerceivedUpdate):
                         status_code=404,
                         detail="투표 내역이 없습니다. 등록은 POST를 사용해주세요"
                     )
+                mirror_perceived_vote(cur, "kr", song_id, uid, body.anon_id, body.level, body.opinion)
             else:
                 cur.execute(
                     "UPDATE perceived_difficulty SET level=%s, opinion=%s, updated_at=NOW() "
@@ -151,6 +162,7 @@ def update_perceived(request: Request, song_id: int, body: PerceivedUpdate):
                         status_code=404,
                         detail="투표 내역이 없습니다. 등록은 POST를 사용해주세요"
                     )
+                mirror_perceived_vote(cur, "kr", song_id, None, body.anon_id, body.level, body.opinion)
         conn.commit()
     return {"ok": True}
 
@@ -179,6 +191,7 @@ def delete_perceived(request: Request, song_id: int, body: PerceivedDelete):
                     total += cur.rowcount
                 if total == 0:
                     raise HTTPException(status_code=404, detail="투표 내역이 없습니다")
+                mirror_perceived_delete(cur, "kr", song_id, uid, body.anon_id)
             else:
                 cur.execute(
                     "DELETE FROM perceived_difficulty "
@@ -187,5 +200,6 @@ def delete_perceived(request: Request, song_id: int, body: PerceivedDelete):
                 )
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="투표 내역이 없습니다")
+                mirror_perceived_delete(cur, "kr", song_id, None, body.anon_id)
         conn.commit()
     return {"ok": True}

@@ -134,15 +134,36 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
   const displayLv = song.level / 2
   const cat = displayLv >= 7 ? 'sun' : displayLv >= 4 ? 'moon' : 'star'
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+  const hasMusic = !!song.youtube_url
+
+  const openMusic = (e) => {
+    e.stopPropagation()
+    window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <div className="mob-card" style={style} onClick={() => onClick?.(song)}>
-      {canFav && (
-        <button
-          className={`mob-fav-btn${isFav ? ' on' : ''}`}
-          onClick={e => { e.stopPropagation(); onToggleFav(song.id) }}
-          aria-label={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-        >{isFav ? '★' : '☆'}</button>
+      {(hasMusic || canFav) && (
+        <div className="mob-card-actions">
+          {hasMusic && (
+            <button
+              type="button"
+              className="mob-music-btn"
+              onClick={openMusic}
+              aria-label="YouTube에서 듣기"
+              title="YouTube에서 듣기"
+            >
+              ♪
+            </button>
+          )}
+          {canFav && (
+            <button
+              className={`mob-fav-btn${isFav ? ' on' : ''}`}
+              onClick={e => { e.stopPropagation(); onToggleFav(song.id) }}
+              aria-label={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            >{isFav ? '★' : '☆'}</button>
+          )}
+        </div>
       )}
       <div className="mob-art" style={{ background: artworkBg(song.id) }}>
         {song.image

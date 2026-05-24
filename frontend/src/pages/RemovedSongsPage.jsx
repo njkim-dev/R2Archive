@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useStore from '../store/useStore'
 import { getRemovedSongs } from '../api/client'
 import { filterSongs, sortSongs } from '../utils/helpers'
@@ -25,10 +25,12 @@ export default function RemovedSongsPage() {
     search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll, meta, setCategory,
+    openModal,
   } = useStore()
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const openedHashRef = useRef(null)
 
   useEffect(() => {
     if (!authLoaded) return
@@ -46,6 +48,18 @@ export default function RemovedSongsPage() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [authLoaded, isAdmin])
+
+  useEffect(() => {
+    if (loading || !isAdmin || !songs.length) return
+    const hash = location.hash
+    if (openedHashRef.current === hash) return
+    const match = hash.match(/^#song=(\d+)$/)
+    if (!match) return
+    const song = songs.find(item => item.id === parseInt(match[1], 10))
+    if (!song) return
+    openedHashRef.current = hash
+    openModal(song)
+  }, [loading, isAdmin, songs, openModal])
 
   const filtered = useMemo(() => {
     const playedForFilter = category ? playedAll : played

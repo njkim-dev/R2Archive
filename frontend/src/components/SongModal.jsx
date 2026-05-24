@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link2, Check } from 'lucide-react'
+import { Link2, Check, ExternalLink } from 'lucide-react'
 import useStore from '../store/useStore'
 import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
 import { artworkBg, fmt, fmtBpm, getAnonId } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
+import { isXyxMode, SERVER_LINKS } from '../utils/serverMode'
+import { saveCurrentListState, withRestoreListParam } from '../utils/listState'
 
 function BpmGraph({ timeline, songTime }) {
   const tooltipRef = useRef(null)
@@ -774,6 +776,9 @@ function MobileDetail({ song, detail, onClose }) {
   const favorites = useStore(s => s.favorites)
   const toggleFavorite = useStore(s => s.toggleFavorite)
   const isFav = favorites?.has(song.id)
+  const xyxMode = isXyxMode()
+  const counterpartUrl = getCounterpartUrl(song.counterpart)
+  const counterpartLabel = getCounterpartLabel(song.counterpart)
 
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const catLabel = { star: '별 (1.5–3.5)', moon: '달 (4–6.5)', sun: '해 (7–12)' }[cat]
@@ -875,6 +880,15 @@ function MobileDetail({ song, detail, onClose }) {
           songId={song.id}
           className="mob-act-btn mob-act-ghost pcat-mobile-action"
         />
+        {counterpartUrl && (
+          <button
+            className="mob-act-btn mob-act-ghost pcat-mobile-action"
+            onClick={() => navigateToCounterpart(counterpartUrl)}
+          >
+            <ExternalLink size={15} />
+            {counterpartLabel}
+          </button>
+        )}
       </div>
 
       <div className="mob-stats">
@@ -894,8 +908,8 @@ function MobileDetail({ song, detail, onClose }) {
       <div className="mob-tabs">
         {[
           { key: 'overview', label: '개요' },
-          { key: 'records',  label: '성과 등록' },
-          { key: 'ranking',  label: '랭킹' },
+          { key: 'records',  label: '플레이 영상' },
+          ...(!xyxMode ? [{ key: 'ranking',  label: '랭킹' }] : []),
           { key: 'comments', label: '댓글' },
         ].map(({ key, label }) => (
           <button
@@ -935,7 +949,7 @@ function MobileDetail({ song, detail, onClose }) {
           </>
         )}
         {tab === 'records' && <RecordsTab song={song} />}
-        {tab === 'ranking' && <RankingTab song={song} />}
+        {!xyxMode && tab === 'ranking' && <RankingTab song={song} />}
         {tab === 'comments' && <CommentsTab song={song} />}
       </div>
     </div>
@@ -950,12 +964,32 @@ function catFromLevel(lv) {
   return 'star'
 }
 
+function getCounterpartUrl(counterpart) {
+  if (!counterpart?.id || !counterpart?.server) return null
+  const base = SERVER_LINKS[counterpart.server]
+  if (!base) return null
+  const path = counterpart.is_removed ? '/removed-songs' : '/'
+  return `${base}${path}#song=${counterpart.id}`
+}
+
+function getCounterpartLabel(counterpart) {
+  if (counterpart?.server === 'kr') return '한국 서버로 이동'
+  if (counterpart?.server === 'xyx') return '중국 서버로 이동'
+  return '다른 서버로 이동'
+}
+
+function navigateToCounterpart(url) {
+  saveCurrentListState(useStore.getState())
+  window.location.href = withRestoreListParam(url)
+}
+
 export default function SongModal() {
   const isMobile = useMobile()
   // SongModal은 App.jsx 루트에서 <Routes> 바깥에 렌더링되어 페이지의 [data-cat] cascade를
   // 받지 못한다. 그래서 모달 자체에 data-cat을 직접 부여한다 — 단, 페이지 필터가 아니라
   // 열려 있는 곡의 난이도 기반으로 결정해 매 곡마다 색이 자연스럽게 바뀌도록 한다.
   const { modalOpen, modalSong, closeModal, openFeedback, user, favorites, toggleFavorite } = useStore()
+  const xyxMode = isXyxMode()
   const [tab, setTab] = useState('overview')
   const [detail, setDetail] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -1028,6 +1062,8 @@ export default function SongModal() {
 
   const song = detail ?? modalSong
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+  const counterpartUrl = getCounterpartUrl(song.counterpart)
+  const counterpartLabel = getCounterpartLabel(song.counterpart)
 
   const handlePlayClick = () => {
     if (song.youtube_url) {
@@ -1109,6 +1145,12 @@ export default function SongModal() {
               {favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기'}
             </button>
             <PersonalCategoryPicker songId={song.id} className="btn btn-ghost" />
+            {counterpartUrl && (
+              <button className="btn btn-ghost" onClick={() => navigateToCounterpart(counterpartUrl)}>
+                <ExternalLink size={14} strokeWidth={2.4} />
+                {counterpartLabel}
+              </button>
+            )}
             <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
               {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
             </button>
@@ -1123,12 +1165,14 @@ export default function SongModal() {
               </button>
               {moreOpen && (
                 <div ref={moreMenuRef} className="more-menu" style={{ top: morePos.top, right: morePos.right }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setMoreOpen(false); openFeedback(song) }}>
-                    <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    <span>피드백</span>
-                  </button>
+                  {!xyxMode && (
+                    <button onClick={() => { setMoreOpen(false); openFeedback(song) }}>
+                      <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      <span>피드백</span>
+                    </button>
+                  )}
                   <button onClick={handleCopyLink}>
                     <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -1162,7 +1206,7 @@ export default function SongModal() {
           {[
             { key: 'overview', label: '개요' },
             { key: 'records',  label: '플레이 영상' },
-            { key: 'ranking',  label: '랭킹' },
+            ...(!xyxMode ? [{ key: 'ranking',  label: '랭킹' }] : []),
             { key: 'comments', label: '댓글' },
           ].map(({ key, label }) => (
             <button key={key} className={`m-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
@@ -1179,7 +1223,7 @@ export default function SongModal() {
             </>
           )}
           {tab === 'records' && <RecordsTab song={song} />}
-          {tab === 'ranking' && <RankingTab song={song} />}
+          {!xyxMode && tab === 'ranking' && <RankingTab song={song} />}
           {tab === 'comments' && <CommentsTab song={song} />}
         </div>
       </div>

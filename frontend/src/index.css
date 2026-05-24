@@ -126,6 +126,32 @@ a { text-decoration: none; color: inherit; }
 .brand-title { font-weight: 600; letter-spacing: -0.01em; }
 .brand-sub { font-size: 10.5px; color: var(--fg-4); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 1px; }
 
+.server-switcher {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+.server-switcher button {
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface-1);
+  color: var(--fg-3);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.server-switcher button:hover {
+  border-color: color-mix(in oklch, var(--accent), var(--line-soft) 55%);
+  color: var(--fg);
+}
+.server-switcher button.active {
+  background: var(--cat-accent-dim);
+  border-color: color-mix(in oklch, var(--cat-accent), var(--line-soft) 35%);
+  color: var(--cat-accent);
+}
+
 .side-section { margin-top: 22px; }
 .side-label {
   font-size: 10.5px; color: var(--fg-4); letter-spacing: 0.08em; text-transform: uppercase;
@@ -708,6 +734,15 @@ a { text-decoration: none; color: inherit; }
 .fav-btn:disabled { cursor: not-allowed; opacity: 0.4; }
 .fav-btn:disabled:hover { color: var(--fg-4); background: transparent; }
 
+.mob-card-actions {
+  position: absolute; top: 8px; right: 10px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+}
+.mob-card-actions .mob-fav-btn,
+.mob-card-actions .mob-delete-btn,
+.mob-card-actions .mob-music-btn {
+  position: static; top: auto; right: auto;
+}
 .mob-fav-btn {
   position: absolute; top: 8px; right: 10px; z-index: 2;
   width: 30px; height: 30px; border-radius: 50%;
@@ -715,6 +750,13 @@ a { text-decoration: none; color: inherit; }
   font-size: 16px; display: grid; place-items: center;
 }
 .mob-fav-btn.on { color: var(--warn); }
+.mob-music-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: oklch(0 0 0 / 0.5); color: var(--accent);
+  border: 0; display: grid; place-items: center; cursor: pointer;
+  font-size: 17px; font-weight: 800; line-height: 1;
+}
+.mob-music-btn:hover { color: var(--accent-2); }
 .mob-delete-btn {
   position: absolute; top: 8px; right: 48px; z-index: 2;
   width: 30px; height: 30px; border-radius: 50%;
@@ -759,6 +801,8 @@ a { text-decoration: none; color: inherit; }
 
 /* 아티스트 셀 기본 색 (인라인 스타일 대체) */
 .artist-cell { color: var(--fg-2); }
+.korea-name-cell { color: var(--fg-2); }
+.muted-dash { color: var(--fg-4); }
 
 /* BPM 티어별 곡명·아티스트·BPM 색상 (PC 전용).
    220+ 빨강 / 200+ 주황 / 120- 초록. 그 외는 기본 흰색 유지.
@@ -1117,6 +1161,25 @@ a { text-decoration: none; color: inherit; }
   .mob-app-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; flex: 1; }
   .mob-app-title b { font-weight: 700; }
   .mob-sub { font-size: 10.5px; color: var(--fg-4); margin-left: 6px; font-weight: 500; letter-spacing: 0.02em; }
+  .server-switcher.mob-server-switcher {
+    flex: 1 1 128px;
+    width: auto;
+    max-width: 170px;
+    min-width: 0;
+    margin-bottom: 0;
+    gap: 4px;
+  }
+  .server-switcher.mob-server-switcher button {
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .server-switcher.mob-server-switcher + div {
+    margin-left: auto;
+  }
 
   .mob-icon-btn {
     width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
@@ -1226,6 +1289,11 @@ a { text-decoration: none; color: inherit; }
   }
   .mob-fav-btn.on { color: var(--warn); }
   .mob-fav-btn:active { background: var(--surface-2); transform: scale(0.9); }
+  .mob-music-btn {
+    width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+    color: var(--accent); font-size: 19px; flex-shrink: 0; transition: all .12s;
+  }
+  .mob-music-btn:active { background: var(--surface-2); transform: scale(0.9); }
 
   /* ── Empty state ── */
   .mob-empty {

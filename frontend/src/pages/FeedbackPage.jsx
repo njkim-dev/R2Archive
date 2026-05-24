@@ -8,6 +8,7 @@ import { useMobile } from '../hooks/useMobile'
 import FeedbackMobileHeader from '../components/feedback/FeedbackMobileHeader'
 import FeedbackComposeSheet from '../components/feedback/FeedbackComposeSheet'
 import { HelpButton } from '../components/HelpTour'
+import ServerSwitcher from '../components/ServerSwitcher'
 
 const BUG_TYPES = [
   { v: 'data',    label: '데이터 오류',         desc: 'BPM·콤보·시간이 실제와 다를 때',   icon: '📊' },
@@ -44,19 +45,7 @@ function fmtRel(at) {
 }
 
 function SidebarBrand() {
-  return (
-    <div className="brand">
-      <div className="brand-mark">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-        </svg>
-      </div>
-      <div>
-        <div className="brand-title">알투비트 아카이브</div>
-        <div className="brand-sub">Feedback · v1</div>
-      </div>
-    </div>
-  )
+  return <ServerSwitcher />
 }
 
 function PageNav() {

@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Navigate, Routes, Route } from 'react-router-dom'
 import useStore from './store/useStore'
 import { getSongs, getMeta } from './api/client'
+import { isXyxMode } from './utils/serverMode'
+import { readSavedListState, shouldRestoreListState } from './utils/listState'
 import SongModal from './components/SongModal'
 import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
@@ -20,7 +22,8 @@ import PersonalCategorySubscribersPage from './pages/PersonalCategorySubscribers
 import FeedbackPage from './pages/FeedbackPage'
 
 export default function App() {
-  const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding } = useStore()
+  const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding, restoreListState } = useStore()
+  const xyxMode = isXyxMode()
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
 
@@ -67,6 +70,10 @@ export default function App() {
       getSongs().then(data => { setSongs(data); return data }),
       getMeta().then(initFromMeta),
     ]).then(() => {
+      if (shouldRestoreListState()) {
+        const saved = readSavedListState()
+        if (saved) restoreListState(saved)
+      }
       const match = location.hash.match(/^#song=(\d+)$/)
       if (match) {
         const id = parseInt(match[1], 10)
@@ -82,15 +89,16 @@ export default function App() {
       <Routes>
         <Route path="/" element={<SongsPage />} />
         <Route path="/removed-songs" element={<RemovedSongsPage />} />
-        <Route path="/pmang-songs" element={<PmangSongsPage />} />
-        <Route path="/rankings" element={<RankingsPage />} />
-        <Route path="/rankings/:nickname" element={<RankingsPage />} />
-        <Route path="/groups" element={<GroupsPage />} />
-        <Route path="/groups/:gid" element={<GroupDetailPage />} />
+        {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}
+        {!xyxMode && <Route path="/rankings" element={<RankingsPage />} />}
+        {!xyxMode && <Route path="/rankings/:nickname" element={<RankingsPage />} />}
+        {!xyxMode && <Route path="/groups" element={<GroupsPage />} />}
+        {!xyxMode && <Route path="/groups/:gid" element={<GroupDetailPage />} />}
         <Route path="/personal-categories" element={<PersonalCategoriesPage />} />
         <Route path="/personal-categories/:code/subscribers" element={<PersonalCategorySubscribersPage />} />
         <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
-        <Route path="/feedback" element={<FeedbackPage />} />
+        {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <SongModal />
       <LoginModal />

@@ -33,13 +33,15 @@ from auth import (
     fetch_user,
     get_current_user_id,
     issue_session_cookie,
+    _cookie_domain,
+    _request_host,
     upsert_oauth_user,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # OAuth 자격 증명은 반드시 환경변수로 주입. 값이 비어 있으면 해당 제공자 로그인 시 503.
-BASE_URL = os.environ.get("OAUTH_BASE_URL", "https://music.r2archive.com")
+BASE_URL = os.environ.get("OAUTH_BASE_URL", "https://music.r2archive.com").rstrip("/")
 
 KAKAO_CLIENT_ID      = os.environ.get("OAUTH_KAKAO_CLIENT_ID", "")
 NAVER_CLIENT_ID      = os.environ.get("OAUTH_NAVER_CLIENT_ID", "")
@@ -54,18 +56,52 @@ def _require(provider: str, *values: str) -> None:
 
 STATE_COOKIE = "r2b_oauth_state"
 REMEMBER_COOKIE = "r2b_oauth_remember"
+RETURN_COOKIE = "r2b_oauth_return"
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"
+PUBLIC_APP_HOSTS = {"music.r2archive.com", "xyx.r2archive.com"}
 
 
-def _redirect_uri(provider: str) -> str:
-    return f"{BASE_URL}/api/auth/{provider}/callback"
+def _request_origin(request: Request) -> str:
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    host = host.split(",", 1)[0].strip()
+    hostname = host.split(":", 1)[0].lower()
+    if hostname in PUBLIC_APP_HOSTS:
+        return f"https://{host}"
+    if hostname in ("localhost", "127.0.0.1"):
+        proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+        return f"{proto}://{host}"
+    return BASE_URL
 
 
-def _set_state_cookie(resp, state: str) -> None:
-    resp.set_cookie(
-        STATE_COOKIE, state, max_age=600,
-        httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/",
-    )
+def _callback_origin(request: Request) -> str:
+    host = _request_host(request)
+    if host in PUBLIC_APP_HOSTS:
+        return BASE_URL
+    return _request_origin(request)
+
+
+def _redirect_uri(provider: str, request: Request) -> str:
+    return f"{_callback_origin(request)}/api/auth/{provider}/callback"
+
+
+def _safe_return_origin(origin: str | None) -> str:
+    if not origin:
+        return BASE_URL
+    if origin in {f"https://{host}" for host in PUBLIC_APP_HOSTS}:
+        return origin
+    if origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
+        return origin
+    if origin.startswith("https://localhost:") or origin.startswith("https://127.0.0.1:"):
+        return origin
+    return BASE_URL
+
+
+def _set_state_cookie(resp, state: str, request: Request) -> None:
+    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        kwargs["domain"] = domain
+    resp.set_cookie(STATE_COOKIE, state, **kwargs)
 
 
 def _check_state(request: Request, state: str) -> None:
@@ -74,24 +110,50 @@ def _check_state(request: Request, state: str) -> None:
         raise HTTPException(status_code=400, detail="잘못된 OAuth state입니다")
 
 
-def _clear_state_cookie(resp) -> None:
+def _clear_state_cookie(resp, request: Request | None = None) -> None:
     resp.delete_cookie(STATE_COOKIE, path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        resp.delete_cookie(STATE_COOKIE, path="/", domain=domain)
 
 
-def _set_remember_cookie(resp, remember: bool) -> None:
+def _set_remember_cookie(resp, remember: bool, request: Request) -> None:
     """'로그인 상태 유지' 선택 여부를 fallback까지 전달하기 위한 임시 쿠키"""
-    resp.set_cookie(
-        REMEMBER_COOKIE, "1" if remember else "0", max_age=600,
-        httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/",
-    )
+    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        kwargs["domain"] = domain
+    resp.set_cookie(REMEMBER_COOKIE, "1" if remember else "0", **kwargs)
 
 
 def _read_remember(request: Request) -> bool:
     return request.cookies.get(REMEMBER_COOKIE) == "1"
 
 
-def _clear_remember_cookie(resp) -> None:
+def _clear_remember_cookie(resp, request: Request | None = None) -> None:
     resp.delete_cookie(REMEMBER_COOKIE, path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        resp.delete_cookie(REMEMBER_COOKIE, path="/", domain=domain)
+
+
+def _set_return_cookie(resp, request: Request) -> None:
+    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        kwargs["domain"] = domain
+    resp.set_cookie(RETURN_COOKIE, _safe_return_origin(_request_origin(request)), **kwargs)
+
+
+def _read_return_origin(request: Request) -> str:
+    return _safe_return_origin(request.cookies.get(RETURN_COOKIE))
+
+
+def _clear_return_cookie(resp, request: Request | None = None) -> None:
+    resp.delete_cookie(RETURN_COOKIE, path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        resp.delete_cookie(RETURN_COOKIE, path="/", domain=domain)
 
 
 @router.get("/me")
@@ -123,28 +185,30 @@ def admin_status(request: Request):
 
 
 @router.post("/logout")
-def logout():
+def logout(request: Request):
     resp = JSONResponse({"ok": True})
-    clear_session_cookie(resp)
+    clear_session_cookie(resp, request)
     return resp
 
 
-def _build_login_redirect(provider: str, auth_url: str, params: dict, remember: bool) -> RedirectResponse:
+def _build_login_redirect(provider: str, request: Request, auth_url: str, params: dict, remember: bool) -> RedirectResponse:
     state = secrets.token_urlsafe(24)
-    params = {**params, "state": state, "redirect_uri": _redirect_uri(provider)}
+    params = {**params, "state": state, "redirect_uri": _redirect_uri(provider, request)}
     url = f"{auth_url}?{urlencode(params)}"
     resp = RedirectResponse(url, status_code=302)
-    _set_state_cookie(resp, state)
-    _set_remember_cookie(resp, remember)
+    _set_state_cookie(resp, state, request)
+    _set_remember_cookie(resp, remember, request)
+    _set_return_cookie(resp, request)
     return resp
 
 
 @router.get("/kakao/login")
-def kakao_login(remember: int = 0):
+def kakao_login(request: Request, remember: int = 0):
     _require("kakao", KAKAO_CLIENT_ID)
     # scope 생략: 카카오는 별도 scope 없이도 id를 반환함
     return _build_login_redirect(
         "kakao",
+        request,
         "https://kauth.kakao.com/oauth/authorize",
         {"client_id": KAKAO_CLIENT_ID, "response_type": "code"},
         remember=bool(remember),
@@ -152,10 +216,11 @@ def kakao_login(remember: int = 0):
 
 
 @router.get("/naver/login")
-def naver_login(remember: int = 0):
+def naver_login(request: Request, remember: int = 0):
     _require("naver", NAVER_CLIENT_ID, NAVER_CLIENT_SECRET)
     return _build_login_redirect(
         "naver",
+        request,
         "https://nid.naver.com/oauth2.0/authorize",
         {"client_id": NAVER_CLIENT_ID, "response_type": "code"},
         remember=bool(remember),
@@ -163,11 +228,12 @@ def naver_login(remember: int = 0):
 
 
 @router.get("/google/login")
-def google_login(remember: int = 0):
+def google_login(request: Request, remember: int = 0):
     _require("google", GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
     # openid: sub 클레임만 필요. profile/email 요청 안 함.
     return _build_login_redirect(
         "google",
+        request,
         "https://accounts.google.com/o/oauth2/v2/auth",
         {"client_id": GOOGLE_CLIENT_ID, "response_type": "code", "scope": "openid"},
         remember=bool(remember),
@@ -180,27 +246,30 @@ def _finish_login(provider: str, provider_uid: str, request: Request) -> Redirec
         user_id = upsert_oauth_user(provider, provider_uid)
     except Exception:
         logger.exception("[oauth:%s] 유저 업서트 실패 (uid=%s)", provider, provider_uid)
-        return _fail_redirect("db_upsert")
+        return _fail_redirect("db_upsert", request)
     # 닉네임 설정 여부는 /api/auth/me 결과에 따라 프론트가 판단.
     # src/App.jsx — refreshUser() 후 user.onboarded -> false 면 닉네임 설정 자동 오픈
-    resp = RedirectResponse("/?auth=ok", status_code=302)
-    issue_session_cookie(resp, user_id, persistent=persistent)
-    _clear_state_cookie(resp)
-    _clear_remember_cookie(resp)
+    resp = RedirectResponse(f"{_read_return_origin(request)}/?auth=ok", status_code=302)
+    issue_session_cookie(resp, user_id, persistent=persistent, request=request)
+    _clear_state_cookie(resp, request)
+    _clear_remember_cookie(resp, request)
+    _clear_return_cookie(resp, request)
     return resp
 
 
-def _fail_redirect(detail: str) -> RedirectResponse:
-    resp = RedirectResponse(f"/?auth=fail&reason={detail}", status_code=302)
-    _clear_state_cookie(resp)
-    _clear_remember_cookie(resp)
+def _fail_redirect(detail: str, request: Request | None = None) -> RedirectResponse:
+    return_origin = _read_return_origin(request) if request is not None else BASE_URL
+    resp = RedirectResponse(f"{return_origin}/?auth=fail&reason={detail}", status_code=302)
+    _clear_state_cookie(resp, request)
+    _clear_remember_cookie(resp, request)
+    _clear_return_cookie(resp, request)
     return resp
 
 
 @router.get("/kakao/callback")
 async def kakao_callback(request: Request, code: str = "", state: str = ""):
     if not code:
-        return _fail_redirect("no_code")
+        return _fail_redirect("no_code", request)
     _check_state(request, state)
 
     async with httpx.AsyncClient(timeout=10) as client:
@@ -209,16 +278,16 @@ async def kakao_callback(request: Request, code: str = "", state: str = ""):
             data={
                 "grant_type": "authorization_code",
                 "client_id": KAKAO_CLIENT_ID,
-                "redirect_uri": _redirect_uri("kakao"),
+                "redirect_uri": _redirect_uri("kakao", request),
                 "code": code,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if tok.status_code != 200:
-            return _fail_redirect("token_exchange")
+            return _fail_redirect("token_exchange", request)
         access_token = tok.json().get("access_token")
         if not access_token:
-            return _fail_redirect("no_token")
+            return _fail_redirect("no_token", request)
 
         me = await client.get(
             "https://kapi.kakao.com/v2/user/me",
@@ -226,10 +295,10 @@ async def kakao_callback(request: Request, code: str = "", state: str = ""):
             params={"property_keys": "[]"},
         )
         if me.status_code != 200:
-            return _fail_redirect("user_fetch")
+            return _fail_redirect("user_fetch", request)
         kakao_id = me.json().get("id")
         if kakao_id is None:
-            return _fail_redirect("no_id")
+            return _fail_redirect("no_id", request)
 
     return _finish_login("kakao", str(kakao_id), request)
 
@@ -237,7 +306,7 @@ async def kakao_callback(request: Request, code: str = "", state: str = ""):
 @router.get("/naver/callback")
 async def naver_callback(request: Request, code: str = "", state: str = ""):
     if not code:
-        return _fail_redirect("no_code")
+        return _fail_redirect("no_code", request)
     _check_state(request, state)
 
     async with httpx.AsyncClient(timeout=10) as client:
@@ -252,21 +321,21 @@ async def naver_callback(request: Request, code: str = "", state: str = ""):
             },
         )
         if tok.status_code != 200:
-            return _fail_redirect("token_exchange")
+            return _fail_redirect("token_exchange", request)
         access_token = tok.json().get("access_token")
         if not access_token:
-            return _fail_redirect("no_token")
+            return _fail_redirect("no_token", request)
 
         me = await client.get(
             "https://openapi.naver.com/v1/nid/me",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         if me.status_code != 200:
-            return _fail_redirect("user_fetch")
+            return _fail_redirect("user_fetch", request)
         data = me.json().get("response") or {}
         naver_id = data.get("id")
         if not naver_id:
-            return _fail_redirect("no_id")
+            return _fail_redirect("no_id", request)
 
     return _finish_login("naver", str(naver_id), request)
 
@@ -274,7 +343,7 @@ async def naver_callback(request: Request, code: str = "", state: str = ""):
 @router.get("/google/callback")
 async def google_callback(request: Request, code: str = "", state: str = ""):
     if not code:
-        return _fail_redirect("no_code")
+        return _fail_redirect("no_code", request)
     _check_state(request, state)
 
     async with httpx.AsyncClient(timeout=10) as client:
@@ -284,16 +353,16 @@ async def google_callback(request: Request, code: str = "", state: str = ""):
                 "code": code,
                 "client_id": GOOGLE_CLIENT_ID,
                 "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": _redirect_uri("google"),
+                "redirect_uri": _redirect_uri("google", request),
                 "grant_type": "authorization_code",
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if tok.status_code != 200:
-            return _fail_redirect("token_exchange")
+            return _fail_redirect("token_exchange", request)
         id_token = tok.json().get("id_token")
         if not id_token:
-            return _fail_redirect("no_token")
+            return _fail_redirect("no_token", request)
 
     # id_token 서명 검증은 생략 — OIDC §3.1.3.7상 token endpoint에서
     # 직접 받은 id_token은 HTTPS 백채널이 authenticity를 보장하므로 허용됨.
@@ -305,21 +374,21 @@ async def google_callback(request: Request, code: str = "", state: str = ""):
         pad = "=" * (-len(payload_b64) % 4)
         payload = json.loads(base64.urlsafe_b64decode(payload_b64 + pad))
     except Exception:
-        return _fail_redirect("id_token_parse")
+        return _fail_redirect("id_token_parse", request)
 
     if payload.get("iss") not in ("https://accounts.google.com", "accounts.google.com"):
-        return _fail_redirect("iss_mismatch")
+        return _fail_redirect("iss_mismatch", request)
 
     aud = payload.get("aud")
     aud_ok = (aud == GOOGLE_CLIENT_ID) or (isinstance(aud, list) and GOOGLE_CLIENT_ID in aud)
     if not aud_ok:
-        return _fail_redirect("aud_mismatch")
+        return _fail_redirect("aud_mismatch", request)
 
     if payload.get("exp", 0) < time.time() - 30:
-        return _fail_redirect("id_token_expired")
+        return _fail_redirect("id_token_expired", request)
 
     google_sub = payload.get("sub")
     if not google_sub:
-        return _fail_redirect("no_sub")
+        return _fail_redirect("no_sub", request)
 
     return _finish_login("google", str(google_sub), request)
