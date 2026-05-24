@@ -9,6 +9,7 @@ import FeedbackModal from './components/FeedbackModal'
 import MyPageModal from './components/MyPageModal'
 import HelpTour from './components/HelpTour'
 import SongsPage from './pages/SongsPage'
+import RemovedSongsPage from './pages/RemovedSongsPage'
 import PmangSongsPage from './pages/PmangSongsPage'
 import RankingsPage from './pages/RankingsPage'
 import GroupsPage from './pages/GroupsPage'
@@ -80,6 +81,7 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<SongsPage />} />
+        <Route path="/removed-songs" element={<RemovedSongsPage />} />
         <Route path="/pmang-songs" element={<PmangSongsPage />} />
         <Route path="/rankings" element={<RankingsPage />} />
         <Route path="/rankings/:nickname" element={<RankingsPage />} />

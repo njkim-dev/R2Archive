@@ -9,7 +9,7 @@ const SEARCH_MODES = [
   { key: 'artist', label: '아티스트' },
 ]
 
-export default function TopBar({ filteredCount }) {
+export default function TopBar({ filteredCount, totalCount }) {
   const { search, setSearch, searchMode, setSearchMode, meta, sort, openLogin, user, logout, openOnboarding, openMyPage } = useStore()
   const inputRef = useRef(null)
   const [modeOpen, setModeOpen] = useState(false)
@@ -88,7 +88,7 @@ export default function TopBar({ filteredCount }) {
         <HelpButton />
         <span className="count">
           <b>{filteredCount.toLocaleString()}</b>
-          {' '}<span style={{ color: 'var(--fg-3)' }}>/ {(meta?.total_count ?? 0).toLocaleString()} 곡</span>
+          {' '}<span style={{ color: 'var(--fg-3)' }}>/ {(totalCount ?? meta?.total_count ?? 0).toLocaleString()} 곡</span>
         </span>
         <span style={{ width: 1, height: 14, background: 'var(--line)', flexShrink: 0 }} />
         <span>
