@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user_id, require_user_id
 from database import get_conn
+from routers.songs import ACTIVE_SONG_ALIAS_SQL
 
 router = APIRouter(prefix="/api", tags=["personal-categories"])
 
@@ -244,6 +245,7 @@ def _fetch_songs_for_category(cur, category_id: int) -> list[dict]:
         LEFT JOIN play_counts pc ON pc.name = s.name AND pc.artist = s.artist
         LEFT JOIN perceived p ON p.song_id = s.id
         LEFT JOIN song_aliases sa ON sa.song_id = s.id
+        WHERE COALESCE(s.is_removed, FALSE) IS FALSE
         GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.time, s.real_time,
                  s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image,
                  pc.play_count, p.avg_level, p.votes, c.added_at
@@ -616,7 +618,10 @@ def add_song_to_personal_category(
         with conn.cursor() as cur:
             category = _ensure_can_edit(cur, category_id, uid)
 
-            cur.execute("SELECT id, name FROM songs WHERE id = %s", (body.song_id,))
+            cur.execute(
+                f"SELECT id, name FROM songs s WHERE id = %s AND {ACTIVE_SONG_ALIAS_SQL}",
+                (body.song_id,),
+            )
             song = cur.fetchone()
             if not song:
                 raise HTTPException(status_code=404, detail="곡을 찾을 수 없습니다")

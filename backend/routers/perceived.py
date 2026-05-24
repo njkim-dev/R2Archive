@@ -15,6 +15,7 @@ from database import get_conn
 from models import PerceivedCreate, PerceivedUpdate, PerceivedDelete, PerceivedStats
 from rate_limit import limiter, ip_song_key
 from routers.perceived_sync import mirror_perceived_delete, mirror_perceived_vote
+from routers.songs import ensure_active_song
 
 router = APIRouter(prefix="/api/songs", tags=["perceived"])
 
@@ -30,6 +31,7 @@ def get_perceived_stats(request: Request, song_id: int, anon_id: str = ""):
     uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 "SELECT level FROM perceived_difficulty WHERE song_id = %s",
                 (song_id,)
@@ -73,6 +75,7 @@ def submit_perceived(request: Request, song_id: int, body: PerceivedCreate):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             if uid is not None:
                 cur.execute(
                     "SELECT id FROM perceived_difficulty WHERE song_id = %s AND user_id = %s",
@@ -129,6 +132,7 @@ def update_perceived(request: Request, song_id: int, body: PerceivedUpdate):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             if uid is not None:
                 cur.execute(
                     "UPDATE perceived_difficulty "
@@ -176,6 +180,7 @@ def delete_perceived(request: Request, song_id: int, body: PerceivedDelete):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             if uid is not None:
                 cur.execute(
                     "DELETE FROM perceived_difficulty WHERE song_id=%s AND user_id=%s",
