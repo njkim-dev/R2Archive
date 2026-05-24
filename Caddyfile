@@ -8,6 +8,7 @@ header {
     Referrer-Policy "strict-origin-when-cross-origin"
     Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
     Cross-Origin-Opener-Policy "same-origin"
+    Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://kauth.kakao.com https://nid.naver.com"
 }
 
 # 스크린샷 업로드(500KB~2MB)를 고려해 10MB까지 허용.

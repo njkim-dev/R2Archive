@@ -19,12 +19,13 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-import time
 from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
+import jwt
+from jwt import ExpiredSignatureError, InvalidAudienceError, PyJWKClient, PyJWTError
 
 logger = logging.getLogger("auth.oauth")
 
@@ -48,6 +49,7 @@ NAVER_CLIENT_ID      = os.environ.get("OAUTH_NAVER_CLIENT_ID", "")
 NAVER_CLIENT_SECRET  = os.environ.get("OAUTH_NAVER_CLIENT_SECRET", "")
 GOOGLE_CLIENT_ID     = os.environ.get("OAUTH_GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("OAUTH_GOOGLE_CLIENT_SECRET", "")
+GOOGLE_JWKS_CLIENT = PyJWKClient("https://www.googleapis.com/oauth2/v3/certs")
 
 
 def _require(provider: str, *values: str) -> None:
@@ -94,6 +96,31 @@ def _safe_return_origin(origin: str | None) -> str:
     if origin.startswith("https://localhost:") or origin.startswith("https://127.0.0.1:"):
         return origin
     return BASE_URL
+
+
+def _verify_google_id_token(id_token: str) -> tuple[dict | None, str | None]:
+    try:
+        signing_key = GOOGLE_JWKS_CLIENT.get_signing_key_from_jwt(id_token)
+        payload = jwt.decode(
+            id_token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=GOOGLE_CLIENT_ID,
+            leeway=30,
+            options={"require": ["aud", "exp", "sub"]},
+        )
+    except ExpiredSignatureError:
+        return None, "id_token_expired"
+    except InvalidAudienceError:
+        return None, "aud_mismatch"
+    except PyJWTError as exc:
+        logger.warning("[oauth:google] id_token 검증 실패: %s", exc.__class__.__name__)
+        return None, "id_token_verify"
+
+    if payload.get("iss") not in ("https://accounts.google.com", "accounts.google.com"):
+        return None, "iss_mismatch"
+
+    return payload, None
 
 
 def _set_state_cookie(resp, state: str, request: Request) -> None:
@@ -364,28 +391,9 @@ async def google_callback(request: Request, code: str = "", state: str = ""):
         if not id_token:
             return _fail_redirect("no_token", request)
 
-    # id_token 서명 검증은 생략 — OIDC §3.1.3.7상 token endpoint에서
-    # 직접 받은 id_token은 HTTPS 백채널이 authenticity를 보장하므로 허용됨.
-    # iss/aud/exp는 defense-in-depth로 체크한다.
-    try:
-        import base64
-        import json
-        payload_b64 = id_token.split(".")[1]
-        pad = "=" * (-len(payload_b64) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + pad))
-    except Exception:
-        return _fail_redirect("id_token_parse", request)
-
-    if payload.get("iss") not in ("https://accounts.google.com", "accounts.google.com"):
-        return _fail_redirect("iss_mismatch", request)
-
-    aud = payload.get("aud")
-    aud_ok = (aud == GOOGLE_CLIENT_ID) or (isinstance(aud, list) and GOOGLE_CLIENT_ID in aud)
-    if not aud_ok:
-        return _fail_redirect("aud_mismatch", request)
-
-    if payload.get("exp", 0) < time.time() - 30:
-        return _fail_redirect("id_token_expired", request)
+    payload, error = _verify_google_id_token(id_token)
+    if error:
+        return _fail_redirect(error, request)
 
     google_sub = payload.get("sub")
     if not google_sub:
