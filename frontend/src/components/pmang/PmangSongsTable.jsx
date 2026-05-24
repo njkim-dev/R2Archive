@@ -101,6 +101,15 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
             )}
           </div>
           <span className="title-main">{song.name}</span>
+          {song.youtube_candidate && (
+            <span
+              className="candidate-pill"
+              title={song.candidate_video_title || 'YouTube 후보'}
+            >
+              후보 {song.candidate_rank}
+              {song.candidate_score != null && ` · ${Number(song.candidate_score).toFixed(2)}`}
+            </span>
+          )}
           <YoutubeLinkIcon song={song} />
         </div>
       </div>
@@ -119,6 +128,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
   )
 }
 
+// 모바일 카드 — 본 SongsTable의 MobileCard와 동일한 CSS class를 재사용.
 // pmang 곡은 BPM/변속/체감난이도 데이터가 없어 메타 라인이 더 간소함.
 function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
   const displayLv = song.level / 2
@@ -173,7 +183,32 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
 
 const SEPARATOR = { __type: 'separator' }
 
-export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false }) {
+function SearchEmptyState({ search, isMobile }) {
+  const hasSearch = !!search.trim()
+  return (
+    <div className={`search-empty${isMobile ? ' mobile' : ''}`}>
+      <div className="search-empty-icon">♩</div>
+      <div className="search-empty-title">{hasSearch ? '검색 결과가 없습니다.' : '조건에 맞는 곡이 없어요'}</div>
+    </div>
+  )
+}
+
+function SearchFilterHint({ suggestion, empty = false }) {
+  if (!suggestion) return null
+  return (
+    <div className="search-filter-hint">
+      <span>
+        {empty
+          ? '노래 난이도를 잘못 기억하신 것 같아요! 난이도 필터를 해제할까요?'
+          : '혹시 원하는 결과가 나오지 않았다면 난이도 필터를 해제해보세요.'
+        }
+      </span>
+      <button className="search-filter-hint-action" onClick={suggestion.onApply}>해제하기</button>
+    </div>
+  )
+}
+
+export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null }) {
   const { user, pmangFavorites, togglePmangFavorite } = useStore()
   const canFav = !!user
   const listRef = useRef(null)
@@ -250,12 +285,10 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
         <div className="mob-meta">
           <span><b>{totalCount.toLocaleString()}</b> 곡</span>
         </div>
+        <SearchFilterHint suggestion={categorySuggestion} empty={totalCount === 0} />
         {totalCount === 0
           ? (
-            <div className="mob-empty">
-              <div className="mob-empty-icon">♩</div>
-              조건에 맞는 곡이 없어요
-            </div>
+            <SearchEmptyState search={search} isMobile />
           )
           : (
             <div style={{ flex: 1 }}>
@@ -283,22 +316,27 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
   return (
     <div className="table-wrap">
       <TableHeader sort={sort} onSort={onSort} />
-      <div className="tbl-body" style={{ flex: 1, overflow: 'hidden' }}>
-        <AutoSizer>
-          {({ height, width }) => (
-            <FixedSizeList
-              ref={listRef}
-              height={height}
-              width={width}
-              itemCount={items.length}
-              itemSize={44}
-              style={{ overflowX: 'hidden' }}
-              onScroll={handleScroll}
-            >
-              {Row}
-            </FixedSizeList>
-          )}
-        </AutoSizer>
+      <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
+      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>
+        {items.length === 0 ? (
+          <SearchEmptyState search={search} />
+        ) : (
+          <AutoSizer>
+            {({ height, width }) => (
+              <FixedSizeList
+                ref={listRef}
+                height={height}
+                width={width}
+                itemCount={items.length}
+                itemSize={44}
+                style={{ overflowX: 'hidden' }}
+                onScroll={handleScroll}
+              >
+                {Row}
+              </FixedSizeList>
+            )}
+          </AutoSizer>
+        )}
       </div>
     </div>
   )

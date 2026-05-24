@@ -6,6 +6,9 @@ from rate_limit import limiter
 
 router = APIRouter(prefix="/api", tags=["songs"])
 
+ACTIVE_SONG_SQL = "COALESCE(is_removed, FALSE) IS FALSE"
+ACTIVE_SONG_ALIAS_SQL = "COALESCE(s.is_removed, FALSE) IS FALSE"
+
 
 def _parse_bpm_timeline(raw: str) -> list[BpmPoint]:
     """DB 포맷 "frame:bpm|frame:bpm|..." 을 BpmPoint 리스트로 변환 (frame / 60 = 초)."""
@@ -30,38 +33,41 @@ def _parse_bpm_timeline(raw: str) -> list[BpmPoint]:
 def get_meta():
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM songs")
+            cur.execute(f"SELECT COUNT(*) FROM songs WHERE {ACTIVE_SONG_SQL}")
             total_count = cur.fetchone()[0]
 
-            cur.execute("SELECT COUNT(*) FROM songs WHERE stat IS TRUE")
+            cur.execute(f"SELECT COUNT(*) FROM songs WHERE stat IS TRUE AND {ACTIVE_SONG_SQL}")
             new_count = cur.fetchone()[0]
 
             cur.execute(
                 "SELECT COUNT(DISTINCT (s.name, s.artist)) "
-                "FROM play_logs pl JOIN songs s ON s.id = pl.song_id"
+                "FROM play_logs pl JOIN songs s ON s.id = pl.song_id "
+                f"WHERE {ACTIVE_SONG_ALIAS_SQL}"
             )
             played_count = cur.fetchone()[0]
 
             cur.execute(
-                "SELECT COUNT(*) FROM songs WHERE change_bpm IS NOT NULL AND change_bpm != ''"
+                "SELECT COUNT(*) FROM songs "
+                f"WHERE change_bpm IS NOT NULL AND change_bpm != '' AND {ACTIVE_SONG_SQL}"
             )
             change_count = cur.fetchone()[0]
 
             cur.execute(
-                "SELECT artist FROM songs WHERE artist IS NOT NULL AND artist != '' "
+                "SELECT artist FROM songs "
+                f"WHERE artist IS NOT NULL AND artist != '' AND {ACTIVE_SONG_SQL} "
                 "GROUP BY artist ORDER BY COUNT(*) DESC LIMIT 20"
             )
             top_artists = [r[0] for r in cur.fetchall()]
 
             cur.execute(
                 "SELECT COALESCE(FLOOR(MIN(bpm))::int, 0), COALESCE(CEIL(MAX(bpm))::int, 300) "
-                "FROM songs WHERE bpm IS NOT NULL"
+                f"FROM songs WHERE bpm IS NOT NULL AND {ACTIVE_SONG_SQL}"
             )
             bpm_row = cur.fetchone()
 
             cur.execute(
                 "SELECT COALESCE(MIN(level)::float, 0.5), COALESCE(MAX(level)::float, 12.0) "
-                "FROM songs WHERE level IS NOT NULL"
+                f"FROM songs WHERE level IS NOT NULL AND {ACTIVE_SONG_SQL}"
             )
             level_row = cur.fetchone()
 
@@ -88,6 +94,7 @@ def get_songs():
                 "SELECT s.name, s.artist, COUNT(*) FROM play_logs pl "
                 "JOIN songs s ON s.id = pl.song_id "
                 "WHERE pl.played_at >= NOW() - INTERVAL '30 days' "
+                f"AND {ACTIVE_SONG_ALIAS_SQL} "
                 "GROUP BY s.name, s.artist"
             )
             play_counts: dict[tuple, int] = {(r[0], r[1]): r[2] for r in cur.fetchall()}
@@ -105,6 +112,7 @@ def get_songs():
                 "COALESCE(array_agg(sa.alias) FILTER (WHERE sa.alias IS NOT NULL), ARRAY[]::text[]) AS aliases "
                 "FROM songs s "
                 "LEFT JOIN song_aliases sa ON s.id = sa.song_id "
+                f"WHERE {ACTIVE_SONG_ALIAS_SQL} "
                 "GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.time, s.real_time, "
                 "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image "
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST"
@@ -143,7 +151,7 @@ def get_song(song_id: int):
             cur.execute(
                 "SELECT id, name, artist, level, bpm, combo, "
                 "COALESCE(real_time, time) AS time, "
-                "change_bpm, youtube_url, stat, image FROM songs WHERE id = %s",
+                f"change_bpm, youtube_url, stat, image FROM songs WHERE id = %s AND {ACTIVE_SONG_SQL}",
                 (song_id,)
             )
             row = cur.fetchone()
@@ -154,7 +162,7 @@ def get_song(song_id: int):
             cur.execute(
                 "SELECT COUNT(*) FROM play_logs pl "
                 "JOIN songs s ON s.id = pl.song_id "
-                "WHERE s.name = %s AND s.artist = %s",
+                f"WHERE s.name = %s AND s.artist = %s AND {ACTIVE_SONG_ALIAS_SQL}",
                 (row[1], row[2])
             )
             play_count = cur.fetchone()[0]
@@ -163,6 +171,7 @@ def get_song(song_id: int):
                 "SELECT COUNT(*) FROM play_logs pl "
                 "JOIN songs s ON s.id = pl.song_id "
                 "WHERE s.name = %s AND s.artist = %s "
+                f"AND {ACTIVE_SONG_ALIAS_SQL} "
                 "AND pl.played_at >= NOW() - INTERVAL '7 days'",
                 (row[1], row[2])
             )
