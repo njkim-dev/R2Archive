@@ -240,7 +240,7 @@ function UploadView({ shots, onAdd, onRemove, onStart, onClose }) {
         <div className="left">
           {!has && `판정%는 자동으로 읽어드려요. 곡명은 직접 검색/선택하시면 됩니다.`}
           {has && !allProcessed && `⋯ 판정% 인식 중 (${processingCount}장 남음). 완료되면 시작할 수 있어요`}
-          {has && allProcessed && `💡 "시작"을 누르면 첫 스크린샷부터 순서대로 등록을 진행합니다`}
+          {has && allProcessed && `💡 "시작"을 클릭하면 첫 스크린샷부터 순서대로 등록을 진행합니다`}
         </div>
         <div className="right">
           <button className="rr-btn ghost" onClick={onClose}>취소</button>
@@ -344,7 +344,6 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
     setYoutubeUrl('')
     setMemo('')
     setMemoPublic(false)
-    setRegisterAsPlayVideo(false)
   }, [shot.id])  // eslint-disable-line
 
   // 사용자가 이미 수동 입력했다면 OCR 결과로 덮어쓰지 않음.

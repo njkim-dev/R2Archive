@@ -5,7 +5,9 @@ import useGroupsStore from '../store/useGroupsStore'
 import UserChip from '../components/UserChip'
 import { useMobile } from '../hooks/useMobile'
 import GroupDetailMobileHeader from '../components/groups/GroupDetailMobileHeader'
+import { HelpButton } from '../components/HelpTour'
 
+// 그룹 id로부터 hue 산출 (0~360). 디자인 시안의 hueOf와 동일 알고리즘.
 function hueOf(gid) {
   let h = 0
   const s = String(gid)
@@ -48,7 +50,9 @@ function roleLabel(r) {
   return 'MEMBER'
 }
 
+// ---------- Hero ----------
 function Hero({ g, hue, isOwner, isStaff, pendingCount, onCopyCode, onRegen, onGoManage, navigate }) {
+  // admin은 staff는 아니지만 코드 열람 가능. 운영 액션(재발급/신청 처리)은 owner/manager만.
   const canSeeCode = isStaff || g.my_role === 'admin'
   return (
     <div className="gd-hero" style={{ '--group-h': hue }}>
@@ -977,6 +981,7 @@ export default function GroupDetailPage() {
           <span className="sep">/</span>
           <span style={{ color: 'var(--fg-2)' }}>{g.name}</span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HelpButton />
             <UserChip />
           </div>
         </div>
@@ -1037,7 +1042,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>판정 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -1050,7 +1055,7 @@ function PageNav({ user }) {
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
           onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
         >
-          <span>개인 카테고리</span>
+          <span>음악 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>

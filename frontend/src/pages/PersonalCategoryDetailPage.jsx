@@ -9,6 +9,7 @@ import SongsTable from '../components/SongsTable'
 import UserChip from '../components/UserChip'
 import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
+import { HelpButton } from '../components/HelpTour'
 
 function roleLabel(role) {
   if (role === 'owner') return '소유자'
@@ -41,7 +42,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>판정 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -50,7 +51,7 @@ function PageNav({ user }) {
           <span>그룹</span>
         </NavLink>
         <NavLink to="/personal-categories" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-          <span>개인 카테고리</span>
+          <span>음악 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
@@ -116,7 +117,7 @@ function PersonalCategoryFilterPanel({
     <>
       <div className="side-section">
         <div className="side-label">
-          <span>개인 카테고리 필터</span>
+          <span>음악 카테고리 필터</span>
           <span className="ct mono">{totalFiltered.toLocaleString()}</span>
         </div>
         <div className="nav">
@@ -320,7 +321,7 @@ function PersonalCategoryMobileFilterSheet({
   return (
     <>
       <div className={`mob-backdrop${open ? ' open' : ''}`} onClick={onClose} />
-      <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="개인 카테고리 필터">
+    <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="음악 카테고리 필터">
         <div className="mob-sheet-handle" />
         <div className="mob-sheet-head">
           <div className="mob-sheet-title">필터</div>
@@ -666,6 +667,7 @@ export default function PersonalCategoryDetailPage() {
             <div className="mob-top-row">
               <div className="mob-app-title">개인 <b>카테고리</b></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <HelpButton />
                 {user ? (
                   <button className="mob-icon-btn" onClick={() => navigate('/personal-categories')} title="내 카테고리">
                     <Globe2 size={18} />
@@ -735,7 +737,7 @@ export default function PersonalCategoryDetailPage() {
         <div className="side-section">
           <button className="gd-back-link" onClick={() => navigate('/personal-categories')}>
             <span style={{ fontSize: 11 }}>←</span>
-            개인 카테고리로
+            음악 카테고리로
           </button>
         </div>
         {category && !loading && !error && (
@@ -778,6 +780,7 @@ export default function PersonalCategoryDetailPage() {
                 표시 {filteredSongs.length.toLocaleString()}곡
               </span>
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <HelpButton />
                 {canShowSubscribe && (
                   <button className={subscribeButtonClass} onClick={toggleSubscribe} disabled={subscribing}>
                     {subscribeLabel}

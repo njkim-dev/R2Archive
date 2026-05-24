@@ -1,5 +1,6 @@
 import useStore from '../../store/useStore'
 import MobilePageNav from '../MobilePageNav'
+import { HelpButton } from '../HelpTour'
 
 export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearchChange }) {
   const { user, openLogin, logout, openMyPage } = useStore()
@@ -10,6 +11,7 @@ export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearc
         <div className="mob-top-row">
           <div className="mob-app-title">알투<b>비트</b> <span className="mob-sub">피드백</span></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <HelpButton />
             {user ? (
               <>
                 <button

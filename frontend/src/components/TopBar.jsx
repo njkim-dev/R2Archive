@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import useStore from '../store/useStore'
 import ScreenshotRegisterModal from './ScreenshotRegisterModal'
+import { HelpButton } from './HelpTour'
 
 const SEARCH_MODES = [
   { key: 'both',   label: '곡명 + 아티스트' },
@@ -84,6 +85,7 @@ export default function TopBar({ filteredCount }) {
       </div>
 
       <div className="topbar-meta">
+        <HelpButton />
         <span className="count">
           <b>{filteredCount.toLocaleString()}</b>
           {' '}<span style={{ color: 'var(--fg-3)' }}>/ {(meta?.total_count ?? 0).toLocaleString()} 곡</span>

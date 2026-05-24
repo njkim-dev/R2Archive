@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import useStore from '../store/useStore'
 import MobilePageNav from './MobilePageNav'
+import { HelpButton } from './HelpTour'
 
 // PC 사이드바와 동일한 5각 별 SVG. 즐겨찾기(★)와 시각적으로 구분되게 SVG 사용.
 const StarIcon = (
@@ -64,11 +65,13 @@ export default function MobileHeader({ totalFiltered }) {
   }
 
   const handleChip = (chip) => {
+    // 독립 flag 칩들: 다른 필터와 자유 조합 가능.
     if (chip === 'new')      return toggleIndependent(isNewOn,     flagNew,      setFlagNew,      toggleFlagNew,      'new')
     if (chip === 'variant')  return toggleIndependent(isVarOn,     flagVariants, setFlagVariants, toggleFlagVariants, 'variants')
     if (chip === 'favorite') return toggleIndependent(isFavOn,     flagFavorite, setFlagFavorite, toggleFlagFavorite, 'favorite')
     if (chip === 'my_played') return toggleIndependent(isMyPlayedOn, flagMyPlayed, setFlagMyPlayed, toggleFlagMyPlayed, 'my_played')
 
+    // 이하 single-select 카테고리 그룹.
     if (chip === activeChip) return
     if (chip === 'all') {
       if (category) setCategory(category)
@@ -77,6 +80,7 @@ export default function MobileHeader({ totalFiltered }) {
     }
     if (chip === 'star' || chip === 'moon' || chip === 'sun') {
       setCategory(chip)   // 레벨 범위 자동 리셋 포함
+      // flag들은 모두 보존 — 카테고리와 독립.
       return
     }
   }
@@ -97,6 +101,7 @@ export default function MobileHeader({ totalFiltered }) {
         <div className="mob-top-row">
           <div className="mob-app-title">알투<b>비트</b> <span className="mob-sub">아카이브</span></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <HelpButton />
             {user ? (
               <>
                 <button

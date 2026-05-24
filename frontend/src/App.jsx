@@ -7,6 +7,7 @@ import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
 import MyPageModal from './components/MyPageModal'
+import HelpTour from './components/HelpTour'
 import SongsPage from './pages/SongsPage'
 import PmangSongsPage from './pages/PmangSongsPage'
 import RankingsPage from './pages/RankingsPage'
@@ -94,6 +95,7 @@ export default function App() {
       <OnboardingModal />
       <FeedbackModal />
       <MyPageModal />
+      <HelpTour />
     </>
   )
 }

@@ -6,6 +6,7 @@ import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
 import UserChip from '../components/UserChip'
 import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
+import { HelpButton } from '../components/HelpTour'
 
 function fmtDate(value) {
   if (!value) return '-'
@@ -48,7 +49,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>판정 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -57,7 +58,7 @@ function PageNav({ user }) {
           <span>그룹</span>
         </NavLink>
         <NavLink to="/personal-categories" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-          <span>개인 카테고리</span>
+          <span>음악 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
@@ -280,7 +281,7 @@ export default function PersonalCategoriesPage() {
     ? '카테고리를 만들고 곡 상세 화면에서 곡을 저장해보세요.'
     : activeTab === 'subscribed'
       ? '카테고리 링크에서 구독하면 여기에 표시돼요.'
-      : '공개된 개인 카테고리가 생기면 여기에 표시돼요.'
+      : '공개된 음악 카테고리가 생기면 여기에 표시돼요.'
 
   if (isMobile) {
     return (
@@ -289,9 +290,12 @@ export default function PersonalCategoriesPage() {
           <div className="mob-top-inner">
             <div className="mob-top-row">
               <div className="mob-app-title">개인 <b>카테고리</b></div>
-              <button className="mob-icon-btn pcat-mobile-create" onClick={openCreate} title="카테고리 만들기">
-                <FolderPlus size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <HelpButton />
+                <button className="mob-icon-btn pcat-mobile-create" onClick={openCreate} title="카테고리 만들기">
+                  <FolderPlus size={18} />
+                </button>
+              </div>
             </div>
             <MobilePageNav />
             <Tabs activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} user={user} isAdmin={isAdmin} />
@@ -358,12 +362,13 @@ export default function PersonalCategoriesPage() {
 
       <main className="main">
         <div className="topbar">
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>개인 카테고리</h2>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>음악 카테고리</h2>
           <span style={{ color: 'var(--fg-3)', fontSize: 12, marginLeft: 4 }}>
             {visibleCategories.length.toLocaleString()}개 · 저장된 곡 {totalSongs.toLocaleString()}곡
             {isAdmin && activeTab === 'public' ? ' · 관리자 전체 보기' : ''}
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HelpButton />
             {user ? <UserChip /> : <button className="gd-btn primary sm" onClick={openLogin}>로그인</button>}
           </div>
         </div>

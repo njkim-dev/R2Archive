@@ -8,6 +8,7 @@ import PmangSidebar from '../components/pmang/PmangSidebar'
 import PmangFilterBar from '../components/pmang/PmangFilterBar'
 import PmangSongsTable from '../components/pmang/PmangSongsTable'
 import PmangSongModal from '../components/pmang/PmangSongModal'
+import { HelpButton } from '../components/HelpTour'
 
 const TOP_ARTIST_LIMIT = 20
 
@@ -20,7 +21,8 @@ const SEARCH_MODES = [
 export default function PmangSongsPage() {
   const isMobile = useMobile()
   const pmangFavorites = useStore(s => s.pmangFavorites)
-  const { user, openLogin, openMyPage, openOnboarding, logout } = useStore()
+  const pmangYoutubeCandidates = useStore(s => s.pmangYoutubeCandidates)
+  const { user, isAdmin, openLogin, openMyPage, openOnboarding, logout } = useStore()
 
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -36,8 +38,9 @@ export default function PmangSongsPage() {
   const [levelMin, setLevelMin] = useState(1)
   const [levelMax, setLevelMax] = useState(10)
   const [category, setCategoryState] = useState('sun')
-  const [quick, setQuick] = useState('all')
+  const [quick, setQuick] = useState('all')  // 'all' | 'favorite' | 'no_music' | 'youtube_candidates'
   const [artists, setArtists] = useState(() => new Set())
+  // 기본 정렬: game_index DESC — 최신 곡(높은 index)이 위로.
   const [sort, setSortState] = useState({ key: 'game_index', dir: 'desc' })
 
   const [modalSong, setModalSong] = useState(null)
@@ -76,6 +79,10 @@ export default function PmangSongsPage() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    if (quick === 'youtube_candidates' && !isAdmin) setQuick('all')
+  }, [quick, isAdmin])
 
   // 카탈로그 해시 진입 — `#pmang-song=<id>`로 끝나면 해당 곡 모달을 연다.
   useEffect(() => {
@@ -143,18 +150,24 @@ export default function PmangSongsPage() {
   }
 
   const filtered = useMemo(() => {
-    const { exact, fuzzy } = filterPmangSongs(songs, {
-      search, searchMode, levelMin, levelMax, category, quick, artists,
+    const candidateMode = quick === 'youtube_candidates' && isAdmin
+    const sourceSongs = candidateMode ? pmangYoutubeCandidates : songs
+    const { exact, fuzzy } = filterPmangSongs(sourceSongs, {
+      search, searchMode, levelMin, levelMax, category,
+      quick: quick === 'youtube_candidates' ? 'all' : quick,
+      artists,
       favorites: pmangFavorites,
     })
     return {
       exact: sortPmangSongs(exact, sort),
       fuzzy: sortPmangSongs(fuzzy, sort),
     }
-  }, [songs, search, searchMode, levelMin, levelMax, category, quick, artists, pmangFavorites, sort])
+  }, [songs, pmangYoutubeCandidates, isAdmin, search, searchMode, levelMin, levelMax, category, quick, artists, pmangFavorites, sort])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
 
+  // 컬럼 헤더 클릭: 이미 같은 키면 방향 토글, 다른 키면 초기 방향 부여.
+  // 본 SongsTable의 setSort와 동일 — 숫자성 컬럼(game_index/level)은 'desc'로, 텍스트(name/artist)는 'asc'로 시작.
   const handleSort = (key) => {
     setSortState(prev => prev.key === key
       ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
@@ -178,20 +191,23 @@ export default function PmangSongsPage() {
                 과거 피망곡
                 <span className="mob-sub">{totalFiltered.toLocaleString()} / {songs.length.toLocaleString()}</span>
               </div>
-              {user ? (
-                <button className="mob-icon-btn" onClick={openMyPage} title="마이페이지" aria-label="마이페이지">
-                  <div className="user-avatar" style={{ width: 24, height: 24 }}>
-                    {((user.nickname || '?')[0] || '?').toUpperCase()}
-                  </div>
-                </button>
-              ) : (
-                <button className="mob-icon-btn" onClick={openLogin} title="로그인" aria-label="로그인">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-                    <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
-                  </svg>
-                </button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <HelpButton />
+                {user ? (
+                  <button className="mob-icon-btn" onClick={openMyPage} title="마이페이지" aria-label="마이페이지">
+                    <div className="user-avatar" style={{ width: 24, height: 24 }}>
+                      {((user.nickname || '?')[0] || '?').toUpperCase()}
+                    </div>
+                  </button>
+                ) : (
+                  <button className="mob-icon-btn" onClick={openLogin} title="로그인" aria-label="로그인">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                      <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
 
             <MobilePageNav />
@@ -229,7 +245,7 @@ export default function PmangSongsPage() {
                     className={`mob-chip${isOn ? ' on' : ''}`}
                     onClick={() => {
                       if (c.key === 'all') {
-                        if (category) setCategory(category)
+                        if (category) setCategory(category) // 같은 키 클릭 → 토글 OFF (PC와 동일)
                       } else if (category !== c.key) {
                         setCategory(c.key)
                       }
@@ -242,6 +258,18 @@ export default function PmangSongsPage() {
                   className={`mob-chip${quick === 'favorite' ? ' on' : ''}`}
                   onClick={() => setQuick(quick === 'favorite' ? 'all' : 'favorite')}
                 >★ 즐겨찾기</button>
+              )}
+              {isAdmin && (
+                <button
+                  className={`mob-chip${quick === 'youtube_candidates' ? ' on' : ''}`}
+                  onClick={() => setQuick(quick === 'youtube_candidates' ? 'all' : 'youtube_candidates')}
+                >후보곡</button>
+              )}
+              {isAdmin && (
+                <button
+                  className={`mob-chip${quick === 'no_music' ? ' on' : ''}`}
+                  onClick={() => setQuick(quick === 'no_music' ? 'all' : 'no_music')}
+                >음악 없음</button>
               )}
             </div>
           </div>
@@ -280,6 +308,7 @@ export default function PmangSongsPage() {
         artists={artists} toggleArtist={toggleArtist} clearArtists={clearArtists}
         topArtists={topArtists}
         favorites={pmangFavorites}
+        pmangYoutubeCandidates={pmangYoutubeCandidates}
       />
       <main className="main">
         <div className="topbar">
@@ -323,6 +352,7 @@ export default function PmangSongsPage() {
           </div>
 
           <div className="topbar-meta">
+            <HelpButton />
             <span className="count">
               <b>{totalFiltered.toLocaleString()}</b>
               {' '}<span style={{ color: 'var(--fg-3)' }}>/ {songs.length.toLocaleString()} 곡</span>

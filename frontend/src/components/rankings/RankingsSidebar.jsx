@@ -76,7 +76,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
             <span>곡 목록</span>
           </NavLink>
           <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>판정 랭킹</span>
+            <span>음악 랭킹</span>
           </NavLink>
           <NavLink
             to="/groups"
@@ -90,7 +90,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
             className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
             onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
           >
-            <span>개인 카테고리</span>
+            <span>음악 카테고리</span>
           </NavLink>
           <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
             <span>과거 피망곡</span>
