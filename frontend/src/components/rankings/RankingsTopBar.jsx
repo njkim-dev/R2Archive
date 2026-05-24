@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import UserSearchList from './UserSearchList'
+import { HelpButton } from '../HelpTour'
 
 const SEARCH_MODES = [
   { key: 'song', label: '곡명 + 아티스트' },
@@ -39,7 +40,10 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
     if (saving || dirtyCount === 0) return
     try {
       const r = await saveDirty()
-      if (r.ok === false && r.invalidUrls) return
+      if (r.ok === false && r.invalidUrls) {
+        // 422: 잘못된 URL이 포함됨 → 모달은 store가 띄움
+        return
+      }
       if (r.ok === false && r.urlOnlyWithoutJudgment?.length) {
         alert(`${r.urlOnlyWithoutJudgment.length}곡은 점수를 함께 입력해야 등록됩니다.\n해당 행은 무시됐어요.`)
         return
@@ -72,6 +76,7 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
+  // 사용자가 핀되면 팝오버 닫기
   useEffect(() => { if (pinnedUser) setUserListOpen(false) }, [pinnedUser])
 
   useEffect(() => {
@@ -143,6 +148,7 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
       </div>
 
       <div className="topbar-meta">
+        <HelpButton />
         <span className="count">
           <b>{filteredCount.toLocaleString()}</b>
           {' '}<span style={{ color: 'var(--fg-3)' }}>/ {totalCount.toLocaleString()} 곡</span>

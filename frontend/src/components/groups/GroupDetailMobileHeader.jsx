@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useStore from '../../store/useStore'
+import { HelpButton } from '../HelpTour'
 
 function roleLabel(r) {
   if (r === 'owner') return 'OWNER'
@@ -41,6 +42,7 @@ export default function GroupDetailMobileHeader({
                 )}
               </div>
             </div>
+            <HelpButton />
             <button
               className="mob-icon-btn"
               onClick={() => setMenuOpen(true)}

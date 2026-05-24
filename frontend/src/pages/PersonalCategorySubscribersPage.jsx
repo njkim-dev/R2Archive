@@ -7,6 +7,7 @@ import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
 import UserChip from '../components/UserChip'
 import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
+import { HelpButton } from '../components/HelpTour'
 
 function roleLabel(role) {
   if (role === 'editor') return '수정 가능'
@@ -37,7 +38,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>판정 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -46,7 +47,7 @@ function PageNav({ user }) {
           <span>그룹</span>
         </NavLink>
         <NavLink to="/personal-categories" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-          <span>개인 카테고리</span>
+          <span>음악 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
@@ -201,15 +202,18 @@ export default function PersonalCategorySubscribersPage() {
           <div className="mob-top-inner">
             <div className="mob-top-row">
               <div className="mob-app-title">구독 <b>사용자 관리</b></div>
-              {user ? (
-                <button className="mob-icon-btn" onClick={() => navigate(`/personal-categories/${code}`)} title="카테고리로">
-                  <ArrowLeft size={18} />
-                </button>
-              ) : (
-                <button className="mob-icon-btn" onClick={openLogin} title="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
-                  로그인
-                </button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <HelpButton />
+                {user ? (
+                  <button className="mob-icon-btn" onClick={() => navigate(`/personal-categories/${code}`)} title="카테고리로">
+                    <ArrowLeft size={18} />
+                  </button>
+                ) : (
+                  <button className="mob-icon-btn" onClick={openLogin} title="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
+                    로그인
+                  </button>
+                )}
+              </div>
             </div>
             <MobilePageNav />
           </div>
@@ -243,6 +247,7 @@ export default function PersonalCategorySubscribersPage() {
             </span>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HelpButton />
             {user ? <UserChip /> : <button className="gd-btn ghost sm" onClick={openLogin}>로그인</button>}
           </div>
         </div>

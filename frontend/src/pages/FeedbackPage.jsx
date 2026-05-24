@@ -7,6 +7,7 @@ import { matchSong } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import FeedbackMobileHeader from '../components/feedback/FeedbackMobileHeader'
 import FeedbackComposeSheet from '../components/feedback/FeedbackComposeSheet'
+import { HelpButton } from '../components/HelpTour'
 
 const BUG_TYPES = [
   { v: 'data',    label: '데이터 오류',         desc: 'BPM·콤보·시간이 실제와 다를 때',   icon: '📊' },
@@ -65,7 +66,7 @@ function PageNav() {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>판정 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -78,7 +79,7 @@ function PageNav() {
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
           onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
         >
-          <span>개인 카테고리</span>
+          <span>음악 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
@@ -492,6 +493,7 @@ export default function FeedbackPage() {
             버그를 신고하거나 새로운 기능을 제안해주세요
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HelpButton />
             <UserChip />
           </div>
         </div>
