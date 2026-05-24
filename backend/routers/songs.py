@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from auth import get_current_user_id
+from auth import get_current_user_id, require_admin
 from database import get_conn
 from models import SongListItem, SongDetail, MetaResponse, BpmPoint, PlayLogCreate
 from rate_limit import limiter
@@ -8,6 +8,7 @@ router = APIRouter(prefix="/api", tags=["songs"])
 
 ACTIVE_SONG_SQL = "COALESCE(is_removed, FALSE) IS FALSE"
 ACTIVE_SONG_ALIAS_SQL = "COALESCE(s.is_removed, FALSE) IS FALSE"
+REMOVED_SONG_ALIAS_SQL = "COALESCE(s.is_removed, FALSE) IS TRUE"
 
 
 def _parse_bpm_timeline(raw: str) -> list[BpmPoint]:
@@ -144,19 +145,82 @@ def get_songs():
     return songs
 
 
+@router.get("/songs/removed", response_model=list[SongListItem])
+def get_removed_songs(request: Request):
+    """관리자 전용 미출시곡 목록 — is_removed=true 곡만 반환."""
+    require_admin(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT s.name, s.artist, COUNT(*) FROM play_logs pl "
+                "JOIN songs s ON s.id = pl.song_id "
+                "WHERE pl.played_at >= NOW() - INTERVAL '30 days' "
+                f"AND {REMOVED_SONG_ALIAS_SQL} "
+                "GROUP BY s.name, s.artist"
+            )
+            play_counts: dict[tuple, int] = {(r[0], r[1]): r[2] for r in cur.fetchall()}
+
+            cur.execute(
+                "SELECT song_id, AVG(level)::float, COUNT(*) "
+                "FROM perceived_difficulty GROUP BY song_id"
+            )
+            perceived: dict[int, tuple] = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+
+            cur.execute(
+                "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.combo, "
+                "COALESCE(s.real_time, s.time) AS time, "
+                "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image, "
+                "COALESCE(array_agg(sa.alias) FILTER (WHERE sa.alias IS NOT NULL), ARRAY[]::text[]) AS aliases "
+                "FROM songs s "
+                "LEFT JOIN song_aliases sa ON s.id = sa.song_id "
+                f"WHERE {REMOVED_SONG_ALIAS_SQL} "
+                "GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.time, s.real_time, "
+                "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image "
+                "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST"
+            )
+            rows = cur.fetchall()
+
+    songs = []
+    for row in rows:
+        sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, file_order, image, aliases = row
+        p_avg, p_votes = perceived.get(sid, (None, 0))
+        songs.append(SongListItem(
+            id=sid,
+            name=name or "",
+            artist=artist or "",
+            level=float(level or 0),
+            bpm=float(bpm or 0),
+            combo=int(combo or 0),
+            time=time_ or "",
+            youtube_url=yt_url or "",
+            is_new=bool(stat),
+            file_order=int(file_order or 0),
+            play_count=play_counts.get((name, artist), 0),
+            is_change=bool(change_bpm),
+            image=image or None,
+            user_level_avg=round(p_avg, 2) if p_avg is not None else None,
+            user_level_votes=int(p_votes),
+            aliases=list(aliases) if aliases else [],
+        ))
+    return songs
+
+
 @router.get("/songs/{song_id}", response_model=SongDetail)
-def get_song(song_id: int):
+def get_song(request: Request, song_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, name, artist, level, bpm, combo, "
                 "COALESCE(real_time, time) AS time, "
-                f"change_bpm, youtube_url, stat, image FROM songs WHERE id = %s AND {ACTIVE_SONG_SQL}",
+                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE) "
+                "FROM songs WHERE id = %s",
                 (song_id,)
             )
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="곡을 찾을 수 없습니다")
+            if row[11]:
+                require_admin(request)
 
             # name+artist 기준으로 동일 곡 전체 집계
             cur.execute(
@@ -177,7 +241,7 @@ def get_song(song_id: int):
             )
             play_count_week = cur.fetchone()[0]
 
-    sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, image = row
+    sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, image, _is_removed = row
     base_bpm = float(bpm or 0)
     timeline = _parse_bpm_timeline(change_bpm or "")
     if timeline:

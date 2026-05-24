@@ -19,6 +19,7 @@ api.interceptors.response.use(
 )
 
 export const getSongs = () => api.get('/songs').then(r => r.data)
+export const getRemovedSongs = () => api.get('/songs/removed').then(r => r.data)
 export const getMeta = () => api.get('/meta').then(r => r.data)
 export const getPmangSongs = () => api.get('/pmang-songs').then(r => r.data)
 export const getPmangComments = (id) => api.get(`/pmang-songs/${id}/comments`).then(r => r.data)

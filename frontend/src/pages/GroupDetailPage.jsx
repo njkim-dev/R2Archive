@@ -1036,7 +1036,7 @@ function SidebarBrand() {
 }
 
 function PageNav({ user }) {
-  const { openLogin } = useStore()
+  const { openLogin, isAdmin } = useStore()
   return (
     <div className="side-section" style={{ marginTop: 0 }}>
       <div className="side-label"><span>페이지</span></div>
@@ -1058,6 +1058,7 @@ function PageNav({ user }) {
           <span>음악 카테고리</span>
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
+        {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
           <span>피드백</span>
         </NavLink>
