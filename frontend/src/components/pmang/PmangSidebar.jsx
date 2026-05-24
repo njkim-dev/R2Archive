@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import useStore from '../../store/useStore'
+import { filterPmangSongs } from '../../utils/pmang'
 
 const CATEGORIES = [
   {
@@ -44,14 +45,26 @@ export default function PmangSidebar({
     return bins.map(v => Math.round((v / max) * 100))
   }, [songs, levelBounds])
 
-  // 빠른필터 카운트 — 카테고리/난이도 등 다른 필터는 무시한 전체 곡 수 기준.
-  // 본 Sidebar의 정책과 일치 (모든 빠른필터가 카테고리 OFF 기준으로 카운트됨).
-  const filteredCounts = useMemo(() => ({
-    all: songs.length,
-    favorite: user ? songs.filter(s => favorites?.has(s.id)).length : 0,
-    no_music: songs.filter(s => !s.youtube_url).length,
-    youtube_candidates: pmangYoutubeCandidates.length,
-  }), [songs, user, favorites, pmangYoutubeCandidates])
+  const filteredCounts = useMemo(() => {
+    const baseFilters = {
+      search: '',
+      searchMode: 'both',
+      levelMin,
+      levelMax,
+      category,
+      quick: 'all',
+      artists,
+      favorites,
+    }
+    const base = filterPmangSongs(songs, baseFilters).exact
+    const candidateBase = filterPmangSongs(pmangYoutubeCandidates, baseFilters).exact
+    return {
+      all: base.length,
+      favorite: user ? base.filter(s => favorites?.has(s.id)).length : 0,
+      no_music: base.filter(s => !s.youtube_url).length,
+      youtube_candidates: candidateBase.length,
+    }
+  }, [songs, levelMin, levelMax, category, artists, user, favorites, pmangYoutubeCandidates])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
