@@ -3,6 +3,7 @@ import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
+import ServerSwitcher from '../ServerSwitcher'
 
 // PC 사이드바와 동일한 5각 별 SVG. '내기록' 칩(★)과 시각적으로 구분되게 SVG 사용.
 const StarIcon = (
@@ -79,7 +80,7 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
     <header className="mob-top">
       <div className="mob-top-inner">
         <div className="mob-top-row">
-          <div className="mob-app-title">알투<b>비트</b> <span className="mob-sub">랭킹</span></div>
+          <ServerSwitcher className="mob-server-switcher" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HelpButton />
             {user ? (

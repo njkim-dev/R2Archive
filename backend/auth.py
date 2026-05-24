@@ -8,6 +8,7 @@
   cur_uid = get_current_user_id(request)        # 로그인 여부 옵션
   cur_uid = require_user_id(request)            # 로그인 필수 (없으면 401)
   user = require_user(request, cur)             # DB 행까지 가져옴
+  admin = require_admin(request)                # 관리자 필수 (없으면 401/403)
 """
 from __future__ import annotations
 
@@ -22,9 +23,26 @@ SESSION_COOKIE = "r2b_session"
 SESSION_SECRET = os.environ["SESSION_SECRET"]
 SESSION_TTL_SEC = 60 * 60 * 24 * 30      # 30일
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"
+COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", "").strip()
 
 
-def issue_session_cookie(response: Response, user_id: int, persistent: bool = False) -> None:
+def _request_host(request: Optional[Request]) -> str:
+    if request is None:
+        return ""
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    return host.split(",", 1)[0].split(":", 1)[0].strip().lower()
+
+
+def _cookie_domain(request: Optional[Request] = None) -> Optional[str]:
+    if COOKIE_DOMAIN:
+        return COOKIE_DOMAIN
+    host = _request_host(request)
+    if host == "r2archive.com" or host.endswith(".r2archive.com"):
+        return ".r2archive.com"
+    return None
+
+
+def issue_session_cookie(response: Response, user_id: int, persistent: bool = False, request: Optional[Request] = None) -> None:
     """세션 쿠키 발급.
     기본 값 : 브라우저 세션 쿠키 -> 브라우저 종료 시 만료 (persistent=False)
     로그인 상태 유지 선택 : max_age=30일 (persistent=True)
@@ -36,13 +54,19 @@ def issue_session_cookie(response: Response, user_id: int, persistent: bool = Fa
         algorithm="HS256",
     )
     kwargs = dict(httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        kwargs["domain"] = domain
     if persistent:
         kwargs["max_age"] = SESSION_TTL_SEC
     response.set_cookie(SESSION_COOKIE, token, **kwargs)
 
 
-def clear_session_cookie(response: Response) -> None:
+def clear_session_cookie(response: Response, request: Optional[Request] = None) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/")
+    domain = _cookie_domain(request)
+    if domain:
+        response.delete_cookie(SESSION_COOKIE, path="/", domain=domain)
 
 
 def get_current_user_id(request: Request) -> Optional[int]:

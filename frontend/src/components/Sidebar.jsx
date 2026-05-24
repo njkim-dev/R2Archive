@@ -1,7 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
 import { filterSongs, dedupeByNameArtistMaxLevel } from '../utils/helpers'
+import { isXyxMode } from '../utils/serverMode'
+import ServerSwitcher from './ServerSwitcher'
 
 const CATEGORIES = [
   {
@@ -19,6 +21,7 @@ const CATEGORIES = [
 ]
 
 export default function Sidebar({ songs, filtered }) {
+  const xyxMode = isXyxMode()
   const {
     meta, user, openLogin,
     category, setCategory,
@@ -29,6 +32,10 @@ export default function Sidebar({ songs, filtered }) {
     favorites, played, playedAll,
     isAdmin,
   } = useStore()
+
+  useEffect(() => {
+    if (xyxMode && quick === 'played') setQuick('all')
+  }, [xyxMode, quick, setQuick])
 
   const hist = useMemo(() => {
     const bins = new Array(19).fill(0)
@@ -72,17 +79,7 @@ export default function Sidebar({ songs, filtered }) {
 
   return (
     <aside className="side">
-      <div className="brand">
-        <div className="brand-mark">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-          </svg>
-        </div>
-        <div>
-          <div className="brand-title">알투비트 아카이브</div>
-          <div className="brand-sub">Songs Viewer · v2</div>
-        </div>
-      </div>
+      <ServerSwitcher />
 
       <div className="side-section">
         <div className="side-label"><span>페이지</span></div>
@@ -90,16 +87,20 @@ export default function Sidebar({ songs, filtered }) {
           <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
             <span>곡 목록</span>
           </NavLink>
-          <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>음악 랭킹</span>
-          </NavLink>
-          <NavLink
-            to="/groups"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>그룹</span>
-          </NavLink>
+          {!xyxMode && (
+            <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+              <span>음악 랭킹</span>
+            </NavLink>
+          )}
+          {!xyxMode && (
+            <NavLink
+              to="/groups"
+              className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
+              onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+            >
+              <span>그룹</span>
+            </NavLink>
+          )}
           <NavLink
             to="/personal-categories"
             className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -107,17 +108,21 @@ export default function Sidebar({ songs, filtered }) {
           >
             <span>음악 카테고리</span>
           </NavLink>
-          <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>과거 피망곡</span>
-          </NavLink>
+          {!xyxMode && (
+            <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+              <span>과거 피망곡</span>
+            </NavLink>
+          )}
           {isAdmin && (
             <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
               <span>미출시곡</span>
             </NavLink>
           )}
-          <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>피드백</span>
-          </NavLink>
+          {!xyxMode && (
+            <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+              <span>피드백</span>
+            </NavLink>
+          )}
         </div>
       </div>
 
@@ -133,6 +138,7 @@ export default function Sidebar({ songs, filtered }) {
             { key: 'played',   label: '전체 유저 플레이 곡',    count: filteredCounts.played },
             { key: 'no_music', label: '음악 없음', count: filteredCounts.no_music, adminOnly: true },
           ].map(({ key, label, count, needLogin, adminOnly }) => {
+            if (xyxMode && key === 'played') return null
             if (adminOnly && !isAdmin) return null
             const disabled = needLogin && !user
             return (

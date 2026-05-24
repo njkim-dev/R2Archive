@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import UserPin from './UserPin'
+import ServerSwitcher from '../ServerSwitcher'
 
 const GROUPS_INITIAL_LIMIT = 5
 
@@ -57,17 +58,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
 
   return (
     <aside className="side">
-      <div className="brand">
-        <div className="brand-mark">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-          </svg>
-        </div>
-        <div>
-          <div className="brand-title">알투비트 아카이브</div>
-          <div className="brand-sub">Rankings · v2</div>
-        </div>
-      </div>
+      <ServerSwitcher />
 
       <div className="side-section">
         <div className="side-label"><span>페이지</span></div>

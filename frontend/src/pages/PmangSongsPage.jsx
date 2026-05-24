@@ -9,6 +9,7 @@ import PmangFilterBar from '../components/pmang/PmangFilterBar'
 import PmangSongsTable from '../components/pmang/PmangSongsTable'
 import PmangSongModal from '../components/pmang/PmangSongModal'
 import { HelpButton } from '../components/HelpTour'
+import ServerSwitcher from '../components/ServerSwitcher'
 
 const TOP_ARTIST_LIMIT = 20
 
@@ -216,10 +217,7 @@ export default function PmangSongsPage() {
         <div className="mob-top">
           <div className="mob-top-inner">
             <div className="mob-top-row">
-              <div className="mob-app-title">
-                과거 피망곡
-                <span className="mob-sub">{totalFiltered.toLocaleString()} / {songs.length.toLocaleString()}</span>
-              </div>
+              <ServerSwitcher className="mob-server-switcher" />
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
                 {user ? (

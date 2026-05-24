@@ -6,6 +6,7 @@ import UserChip from '../components/UserChip'
 import { useMobile } from '../hooks/useMobile'
 import GroupDetailMobileHeader from '../components/groups/GroupDetailMobileHeader'
 import { HelpButton } from '../components/HelpTour'
+import ServerSwitcher from '../components/ServerSwitcher'
 
 // 그룹 id로부터 hue 산출 (0~360). 디자인 시안의 hueOf와 동일 알고리즘.
 function hueOf(gid) {
@@ -1020,19 +1021,7 @@ export default function GroupDetailPage() {
 }
 
 function SidebarBrand() {
-  return (
-    <div className="brand">
-      <div className="brand-mark">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-        </svg>
-      </div>
-      <div>
-        <div className="brand-title">알투비트 아카이브</div>
-        <div className="brand-sub">Group · Detail</div>
-      </div>
-    </div>
-  )
+  return <ServerSwitcher />
 }
 
 function PageNav({ user }) {

@@ -8,6 +8,8 @@ import UserChip from '../components/UserChip'
 import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
+import { isXyxMode } from '../utils/serverMode'
+import ServerSwitcher from '../components/ServerSwitcher'
 
 function roleLabel(role) {
   if (role === 'editor') return '수정 가능'
@@ -16,42 +18,33 @@ function roleLabel(role) {
 }
 
 function SidebarBrand() {
-  return (
-    <div className="brand">
-      <div className="brand-mark">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-        </svg>
-      </div>
-      <div>
-        <div className="brand-title">알투비트 아카이브</div>
-        <div className="brand-sub">Subscribers</div>
-      </div>
-    </div>
-  )
+  return <ServerSwitcher />
 }
 
 function PageNav({ user }) {
   const { openLogin, isAdmin } = useStore()
+  const xyxMode = isXyxMode()
   return (
     <div className="side-section" style={{ marginTop: 0 }}>
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
-        <NavLink
-          to="/groups"
-          className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-          onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-        >
-          <span>그룹</span>
-        </NavLink>
+        {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>}
+        {!xyxMode && (
+          <NavLink
+            to="/groups"
+            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
+            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+          >
+            <span>그룹</span>
+          </NavLink>
+        )}
         <NavLink to="/personal-categories" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
           <span>음악 카테고리</span>
         </NavLink>
-        <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
+        {!xyxMode && <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>}
         {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
-        <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
+        {!xyxMode && <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>}
       </div>
     </div>
   )

@@ -8,9 +8,18 @@ class BpmPoint(BaseModel):
     bpm: float
 
 
+class SongServerCounterpart(BaseModel):
+    server: str
+    id: int
+    name: str
+    artist: str = ""
+    is_removed: bool = False
+
+
 class SongListItem(BaseModel):
     id: int
     name: str
+    korea_name: str = ""
     artist: str
     level: float
     bpm: float
@@ -42,6 +51,7 @@ class SongDetail(BaseModel):
     is_change: bool
     image: Optional[str] = None
     bpm_timeline: list[BpmPoint]
+    counterpart: Optional[SongServerCounterpart] = None
 
 
 class MetaResponse(BaseModel):

@@ -6,28 +6,55 @@ import useStore from '../store/useStore'
 import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg } from '../utils/helpers'
 import { logPlay } from '../api/client'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
+import { isXyxMode } from '../utils/serverMode'
+import { readSavedListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 
 function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong }) {
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
+  const hasMusic = !!song.youtube_url
+
+  const openMusic = (e) => {
+    e.stopPropagation()
+    if (!song.youtube_candidate) {
+      logPlay(song.id)
+      useStore.getState().markPlayed(song.id)
+    }
+    window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <div className="mob-card" style={style} onClick={() => onClick(song)}>
-      {canFav && (
-        <button
-          className={`mob-fav-btn${isFav ? ' on' : ''}`}
-          onClick={e => { e.stopPropagation(); onToggleFav(song.id) }}
-          aria-label={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-        >{isFav ? '★' : '☆'}</button>
-      )}
-      {canDelete && (
-        <button
-          className="mob-delete-btn"
-          onClick={e => { e.stopPropagation(); onDeleteSong?.(song) }}
-          aria-label="카테고리에서 삭제"
-          title="카테고리에서 삭제"
-        >
-          <Trash2 size={15} />
-        </button>
+      {(canDelete || hasMusic || canFav) && (
+        <div className="mob-card-actions">
+          {canDelete && (
+            <button
+              className="mob-delete-btn"
+              onClick={e => { e.stopPropagation(); onDeleteSong?.(song) }}
+              aria-label="카테고리에서 삭제"
+              title="카테고리에서 삭제"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
+          {hasMusic && (
+            <button
+              type="button"
+              className="mob-music-btn"
+              onClick={openMusic}
+              aria-label="YouTube에서 듣기"
+              title="YouTube에서 듣기"
+            >
+              ♪
+            </button>
+          )}
+          {canFav && (
+            <button
+              className={`mob-fav-btn${isFav ? ' on' : ''}`}
+              onClick={e => { e.stopPropagation(); onToggleFav(song.id) }}
+              aria-label={isFav ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            >{isFav ? '★' : '☆'}</button>
+          )}
+        </div>
       )}
       <div className="mob-art" style={{ background: artworkBg(song.id) }}>
         {song.image
@@ -65,6 +92,8 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
 }
 
 const COL_TEMPLATE = '56px 2fr 1fr 76px 100px 110px 110px 68px 80px 56px'
+const XYX_COL_TEMPLATE = '56px minmax(330px, 2.5fr) minmax(160px, 0.95fr) minmax(150px, 0.95fr) 76px 100px 110px 110px 68px 56px'
+const XYX_CATEGORY_COL_TEMPLATE = '56px minmax(280px, 2.1fr) minmax(150px, 1fr) minmax(150px, 1fr) 76px 100px 110px 110px 68px 80px 56px'
 
 const DEFAULT_HEADERS = [
   { label: '#',        key: 'file_order', cls: '' },
@@ -79,15 +108,29 @@ const DEFAULT_HEADERS = [
   { label: '변속',    key: null,        cls: 'center' },
 ]
 
-const PERSONAL_CATEGORY_HEADERS = DEFAULT_HEADERS.map(header =>
-  header.label === '재생'
+const XYX_HEADERS = [
+  DEFAULT_HEADERS[0],
+  DEFAULT_HEADERS[1],
+  { label: '한국 곡명', key: 'korea_name', cls: '' },
+  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'play_count'),
+]
+
+const XYX_CATEGORY_HEADERS = [
+  DEFAULT_HEADERS[0],
+  DEFAULT_HEADERS[1],
+  { label: '한국 곡명', key: 'korea_name', cls: '' },
+  ...DEFAULT_HEADERS.slice(2),
+]
+
+const personalCategoryHeaders = (headers) => headers.map(header =>
+  header.key === 'play_count'
     ? { label: '삭제', key: null, cls: 'center' }
     : header
 )
 
-function TableHeader({ sort, onSort, headers = DEFAULT_HEADERS }) {
+function TableHeader({ sort, onSort, headers = DEFAULT_HEADERS, colTemplate = COL_TEMPLATE }) {
   return (
-    <div className="tbl-header" style={{ gridTemplateColumns: COL_TEMPLATE }}>
+    <div className="tbl-header" style={{ gridTemplateColumns: colTemplate }}>
       {headers.map(({ label, key, cls }) => (
         <div
           key={label}
@@ -120,6 +163,9 @@ function SongRow({
   tableMode,
   canDelete,
   onDeleteSong,
+  showKoreaName,
+  showPlayCount,
+  colTemplate,
 }) {
   const [copied, setCopied] = useState(false)
   const lvInt = Math.floor(song.level)
@@ -145,7 +191,7 @@ function SongRow({
     <div
       className="tbl-row"
       data-bpm-tier={bpmTier}
-      style={{ ...style, gridTemplateColumns: COL_TEMPLATE }}
+      style={{ ...style, gridTemplateColumns: colTemplate }}
       onClick={() => onClick(song)}
     >
       {/* # / new tag */}
@@ -223,6 +269,12 @@ function SongRow({
         </div>
       </div>
 
+      {showKoreaName && (
+        <div className="td korea-name-cell" title={song.korea_name || ''}>
+          {song.korea_name || <span className="muted-dash">—</span>}
+        </div>
+      )}
+
       {/* 아티스트 */}
       <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {song.artist}
@@ -275,11 +327,11 @@ function SongRow({
             <Trash2 size={14} />
           </button>
         </div>
-      ) : (
+      ) : showPlayCount ? (
         <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
           {song.play_count ? fmt(song.play_count) : '—'}
         </div>
-      )}
+      ) : null}
 
       {/* 변속 */}
       <div className="td center">
@@ -329,11 +381,20 @@ export default function SongsTable({
 }) {
   const { sort, setSort, openModal, search, user, favorites, toggleFavorite, isAdmin } = useStore()
   const canFav = !!user
-  const headers = tableMode === 'personalCategory' ? PERSONAL_CATEGORY_HEADERS : DEFAULT_HEADERS
+  const showKoreaName = isXyxMode()
+  const showPlayCount = !(showKoreaName && tableMode !== 'personalCategory')
+  const colTemplate = showKoreaName
+    ? (tableMode === 'personalCategory' ? XYX_CATEGORY_COL_TEMPLATE : XYX_COL_TEMPLATE)
+    : COL_TEMPLATE
+  const baseHeaders = showKoreaName
+    ? (tableMode === 'personalCategory' ? XYX_CATEGORY_HEADERS : XYX_HEADERS)
+    : DEFAULT_HEADERS
+  const headers = tableMode === 'personalCategory' ? personalCategoryHeaders(baseHeaders) : baseHeaders
   const listRef = useRef(null)
   const scrollOffsetRef = useRef(0)
   const savedOffsetRef = useRef(0)
   const prevSearchRef = useRef(search)
+  const restoredScrollRef = useRef(false)
 
   const items = useMemo(() => {
     if (!fuzzy.length) return exact
@@ -358,7 +419,20 @@ export default function SongsTable({
 
   const handleScroll = useCallback(({ scrollOffset }) => {
     scrollOffsetRef.current = scrollOffset
+    setCurrentListScrollOffset(scrollOffset)
   }, [])
+
+  useEffect(() => {
+    if (restoredScrollRef.current || !shouldRestoreListState() || items.length === 0) return
+    restoredScrollRef.current = true
+    const offset = Math.max(0, Number(readSavedListState()?.scrollOffset) || 0)
+    if (!offset) return
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo(offset)
+      scrollOffsetRef.current = offset
+      setCurrentListScrollOffset(offset)
+    })
+  }, [items.length])
 
   const handleRowClick = useCallback((song) => {
     openModal(song)
@@ -412,9 +486,12 @@ export default function SongsTable({
         tableMode={tableMode}
         canDelete={canDeleteSongs}
         onDeleteSong={onDeleteSong}
+        showKoreaName={showKoreaName}
+        showPlayCount={showPlayCount}
+        colTemplate={colTemplate}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, colTemplate])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -454,7 +531,7 @@ export default function SongsTable({
 
   return (
     <div className="table-wrap">
-      <TableHeader sort={sort} onSort={setSort} headers={headers} />
+      <TableHeader sort={sort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>
         {items.length === 0 ? (
