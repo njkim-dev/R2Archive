@@ -12,6 +12,14 @@ import { HelpButton } from '../components/HelpTour'
 
 const TOP_ARTIST_LIMIT = 20
 
+function distinctSongCount(items) {
+  const keys = new Set()
+  for (const song of items) {
+    keys.add(`${(song.name || '').trim().toLowerCase()}::${(song.artist || '').trim().toLowerCase()}`)
+  }
+  return keys.size
+}
+
 const SEARCH_MODES = [
   { key: 'both',   label: '곡명 + 아티스트' },
   { key: 'name',   label: '곡명' },
@@ -165,6 +173,27 @@ export default function PmangSongsPage() {
   }, [songs, pmangYoutubeCandidates, isAdmin, search, searchMode, levelMin, levelMax, category, quick, artists, pmangFavorites, sort])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
+  const categorySuggestion = useMemo(() => {
+    if (!search.trim() || !category) return null
+    const candidateMode = quick === 'youtube_candidates' && isAdmin
+    const sourceSongs = candidateMode ? pmangYoutubeCandidates : songs
+    const result = filterPmangSongs(sourceSongs, {
+      search,
+      searchMode,
+      levelMin: levelBounds[0],
+      levelMax: levelBounds[1],
+      category: null,
+      quick: quick === 'youtube_candidates' ? 'all' : quick,
+      artists,
+      favorites: pmangFavorites,
+    })
+    const currentDistinct = distinctSongCount([...filtered.exact, ...filtered.fuzzy])
+    const expandedDistinct = distinctSongCount([...result.exact, ...result.fuzzy])
+    if (expandedDistinct <= currentDistinct) return null
+    return {
+      onApply: () => setCategory(category),
+    }
+  }, [search, category, quick, isAdmin, pmangYoutubeCandidates, songs, searchMode, levelBounds, artists, pmangFavorites, filtered.exact, filtered.fuzzy])
 
   // 컬럼 헤더 클릭: 이미 같은 키면 방향 토글, 다른 키면 초기 방향 부여.
   // 본 SongsTable의 setSort와 동일 — 숫자성 컬럼(game_index/level)은 'desc'로, 텍스트(name/artist)는 'asc'로 시작.
@@ -286,6 +315,7 @@ export default function PmangSongsPage() {
                 sort={sort}
                 onSort={handleSort}
                 onRowClick={setModalSong}
+                categorySuggestion={categorySuggestion}
                 isMobile
               />
         }
@@ -427,6 +457,7 @@ export default function PmangSongsPage() {
                 sort={sort}
                 onSort={handleSort}
                 onRowClick={setModalSong}
+                categorySuggestion={categorySuggestion}
               />
         }
       </main>

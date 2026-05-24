@@ -5,6 +5,11 @@
 import Fuse from 'fuse.js'
 
 const _fuseCache = new Map()  // key: `${mode}` → { songs, fuse }
+const SEARCH_NORMALIZE_RE = /[^\p{L}\p{N}]+/gu
+
+function normalizeSearchText(value) {
+  return String(value ?? '').replace(SEARCH_NORMALIZE_RE, '').toLowerCase()
+}
 
 function getFuse(songs, mode = 'both') {
   const cached = _fuseCache.get(mode)
@@ -19,8 +24,8 @@ function getFuse(songs, mode = 'both') {
     useExtendedSearch: false,
     getFn: (obj, path) => {
       const val = Fuse.config.getFn(obj, path)
-      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.replace(/\s+/g, '') : v)
-      return typeof val === 'string' ? val.replace(/\s+/g, '') : val
+      if (Array.isArray(val)) return val.map(normalizeSearchText)
+      return typeof val === 'string' ? normalizeSearchText(val) : val
     },
   })
   _fuseCache.set(mode, { songs, fuse })
@@ -36,6 +41,7 @@ function passes(s, { levelMin, levelMax, category, artists, quick, favorites }) 
   if (category === 'sun' && lv < 7) return false
   if (artists && artists.size && !artists.has(s.artist)) return false
   if (quick === 'favorite' && !(favorites && favorites.has(s.id))) return false
+  if (quick === 'no_music' && s.youtube_url) return false
   return true
 }
 
@@ -47,7 +53,7 @@ export function filterPmangSongs(songs, filters) {
     return { exact: songs.filter(s => passes(s, filters)), fuzzy: [] }
   }
 
-  const qNorm = q.replace(/\s+/g, '').toLowerCase()
+  const qNorm = normalizeSearchText(q)
   const exactSet = new Set()
   const exact = []
 
@@ -56,10 +62,10 @@ export function filterPmangSongs(songs, filters) {
 
   songs.forEach(s => {
     if (!passes(s, filters)) return
-    const nameNorm = (s.name || '').replace(/\s+/g, '').toLowerCase()
-    const artistNorm = (s.artist || '').replace(/\s+/g, '').toLowerCase()
+    const nameNorm = normalizeSearchText(s.name)
+    const artistNorm = normalizeSearchText(s.artist)
     const aliasHit = matchName && (s.aliases || []).some(a =>
-      (a || '').replace(/\s+/g, '').toLowerCase().includes(qNorm)
+      normalizeSearchText(a).includes(qNorm)
     )
     const nameHit = matchName && nameNorm.includes(qNorm)
     const artistHit = matchArtist && artistNorm.includes(qNorm)

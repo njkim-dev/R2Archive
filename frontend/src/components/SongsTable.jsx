@@ -293,6 +293,31 @@ function SongRow({
 
 const SEPARATOR = { __type: 'separator' }
 
+function SearchEmptyState({ search, isMobile }) {
+  const hasSearch = !!search.trim()
+  return (
+    <div className={`search-empty${isMobile ? ' mobile' : ''}`}>
+      <div className="search-empty-icon">♩</div>
+      <div className="search-empty-title">{hasSearch ? '검색 결과가 없습니다.' : '조건에 맞는 곡이 없어요'}</div>
+    </div>
+  )
+}
+
+function SearchFilterHint({ suggestion, empty = false }) {
+  if (!suggestion) return null
+  return (
+    <div className="search-filter-hint">
+      <span>
+        {empty
+          ? '노래 난이도를 잘못 기억하신 것 같아요! 난이도 필터를 해제할까요?'
+          : '혹시 원하는 결과가 나오지 않았다면 난이도 필터를 해제해보세요.'
+        }
+      </span>
+      <button className="search-filter-hint-action" onClick={suggestion.onApply}>해제하기</button>
+    </div>
+  )
+}
+
 export default function SongsTable({
   exact,
   fuzzy,
@@ -300,6 +325,7 @@ export default function SongsTable({
   tableMode = 'default',
   canDeleteSongs = false,
   onDeleteSong,
+  categorySuggestion = null,
 }) {
   const { sort, setSort, openModal, search, user, favorites, toggleFavorite, isAdmin } = useStore()
   const canFav = !!user
@@ -398,12 +424,10 @@ export default function SongsTable({
           <span><b>{totalCount.toLocaleString()}</b> 곡</span>
           <MobileSortButton />
         </div>
+        <SearchFilterHint suggestion={categorySuggestion} empty={totalCount === 0} />
         {totalCount === 0
           ? (
-            <div className="mob-empty">
-              <div className="mob-empty-icon">♩</div>
-              조건에 맞는 곡이 없어요
-            </div>
+            <SearchEmptyState search={search} isMobile />
           )
           : (
             <div style={{ flex: 1 }}>
@@ -431,22 +455,27 @@ export default function SongsTable({
   return (
     <div className="table-wrap">
       <TableHeader sort={sort} onSort={setSort} headers={headers} />
-      <div className="tbl-body" style={{ flex: 1, overflow: 'hidden' }}>
-        <AutoSizer>
-          {({ height, width }) => (
-            <FixedSizeList
-              ref={listRef}
-              height={height}
-              width={width}
-              itemCount={items.length}
-              itemSize={44}
-              style={{ overflowX: 'hidden' }}
-              onScroll={handleScroll}
-            >
-              {Row}
-            </FixedSizeList>
-          )}
-        </AutoSizer>
+      <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
+      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>
+        {items.length === 0 ? (
+          <SearchEmptyState search={search} />
+        ) : (
+          <AutoSizer>
+            {({ height, width }) => (
+              <FixedSizeList
+                ref={listRef}
+                height={height}
+                width={width}
+                itemCount={items.length}
+                itemSize={44}
+                style={{ overflowX: 'hidden' }}
+                onScroll={handleScroll}
+              >
+                {Row}
+              </FixedSizeList>
+            )}
+          </AutoSizer>
+        )}
       </div>
     </div>
   )
