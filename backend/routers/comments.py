@@ -3,6 +3,7 @@ from auth import get_current_user_id, fetch_user
 from database import get_conn
 from models import CommentCreate, CommentResponse
 from rate_limit import limiter, ip_song_key
+from routers.songs import ensure_active_song
 
 router = APIRouter(prefix="/api/songs", tags=["comments"])
 
@@ -11,6 +12,7 @@ router = APIRouter(prefix="/api/songs", tags=["comments"])
 def get_comments(song_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 "SELECT id, nickname, content, created_at "
                 "FROM comments WHERE song_id = %s ORDER BY created_at DESC",
@@ -35,6 +37,7 @@ def add_comment(request: Request, song_id: int, body: CommentCreate):
     current_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             if current_uid is not None:
                 user_row = fetch_user(current_uid)
                 nickname = (user_row.get("nickname") or "").strip() if user_row else ""

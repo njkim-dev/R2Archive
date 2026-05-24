@@ -14,6 +14,7 @@ from auth import fetch_user, get_current_user_id, require_user_id
 from database import get_conn
 from models import RecordCreate, RecordResponse
 from rate_limit import limiter, ip_song_key
+from routers.songs import ensure_active_song, get_active_song_combo
 
 _YT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{11}$')
 _ALLOWED_IMG_EXT = {"png", "jpg", "jpeg", "webp"}
@@ -67,6 +68,7 @@ def _mask_nickname(nickname: str, visibility: str, is_mine: bool) -> str:
 
 
 def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
+    # 호출처에 따라 길이가 다름: 마지막에 is_manual 컬럼이 있을 수도/없을 수도.
     extended = (*r, None, False, False, False)[:15]
     (rid, nickname, score, judgment_percent, combo, youtube_url,
      youtube_title, memo, visibility, created_at, row_user_id,
@@ -111,6 +113,7 @@ def get_records(request: Request, song_id: int):
     current_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 """
                 SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
@@ -146,6 +149,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
     current_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 """
                 SELECT id, nickname, score, judgment_percent, combo, youtube_url,
@@ -169,6 +173,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                     WHERE r.song_id = %s
                       AND r.judgment_percent IS NOT NULL
                       AND r.visibility IN ('public', 'anonymous')
+                      -- manual + URL이면 랭킹 합류 (편집모드의 영상 인증)
                       AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                 ) t
                 WHERE rn = 1
@@ -186,6 +191,7 @@ def get_my_records_for_song(request: Request, song_id: int):
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 """
                 SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
@@ -233,10 +239,13 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
     with get_conn() as conn:
         with conn.cursor() as cur:
             if body.combo is not None:
-                cur.execute("SELECT combo FROM songs WHERE id = %s", (song_id,))
-                row = cur.fetchone()
-                if row and body.combo > row[0]:
+                song_combo = get_active_song_combo(cur, song_id)
+                if song_combo is not None and body.combo > song_combo:
                     raise HTTPException(status_code=422, detail="콤보가 곡의 최대값을 초과합니다")
+
+            # register_as_play_video=True 는 youtube_url이 있을 때만 의미가 있음.
+            else:
+                ensure_active_song(cur, song_id)
 
             is_play_video = bool(body.register_as_play_video and body.youtube_url)
             cur.execute(
@@ -381,8 +390,9 @@ def get_record_screenshot(request: Request, record_id: int):
     if not is_mine:
         allowed = False
         if owner_show:
-            allowed = True
+            allowed = True   # 소유자가 명시적 공개
         elif owner_searchable == "group" and current_uid is not None and owner_uid is not None:
+            # 동일 그룹 공유 여부 확인
             with get_conn() as conn2:
                 with conn2.cursor() as cur2:
                     cur2.execute(
@@ -424,6 +434,7 @@ def my_screenshot_filenames(request: Request):
             rows = cur.fetchall()
     return {"filenames": [r[0] for r in rows if r[0]]}
 
+
 class PlayVideoCreate(BaseModel):
     nickname: str = Field(min_length=1, max_length=30)
     youtube_url: str = Field(min_length=1, max_length=500)
@@ -434,41 +445,30 @@ class PlayVideoResponse(BaseModel):
     id: int
     nickname: str
     youtube_url: str
-    youtube_title: Optional[str] = None
     description: Optional[str]
     created_at: str
 
 
 @router.get("/songs/{song_id}/play-videos", response_model=list[PlayVideoResponse])
 def get_play_videos(song_id: int):
-    """곡 상세 '플레이 영상' 탭. achievements 테이블에서 등록순(최신 → 과거)으로 반환."""
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 """
-                SELECT id, nickname, youtube_url, NULL AS youtube_title,
-                       description, created_at
+                SELECT id, nickname, youtube_url, description, created_at
                 FROM achievements
                 WHERE song_id = %s
-                  AND youtube_url IS NOT NULL
-                UNION ALL
-                SELECT -id AS id, nickname, youtube_url, youtube_title,
-                       memo AS description, created_at
-                FROM records
-                WHERE song_id = %s
-                  AND is_play_video = TRUE
-                  AND youtube_url IS NOT NULL
                 ORDER BY created_at DESC NULLS LAST, id DESC
                 """,
-                (song_id, song_id),
+                (song_id,),
             )
             rows = cur.fetchall()
     return [
         PlayVideoResponse(
             id=r[0], nickname=r[1] or "", youtube_url=r[2] or "",
-            youtube_title=r[3],
-            description=r[4],
-            created_at=r[5].isoformat() if r[5] else "",
+            description=r[3],
+            created_at=r[4].isoformat() if r[4] else "",
         )
         for r in rows
     ]
@@ -495,6 +495,7 @@ async def add_play_video(request: Request, song_id: int, body: PlayVideoCreate):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 """
                 INSERT INTO achievements

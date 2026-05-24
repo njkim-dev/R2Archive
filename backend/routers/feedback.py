@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from database import get_conn
 from models import FeedbackCreate
 from rate_limit import limiter
+from routers.songs import ensure_active_song
 
 router = APIRouter(prefix="/api/songs", tags=["feedback"])
 
@@ -18,6 +19,7 @@ def submit_feedback(request: Request, song_id: int, body: FeedbackCreate):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 "INSERT INTO feedback (song_id, anon_id, type, body) VALUES (%s, %s, %s, %s)",
                 (song_id, body.anon_id, body.type, body.body.strip())

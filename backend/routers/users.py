@@ -2,16 +2,18 @@ from pathlib import Path
 from typing import Optional
 
 import psycopg2
-import asyncio
-import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+
+import asyncio
+import httpx
 
 from auth import fetch_user, require_user_id
 from database import get_conn
 from models import ManualRecordsBulk
 from rate_limit import limiter
 from routers.records import _extract_video_id
+from routers.songs import ensure_active_song
 
 _SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent.parent / "record_screenshots"
 
@@ -160,6 +162,7 @@ def add_favorite(request: Request, song_id: int):
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 "INSERT INTO user_favorites (user_id, song_id) VALUES (%s, %s) "
                 "ON CONFLICT DO NOTHING",
@@ -394,6 +397,8 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
                         )
                         deleted += len(existing_ids)
                     continue
+
+                ensure_active_song(cur, entry.song_id)
 
                 if existing_ids:
                     keep_id = existing_ids[0]

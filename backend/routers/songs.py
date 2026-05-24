@@ -11,6 +11,26 @@ ACTIVE_SONG_ALIAS_SQL = "COALESCE(s.is_removed, FALSE) IS FALSE"
 REMOVED_SONG_ALIAS_SQL = "COALESCE(s.is_removed, FALSE) IS TRUE"
 
 
+def ensure_active_song(cur, song_id: int) -> None:
+    cur.execute(
+        f"SELECT 1 FROM songs WHERE id = %s AND {ACTIVE_SONG_SQL}",
+        (song_id,),
+    )
+    if not cur.fetchone():
+        raise HTTPException(status_code=404, detail="Song not found")
+
+
+def get_active_song_combo(cur, song_id: int) -> int | None:
+    cur.execute(
+        f"SELECT combo FROM songs WHERE id = %s AND {ACTIVE_SONG_SQL}",
+        (song_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Song not found")
+    return row[0]
+
+
 def _parse_bpm_timeline(raw: str) -> list[BpmPoint]:
     """DB 포맷 "frame:bpm|frame:bpm|..." 을 BpmPoint 리스트로 변환 (frame / 60 = 초)."""
     if not raw:
@@ -317,6 +337,7 @@ def log_play(request: Request, song_id: int, body: PlayLogCreate):
     uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ensure_active_song(cur, song_id)
             cur.execute(
                 "INSERT INTO play_logs (song_id, played_at, session_id) "
                 "VALUES (%s, NOW(), %s) "
