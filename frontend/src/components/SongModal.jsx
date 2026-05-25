@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link2, Check, ExternalLink } from 'lucide-react'
 import useStore from '../store/useStore'
 import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
-import { artworkBg, fmt, fmtBpm, getAnonId } from '../utils/helpers'
+import { artworkBg, fmt, fmtBpm, getAnonId, staticUrl } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode, SERVER_LINKS } from '../utils/serverMode'
@@ -830,7 +830,7 @@ function MobileDetail({ song, detail, onClose }) {
         <div className="mob-hero-art" style={{ background: artworkBg(song.id) }}>
           {song.image
             ? <img
-                src={`${import.meta.env.VITE_API_URL}/static/${song.image}`}
+                src={staticUrl(song.image)}
                 alt=""
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                 onError={e => { e.currentTarget.style.display = 'none' }}
@@ -1105,7 +1105,7 @@ export default function SongModal() {
             <div className="m-artwork" style={{ background: artworkBg(song.id) }}>
               {song.image
                 ? <img
-                    src={`${import.meta.env.VITE_API_URL}/static/${song.image}`}
+                    src={staticUrl(song.image)}
                     alt=""
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                     onError={e => { e.currentTarget.style.display = 'none' }}

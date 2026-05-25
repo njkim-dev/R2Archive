@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link2, Check } from 'lucide-react'
 import useStore from '../../store/useStore'
-import { artworkBg, fmt, fmtBpm } from '../../utils/helpers'
+import { artworkBg, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 import { useMobile } from '../../hooks/useMobile'
 import { getPmangComments, addPmangComment, getPmangRecords, addPmangRecord } from '../../api/client'
 
@@ -312,7 +312,7 @@ function PmangMobileDetail({
           <div className="mob-hero-art" style={{ background: artworkBg(song.id) }}>
             {song.image
               ? <img
-                  src={`${import.meta.env.VITE_API_URL ?? ''}/static/${song.image}`}
+                  src={staticUrl(song.image)}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                   onError={e => {
@@ -320,7 +320,7 @@ function PmangMobileDetail({
                     if (!el.dataset.fallback) {
                       el.dataset.fallback = '1'
                       const basename = song.image.split('/').pop()
-                      el.src = `${import.meta.env.VITE_API_URL ?? ''}/static/rnr_image/img_music/${basename}`
+                      el.src = staticUrl(`rnr_image/img_music/${basename}`)
                     } else {
                       el.style.display = 'none'
                     }
@@ -490,7 +490,7 @@ export default function PmangSongModal({ song, onClose }) {
             <div className="m-artwork" style={{ background: artworkBg(song.id) }}>
               {song.image
                 ? <img
-                    src={`${import.meta.env.VITE_API_URL ?? ''}/static/${song.image}`}
+                    src={staticUrl(song.image)}
                     alt=""
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                     onError={e => {
@@ -498,7 +498,7 @@ export default function PmangSongModal({ song, onClose }) {
                       if (!el.dataset.fallback) {
                         el.dataset.fallback = '1'
                         const basename = song.image.split('/').pop()
-                        el.src = `${import.meta.env.VITE_API_URL ?? ''}/static/rnr_image/img_music/${basename}`
+                        el.src = staticUrl(`rnr_image/img_music/${basename}`)
                       } else {
                         el.style.display = 'none'
                       }
