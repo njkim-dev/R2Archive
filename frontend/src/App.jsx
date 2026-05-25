@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import useStore from './store/useStore'
 import { getSongs, getMeta } from './api/client'
@@ -11,15 +11,16 @@ import FeedbackModal from './components/FeedbackModal'
 import MyPageModal from './components/MyPageModal'
 import HelpTour from './components/HelpTour'
 import SongsPage from './pages/SongsPage'
-import RemovedSongsPage from './pages/RemovedSongsPage'
-import PmangSongsPage from './pages/PmangSongsPage'
-import RankingsPage from './pages/RankingsPage'
-import GroupsPage from './pages/GroupsPage'
-import GroupDetailPage from './pages/GroupDetailPage'
-import PersonalCategoriesPage from './pages/PersonalCategoriesPage'
-import PersonalCategoryDetailPage from './pages/PersonalCategoryDetailPage'
-import PersonalCategorySubscribersPage from './pages/PersonalCategorySubscribersPage'
-import FeedbackPage from './pages/FeedbackPage'
+
+const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
+const PmangSongsPage = lazy(() => import('./pages/PmangSongsPage'))
+const RankingsPage = lazy(() => import('./pages/RankingsPage'))
+const GroupsPage = lazy(() => import('./pages/GroupsPage'))
+const GroupDetailPage = lazy(() => import('./pages/GroupDetailPage'))
+const PersonalCategoriesPage = lazy(() => import('./pages/PersonalCategoriesPage'))
+const PersonalCategoryDetailPage = lazy(() => import('./pages/PersonalCategoryDetailPage'))
+const PersonalCategorySubscribersPage = lazy(() => import('./pages/PersonalCategorySubscribersPage'))
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 
 export default function App() {
   const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding, restoreListState } = useStore()
@@ -86,20 +87,22 @@ export default function App() {
 
   return (
     <>
-      <Routes>
-        <Route path="/" element={<SongsPage />} />
-        <Route path="/removed-songs" element={<RemovedSongsPage />} />
-        {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}
-        {!xyxMode && <Route path="/rankings" element={<RankingsPage />} />}
-        {!xyxMode && <Route path="/rankings/:nickname" element={<RankingsPage />} />}
-        {!xyxMode && <Route path="/groups" element={<GroupsPage />} />}
-        {!xyxMode && <Route path="/groups/:gid" element={<GroupDetailPage />} />}
-        <Route path="/personal-categories" element={<PersonalCategoriesPage />} />
-        <Route path="/personal-categories/:code/subscribers" element={<PersonalCategorySubscribersPage />} />
-        <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
-        {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/" element={<SongsPage />} />
+          <Route path="/removed-songs" element={<RemovedSongsPage />} />
+          {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}
+          {!xyxMode && <Route path="/rankings" element={<RankingsPage />} />}
+          {!xyxMode && <Route path="/rankings/:nickname" element={<RankingsPage />} />}
+          {!xyxMode && <Route path="/groups" element={<GroupsPage />} />}
+          {!xyxMode && <Route path="/groups/:gid" element={<GroupDetailPage />} />}
+          <Route path="/personal-categories" element={<PersonalCategoriesPage />} />
+          <Route path="/personal-categories/:code/subscribers" element={<PersonalCategorySubscribersPage />} />
+          <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
+          {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
       <SongModal />
       <LoginModal />
       <OnboardingModal />
