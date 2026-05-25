@@ -92,8 +92,8 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
 }
 
 const COL_TEMPLATE = '56px 2fr 1fr 76px 100px 110px 110px 68px 80px 56px'
-const XYX_COL_TEMPLATE = '56px minmax(330px, 2.5fr) minmax(160px, 0.95fr) minmax(150px, 0.95fr) 76px 100px 110px 110px 68px 56px'
-const XYX_CATEGORY_COL_TEMPLATE = '56px minmax(280px, 2.1fr) minmax(150px, 1fr) minmax(150px, 1fr) 76px 100px 110px 110px 68px 80px 56px'
+const XYX_COL_TEMPLATE = '50px minmax(0, 2.2fr) minmax(0, 1.15fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 46px'
+const XYX_CATEGORY_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
 
 const DEFAULT_HEADERS = [
   { label: '#',        key: 'file_order', cls: '' },
