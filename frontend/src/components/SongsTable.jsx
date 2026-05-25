@@ -3,7 +3,7 @@ import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { Trash2 } from 'lucide-react'
 import useStore from '../store/useStore'
-import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg } from '../utils/helpers'
+import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg, staticUrl } from '../utils/helpers'
 import { logPlay } from '../api/client'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode } from '../utils/serverMode'
@@ -59,7 +59,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
       <div className="mob-art" style={{ background: artworkBg(song.id) }}>
         {song.image
           ? <img
-              src={`${import.meta.env.VITE_API_URL}/static/${song.image}`}
+              src={staticUrl(song.image)}
               alt=""
               style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
               onError={e => { e.currentTarget.style.display = 'none' }}
@@ -232,7 +232,7 @@ function SongRow({
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
             {song.image
               ? <img
-                  src={`${import.meta.env.VITE_API_URL}/static/${song.image}`}
+                  src={staticUrl(song.image)}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                   onError={e => { e.currentTarget.style.display = 'none' }}

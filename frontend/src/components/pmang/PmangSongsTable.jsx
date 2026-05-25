@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useEffect } from 'react'
 import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../../store/useStore'
-import { levelBarColor, artworkBg, bpmWaveBars, fmt, fmtBpm } from '../../utils/helpers'
+import { levelBarColor, artworkBg, bpmWaveBars, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 
 const COL_TEMPLATE = '56px 72px 2fr 1fr 96px 100px 110px 90px'
 
@@ -94,7 +94,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
             {song.image && (
               <img
-                src={`${import.meta.env.VITE_API_URL ?? ''}/static/${song.image}`}
+                src={staticUrl(song.image)}
                 alt=""
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                 onError={e => {
@@ -102,7 +102,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
                   if (!el.dataset.fallback) {
                     el.dataset.fallback = '1'
                     const basename = song.image.split('/').pop()
-                    el.src = `${import.meta.env.VITE_API_URL ?? ''}/static/rnr_image/img_music/${basename}`
+                    el.src = staticUrl(`rnr_image/img_music/${basename}`)
                   } else {
                     el.style.display = 'none'
                   }
@@ -195,7 +195,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
       <div className="mob-art" style={{ background: artworkBg(song.id) }}>
         {song.image
           ? <img
-              src={`${import.meta.env.VITE_API_URL ?? ''}/static/${song.image}`}
+              src={staticUrl(song.image)}
               alt=""
               style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
               onError={e => {
@@ -203,7 +203,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
                 if (!el.dataset.fallback) {
                   el.dataset.fallback = '1'
                   const basename = song.image.split('/').pop()
-                  el.src = `${import.meta.env.VITE_API_URL ?? ''}/static/rnr_image/img_music/${basename}`
+                  el.src = staticUrl(`rnr_image/img_music/${basename}`)
                 } else {
                   el.style.display = 'none'
                 }

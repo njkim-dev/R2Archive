@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useStore from '../store/useStore'
-import { filterSongs } from '../utils/helpers'
+import { filterSongs, staticUrl } from '../utils/helpers'
 import { addRecord, parseScreenshot, uploadRecordScreenshot, getMyScreenshotFilenames } from '../api/client'
 
 const MAX_FILES = 50
@@ -572,7 +572,7 @@ function SongSearch({ query, setQuery, results, selected, onSelect, onClear }) {
           {selected.image ? (
             <img
               className="rr-selected-art"
-              src={`${import.meta.env.VITE_API_URL}/static/${selected.image}`}
+              src={staticUrl(selected.image)}
               alt=""
               onError={e => { e.currentTarget.style.display = 'none' }}
             />
@@ -614,7 +614,7 @@ function SongSearch({ query, setQuery, results, selected, onSelect, onClear }) {
             {s.image ? (
               <img
                 className="rr-song-art"
-                src={`${import.meta.env.VITE_API_URL}/static/${s.image}`}
+                src={staticUrl(s.image)}
                 alt=""
                 onError={e => { e.currentTarget.style.display = 'none' }}
               />

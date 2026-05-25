@@ -3,7 +3,7 @@ import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
-import { levelBarColor, artworkBg, fmt, fmtBpm } from '../../utils/helpers'
+import { levelBarColor, artworkBg, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 
 const COL_TEMPLATE_NORMAL = '60px 2fr 1.2fr 76px 80px 80px 135px 135px 115px'
 const HEADERS_NORMAL = [
@@ -134,7 +134,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
             {song.image
               ? <img
-                  src={`${import.meta.env.VITE_API_URL}/static/${song.image}`}
+                  src={staticUrl(song.image)}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                   onError={e => { e.currentTarget.style.display = 'none' }}

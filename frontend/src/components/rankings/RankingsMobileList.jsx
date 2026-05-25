@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../../store/useStore'
-import { artworkBg, fmtBpm } from '../../utils/helpers'
+import { artworkBg, fmtBpm, staticUrl } from '../../utils/helpers'
 
 function fmtJp(jp) { return jp == null ? '—' : jp.toFixed(3) }
 
@@ -33,7 +33,7 @@ function MobileRankingCard({ row, style, onClick }) {
         <div className="mob-art" style={{ background: artworkBg(song.id) }}>
           {song.image
             ? <img
-                src={`${import.meta.env.VITE_API_URL}/static/${song.image}`}
+                src={staticUrl(song.image)}
                 alt=""
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
                 onError={e => { e.currentTarget.style.display = 'none' }}
