@@ -16,10 +16,15 @@ class PmangSongListItem(BaseModel):
     name: str
     artist: str
     level: int
+    bpm: float = 0.0
+    bpm_max: Optional[float] = None
+    bpm_display: Optional[str] = None
+    combo: int = 0
     image: Optional[str] = None
     game_index: int
     youtube_url: Optional[str] = None
     matched_song_id: Optional[int] = None
+    favorite_count: int = 0
     aliases: list[str] = []
 
 
@@ -30,9 +35,18 @@ def get_pmang_songs():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, name, artist, level, image, game_index, youtube_url
-                FROM pmang_songs
-                ORDER BY game_index
+                SELECT
+                  p.id, p.name, p.artist, p.level,
+                  p.bpm, p.bpm_max, p.bpm_display, p.combo,
+                  p.image, p.game_index, p.youtube_url,
+                  COALESCE(f.favorite_count, 0) AS favorite_count
+                FROM pmang_songs p
+                LEFT JOIN (
+                  SELECT song_id, COUNT(*)::int AS favorite_count
+                  FROM pmang_favorites
+                  GROUP BY song_id
+                ) f ON f.song_id = p.id
+                ORDER BY p.game_index
                 """
             )
             pmang_rows = cur.fetchall()
@@ -77,7 +91,12 @@ def get_pmang_songs():
                 alias_matches.setdefault((alias_key, artist_key), item)
 
     result = []
-    for sid, name, artist, level, image, game_index, direct_youtube_url in pmang_rows:
+    for (
+        sid, name, artist, level,
+        bpm, bpm_max, bpm_display, combo,
+        image, game_index, direct_youtube_url,
+        favorite_count,
+    ) in pmang_rows:
         artist_key = _norm(artist)
         name_key = _norm(name)
         match = (
@@ -92,10 +111,15 @@ def get_pmang_songs():
                 name=name or "",
                 artist=artist or "",
                 level=level,
+                bpm=float(bpm or 0),
+                bpm_max=float(bpm_max) if bpm_max is not None else None,
+                bpm_display=bpm_display or None,
+                combo=int(combo or 0),
                 image=image,
                 game_index=game_index,
                 youtube_url=direct_url or matched_url,
                 matched_song_id=match["id"] if match else None,
+                favorite_count=int(favorite_count or 0),
                 aliases=match["aliases"] if match else [],
             )
         )

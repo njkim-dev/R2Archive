@@ -19,6 +19,7 @@ const CHIPS = [
   { key: 'sun',       label: '해',         icon: '☀', range: '7–12',    cat: true },
   { key: 'new',       label: '신곡',       icon: '◉', flag: true },
   { key: 'variant',   label: '변속곡',                 flag: true },
+  { key: 'popular',   label: '인기순',     icon: '★', flag: true },
   { key: 'favorite',  label: '즐겨찾기',   icon: '★', flag: true, needLogin: true },
   { key: 'my_played', label: '내 플레이',  icon: '♪', flag: true, needLogin: true },
 ]
@@ -43,6 +44,7 @@ export default function MobileHeader({ totalFiltered }) {
   const isVarOn = flagVariants || quick === 'variants'
   const isFavOn = flagFavorite || quick === 'favorite'
   const isMyPlayedOn = flagMyPlayed || quick === 'my_played'
+  const isPopularOn = quick === 'popular'
 
   const activeChip = useMemo(() => {
     if (category === 'star') return 'star'
@@ -69,6 +71,7 @@ export default function MobileHeader({ totalFiltered }) {
     // 독립 flag 칩들: 다른 필터와 자유 조합 가능.
     if (chip === 'new')      return toggleIndependent(isNewOn,     flagNew,      setFlagNew,      toggleFlagNew,      'new')
     if (chip === 'variant')  return toggleIndependent(isVarOn,     flagVariants, setFlagVariants, toggleFlagVariants, 'variants')
+    if (chip === 'popular')  return setQuick(isPopularOn ? 'all' : 'popular')
     if (chip === 'favorite') return toggleIndependent(isFavOn,     flagFavorite, setFlagFavorite, toggleFlagFavorite, 'favorite')
     if (chip === 'my_played') return toggleIndependent(isMyPlayedOn, flagMyPlayed, setFlagMyPlayed, toggleFlagMyPlayed, 'my_played')
 
@@ -171,6 +174,7 @@ export default function MobileHeader({ totalFiltered }) {
                 : key === 'variant' ? isVarOn
                 : key === 'favorite' ? isFavOn
                 : key === 'my_played' ? isMyPlayedOn
+                : key === 'popular' ? isPopularOn
                 : false
             } else {
               isOn = activeChip === key

@@ -27,6 +27,136 @@ const SEARCH_MODES = [
   { key: 'artist', label: '아티스트' },
 ]
 
+const PMANG_SORT_ROWS = [
+  { key: 'game_index', label: '날짜', opts: [{ dir: 'desc', label: '최신곡순' }, { dir: 'asc', label: '구곡순' }] },
+  { key: 'level', label: '난이도', opts: [{ dir: 'desc', label: '높은 순' }, { dir: 'asc', label: '낮은 순' }] },
+  { key: 'bpm', label: 'BPM', opts: [{ dir: 'desc', label: '빠른 순' }, { dir: 'asc', label: '느린 순' }] },
+  { key: 'combo', label: '콤보', opts: [{ dir: 'desc', label: '높은 순' }, { dir: 'asc', label: '낮은 순' }] },
+  { key: 'favorite_count', label: '즐겨찾기', opts: [{ dir: 'desc', label: '많은 순' }, { dir: 'asc', label: '적은 순' }] },
+  { key: 'name', label: '곡명', opts: [{ dir: 'asc', label: '오름차순' }, { dir: 'desc', label: '내림차순' }] },
+  { key: 'artist', label: '아티스트', opts: [{ dir: 'asc', label: '오름차순' }, { dir: 'desc', label: '내림차순' }] },
+]
+
+function PmangMobileFilterSheet({
+  open,
+  onClose,
+  songs,
+  search,
+  searchMode,
+  levelMin,
+  levelMax,
+  bpmMin,
+  bpmMax,
+  setBpmMin,
+  setBpmMax,
+  bpmBounds,
+  category,
+  quick,
+  artists,
+  favorites,
+  sort,
+  setSortState,
+}) {
+  const [sBpmMin, setSBpmMin] = useState(bpmMin)
+  const [sBpmMax, setSBpmMax] = useState(bpmMax)
+
+  useEffect(() => {
+    if (open) {
+      setSBpmMin(bpmMin)
+      setSBpmMax(bpmMax)
+    }
+  }, [open, bpmMin, bpmMax])
+
+  const previewCount = useMemo(() => {
+    const { exact, fuzzy } = filterPmangSongs(songs, {
+      search,
+      searchMode,
+      levelMin,
+      levelMax,
+      bpmMin: sBpmMin,
+      bpmMax: sBpmMax,
+      category,
+      quick,
+      artists,
+      favorites,
+    })
+    return exact.length + fuzzy.length
+  }, [songs, search, searchMode, levelMin, levelMax, sBpmMin, sBpmMax, category, quick, artists, favorites])
+
+  const applyBpm = () => {
+    setBpmMin(sBpmMin)
+    setBpmMax(sBpmMax)
+    onClose()
+  }
+
+  return (
+    <>
+      <div className={`mob-backdrop${open ? ' open' : ''}`} onClick={onClose} />
+      <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="피망 필터">
+        <div className="mob-sheet-handle" />
+        <div className="mob-sheet-head">
+          <div className="mob-sheet-title">필터 / 정렬</div>
+          <button className="mob-sheet-reset" onClick={() => { setSBpmMin(bpmBounds[0]); setSBpmMax(bpmBounds[1]) }}>BPM 초기화</button>
+        </div>
+
+        <div className="mob-sheet-group">
+          <div className="mob-sheet-label">
+            BPM
+            <span className="mob-sheet-val">{sBpmMin} — {sBpmMax}</span>
+          </div>
+          <div className="mob-range-row">
+            <input
+              className="mob-range-num mono"
+              type="number"
+              min={bpmBounds[0]}
+              max={bpmBounds[1]}
+              step="1"
+              value={sBpmMin ?? bpmBounds[0]}
+              onChange={e => setSBpmMin(+e.target.value)}
+            />
+            <span className="mob-range-dash">—</span>
+            <input
+              className="mob-range-num mono"
+              type="number"
+              min={bpmBounds[0]}
+              max={bpmBounds[1]}
+              step="1"
+              value={sBpmMax ?? bpmBounds[1]}
+              onChange={e => setSBpmMax(+e.target.value)}
+            />
+          </div>
+        </div>
+
+        <button className="mob-sheet-apply" onClick={applyBpm}>
+          적용 ({previewCount.toLocaleString()}곡)
+        </button>
+
+        <div className="mob-sheet-group" style={{ marginTop: 20 }}>
+          <div className="mob-sheet-label">정렬</div>
+          <div className="mob-sort-rows">
+            {PMANG_SORT_ROWS.map(row => (
+              <div className="mob-sort-row" key={row.key}>
+                <span className="mob-sort-row-label">{row.label}</span>
+                <div className="mob-sort-toggle">
+                  {row.opts.map(opt => (
+                    <button
+                      key={opt.dir}
+                      className={`mob-sort-tog${sort.key === row.key && sort.dir === opt.dir ? ' on' : ''}`}
+                      onClick={() => { setSortState({ key: row.key, dir: opt.dir }); onClose() }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </>
+  )
+}
+
 export default function PmangSongsPage() {
   const isMobile = useMobile()
   const pmangFavorites = useStore(s => s.pmangFavorites)
@@ -46,11 +176,14 @@ export default function PmangSongsPage() {
   // 피망 곡의 level은 실제 표기의 2배. 표시·필터·정렬은 화면값(level/2)을 기준으로 한다.
   const [levelMin, setLevelMin] = useState(1)
   const [levelMax, setLevelMax] = useState(10)
+  const [bpmMin, setBpmMin] = useState(null)
+  const [bpmMax, setBpmMax] = useState(null)
   const [category, setCategoryState] = useState('sun')
-  const [quick, setQuick] = useState('all')  // 'all' | 'favorite' | 'no_music' | 'youtube_candidates'
+  const [quick, setQuick] = useState('all')  // 'all' | 'popular' | 'favorite' | 'no_music' | 'youtube_candidates'
   const [artists, setArtists] = useState(() => new Set())
   // 기본 정렬: game_index DESC — 최신 곡(높은 index)이 위로.
   const [sort, setSortState] = useState({ key: 'game_index', dir: 'desc' })
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
   const [modalSong, setModalSong] = useState(null)
 
@@ -64,6 +197,11 @@ export default function PmangSongsPage() {
           const maxLv = Math.max(...halves)
           setLevelMin(Math.floor(minLv * 2) / 2)
           setLevelMax(Math.ceil(maxLv * 2) / 2)
+          const bpms = data.flatMap(s => [s.bpm, s.bpm_max ?? s.bpm]).filter(v => Number.isFinite(Number(v)))
+          if (bpms.length) {
+            setBpmMin(Math.floor(Math.min(...bpms)))
+            setBpmMax(Math.ceil(Math.max(...bpms)))
+          }
         }
       })
       .catch(e => setError(e?.message ?? String(e)))
@@ -118,6 +256,12 @@ export default function PmangSongsPage() {
     return [Math.floor(lo * 2) / 2, Math.ceil(hi * 2) / 2]
   }, [songs])
 
+  const bpmBounds = useMemo(() => {
+    const bpms = songs.flatMap(s => [s.bpm, s.bpm_max ?? s.bpm]).filter(v => Number.isFinite(Number(v)))
+    if (!bpms.length) return [0, 300]
+    return [Math.floor(Math.min(...bpms)), Math.ceil(Math.max(...bpms))]
+  }, [songs])
+
   const topArtists = useMemo(() => {
     const counts = new Map()
     for (const s of songs) {
@@ -147,6 +291,8 @@ export default function PmangSongsPage() {
     setCategoryState('sun')
     setLevelMin(levelBounds[0])
     setLevelMax(levelBounds[1])
+    setBpmMin(bpmBounds[0])
+    setBpmMax(bpmBounds[1])
   }
 
   const setCategory = (cat) => {
@@ -163,15 +309,17 @@ export default function PmangSongsPage() {
     const sourceSongs = candidateMode ? pmangYoutubeCandidates : songs
     const { exact, fuzzy } = filterPmangSongs(sourceSongs, {
       search, searchMode, levelMin, levelMax, category,
+      bpmMin, bpmMax,
       quick: quick === 'youtube_candidates' ? 'all' : quick,
       artists,
       favorites: pmangFavorites,
     })
+    const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
     return {
-      exact: sortPmangSongs(exact, sort),
-      fuzzy: sortPmangSongs(fuzzy, sort),
+      exact: sortPmangSongs(exact, effectiveSort),
+      fuzzy: sortPmangSongs(fuzzy, effectiveSort),
     }
-  }, [songs, pmangYoutubeCandidates, isAdmin, search, searchMode, levelMin, levelMax, category, quick, artists, pmangFavorites, sort])
+  }, [songs, pmangYoutubeCandidates, isAdmin, search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, artists, pmangFavorites, sort])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
@@ -183,6 +331,8 @@ export default function PmangSongsPage() {
       searchMode,
       levelMin: levelBounds[0],
       levelMax: levelBounds[1],
+      bpmMin,
+      bpmMax,
       category: null,
       quick: quick === 'youtube_candidates' ? 'all' : quick,
       artists,
@@ -194,7 +344,7 @@ export default function PmangSongsPage() {
     return {
       onApply: () => setCategory(category),
     }
-  }, [search, category, quick, isAdmin, pmangYoutubeCandidates, songs, searchMode, levelBounds, artists, pmangFavorites, filtered.exact, filtered.fuzzy])
+  }, [search, category, quick, isAdmin, pmangYoutubeCandidates, songs, searchMode, levelBounds, bpmMin, bpmMax, artists, pmangFavorites, filtered.exact, filtered.fuzzy])
 
   // 컬럼 헤더 클릭: 이미 같은 키면 방향 토글, 다른 키면 초기 방향 부여.
   // 본 SongsTable의 setSort와 동일 — 숫자성 컬럼(game_index/level)은 'desc'로, 텍스트(name/artist)는 'asc'로 시작.
@@ -207,9 +357,11 @@ export default function PmangSongsPage() {
 
   const sortLabels = {
     game_index: '#', name: '곡명', artist: '아티스트', level: '난이도',
+    bpm: 'BPM', combo: '콤보', favorite_count: '즐겨찾기',
   }
 
   const currentMode = SEARCH_MODES.find(m => m.key === searchMode) ?? SEARCH_MODES[0]
+  const hasBpmFilter = bpmMin !== bpmBounds[0] || bpmMax !== bpmBounds[1]
 
   if (isMobile) {
     return (
@@ -220,6 +372,12 @@ export default function PmangSongsPage() {
               <ServerSwitcher className="mob-server-switcher" />
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
+                <button className="mob-icon-btn" onClick={() => setMobileSheetOpen(true)} aria-label="필터">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
+                  </svg>
+                  {hasBpmFilter && <span className="mob-badge" />}
+                </button>
                 {user ? (
                   <button className="mob-icon-btn" onClick={openMyPage} title="마이페이지" aria-label="마이페이지">
                     <div className="user-avatar" style={{ width: 24, height: 24 }}>
@@ -298,6 +456,10 @@ export default function PmangSongsPage() {
                   onClick={() => setQuick(quick === 'no_music' ? 'all' : 'no_music')}
                 >음악 없음</button>
               )}
+              <button
+                className={`mob-chip${quick === 'popular' ? ' on' : ''}`}
+                onClick={() => setQuick(quick === 'popular' ? 'all' : 'popular')}
+              >인기순</button>
             </div>
           </div>
         </div>
@@ -319,6 +481,26 @@ export default function PmangSongsPage() {
         }
 
         <PmangSongModal song={modalSong} onClose={() => setModalSong(null)} />
+        <PmangMobileFilterSheet
+          open={mobileSheetOpen}
+          onClose={() => setMobileSheetOpen(false)}
+          songs={quick === 'youtube_candidates' && isAdmin ? pmangYoutubeCandidates : songs}
+          search={search}
+          searchMode={searchMode}
+          levelMin={levelMin}
+          levelMax={levelMax}
+          bpmMin={bpmMin}
+          bpmMax={bpmMax}
+          setBpmMin={setBpmMin}
+          setBpmMax={setBpmMax}
+          bpmBounds={bpmBounds}
+          category={category}
+          quick={quick === 'youtube_candidates' ? 'all' : quick}
+          artists={artists}
+          favorites={pmangFavorites}
+          sort={sort}
+          setSortState={setSortState}
+        />
       </div>
     )
   }
@@ -333,6 +515,9 @@ export default function PmangSongsPage() {
         levelMin={levelMin} levelMax={levelMax}
         setLevelMin={setLevelMin} setLevelMax={setLevelMax}
         levelBounds={levelBounds}
+        bpmMin={bpmMin} bpmMax={bpmMax}
+        setBpmMin={setBpmMin} setBpmMax={setBpmMax}
+        bpmBounds={bpmBounds}
         artists={artists} toggleArtist={toggleArtist} clearArtists={clearArtists}
         topArtists={topArtists}
         favorites={pmangFavorites}
@@ -435,6 +620,11 @@ export default function PmangSongsPage() {
           setLevelMin={setLevelMin}
           setLevelMax={setLevelMax}
           levelBounds={levelBounds}
+          bpmMin={bpmMin}
+          bpmMax={bpmMax}
+          setBpmMin={setBpmMin}
+          setBpmMax={setBpmMax}
+          bpmBounds={bpmBounds}
           category={category}
           setCategory={setCategory}
           quick={quick}

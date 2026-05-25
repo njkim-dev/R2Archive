@@ -9,7 +9,7 @@ import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode } from '../utils/serverMode'
 import { readSavedListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 
-function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong }) {
+function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount }) {
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const hasMusic = !!song.youtube_url
 
@@ -84,6 +84,9 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
           {song.user_level_avg != null && (
             <><span className="mob-sep">·</span><span style={{ color: 'var(--fg-3)' }}>체감 {song.user_level_avg.toFixed(1)}</span></>
           )}
+          {showFavoriteCount && (
+            <><span className="mob-sep">·</span><span style={{ color: 'var(--fg-3)' }}>★ {fmt(song.favorite_count || 0)}</span></>
+          )}
         </div>
       </div>
 
@@ -113,6 +116,21 @@ const XYX_HEADERS = [
   DEFAULT_HEADERS[1],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
   ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'play_count'),
+]
+
+const FAVORITE_COUNT_HEADER = { label: '즐겨찾기', key: 'favorite_count', cls: 'num' }
+
+const favoriteCountHeaders = (headers) => headers.map(header =>
+  header.key === 'play_count' ? FAVORITE_COUNT_HEADER : header
+)
+
+const xyxFavoriteCountHeaders = [
+  DEFAULT_HEADERS[0],
+  DEFAULT_HEADERS[1],
+  { label: '한국 곡명', key: 'korea_name', cls: '' },
+  ...DEFAULT_HEADERS.slice(2).map(header =>
+    header.key === 'play_count' ? FAVORITE_COUNT_HEADER : header
+  ),
 ]
 
 const XYX_CATEGORY_HEADERS = [
@@ -165,6 +183,7 @@ function SongRow({
   onDeleteSong,
   showKoreaName,
   showPlayCount,
+  showFavoriteCount,
   colTemplate,
 }) {
   const [copied, setCopied] = useState(false)
@@ -331,6 +350,10 @@ function SongRow({
         <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
           {song.play_count ? fmt(song.play_count) : '—'}
         </div>
+      ) : showFavoriteCount ? (
+        <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
+          {song.favorite_count ? fmt(song.favorite_count) : '—'}
+        </div>
       ) : null}
 
       {/* 변속 */}
@@ -379,17 +402,24 @@ export default function SongsTable({
   onDeleteSong,
   categorySuggestion = null,
 }) {
-  const { sort, setSort, openModal, search, user, favorites, toggleFavorite, isAdmin } = useStore()
+  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin } = useStore()
   const canFav = !!user
   const showKoreaName = isXyxMode()
-  const showPlayCount = !(showKoreaName && tableMode !== 'personalCategory')
+  const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
+  const showPlayCount = !showFavoriteCount && !(showKoreaName && tableMode !== 'personalCategory')
   const colTemplate = showKoreaName
-    ? (tableMode === 'personalCategory' ? XYX_CATEGORY_COL_TEMPLATE : XYX_COL_TEMPLATE)
+    ? (tableMode === 'personalCategory'
+      ? XYX_CATEGORY_COL_TEMPLATE
+      : (showFavoriteCount ? XYX_CATEGORY_COL_TEMPLATE : XYX_COL_TEMPLATE))
     : COL_TEMPLATE
   const baseHeaders = showKoreaName
-    ? (tableMode === 'personalCategory' ? XYX_CATEGORY_HEADERS : XYX_HEADERS)
+    ? (tableMode === 'personalCategory'
+      ? XYX_CATEGORY_HEADERS
+      : (showFavoriteCount ? xyxFavoriteCountHeaders : XYX_HEADERS))
     : DEFAULT_HEADERS
-  const headers = tableMode === 'personalCategory' ? personalCategoryHeaders(baseHeaders) : baseHeaders
+  const headers = tableMode === 'personalCategory'
+    ? personalCategoryHeaders(baseHeaders)
+    : (showFavoriteCount && !showKoreaName ? favoriteCountHeaders(baseHeaders) : baseHeaders)
   const listRef = useRef(null)
   const scrollOffsetRef = useRef(0)
   const savedOffsetRef = useRef(0)
@@ -470,6 +500,7 @@ export default function SongsTable({
           onToggleFav={toggleFavorite}
           canDelete={tableMode === 'personalCategory' && canDeleteSongs}
           onDeleteSong={onDeleteSong}
+          showFavoriteCount={showFavoriteCount}
         />
       )
     }
@@ -488,10 +519,11 @@ export default function SongsTable({
         onDeleteSong={onDeleteSong}
         showKoreaName={showKoreaName}
         showPlayCount={showPlayCount}
+        showFavoriteCount={showFavoriteCount}
         colTemplate={colTemplate}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, colTemplate])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, colTemplate])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -567,6 +599,7 @@ function MobileSortButton() {
       bpm: sort.dir === 'asc' ? 'BPM 느린순' : 'BPM 빠른순',
       name: sort.dir === 'desc' ? '곡명 내림차순' : '곡명 오름차순',
       artist: sort.dir === 'desc' ? '아티스트 내림차순' : '아티스트 오름차순',
+      favorite_count: '인기순',
     }
     return map[sort.key] ?? '최신곡순'
   }, [sort])

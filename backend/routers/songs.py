@@ -136,6 +136,12 @@ def get_songs():
             perceived: dict[int, tuple] = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
 
             cur.execute(
+                "SELECT song_id, COUNT(*)::int "
+                "FROM user_favorites GROUP BY song_id"
+            )
+            favorite_counts: dict[int, int] = {r[0]: r[1] for r in cur.fetchall()}
+
+            cur.execute(
                 "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.combo, "
                 "COALESCE(s.real_time, s.time) AS time, "
                 "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image, "
@@ -165,6 +171,7 @@ def get_songs():
             is_new=bool(stat),
             file_order=int(file_order or 0),
             play_count=play_counts.get((name, artist), 0),
+            favorite_count=favorite_counts.get(sid, 0),
             is_change=bool(change_bpm),
             image=image or None,
             user_level_avg=round(p_avg, 2) if p_avg is not None else None,
@@ -196,6 +203,12 @@ def get_removed_songs(request: Request):
             perceived: dict[int, tuple] = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
 
             cur.execute(
+                "SELECT song_id, COUNT(*)::int "
+                "FROM user_favorites GROUP BY song_id"
+            )
+            favorite_counts: dict[int, int] = {r[0]: r[1] for r in cur.fetchall()}
+
+            cur.execute(
                 "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.combo, "
                 "COALESCE(s.real_time, s.time) AS time, "
                 "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image, "
@@ -225,6 +238,7 @@ def get_removed_songs(request: Request):
             is_new=bool(stat),
             file_order=int(file_order or 0),
             play_count=play_counts.get((name, artist), 0),
+            favorite_count=favorite_counts.get(sid, 0),
             is_change=bool(change_bpm),
             image=image or None,
             user_level_avg=round(p_avg, 2) if p_avg is not None else None,

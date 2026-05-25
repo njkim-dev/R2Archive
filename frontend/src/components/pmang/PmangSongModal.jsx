@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link2, Check } from 'lucide-react'
 import useStore from '../../store/useStore'
-import { artworkBg } from '../../utils/helpers'
+import { artworkBg, fmt, fmtBpm } from '../../utils/helpers'
 import { useMobile } from '../../hooks/useMobile'
 import { getPmangComments, addPmangComment, getPmangRecords, addPmangRecord } from '../../api/client'
 
@@ -9,6 +9,10 @@ function catFromLevel(lv) {
   if (lv >= 7) return 'sun'
   if (lv >= 4) return 'moon'
   return 'star'
+}
+
+function displayBpm(song) {
+  return song.bpm_display || fmtBpm(song.bpm || 0)
 }
 
 // 본 records와 동일한 검증: youtu.be/<id> 또는 youtube.com/watch?v=<id>, 11자 video id.
@@ -23,6 +27,7 @@ function PmangRecordsTab({ song }) {
   const [url, setUrl] = useState('')
   const [ytTitle, setYtTitle] = useState(null)
   const [ytLoading, setYtLoading] = useState(false)
+  // 로그인 상태면 회원 닉네임을 자동 사용 — 입력 필드는 숨김.
   const [nick, setNick] = useState(user?.nickname || '')
   const [memo, setMemo] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -30,6 +35,7 @@ function PmangRecordsTab({ song }) {
 
   useEffect(() => { getPmangRecords(song.id).then(setRecords).catch(() => setRecords([])) }, [song.id])
 
+  // user 변경 시 nick state 동기화.
   useEffect(() => { setNick(user?.nickname || '') }, [user?.id, user?.nickname])
 
   const fetchYtTitle = async (rawUrl) => {
@@ -327,6 +333,8 @@ function PmangMobileDetail({
           <div className="mob-hero-sub">{song.artist}</div>
           <div className="mob-hero-tags">
             <span className="mob-h-tag mob-h-tag-accent">LV {displayLv.toFixed(1)}</span>
+            <span className="mob-h-tag">{displayBpm(song)} BPM</span>
+            <span className="mob-h-tag">{song.combo ? fmt(song.combo) : '—'} 콤보</span>
             {song.game_index != null && <span className="mob-h-tag">#{song.game_index}</span>}
             <span className="mob-h-tag">과거 피망곡</span>
           </div>
@@ -360,10 +368,10 @@ function PmangMobileDetail({
 
         <div className="mob-stats">
           {[
-            { lbl: '카탈로그', val: '피망' },
-            { lbl: '번호', val: song.game_index != null ? `#${song.game_index}` : '-' },
             { lbl: '레벨', val: displayLv.toFixed(1) },
-            { lbl: '아티스트', val: song.artist || '-' },
+            { lbl: 'BPM', val: displayBpm(song) },
+            { lbl: '콤보', val: song.combo ? fmt(song.combo) : '-' },
+            { lbl: '번호', val: song.game_index != null ? `#${song.game_index}` : '-' },
           ].map(item => (
             <div key={item.lbl} className="mob-stat">
               <div className="mob-stat-v">{item.val}</div>
@@ -505,7 +513,7 @@ export default function PmangSongModal({ song, onClose }) {
                 <span className="n">{displayLv.toFixed(1)}</span>
               </div>
               <div className="m-name">{song.name}</div>
-              <div className="m-artist">by <b>{song.artist}</b></div>
+              <div className="m-artist">by <b>{song.artist}</b> · {displayBpm(song)} BPM · {song.combo ? fmt(song.combo) : '-'} 콤보</div>
             </div>
           </div>
 
@@ -534,6 +542,21 @@ export default function PmangSongModal({ song, onClose }) {
               {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
             </button>
           </div>
+        </div>
+
+        <div className="m-stats">
+          {[
+            { lbl: '난이도', val: displayLv.toFixed(1), sub: '피망 표기' },
+            { lbl: 'BPM', val: displayBpm(song), sub: song.bpm_max && song.bpm_max !== song.bpm ? '범위' : '고정' },
+            { lbl: '콤보', val: song.combo ? fmt(song.combo) : '-', sub: '최대' },
+            { lbl: '즐겨찾기', val: song.favorite_count ? fmt(song.favorite_count) : '0', sub: '유저' },
+          ].map(item => (
+            <div key={item.lbl} className="stat-card">
+              <span className="stat-l">{item.lbl}</span>
+              <b>{item.val}</b>
+              <span className="stat-s">{item.sub}</span>
+            </div>
+          ))}
         </div>
 
         <div className="m-tabs">

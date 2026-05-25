@@ -47,8 +47,10 @@ export default function FilterBar() {
       new: '신곡',
       played: '모든 유저 플레이',
       variants: '변속곡',
+      popular: '인기순',
       favorite: '★ 즐겨찾기',
       my_played: '내가 플레이한 곡',
+      no_music: '음악 없음',
     }
     pills.push(
       <span key="quick" className="pill">

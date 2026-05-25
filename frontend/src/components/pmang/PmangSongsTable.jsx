@@ -2,9 +2,9 @@ import { useCallback, useMemo, useRef, useEffect } from 'react'
 import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../../store/useStore'
-import { levelBarColor, artworkBg } from '../../utils/helpers'
+import { levelBarColor, artworkBg, bpmWaveBars, fmt, fmtBpm } from '../../utils/helpers'
 
-const COL_TEMPLATE = '56px 72px 2fr 1fr 96px'
+const COL_TEMPLATE = '56px 72px 2fr 1fr 96px 100px 110px 90px'
 
 const HEADERS = [
   { label: '',         key: null,         cls: '' },
@@ -12,6 +12,9 @@ const HEADERS = [
   { label: '곡명',     key: 'name',       cls: '' },
   { label: '아티스트', key: 'artist',     cls: '' },
   { label: '난이도',   key: 'level',      cls: 'num' },
+  { label: 'BPM',      key: 'bpm',        cls: 'num' },
+  { label: '콤보',     key: 'combo',      cls: 'num' },
+  { label: '즐겨찾기', key: 'favorite_count', cls: 'num' },
 ]
 
 function YoutubeLinkIcon({ song }) {
@@ -59,10 +62,17 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
   const displayLv = song.level / 2
   const lvInt = Math.floor(displayLv)
   const lvDec = displayLv % 1 === 0 ? '.0' : '.5'
+  const comboPct = Math.min(100, ((song.combo || 0) / 2000) * 100)
+  const bpmTier =
+    song.bpm >= 220 ? 'hot'
+      : song.bpm >= 200 ? 'warm'
+      : song.bpm < 120 ? 'cool'
+      : undefined
 
   return (
     <div
       className="tbl-row"
+      data-bpm-tier={bpmTier}
       style={{ ...style, gridTemplateColumns: COL_TEMPLATE }}
       onClick={() => onClick?.(song)}
     >
@@ -124,17 +134,34 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
           <span className="dec">{lvDec}</span>
         </span>
       </div>
+
+      <div className="td num bpm-cell">
+        <span className="bpm-num">{song.bpm_display || fmtBpm(song.bpm || 0)}</span>
+        <div className="bpm-wave">
+          {bpmWaveBars(song.bpm || 1).map((style, i) => <div key={i} className="bar" style={style} />)}
+        </div>
+      </div>
+
+      <div className="td num">
+        <span className="combo-num">{song.combo ? fmt(song.combo) : '—'}</span>
+        <div className="combo-bar">
+          <div style={{ width: `${comboPct}%` }} />
+        </div>
+      </div>
+
+      <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
+        {song.favorite_count ? fmt(song.favorite_count) : '—'}
+      </div>
     </div>
   )
 }
 
-// 모바일 카드 — 본 SongsTable의 MobileCard와 동일한 CSS class를 재사용.
-// pmang 곡은 BPM/변속/체감난이도 데이터가 없어 메타 라인이 더 간소함.
 function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
   const displayLv = song.level / 2
   const cat = displayLv >= 7 ? 'sun' : displayLv >= 4 ? 'moon' : 'star'
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
   const hasMusic = !!song.youtube_url
+  const bpmText = song.bpm_display ? `${song.bpm_display} BPM` : `${fmtBpm(song.bpm || 0)} BPM`
 
   const openMusic = (e) => {
     e.stopPropagation()
@@ -194,6 +221,10 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
         <div className="mob-card-artist">{song.artist}</div>
         <div className="mob-card-inline">
           <span className="mob-lv" data-cat={cat}>Lv {displayLv.toFixed(1)}</span>
+          <span className="mob-sep">·</span>
+          <span>{bpmText}</span>
+          <span className="mob-sep">·</span>
+          <span>{song.combo ? `${fmt(song.combo)}콤보` : '콤보 -'}</span>
           <span className="mob-sep">·</span>
           <span style={{ color: 'var(--fg-4)' }}>#{song.game_index}</span>
         </div>

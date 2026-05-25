@@ -12,6 +12,11 @@ export default function PmangFilterBar({
   setLevelMin,
   setLevelMax,
   levelBounds,
+  bpmMin,
+  bpmMax,
+  setBpmMin,
+  setBpmMax,
+  bpmBounds,
   category,
   setCategory,
   quick,
@@ -22,6 +27,7 @@ export default function PmangFilterBar({
 }) {
   const pills = []
   const [minBound, maxBound] = levelBounds
+  const [bpmMinBound, bpmMaxBound] = bpmBounds ?? []
 
   if (category) {
     pills.push(
@@ -41,8 +47,17 @@ export default function PmangFilterBar({
     )
   }
 
+  if (bpmMin != null && bpmMax != null && (bpmMin !== bpmMinBound || bpmMax !== bpmMaxBound)) {
+    pills.push(
+      <span key="bpm" className="pill">
+        BPM <b>{bpmMin}~{bpmMax}</b>
+        <button onClick={() => { setBpmMin(bpmMinBound); setBpmMax(bpmMaxBound) }}>×</button>
+      </span>
+    )
+  }
+
   if (quick !== 'all') {
-    const labels = { favorite: '내 즐겨찾기' }
+    const labels = { popular: '인기순', favorite: '내 즐겨찾기', no_music: '음악 없음', youtube_candidates: '후보곡' }
     pills.push(
       <span key="quick" className="pill">
         {labels[quick] ?? quick}

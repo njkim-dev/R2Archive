@@ -141,7 +141,7 @@ const useStore = create((set, get) => ({
   bpmMin: null,
   bpmMax: null,
   category: 'sun',     // null | 'star' | 'moon' | 'sun'
-  quick: 'all',         // all | new | played | variants
+  quick: 'all',         // all | new | played | variants | popular
   // 모바일 칩에서 신곡/변속곡/즐겨찾기/내플레이를 다른 필터와 동시 선택 가능하게 하기 위한 독립 플래그.
   // helpers.passesFilters에서 quick과 AND로 적용된다.
   flagNew: false,
