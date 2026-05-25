@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPmangSongs } from '../api/client'
 import { filterPmangSongs, sortPmangSongs } from '../utils/pmang'
 import useStore from '../store/useStore'
@@ -9,6 +9,7 @@ import PmangFilterBar from '../components/pmang/PmangFilterBar'
 import PmangSongsTable from '../components/pmang/PmangSongsTable'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
+import { clearCatalogHash, pmangSongCatalogHash, replaceCatalogHash } from '../utils/catalogUrl'
 
 const PmangSongModal = lazy(() => import('../components/pmang/PmangSongModal'))
 
@@ -204,6 +205,14 @@ export default function PmangSongsPage() {
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
   const [modalSong, setModalSong] = useState(null)
+  const openPmangCatalog = useCallback((song) => {
+    if (song?.id) replaceCatalogHash(pmangSongCatalogHash(song.id), '/pmang-songs')
+    setModalSong(song)
+  }, [])
+  const closePmangCatalog = useCallback(() => {
+    clearCatalogHash(/^#pmang-song=\d+$/)
+    setModalSong(null)
+  }, [])
 
   useEffect(() => {
     if (modalOpen) closeModal()
@@ -498,13 +507,14 @@ export default function PmangSongsPage() {
                 search={search}
                 sort={sort}
                 onSort={handleSort}
-                onRowClick={setModalSong}
+                onRowClick={openPmangCatalog}
                 categorySuggestion={categorySuggestion}
+                activeSongId={modalSong?.id ?? null}
                 isMobile
               />
         }
 
-        <PmangSongModalHost song={modalSong} onClose={() => setModalSong(null)} />
+        <PmangSongModalHost song={modalSong} onClose={closePmangCatalog} />
         <PmangMobileFilterSheet
           open={mobileSheetOpen}
           onClose={() => setMobileSheetOpen(false)}
@@ -546,7 +556,7 @@ export default function PmangSongsPage() {
         topArtists={topArtists}
         favorites={pmangFavorites}
         pmangYoutubeCandidates={pmangYoutubeCandidates}
-        onNavigate={() => setModalSong(null)}
+        onNavigate={closePmangCatalog}
       />
       <main className="main">
         <div className="topbar">
@@ -669,14 +679,15 @@ export default function PmangSongsPage() {
                 search={search}
                 sort={sort}
                 onSort={handleSort}
-                onRowClick={setModalSong}
+                onRowClick={openPmangCatalog}
                 categorySuggestion={categorySuggestion}
                 compact={!!modalSong}
+                activeSongId={modalSong?.id ?? null}
               />
         }
       </main>
 
-      <PmangSongModalHost song={modalSong} onClose={() => setModalSong(null)} />
+      <PmangSongModalHost song={modalSong} onClose={closePmangCatalog} />
     </div>
   )
 }

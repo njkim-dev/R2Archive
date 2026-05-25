@@ -4,6 +4,7 @@ import useStore from '../../store/useStore'
 import { artworkBg, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 import { useMobile } from '../../hooks/useMobile'
 import { getPmangComments, addPmangComment, getPmangRecords, addPmangRecord } from '../../api/client'
+import { pmangSongCatalogHash } from '../../utils/catalogUrl'
 
 function catFromLevel(lv) {
   if (lv >= 7) return 'sun'
@@ -438,7 +439,7 @@ export default function PmangSongModal({ song, onClose }) {
   const isFav = pmangFavorites?.has(song.id)
 
   const handleCopyLink = () => {
-    const url = `${location.origin}/pmang-songs#pmang-song=${song.id}`
+    const url = `${location.origin}/pmang-songs${pmangSongCatalogHash(song.id)}`
     navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)

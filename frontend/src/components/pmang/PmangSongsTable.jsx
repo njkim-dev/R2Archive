@@ -64,7 +64,7 @@ function TableHeader({ sort, onSort, headers = HEADERS, colTemplate = COL_TEMPLA
   )
 }
 
-function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = false, colTemplate = COL_TEMPLATE }) {
+function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = false, colTemplate = COL_TEMPLATE, active = false }) {
   const displayLv = song.level / 2
   const lvInt = Math.floor(displayLv)
   const lvDec = displayLv % 1 === 0 ? '.0' : '.5'
@@ -78,7 +78,8 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
   if (compact) {
     return (
       <div
-        className="tbl-row tbl-row-compact"
+        className={`tbl-row tbl-row-compact${active ? ' is-catalog-active' : ''}`}
+        data-song-id={song.id}
         data-bpm-tier={bpmTier}
         style={{ ...style, gridTemplateColumns: colTemplate }}
         onClick={() => onClick?.(song)}
@@ -125,7 +126,8 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
 
   return (
     <div
-      className="tbl-row"
+      className={`tbl-row${active ? ' is-catalog-active' : ''}`}
+      data-song-id={song.id}
       data-bpm-tier={bpmTier}
       style={{ ...style, gridTemplateColumns: COL_TEMPLATE }}
       onClick={() => onClick?.(song)}
@@ -210,7 +212,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
   )
 }
 
-function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
+function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, active = false }) {
   const displayLv = song.level / 2
   const cat = displayLv >= 7 ? 'sun' : displayLv >= 4 ? 'moon' : 'star'
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
@@ -223,7 +225,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav }) {
   }
 
   return (
-    <div className="mob-card" style={style} onClick={() => onClick?.(song)}>
+    <div className={`mob-card${active ? ' is-catalog-active' : ''}`} data-song-id={song.id} style={style} onClick={() => onClick?.(song)}>
       {(hasMusic || canFav) && (
         <div className="mob-card-actions">
           {hasMusic && (
@@ -314,7 +316,7 @@ function SearchFilterHint({ suggestion, empty = false }) {
   )
 }
 
-export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null, compact = false }) {
+export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null, compact = false, activeSongId = null }) {
   const { user, pmangFavorites, togglePmangFavorite } = useStore()
   const canFav = !!user
   const listRef = useRef(null)
@@ -322,6 +324,7 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
   const scrollOffsetRef = useRef(0)
   const savedOffsetRef = useRef(0)
   const prevSearchRef = useRef(search)
+  const scrolledActiveRef = useRef(null)
 
   const items = useMemo(() => {
     if (!fuzzy.length) return exact
@@ -348,6 +351,27 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
     scrollOffsetRef.current = scrollOffset
   }, [])
 
+  useEffect(() => {
+    if (!activeSongId || items.length === 0) return
+    const index = items.findIndex(item => item !== SEPARATOR && item.id === activeSongId)
+    if (index < 0) return
+    const key = `${activeSongId}:${index}:${isMobile ? 'm' : 'd'}`
+    if (scrolledActiveRef.current === key) return
+    const selectedRow = document.querySelector(`[data-song-id="${activeSongId}"].is-catalog-active`)
+    if (selectedRow) {
+      scrolledActiveRef.current = key
+      return
+    }
+    scrolledActiveRef.current = key
+    requestAnimationFrame(() => {
+      if (typeof listRef.current?.scrollToItem === 'function') {
+        listRef.current.scrollToItem(index, 'center')
+      } else {
+        listRef.current?.scrollTo(index * (isMobile ? 80 : 44))
+      }
+    })
+  }, [activeSongId, items, isMobile])
+
   const Row = useCallback(({ index, style }) => {
     const item = items[index]
     if (item === SEPARATOR) {
@@ -360,6 +384,7 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
       )
     }
     const isFav = pmangFavorites?.has(item.id)
+    const active = activeSongId === item.id
     if (isMobile) {
       return (
         <MobileCard
@@ -369,6 +394,7 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
           isFav={isFav}
           canFav={canFav}
           onToggleFav={togglePmangFavorite}
+          active={active}
         />
       )
     }
@@ -382,9 +408,10 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
         onToggleFav={togglePmangFavorite}
         compact={compact}
         colTemplate={compact ? COMPACT_COL_TEMPLATE : COL_TEMPLATE}
+        active={active}
       />
     )
-  }, [items, onRowClick, pmangFavorites, canFav, togglePmangFavorite, isMobile, compact])
+  }, [items, onRowClick, pmangFavorites, canFav, togglePmangFavorite, isMobile, compact, activeSongId])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length

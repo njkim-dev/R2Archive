@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useStore from '../store/useStore'
 import { getRemovedSongs } from '../api/client'
-import { filterSongs, sortSongs } from '../utils/helpers'
+import { categoryFromLevel, filterSongs, sortSongs } from '../utils/helpers'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import FilterBar from '../components/FilterBar'
@@ -25,7 +25,7 @@ export default function RemovedSongsPage() {
     authLoaded, user, isAdmin, openLogin,
     search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
-    artists, sort, favorites, played, playedAll, meta, setCategory,
+    artists, sort, favorites, played, playedAll, meta, setCategory, setCategoryDirect,
     openModal, modalOpen,
   } = useStore()
   const [songs, setSongs] = useState([])
@@ -59,8 +59,9 @@ export default function RemovedSongsPage() {
     const song = songs.find(item => item.id === parseInt(match[1], 10))
     if (!song) return
     openedHashRef.current = hash
+    setCategoryDirect(categoryFromLevel(song.level))
     openModal(song)
-  }, [loading, isAdmin, songs, openModal])
+  }, [loading, isAdmin, songs, openModal, setCategoryDirect])
 
   const filtered = useMemo(() => {
     const playedForFilter = category ? playedAll : played

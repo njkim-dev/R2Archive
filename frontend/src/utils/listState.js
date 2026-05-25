@@ -25,6 +25,20 @@ export function shouldRestoreListState() {
   }
 }
 
+export function clearRestoreListParam() {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has(RESTORE_LIST_PARAM)) return
+    params.delete(RESTORE_LIST_PARAM)
+    const search = params.toString()
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`,
+    )
+  } catch {}
+}
+
 export function withRestoreListParam(url) {
   try {
     const next = new URL(url, window.location.href)

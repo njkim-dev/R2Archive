@@ -7,7 +7,7 @@ import { artworkBg, fmt, fmtBpm, getAnonId, staticUrl } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode, SERVER_LINKS } from '../utils/serverMode'
-import { saveCurrentListState, withRestoreListParam } from '../utils/listState'
+import { songCatalogHash } from '../utils/catalogUrl'
 
 function BpmGraph({ timeline, songTime }) {
   const tooltipRef = useRef(null)
@@ -817,7 +817,7 @@ function MobileDetail({ song, detail, onClose }) {
         </button>
         <div className="mob-detail-top-title">{song.name}</div>
         <button className="mob-icon-btn" onClick={() => {
-          const url = `${location.origin}${location.pathname}#song=${song.id}`
+          const url = `${location.origin}${location.pathname}${location.search}${songCatalogHash(song.id)}`
           navigator.clipboard?.writeText(url)
         }} aria-label="링크 복사">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -980,8 +980,7 @@ function getCounterpartLabel(counterpart) {
 }
 
 function navigateToCounterpart(url) {
-  saveCurrentListState(useStore.getState())
-  window.location.href = withRestoreListParam(url)
+  window.location.href = url
 }
 
 function SavedCategoryTags({ song, onOpenCategory }) {
@@ -1131,7 +1130,7 @@ export default function SongModal() {
   }
 
   const handleCopyLink = () => {
-    const url = `${location.origin}${location.pathname}#song=${song.id}`
+    const url = `${location.origin}${location.pathname}${location.search}${songCatalogHash(song.id)}`
     navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
