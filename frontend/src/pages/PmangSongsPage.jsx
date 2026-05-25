@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { getPmangSongs } from '../api/client'
 import { filterPmangSongs, sortPmangSongs } from '../utils/pmang'
 import useStore from '../store/useStore'
@@ -7,9 +7,10 @@ import MobilePageNav from '../components/MobilePageNav'
 import PmangSidebar from '../components/pmang/PmangSidebar'
 import PmangFilterBar from '../components/pmang/PmangFilterBar'
 import PmangSongsTable from '../components/pmang/PmangSongsTable'
-import PmangSongModal from '../components/pmang/PmangSongModal'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
+
+const PmangSongModal = lazy(() => import('../components/pmang/PmangSongModal'))
 
 const TOP_ARTIST_LIMIT = 20
 
@@ -36,6 +37,21 @@ const PMANG_SORT_ROWS = [
   { key: 'name', label: '곡명', opts: [{ dir: 'asc', label: '오름차순' }, { dir: 'desc', label: '내림차순' }] },
   { key: 'artist', label: '아티스트', opts: [{ dir: 'asc', label: '오름차순' }, { dir: 'desc', label: '내림차순' }] },
 ]
+
+function PmangSongModalHost({ song, onClose }) {
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (song) setLoaded(true)
+  }, [song])
+
+  if (!loaded) return null
+  return (
+    <Suspense fallback={null}>
+      <PmangSongModal song={song} onClose={onClose} />
+    </Suspense>
+  )
+}
 
 function PmangMobileFilterSheet({
   open,
@@ -482,7 +498,7 @@ export default function PmangSongsPage() {
               />
         }
 
-        <PmangSongModal song={modalSong} onClose={() => setModalSong(null)} />
+        <PmangSongModalHost song={modalSong} onClose={() => setModalSong(null)} />
         <PmangMobileFilterSheet
           open={mobileSheetOpen}
           onClose={() => setMobileSheetOpen(false)}
@@ -652,7 +668,7 @@ export default function PmangSongsPage() {
         }
       </main>
 
-      <PmangSongModal song={modalSong} onClose={() => setModalSong(null)} />
+      <PmangSongModalHost song={modalSong} onClose={() => setModalSong(null)} />
     </div>
   )
 }
