@@ -30,7 +30,7 @@ export default function Sidebar({ songs, filtered }) {
     bpmMin, bpmMax, setBpmMin, setBpmMax,
     artists, toggleArtist, clearArtists,
     favorites, played, playedAll,
-    isAdmin,
+    isAdmin, closeModal,
   } = useStore()
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function Sidebar({ songs, filtered }) {
             <NavLink
               to="/groups"
               className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-              onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+              onClick={(e) => { closeModal(); if (!user) { e.preventDefault(); openLogin() } }}
             >
               <span>그룹</span>
             </NavLink>
@@ -105,7 +105,7 @@ export default function Sidebar({ songs, filtered }) {
           <NavLink
             to="/personal-categories"
             className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+            onClick={(e) => { closeModal(); if (!user) { e.preventDefault(); openLogin() } }}
           >
             <span>음악 카테고리</span>
           </NavLink>
@@ -120,7 +120,7 @@ export default function Sidebar({ songs, filtered }) {
             </NavLink>
           )}
           {!xyxMode && (
-            <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+            <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={closeModal}>
               <span>피드백</span>
             </NavLink>
           )}

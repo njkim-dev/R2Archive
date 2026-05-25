@@ -24,7 +24,7 @@ export default function SongsPage() {
     songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll,
-    meta, setCategory, setQuick, isAdmin,
+    meta, setCategory, setQuick, isAdmin, modalOpen,
   } = useStore()
 
   useEffect(() => {
@@ -85,13 +85,20 @@ export default function SongsPage() {
     )
   }
 
+  const catalogPanelOpen = modalOpen && !isMobile
+
   return (
-    <div className="app" data-cat={category || undefined}>
+    <div className={`app${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
       <Sidebar songs={songs} filtered={filtered.exact} />
       <main className="main">
         <TopBar filteredCount={totalFiltered} totalCount={songs.length} />
         <FilterBar />
-        <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} categorySuggestion={categorySuggestion} />
+        <SongsTable
+          exact={filtered.exact}
+          fuzzy={filtered.fuzzy}
+          categorySuggestion={categorySuggestion}
+          compact={catalogPanelOpen}
+        />
       </main>
     </div>
   )

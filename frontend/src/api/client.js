@@ -164,6 +164,8 @@ export const getMyPersonalCategories = () => api.get(apiPath('/me/personal-categ
 export const getEditablePersonalCategories = () => api.get(apiPath('/me/personal-categories/editable', '/me/xyx-categories/editable')).then(r => r.data)
 export const getPublicPersonalCategories = () => api.get(apiPath('/personal-categories/public', '/xyx-categories/public')).then(r => r.data)
 export const getMySubscribedPersonalCategories = () => api.get(apiPath('/me/personal-category-subscriptions', '/me/xyx-category-subscriptions')).then(r => r.data)
+export const getSongPersonalCategories = (songId) =>
+  api.get(apiPath(`/songs/${songId}/personal-categories`, `/xyx/songs/${songId}/categories`)).then(r => r.data)
 export const createPersonalCategory = (body) => api.post(apiPath('/personal-categories', '/xyx-categories'), body).then(r => r.data)
 export const patchPersonalCategory = (categoryId, body) =>
   api.patch(apiPath(`/personal-categories/${categoryId}`, `/xyx-categories/${categoryId}`), body).then(r => r.data)

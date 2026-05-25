@@ -1,9 +1,17 @@
 /* ========= App Shell ========= */
+:root {
+  --catalog-panel-width: clamp(560px, 44vw, 720px);
+}
+
 .app {
   display: grid;
   grid-template-columns: 260px 1fr;
   height: 100vh;
   overflow: hidden;
+}
+
+.app.catalog-panel-open {
+  padding-right: var(--catalog-panel-width);
 }
 
 /* ========= Sidebar ========= */

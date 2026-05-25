@@ -5,6 +5,7 @@ import useStore from '../../store/useStore'
 import { levelBarColor, artworkBg, bpmWaveBars, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 
 const COL_TEMPLATE = '56px 72px 2fr 1fr 96px 100px 110px 90px'
+const COMPACT_COL_TEMPLATE = 'minmax(0, 1.45fr) minmax(110px, 0.9fr) 76px'
 
 const HEADERS = [
   { label: '',         key: null,         cls: '' },
@@ -15,6 +16,11 @@ const HEADERS = [
   { label: 'BPM',      key: 'bpm',        cls: 'num' },
   { label: '콤보',     key: 'combo',      cls: 'num' },
   { label: '즐겨찾기', key: 'favorite_count', cls: 'num' },
+]
+const COMPACT_HEADERS = [
+  { label: '곡명', key: 'name', cls: '' },
+  { label: '아티스트', key: 'artist', cls: '' },
+  { label: '난이도', key: 'level', cls: 'num' },
 ]
 
 function YoutubeLinkIcon({ song }) {
@@ -35,10 +41,10 @@ function YoutubeLinkIcon({ song }) {
   )
 }
 
-function TableHeader({ sort, onSort }) {
+function TableHeader({ sort, onSort, headers = HEADERS, colTemplate = COL_TEMPLATE }) {
   return (
-    <div className="tbl-header" style={{ gridTemplateColumns: COL_TEMPLATE }}>
-      {HEADERS.map(({ label, key, cls }, i) => (
+    <div className="tbl-header" style={{ gridTemplateColumns: colTemplate }}>
+      {headers.map(({ label, key, cls }, i) => (
         <div
           key={i}
           className={`th ${cls}${sort.key === key ? ' sorted' : ''}`}
@@ -58,7 +64,7 @@ function TableHeader({ sort, onSort }) {
   )
 }
 
-function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
+function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = false, colTemplate = COL_TEMPLATE }) {
   const displayLv = song.level / 2
   const lvInt = Math.floor(displayLv)
   const lvDec = displayLv % 1 === 0 ? '.0' : '.5'
@@ -68,6 +74,54 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav }) {
       : song.bpm >= 200 ? 'warm'
       : song.bpm < 120 ? 'cool'
       : undefined
+
+  if (compact) {
+    return (
+      <div
+        className="tbl-row tbl-row-compact"
+        data-bpm-tier={bpmTier}
+        style={{ ...style, gridTemplateColumns: colTemplate }}
+        onClick={() => onClick?.(song)}
+      >
+        <div className="td">
+          <div className="title-cell">
+            <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
+              {song.image && (
+                <img
+                  src={staticUrl(song.image)}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+                  onError={e => {
+                    const el = e.currentTarget
+                    if (!el.dataset.fallback) {
+                      el.dataset.fallback = '1'
+                      const basename = song.image.split('/').pop()
+                      el.src = staticUrl(`rnr_image/img_music/${basename}`)
+                    } else {
+                      el.style.display = 'none'
+                    }
+                  }}
+                />
+              )}
+            </div>
+            <span className="title-main">{song.name}</span>
+            <YoutubeLinkIcon song={song} />
+          </div>
+        </div>
+
+        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {song.artist}
+        </div>
+
+        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }}>
+          <span className="level-val">
+            <span className="int">{lvInt}</span>
+            <span className="dec">{lvDec}</span>
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -260,7 +314,7 @@ function SearchFilterHint({ suggestion, empty = false }) {
   )
 }
 
-export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null }) {
+export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null, compact = false }) {
   const { user, pmangFavorites, togglePmangFavorite } = useStore()
   const canFav = !!user
   const listRef = useRef(null)
@@ -326,9 +380,11 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
         isFav={isFav}
         canFav={canFav}
         onToggleFav={togglePmangFavorite}
+        compact={compact}
+        colTemplate={compact ? COMPACT_COL_TEMPLATE : COL_TEMPLATE}
       />
     )
-  }, [items, onRowClick, pmangFavorites, canFav, togglePmangFavorite, isMobile])
+  }, [items, onRowClick, pmangFavorites, canFav, togglePmangFavorite, isMobile, compact])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -366,8 +422,13 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
   }
 
   return (
-    <div className="table-wrap">
-      <TableHeader sort={sort} onSort={onSort} />
+    <div className={`table-wrap${compact ? ' compact' : ''}`}>
+      <TableHeader
+        sort={sort}
+        onSort={onSort}
+        headers={compact ? COMPACT_HEADERS : HEADERS}
+        colTemplate={compact ? COMPACT_COL_TEMPLATE : COL_TEMPLATE}
+      />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>
         {items.length === 0 ? (

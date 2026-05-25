@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Routes, Route } from 'react-router-dom'
+import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import useStore from './store/useStore'
 import { getSongs, getMeta } from './api/client'
 import { isXyxMode } from './utils/serverMode'
@@ -36,6 +36,26 @@ function SongModalHost() {
       <SongModal />
     </Suspense>
   )
+}
+
+function CloseModalOnCataloglessRoutes() {
+  const location = useLocation()
+
+  useEffect(() => {
+    const path = location.pathname
+    const shouldClose =
+      path === '/feedback' ||
+      path === '/groups' ||
+      path.startsWith('/groups/') ||
+      ((path === '/personal-categories' || path.startsWith('/personal-categories/')) && !location.state?.keepCatalogOpen)
+
+    if (shouldClose) {
+      const { modalOpen, closeModal } = useStore.getState()
+      if (modalOpen) closeModal()
+    }
+  }, [location.pathname])
+
+  return null
 }
 
 export default function App() {
@@ -103,6 +123,7 @@ export default function App() {
 
   return (
     <>
+      <CloseModalOnCataloglessRoutes />
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<SongsPage />} />

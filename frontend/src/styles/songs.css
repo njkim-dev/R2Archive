@@ -82,6 +82,11 @@
 
 /* ========= Table (virtual scroll) ========= */
 .table-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.table-wrap.compact .tbl-header,
+.table-wrap.compact .tbl-body {
+  padding-left: 20px;
+  padding-right: 20px;
+}
 
 .tbl-header {
   display: grid;
@@ -187,6 +192,7 @@
   cursor: pointer;
 }
 .tbl-row:hover { background: var(--surface-0); }
+.tbl-row-compact .title-thumb { width: 64px; height: 32px; }
 
 .td { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td.num { text-align: right; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; color: var(--fg-2); }

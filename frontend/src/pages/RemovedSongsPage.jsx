@@ -26,7 +26,7 @@ export default function RemovedSongsPage() {
     search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll, meta, setCategory,
-    openModal,
+    openModal, modalOpen,
   } = useStore()
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -126,8 +126,10 @@ export default function RemovedSongsPage() {
     )
   }
 
+  const catalogPanelOpen = modalOpen && !isMobile
+
   return (
-    <div className="app" data-cat={category || undefined}>
+    <div className={`app${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
       <Sidebar songs={songs} filtered={filtered.exact} />
       <main className="main">
         <TopBar filteredCount={totalFiltered} totalCount={songs.length} />
@@ -139,7 +141,7 @@ export default function RemovedSongsPage() {
             {!user && <button className="gd-btn primary" onClick={openLogin}>로그인</button>}
           </div>
         ) : (
-          <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} categorySuggestion={categorySuggestion} />
+          <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} categorySuggestion={categorySuggestion} compact={catalogPanelOpen} />
         )}
       </main>
     </div>
