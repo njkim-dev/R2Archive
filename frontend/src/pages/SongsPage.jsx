@@ -8,6 +8,7 @@ import SongsTable from '../components/SongsTable'
 import MobileHeader from '../components/MobileHeader'
 import FilterSheet from '../components/FilterSheet'
 import { useMobile } from '../hooks/useMobile'
+import { isXyxMode } from '../utils/serverMode'
 
 function distinctSongCount(items) {
   const keys = new Set()
@@ -18,7 +19,7 @@ function distinctSongCount(items) {
 }
 
 export default function SongsPage() {
-  const isMobile = useMobile()
+  const isMobile = useMobile(isXyxMode() ? 1100 : 768)
   const {
     songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
