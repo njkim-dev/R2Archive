@@ -499,7 +499,6 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
                 />
                 <span>한마디 공개 (랭킹에서 닉네임 클릭 시 다른 사람도 볼 수 있음)</span>
               </label>
-              {/* YouTube URL이 입력됐을 때만 표시. 체크하면 visibility 무관하게 플레이 영상 탭에 노출됨 */}
               {youtubeUrl.trim() && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: 'var(--fg-3)', cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
                   <input
@@ -508,7 +507,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
                     onChange={e => setRegisterAsPlayVideo(e.target.checked)}
                     style={{ width: 14, height: 14, margin: 0, padding: 0, flexShrink: 0, accentColor: 'var(--accent)' }}
                   />
-                  <span>플레이 영상에 등록 <span style={{ color: 'var(--fg-4)' }}>(음악 카탈로그의 플레이 영상 탭에 등록됩니다)</span></span>
+                  <span>카탈로그 플레이 영상에 등록 <span style={{ color: 'var(--fg-4)' }}>(카탈로그 영상은 비공개 되지 않습니다)</span></span>
                 </label>
               )}
             </div>

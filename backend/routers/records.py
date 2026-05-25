@@ -443,8 +443,10 @@ class PlayVideoCreate(BaseModel):
 
 class PlayVideoResponse(BaseModel):
     id: int
+    source: str = "achievement"
     nickname: str
     youtube_url: str
+    youtube_title: Optional[str] = None
     description: Optional[str]
     created_at: str
 
@@ -456,19 +458,49 @@ def get_play_videos(song_id: int):
             ensure_active_song(cur, song_id)
             cur.execute(
                 """
-                SELECT id, nickname, youtube_url, description, created_at
-                FROM achievements
-                WHERE song_id = %s
+                SELECT source, id, nickname, youtube_url, youtube_title, description, created_at
+                FROM (
+                    SELECT
+                        'achievement'::text AS source,
+                        id,
+                        nickname,
+                        youtube_url,
+                        NULL::text AS youtube_title,
+                        description,
+                        created_at
+                    FROM achievements
+                    WHERE song_id = %s
+
+                    UNION ALL
+
+                    SELECT
+                        'record'::text AS source,
+                        r.id,
+                        COALESCE(u.nickname, r.nickname) AS nickname,
+                        r.youtube_url,
+                        r.youtube_title,
+                        r.memo AS description,
+                        r.created_at
+                    FROM records r
+                    LEFT JOIN users u ON u.id::text = r.user_id::text
+                    WHERE r.song_id = %s
+                      AND r.is_play_video IS TRUE
+                      AND r.youtube_url IS NOT NULL
+                ) v
                 ORDER BY created_at DESC NULLS LAST, id DESC
                 """,
-                (song_id,),
+                (song_id, song_id),
             )
             rows = cur.fetchall()
     return [
         PlayVideoResponse(
-            id=r[0], nickname=r[1] or "", youtube_url=r[2] or "",
-            description=r[3],
-            created_at=r[4].isoformat() if r[4] else "",
+            id=int(r[1]) if r[0] == "achievement" else -int(r[1]),
+            source=r[0],
+            nickname=r[2] or "",
+            youtube_url=r[3] or "",
+            youtube_title=r[4],
+            description=r[5],
+            created_at=r[6].isoformat() if r[6] else "",
         )
         for r in rows
     ]
