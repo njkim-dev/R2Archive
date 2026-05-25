@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates } from '../api/client'
-import { clearCatalogHash, replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
+import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
 
 const useStore = create((set, get) => ({
   // user: { id, nickname, default_visibility, onboarded, provider } | null
@@ -158,6 +158,7 @@ const useStore = create((set, get) => ({
 
   modalSong: null,      // song detail object from GET /songs/:id
   modalOpen: false,
+  modalReturnUrl: null,
 
   feedbackSong: null,   // { id, name, artist }
   feedbackOpen: false,
@@ -261,13 +262,21 @@ const useStore = create((set, get) => ({
   })),
 
   openModal: (song) => {
-    if (song?.id) replaceCatalogHash(songCatalogHash(song.id))
-    set({ modalSong: song, modalOpen: true })
+    const state = get()
+    const modalReturnUrl = state.modalOpen
+      ? state.modalReturnUrl
+      : `${window.location.pathname}${window.location.search}`
+    if (song?.id) replaceCatalogHash(songCatalogHash(song.id), '/', '')
+    set({ modalSong: song, modalOpen: true, modalReturnUrl: modalReturnUrl || '/' })
   },
   closeModal: () => {
-    clearCatalogHash(/^#song=\d+$/)
-    set({ modalOpen: false, modalSong: null })
+    const { modalReturnUrl } = get()
+    if (/^#song=\d+$/.test(window.location.hash)) {
+      window.history.replaceState(window.history.state, '', modalReturnUrl || '/')
+    }
+    set({ modalOpen: false, modalSong: null, modalReturnUrl: null })
   },
+  setModalReturnUrl: (url) => set({ modalReturnUrl: url || '/' }),
   updateModalSong: (song) => set({ modalSong: song }),
 
   openFeedback: (song) => set({ feedbackSong: song, feedbackOpen: true }),
