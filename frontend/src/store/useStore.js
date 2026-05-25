@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates } from '../api/client'
+import { clearCatalogHash, replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
 
 const useStore = create((set, get) => ({
   // user: { id, nickname, default_visibility, onboarded, provider } | null
@@ -215,6 +216,11 @@ const useStore = create((set, get) => ({
     levelMin: s.meta?.level_min,
     levelMax: s.meta?.level_max,
   })),
+  setCategoryDirect: (cat) => set(s => ({
+    category: cat === 'star' || cat === 'moon' || cat === 'sun' ? cat : null,
+    levelMin: s.meta?.level_min,
+    levelMax: s.meta?.level_max,
+  })),
 
   setQuick: (quick) => set({ quick }),
   toggleFlagNew: () => set(s => ({ flagNew: !s.flagNew })),
@@ -254,8 +260,14 @@ const useStore = create((set, get) => ({
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),
 
-  openModal: (song) => set({ modalSong: song, modalOpen: true }),
-  closeModal: () => set({ modalOpen: false, modalSong: null }),
+  openModal: (song) => {
+    if (song?.id) replaceCatalogHash(songCatalogHash(song.id))
+    set({ modalSong: song, modalOpen: true })
+  },
+  closeModal: () => {
+    clearCatalogHash(/^#song=\d+$/)
+    set({ modalOpen: false, modalSong: null })
+  },
   updateModalSong: (song) => set({ modalSong: song }),
 
   openFeedback: (song) => set({ feedbackSong: song, feedbackOpen: true }),

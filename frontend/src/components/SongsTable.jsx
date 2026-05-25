@@ -9,7 +9,7 @@ import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode } from '../utils/serverMode'
 import { readSavedListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 
-function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount }) {
+function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount, active = false }) {
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const hasMusic = !!song.youtube_url
 
@@ -23,7 +23,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
   }
 
   return (
-    <div className="mob-card" style={style} onClick={() => onClick(song)}>
+    <div className={`mob-card${active ? ' is-catalog-active' : ''}`} data-song-id={song.id} style={style} onClick={() => onClick(song)}>
       {(canDelete || hasMusic || canFav) && (
         <div className="mob-card-actions">
           {canDelete && (
@@ -192,6 +192,7 @@ function SongRow({
   showFavoriteCount,
   colTemplate,
   compact,
+  active = false,
 }) {
   const [copied, setCopied] = useState(false)
   const lvInt = Math.floor(song.level)
@@ -216,7 +217,8 @@ function SongRow({
   if (compact) {
     return (
       <div
-        className="tbl-row tbl-row-compact"
+        className={`tbl-row tbl-row-compact${active ? ' is-catalog-active' : ''}`}
+        data-song-id={song.id}
         data-bpm-tier={bpmTier}
         style={{ ...style, gridTemplateColumns: colTemplate }}
         onClick={() => onClick(song)}
@@ -270,7 +272,8 @@ function SongRow({
 
   return (
     <div
-      className="tbl-row"
+      className={`tbl-row${active ? ' is-catalog-active' : ''}`}
+      data-song-id={song.id}
       data-bpm-tier={bpmTier}
       style={{ ...style, gridTemplateColumns: colTemplate }}
       onClick={() => onClick(song)}
@@ -465,7 +468,7 @@ export default function SongsTable({
   categorySuggestion = null,
   compact = false,
 }) {
-  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin } = useStore()
+  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong } = useStore()
   const canFav = !!user
   const showKoreaName = isXyxMode()
   const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
@@ -494,6 +497,8 @@ export default function SongsTable({
   const savedOffsetRef = useRef(0)
   const prevSearchRef = useRef(search)
   const restoredScrollRef = useRef(false)
+  const activeSongId = modalOpen ? modalSong?.id : null
+  const scrolledActiveRef = useRef(null)
 
   const items = useMemo(() => {
     if (!fuzzy.length) return exact
@@ -533,6 +538,27 @@ export default function SongsTable({
     })
   }, [items.length])
 
+  useEffect(() => {
+    if (!activeSongId || items.length === 0) return
+    const index = items.findIndex(item => item !== SEPARATOR && item.id === activeSongId)
+    if (index < 0) return
+    const key = `${activeSongId}:${index}:${isMobile ? 'm' : 'd'}`
+    if (scrolledActiveRef.current === key) return
+    const selectedRow = document.querySelector(`[data-song-id="${activeSongId}"].is-catalog-active`)
+    if (selectedRow) {
+      scrolledActiveRef.current = key
+      return
+    }
+    scrolledActiveRef.current = key
+    requestAnimationFrame(() => {
+      if (typeof listRef.current?.scrollToItem === 'function') {
+        listRef.current.scrollToItem(index, 'center')
+      } else {
+        listRef.current?.scrollTo(index * (isMobile ? 80 : 44))
+      }
+    })
+  }, [activeSongId, items, isMobile])
+
   const handleRowClick = useCallback((song) => {
     openModal(song)
   }, [openModal])
@@ -558,6 +584,7 @@ export default function SongsTable({
       )
     }
     const isFav = favorites?.has(item.id)
+    const active = activeSongId === item.id
     if (isMobile) {
       return (
         <MobileCard
@@ -570,6 +597,7 @@ export default function SongsTable({
           canDelete={tableMode === 'personalCategory' && canDeleteSongs}
           onDeleteSong={onDeleteSong}
           showFavoriteCount={showFavoriteCount}
+          active={active}
         />
       )
     }
@@ -591,9 +619,10 @@ export default function SongsTable({
         showFavoriteCount={showFavoriteCount}
         colTemplate={colTemplate}
         compact={compact}
+        active={active}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, colTemplate, compact])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, colTemplate, compact, activeSongId])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length

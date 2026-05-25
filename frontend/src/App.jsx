@@ -3,7 +3,9 @@ import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import useStore from './store/useStore'
 import { getSongs, getMeta } from './api/client'
 import { isXyxMode } from './utils/serverMode'
-import { readSavedListState, shouldRestoreListState } from './utils/listState'
+import { clearRestoreListParam, readSavedListState, shouldRestoreListState } from './utils/listState'
+import { replaceCatalogHash, songCatalogHash } from './utils/catalogUrl'
+import { categoryFromLevel } from './utils/helpers'
 import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
@@ -58,8 +60,26 @@ function CloseModalOnCataloglessRoutes() {
   return null
 }
 
+function SyncCatalogUrl() {
+  const location = useLocation()
+  const modalOpen = useStore(s => s.modalOpen)
+  const songId = useStore(s => s.modalSong?.id)
+
+  useEffect(() => {
+    if (modalOpen && songId) replaceCatalogHash(songCatalogHash(songId))
+  }, [modalOpen, songId, location.pathname, location.search])
+
+  return null
+}
+
+function openSongFromHash(song) {
+  const { setCategoryDirect, openModal } = useStore.getState()
+  setCategoryDirect(categoryFromLevel(song.level))
+  openModal(song)
+}
+
 export default function App() {
-  const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding, restoreListState } = useStore()
+  const { songs, setSongs, initFromMeta, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
@@ -93,9 +113,9 @@ export default function App() {
       // 이미 열려있는 모달을 다른 곡으로 전환하려면 닫고 다시 열어야 SongModal의 useEffect가 다시 발동.
       if (modalOpen) {
         closeModal()
-        setTimeout(() => openModal(song), 150)
+        setTimeout(() => openSongFromHash(song), 150)
       } else {
-        openModal(song)
+        openSongFromHash(song)
       }
     }
     window.addEventListener('hashchange', openFromHash)
@@ -107,22 +127,26 @@ export default function App() {
       getSongs().then(data => { setSongs(data); return data }),
       getMeta().then(initFromMeta),
     ]).then(() => {
-      if (shouldRestoreListState()) {
-        const saved = readSavedListState()
-        if (saved) restoreListState(saved)
-      }
       const match = location.hash.match(/^#song=(\d+)$/)
+      if (shouldRestoreListState()) {
+        if (!match) {
+          const saved = readSavedListState()
+          if (saved) restoreListState(saved)
+        }
+        clearRestoreListParam()
+      }
       if (match) {
         const id = parseInt(match[1], 10)
-        const { songs: s, openModal: open } = useStore.getState()
+        const { songs: s } = useStore.getState()
         const song = s.find(x => x.id === id)
-        if (song) open(song)
+        if (song) openSongFromHash(song)
       }
     }).catch(console.error)
   }, [])
 
   return (
     <>
+      <SyncCatalogUrl />
       <CloseModalOnCataloglessRoutes />
       <Suspense fallback={null}>
         <Routes>
