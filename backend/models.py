@@ -29,6 +29,7 @@ class SongListItem(BaseModel):
     is_new: bool
     file_order: int
     play_count: int
+    favorite_count: int = 0
     is_change: bool
     image: Optional[str] = None
     user_level_avg: Optional[float] = None
@@ -85,6 +86,7 @@ class CommentResponse(BaseModel):
 
 
 class PerceivedCreate(BaseModel):
+    # 로그인 사용자는 anon_id 생략 가능. 보내면 과거 익명 투표 자동 승계용으로만 쓰임.
     anon_id: Optional[str] = Field(default=None, min_length=8, max_length=64)
     level: float = Field(ge=0.5, le=12.0)
     opinion: Optional[str] = Field(default=None, max_length=500)
@@ -125,6 +127,7 @@ class RecordCreate(BaseModel):
     memo_public: bool = False
     # 개인 성과는 서버에 공개 여부를 요청에 담지 않음 -> 서버가 유저의 default_visibility를 사용하고 수신만 허용.
     visibility: Optional[str] = Field(default=None, pattern=r"^(public|anonymous|private)$")
+    # True면 곡 상세 '플레이 영상' 탭에 visibility 무관하게 노출. 한마디(memo)도 공개로 간주.
     register_as_play_video: bool = False
 
 
@@ -150,7 +153,9 @@ class RecordResponse(BaseModel):
 
 class ManualRecordEntry(BaseModel):
     song_id: int = Field(ge=1)
+    # None 또는 빈 값으로 보내면 해당 곡의 manual 기록 삭제.
     judgment_percent: Optional[float] = Field(default=None, ge=0.0, le=99.0)
+    # 함께 저장할 YouTube URL. 입력되면 oEmbed 검증을 거치고, 통과 시 manual 기록이라도 랭킹에 합류.
     youtube_url: Optional[str] = Field(default=None, max_length=300)
 
 

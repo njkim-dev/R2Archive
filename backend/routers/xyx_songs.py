@@ -65,7 +65,14 @@ def _is_admin(cur, request: Request) -> bool:
     return bool(row and row[0])
 
 
-def _rows_to_song_items(rows, play_counts: dict[tuple, int], perceived: dict[int, tuple], *, removed: bool = False) -> list[SongListItem]:
+def _rows_to_song_items(
+    rows,
+    play_counts: dict[tuple, int],
+    perceived: dict[int, tuple],
+    favorite_counts: dict[int, int],
+    *,
+    removed: bool = False,
+) -> list[SongListItem]:
     songs = []
     for row in rows:
         (
@@ -98,6 +105,7 @@ def _rows_to_song_items(rows, play_counts: dict[tuple, int], perceived: dict[int
                 is_new=bool(stat),
                 file_order=int(file_order or 0),
                 play_count=play_counts.get((name, artist), 0),
+                favorite_count=favorite_counts.get(sid, 0),
                 is_change=bool(change_bpm),
                 image=_xyx_image_path(image, fallback_to_korea=removed),
                 user_level_avg=round(p_avg, 2) if p_avg is not None else None,
@@ -150,7 +158,12 @@ def _fetch_song_items(removed: bool = False, request: Request | None = None) -> 
                 "FROM xyx_perceived_difficulty GROUP BY song_id"
             )
             perceived = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
-    return _rows_to_song_items(rows, play_counts, perceived, removed=removed)
+            cur.execute(
+                "SELECT song_id, COUNT(*)::int "
+                "FROM xyx_user_favorites GROUP BY song_id"
+            )
+            favorite_counts = {r[0]: r[1] for r in cur.fetchall()}
+    return _rows_to_song_items(rows, play_counts, perceived, favorite_counts, removed=removed)
 
 
 @router.get("/xyx/meta", response_model=MetaResponse)

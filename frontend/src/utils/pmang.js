@@ -32,10 +32,14 @@ function getFuse(songs, mode = 'both') {
   return fuse
 }
 
-function passes(s, { levelMin, levelMax, category, artists, quick, favorites }) {
+function passes(s, { levelMin, levelMax, bpmMin, bpmMax, category, artists, quick, favorites }) {
   const lv = s.level / 2
   if (levelMin != null && lv < levelMin) return false
   if (levelMax != null && lv > levelMax) return false
+  const minBpm = s.bpm ?? 0
+  const maxBpm = s.bpm_max ?? s.bpm ?? 0
+  if (bpmMin != null && maxBpm < bpmMin) return false
+  if (bpmMax != null && minBpm > bpmMax) return false
   if (category === 'star' && (lv < 1.5 || lv > 3.5)) return false
   if (category === 'moon' && (lv < 4 || lv > 6.5)) return false
   if (category === 'sun' && lv < 7) return false

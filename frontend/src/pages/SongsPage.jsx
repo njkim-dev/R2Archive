@@ -36,7 +36,8 @@ export default function SongsPage() {
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
       artists, favorites, played: playedForFilter,
     })
-    return { exact: sortSongs(exact, sort), fuzzy: sortSongs(fuzzy, sort) }
+    const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
+    return { exact: sortSongs(exact, effectiveSort), fuzzy: sortSongs(fuzzy, effectiveSort) }
   }, [songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length

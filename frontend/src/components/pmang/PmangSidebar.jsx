@@ -25,6 +25,7 @@ export default function PmangSidebar({
   category, setCategory,
   quick, setQuick,
   levelMin, levelMax, setLevelMin, setLevelMax, levelBounds,
+  bpmMin, bpmMax, setBpmMin, setBpmMax, bpmBounds,
   artists, toggleArtist, clearArtists,
   topArtists,
   favorites,
@@ -52,6 +53,8 @@ export default function PmangSidebar({
       searchMode: 'both',
       levelMin,
       levelMax,
+      bpmMin,
+      bpmMax,
       category,
       quick: 'all',
       artists,
@@ -61,14 +64,18 @@ export default function PmangSidebar({
     const candidateBase = filterPmangSongs(pmangYoutubeCandidates, baseFilters).exact
     return {
       all: base.length,
+      popular: base.length,
       favorite: user ? base.filter(s => favorites?.has(s.id)).length : 0,
       no_music: base.filter(s => !s.youtube_url).length,
       youtube_candidates: candidateBase.length,
     }
-  }, [songs, levelMin, levelMax, category, artists, user, favorites, pmangYoutubeCandidates])
+  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, user, favorites, pmangYoutubeCandidates])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
+  }
+  const handleBpmBlur = () => {
+    if (bpmMin > bpmMax) { setBpmMin(bpmMax); setBpmMax(bpmMin) }
   }
 
   const selectedCount = artists.size
@@ -119,6 +126,7 @@ export default function PmangSidebar({
         <div className="nav">
           {[
             { key: 'all',      label: '전체 곡',           count: filteredCounts.all },
+            { key: 'popular',  label: '인기순',             count: filteredCounts.popular },
             { key: 'favorite', label: '★ 내 즐겨찾기',     count: filteredCounts.favorite, needLogin: true },
             { key: 'no_music', label: '음악 없음', count: filteredCounts.no_music, adminOnly: true },
             { key: 'youtube_candidates', label: '후보곡', count: filteredCounts.youtube_candidates, adminOnly: true },
@@ -184,6 +192,30 @@ export default function PmangSidebar({
           ))}
         </div>
       </div>
+
+      {bpmMin != null && bpmMax != null && (
+        <div className="side-section">
+          <div className="side-label">
+            <span>BPM</span>
+            <span className="ct mono">{bpmMin} — {bpmMax}</span>
+          </div>
+          <div className="num-range">
+            <input
+              type="number" min={bpmBounds[0]} max={bpmBounds[1]} step="1"
+              value={bpmMin}
+              onChange={e => setBpmMin(+e.target.value)}
+              onBlur={handleBpmBlur}
+            />
+            <span className="rng-sep">—</span>
+            <input
+              type="number" min={bpmBounds[0]} max={bpmBounds[1]} step="1"
+              value={bpmMax}
+              onChange={e => setBpmMax(+e.target.value)}
+              onBlur={handleBpmBlur}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="side-section">
         <div className="side-label">

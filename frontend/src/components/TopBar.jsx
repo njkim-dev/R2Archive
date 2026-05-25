@@ -40,7 +40,7 @@ export default function TopBar({ filteredCount, totalCount }) {
   const sortLabels = {
     level: '난이도', name: '곡명', korea_name: '한국 곡명', artist: '아티스트', bpm: 'BPM',
     combo: '콤보', time: '시간', play_count: '재생', userLevel: '유저 난이도',
-    file_order: '최신곡순',
+    file_order: '최신곡순', favorite_count: '즐겨찾기',
   }
 
   return (
