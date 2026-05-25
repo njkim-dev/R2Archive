@@ -66,7 +66,9 @@ function SyncCatalogUrl() {
   const songId = useStore(s => s.modalSong?.id)
 
   useEffect(() => {
-    if (modalOpen && songId) replaceCatalogHash(songCatalogHash(songId))
+    if (!modalOpen || !songId) return
+    useStore.getState().setModalReturnUrl(`${location.pathname}${location.search}` || '/')
+    replaceCatalogHash(songCatalogHash(songId), '/', '')
   }, [modalOpen, songId, location.pathname, location.search])
 
   return null
