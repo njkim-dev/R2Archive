@@ -1,13 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import useStore from '../store/useStore'
-import ScreenshotRegisterModal from './ScreenshotRegisterModal'
 import { HelpButton } from './HelpTour'
+
+const ScreenshotRegisterModal = lazy(() => import('./ScreenshotRegisterModal'))
 
 const SEARCH_MODES = [
   { key: 'both',   label: '곡명 + 아티스트' },
   { key: 'name',   label: '곡명' },
   { key: 'artist', label: '아티스트' },
 ]
+
+function ScreenshotRegisterModalHost({ open, onClose }) {
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (open) setLoaded(true)
+  }, [open])
+
+  if (!loaded) return null
+  return (
+    <Suspense fallback={null}>
+      <ScreenshotRegisterModal open={open} onClose={onClose} />
+    </Suspense>
+  )
+}
 
 export default function TopBar({ filteredCount, totalCount }) {
   const { search, setSearch, searchMode, setSearchMode, meta, sort, openLogin, user, logout, openOnboarding, openMyPage } = useStore()
@@ -106,7 +122,7 @@ export default function TopBar({ filteredCount, totalCount }) {
           내 기록 등록
         </button>
       )}
-      <ScreenshotRegisterModal open={ssOpen} onClose={() => setSsOpen(false)} />
+      <ScreenshotRegisterModalHost open={ssOpen} onClose={() => setSsOpen(false)} />
 
       {user ? (
         <div className="user-chip">
