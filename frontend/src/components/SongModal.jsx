@@ -430,7 +430,7 @@ function RecordsTab({ song }) {
       ) : (
         <div className="leaderboard">
           {records.map((r, i) => (
-            <div key={r.id} className={`lb-row${i < 3 ? ' top' : ''}`}>
+            <div key={`${r.source || 'achievement'}-${Math.abs(r.id)}`} className={`lb-row${i < 3 ? ' top' : ''}`}>
               <span className="lb-rank">#{i + 1}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <div className="lb-avatar">{r.nickname[0]}</div>
