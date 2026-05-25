@@ -134,7 +134,7 @@ export default function Sidebar({ songs, filtered }) {
             { key: 'all',      label: '전체 곡',              count: filteredCounts.all },
             { key: 'new',      label: '신곡',                 count: filteredCounts.new },
             { key: 'variants', label: '변속곡',               count: filteredCounts.variants },
-            { key: 'popular',  label: '인기순',               count: filteredCounts.popular },
+            { key: 'popular',  label: '인기순',               count: filteredCounts.popular, adminOnly: true },
             { key: 'favorite', label: '★ 내 즐겨찾기',         count: filteredCounts.favorite, needLogin: true },
             { key: 'my_played', label: '내가 플레이한 곡',      count: filteredCounts.my_played, needLogin: true },
             { key: 'played',   label: '전체 유저 플레이 곡',    count: filteredCounts.played },

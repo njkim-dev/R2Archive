@@ -126,7 +126,7 @@ export default function PmangSidebar({
         <div className="nav">
           {[
             { key: 'all',      label: '전체 곡',           count: filteredCounts.all },
-            { key: 'popular',  label: '인기순',             count: filteredCounts.popular },
+            { key: 'popular',  label: '인기순',             count: filteredCounts.popular, adminOnly: true },
             { key: 'favorite', label: '★ 내 즐겨찾기',     count: filteredCounts.favorite, needLogin: true },
             { key: 'no_music', label: '음악 없음', count: filteredCounts.no_music, adminOnly: true },
             { key: 'youtube_candidates', label: '후보곡', count: filteredCounts.youtube_candidates, adminOnly: true },

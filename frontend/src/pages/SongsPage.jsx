@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import useStore from '../store/useStore'
 import { filterSongs, sortSongs } from '../utils/helpers'
 import Sidebar from '../components/Sidebar'
@@ -24,8 +24,12 @@ export default function SongsPage() {
     songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll,
-    meta, setCategory,
+    meta, setCategory, setQuick, isAdmin,
   } = useStore()
+
+  useEffect(() => {
+    if (quick === 'popular' && !isAdmin) setQuick('all')
+  }, [quick, isAdmin, setQuick])
 
   const filtered = useMemo(() => {
     // 카테고리 필터 ON일 때만 cross-channel 확장된 playedAll 사용 — 동일 곡을 채널 내에서 노출.

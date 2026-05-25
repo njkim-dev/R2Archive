@@ -228,7 +228,7 @@ export default function PmangSongsPage() {
   }, [])
 
   useEffect(() => {
-    if (quick === 'youtube_candidates' && !isAdmin) setQuick('all')
+    if ((quick === 'youtube_candidates' || quick === 'popular') && !isAdmin) setQuick('all')
   }, [quick, isAdmin])
 
   // 카탈로그 해시 진입 — `#pmang-song=<id>`로 끝나면 해당 곡 모달을 연다.
@@ -456,10 +456,12 @@ export default function PmangSongsPage() {
                   onClick={() => setQuick(quick === 'no_music' ? 'all' : 'no_music')}
                 >음악 없음</button>
               )}
-              <button
-                className={`mob-chip${quick === 'popular' ? ' on' : ''}`}
-                onClick={() => setQuick(quick === 'popular' ? 'all' : 'popular')}
-              >인기순</button>
+              {isAdmin && (
+                <button
+                  className={`mob-chip${quick === 'popular' ? ' on' : ''}`}
+                  onClick={() => setQuick(quick === 'popular' ? 'all' : 'popular')}
+                >인기순</button>
+              )}
             </div>
           </div>
         </div>
