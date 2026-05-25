@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link2, Check, ExternalLink } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo } from '../api/client'
+import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo, getSong } from '../api/client'
 import { artworkBg, fmt, fmtBpm, getAnonId, staticUrl } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
@@ -1001,9 +1001,7 @@ export default function SongModal() {
 
   useEffect(() => {
     if (!modalOpen || !modalSong) { setDetail(null); setTab('overview'); return }
-    import('../api/client').then(({ getSong }) => {
-      getSong(modalSong.id).then(setDetail)
-    })
+    getSong(modalSong.id).then(setDetail)
   }, [modalOpen, modalSong?.id])
 
   useEffect(() => {
