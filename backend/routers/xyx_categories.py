@@ -398,6 +398,51 @@ def list_public_xyx_categories(request: Request):
     return [_category_from_row(r, viewer_uid, force_admin=is_admin) for r in rows]
 
 
+@router.get("/xyx/songs/{song_id}/categories")
+def list_xyx_categories_for_song(request: Request, song_id: int):
+    uid = require_user_id(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            is_admin = _is_admin(cur, uid)
+            where_sql = "" if is_admin else """
+              AND (
+                xc.is_public = TRUE
+                OR xc.owner_id = %s
+                OR xcm.user_id IS NOT NULL
+              )
+            """
+            params = [uid, song_id]
+            if not is_admin:
+                params.append(uid)
+            cur.execute(
+                f"""
+                SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
+                       xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
+                       COUNT(xcs_all.song_id)::int AS song_count,
+                       xcm.role AS member_role
+                FROM xyx_category_songs xcs_match
+                JOIN xyx_categories xc ON xc.id = xcs_match.category_id
+                LEFT JOIN xyx_category_members xcm
+                  ON xcm.category_id = xc.id AND xcm.user_id = %s
+                LEFT JOIN users u ON u.id = xc.owner_id
+                LEFT JOIN xyx_category_songs xcs_all ON xcs_all.category_id = xc.id
+                WHERE xcs_match.song_id = %s
+                {where_sql}
+                GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
+                         xc.owner_id, u.nickname, xcm.role
+                ORDER BY
+                  CASE WHEN xc.owner_id = %s THEN 0
+                       WHEN xcm.role IS NOT NULL THEN 1
+                       WHEN xc.is_public THEN 2
+                       ELSE 3 END,
+                  xc.created_at DESC
+                """,
+                tuple(params + [uid]),
+            )
+            rows = cur.fetchall()
+    return [_category_from_row(r, uid, force_admin=is_admin) for r in rows]
+
+
 @router.post("/xyx-categories", status_code=201)
 def create_xyx_category(request: Request, body: XyxCategoryCreate):
     uid = require_user_id(request)

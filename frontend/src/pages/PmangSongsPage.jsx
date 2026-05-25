@@ -175,6 +175,8 @@ function PmangMobileFilterSheet({
 
 export default function PmangSongsPage() {
   const isMobile = useMobile()
+  const modalOpen = useStore(s => s.modalOpen)
+  const closeModal = useStore(s => s.closeModal)
   const pmangFavorites = useStore(s => s.pmangFavorites)
   const pmangYoutubeCandidates = useStore(s => s.pmangYoutubeCandidates)
   const { user, isAdmin, openLogin, openMyPage, openOnboarding, logout } = useStore()
@@ -202,6 +204,10 @@ export default function PmangSongsPage() {
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
   const [modalSong, setModalSong] = useState(null)
+
+  useEffect(() => {
+    if (modalOpen) closeModal()
+  }, [modalOpen, closeModal])
 
   useEffect(() => {
     getPmangSongs()
@@ -524,7 +530,7 @@ export default function PmangSongsPage() {
   }
 
   return (
-    <div className="app" data-cat={category || undefined}>
+    <div className={`app${modalSong ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
       <PmangSidebar
         songs={songs}
         filtered={filtered.exact}
@@ -540,6 +546,7 @@ export default function PmangSongsPage() {
         topArtists={topArtists}
         favorites={pmangFavorites}
         pmangYoutubeCandidates={pmangYoutubeCandidates}
+        onNavigate={() => setModalSong(null)}
       />
       <main className="main">
         <div className="topbar">
@@ -664,6 +671,7 @@ export default function PmangSongsPage() {
                 onSort={handleSort}
                 onRowClick={setModalSong}
                 categorySuggestion={categorySuggestion}
+                compact={!!modalSong}
               />
         }
       </main>

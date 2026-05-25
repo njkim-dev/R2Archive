@@ -447,7 +447,7 @@ export default function PersonalCategoryDetailPage() {
   const isMobile = useMobile()
   const navigate = useNavigate()
   const { code } = useParams()
-  const { user, sort, openLogin, meta, favorites } = useStore()
+  const { user, sort, openLogin, meta, favorites, modalOpen } = useStore()
   const { subscribe, unsubscribe, deleteSong } = usePersonalCategoriesStore()
   const [category, setCategory] = useState(null)
   const [songs, setSongs] = useState([])
@@ -723,8 +723,10 @@ export default function PersonalCategoryDetailPage() {
     )
   }
 
+  const catalogPanelOpen = modalOpen && !isMobile
+
   return (
-    <div className="app" data-cat={levelCategory || undefined}>
+    <div className={`app${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={levelCategory || undefined}>
       <aside className="side">
         <SidebarBrand />
         <PageNav user={user} />
@@ -797,6 +799,7 @@ export default function PersonalCategoryDetailPage() {
                     tableMode="personalCategory"
                     canDeleteSongs={category.can_edit}
                     onDeleteSong={handleDeleteSong}
+                    compact={catalogPanelOpen}
                   />
                 </div>
               )

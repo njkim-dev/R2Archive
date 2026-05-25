@@ -95,6 +95,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
 }
 
 const COL_TEMPLATE = '56px 2fr 1fr 76px 100px 110px 110px 68px 80px 56px'
+const COMPACT_COL_TEMPLATE = 'minmax(0, 1.45fr) minmax(110px, 0.9fr) 76px'
 const XYX_COL_TEMPLATE = '50px minmax(0, 2.2fr) minmax(0, 1.15fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 46px'
 const XYX_CATEGORY_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
 
@@ -119,6 +120,11 @@ const XYX_HEADERS = [
 ]
 
 const FAVORITE_COUNT_HEADER = { label: '즐겨찾기', key: 'favorite_count', cls: 'num' }
+const COMPACT_HEADERS = [
+  { label: '곡명', key: 'name', cls: '' },
+  { label: '아티스트', key: 'artist', cls: '' },
+  { label: '난이도', key: 'level', cls: 'num' },
+]
 
 const favoriteCountHeaders = (headers) => headers.map(header =>
   header.key === 'play_count' ? FAVORITE_COUNT_HEADER : header
@@ -185,6 +191,7 @@ function SongRow({
   showPlayCount,
   showFavoriteCount,
   colTemplate,
+  compact,
 }) {
   const [copied, setCopied] = useState(false)
   const lvInt = Math.floor(song.level)
@@ -204,6 +211,61 @@ function SongRow({
       setCopied(true)
       setTimeout(() => setCopied(false), 1200)
     }).catch(() => {})
+  }
+
+  if (compact) {
+    return (
+      <div
+        className="tbl-row tbl-row-compact"
+        data-bpm-tier={bpmTier}
+        style={{ ...style, gridTemplateColumns: colTemplate }}
+        onClick={() => onClick(song)}
+      >
+        <div className="td">
+          <div className="title-cell">
+            <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
+              {song.image
+                ? <img
+                    src={staticUrl(song.image)}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+                    onError={e => { e.currentTarget.style.display = 'none' }}
+                  />
+                : null
+              }
+            </div>
+            <span className="title-main">{song.name}</span>
+            {song.youtube_url && (
+              <button
+                type="button"
+                className="song-youtube-icon"
+                title="YouTube에서 듣기"
+                aria-label="YouTube에서 듣기"
+                onClick={e => {
+                  e.stopPropagation()
+                  if (!song.youtube_candidate) {
+                    logPlay(song.id)
+                    useStore.getState().markPlayed(song.id)
+                  }
+                  window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
+                }}
+              >♪</button>
+            )}
+          </div>
+        </div>
+
+        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {song.artist}
+        </div>
+
+        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }}>
+          <span className="level-val">
+            <span className="int">{lvInt}</span>
+            <span className="dec">{lvDec}</span>
+          </span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -401,23 +463,30 @@ export default function SongsTable({
   canDeleteSongs = false,
   onDeleteSong,
   categorySuggestion = null,
+  compact = false,
 }) {
   const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin } = useStore()
   const canFav = !!user
   const showKoreaName = isXyxMode()
   const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
   const showPlayCount = !showFavoriteCount && !(showKoreaName && tableMode !== 'personalCategory')
-  const colTemplate = showKoreaName
+  const colTemplate = compact
+    ? COMPACT_COL_TEMPLATE
+    : showKoreaName
     ? (tableMode === 'personalCategory'
       ? XYX_CATEGORY_COL_TEMPLATE
       : (showFavoriteCount ? XYX_CATEGORY_COL_TEMPLATE : XYX_COL_TEMPLATE))
     : COL_TEMPLATE
-  const baseHeaders = showKoreaName
+  const baseHeaders = compact
+    ? COMPACT_HEADERS
+    : showKoreaName
     ? (tableMode === 'personalCategory'
       ? XYX_CATEGORY_HEADERS
       : (showFavoriteCount ? xyxFavoriteCountHeaders : XYX_HEADERS))
     : DEFAULT_HEADERS
-  const headers = tableMode === 'personalCategory'
+  const headers = compact
+    ? COMPACT_HEADERS
+    : tableMode === 'personalCategory'
     ? personalCategoryHeaders(baseHeaders)
     : (showFavoriteCount && !showKoreaName ? favoriteCountHeaders(baseHeaders) : baseHeaders)
   const listRef = useRef(null)
@@ -521,9 +590,10 @@ export default function SongsTable({
         showPlayCount={showPlayCount}
         showFavoriteCount={showFavoriteCount}
         colTemplate={colTemplate}
+        compact={compact}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, colTemplate])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, colTemplate, compact])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -562,7 +632,7 @@ export default function SongsTable({
   }
 
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap${compact ? ' compact' : ''}`}>
       <TableHeader sort={sort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>

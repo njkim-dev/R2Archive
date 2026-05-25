@@ -385,6 +385,51 @@ def list_public_personal_categories(request: Request):
     return [_category_from_row(r, viewer_uid, force_admin=is_admin) for r in rows]
 
 
+@router.get("/songs/{song_id}/personal-categories")
+def list_personal_categories_for_song(request: Request, song_id: int):
+    uid = require_user_id(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            is_admin = _is_admin(cur, uid)
+            where_sql = "" if is_admin else """
+              AND (
+                pc.is_public = TRUE
+                OR pc.owner_id = %s
+                OR pcm.user_id IS NOT NULL
+              )
+            """
+            params = [uid, song_id]
+            if not is_admin:
+                params.append(uid)
+            cur.execute(
+                f"""
+                SELECT pc.id, pc.name, pc.is_public, pc.category_code, pc.created_at,
+                       pc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
+                       COUNT(pcs_all.song_id)::int AS song_count,
+                       pcm.role AS member_role
+                FROM personal_category_songs pcs_match
+                JOIN personal_categories pc ON pc.id = pcs_match.category_id
+                LEFT JOIN personal_category_members pcm
+                  ON pcm.category_id = pc.id AND pcm.user_id = %s
+                LEFT JOIN users u ON u.id = pc.owner_id
+                LEFT JOIN personal_category_songs pcs_all ON pcs_all.category_id = pc.id
+                WHERE pcs_match.song_id = %s
+                {where_sql}
+                GROUP BY pc.id, pc.name, pc.is_public, pc.category_code, pc.created_at,
+                         pc.owner_id, u.nickname, pcm.role
+                ORDER BY
+                  CASE WHEN pc.owner_id = %s THEN 0
+                       WHEN pcm.role IS NOT NULL THEN 1
+                       WHEN pc.is_public THEN 2
+                       ELSE 3 END,
+                  pc.created_at DESC
+                """,
+                tuple(params + [uid]),
+            )
+            rows = cur.fetchall()
+    return [_category_from_row(r, uid, force_admin=is_admin) for r in rows]
+
+
 @router.post("/personal-categories", status_code=201)
 def create_personal_category(request: Request, body: PersonalCategoryCreate):
     uid = require_user_id(request)

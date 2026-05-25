@@ -341,14 +341,17 @@ function PmangMobileDetail({
         </section>
 
         <div className="mob-action-row">
-          {song.youtube_url && (
-            <button className="mob-act-btn mob-act-primary" onClick={onMusicClick}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-              음악 듣기
-            </button>
-          )}
+          <button
+            className="mob-act-btn mob-act-primary"
+            onClick={onMusicClick}
+            disabled={!song.youtube_url}
+            style={!song.youtube_url ? { opacity: 0.45 } : undefined}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            음악 듣기
+          </button>
           <button
             className="mob-act-btn mob-act-ghost"
             disabled={!user}
@@ -358,7 +361,7 @@ function PmangMobileDetail({
             <svg width="15" height="15" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
             </svg>
-            {isFav ? '즐겨찾기 해제' : '즐겨찾기'}
+          즐겨찾기
           </button>
           <button className="mob-act-btn mob-act-ghost" onClick={onCopyLink}>
             {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={16} strokeWidth={2.5} />}
@@ -469,11 +472,11 @@ export default function PmangSongModal({ song, onClose }) {
 
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop song-catalog-backdrop"
       data-cat={catFromLevel(displayLv)}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal">
+      <div className="modal song-catalog-panel">
         <div className="m-hero">
           <div className="m-top">
             <div className="m-breadcrumb">
@@ -518,8 +521,15 @@ export default function PmangSongModal({ song, onClose }) {
           </div>
 
           <div className="m-actions">
-            {song.youtube_url && (
+            {song.youtube_url ? (
               <button className="btn btn-primary" onClick={handleMusicClick}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                음악 듣기
+              </button>
+            ) : (
+              <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5v14l11-7z"/>
                 </svg>
@@ -536,7 +546,7 @@ export default function PmangSongModal({ song, onClose }) {
               <svg width="13" height="13" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
               </svg>
-              {isFav ? '즐겨찾기 해제' : '즐겨찾기'}
+              즐겨찾기
             </button>
             <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
               {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
@@ -544,17 +554,17 @@ export default function PmangSongModal({ song, onClose }) {
           </div>
         </div>
 
-        <div className="m-stats">
+        <div className="m-stats pmang-stats">
           {[
-            { lbl: '난이도', val: displayLv.toFixed(1), sub: '피망 표기' },
+            { lbl: '난이도', val: displayLv.toFixed(1), sub: '피망 표기', hi: true },
             { lbl: 'BPM', val: displayBpm(song), sub: song.bpm_max && song.bpm_max !== song.bpm ? '범위' : '고정' },
             { lbl: '콤보', val: song.combo ? fmt(song.combo) : '-', sub: '최대' },
             { lbl: '즐겨찾기', val: song.favorite_count ? fmt(song.favorite_count) : '0', sub: '유저' },
-          ].map(item => (
-            <div key={item.lbl} className="stat-card">
-              <span className="stat-l">{item.lbl}</span>
-              <b>{item.val}</b>
-              <span className="stat-s">{item.sub}</span>
+          ].map(({ lbl, val, sub, hi }) => (
+            <div key={lbl} className={`m-stat${hi ? ' highlight' : ''}`}>
+              <div className="lbl">{lbl}</div>
+              <div className="val">{val}</div>
+              <div className="sub">{sub}</div>
             </div>
           ))}
         </div>

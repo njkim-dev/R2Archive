@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Link2, Check, ExternalLink } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo, getSong } from '../api/client'
+import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo, getSong, getSongPersonalCategories } from '../api/client'
 import { artworkBg, fmt, fmtBpm, getAnonId, staticUrl } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
@@ -862,7 +863,7 @@ function MobileDetail({ song, detail, onClose }) {
           style={!song.youtube_url ? { opacity: 0.4 } : {}}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          {song.youtube_url ? '음악 듣기' : '음악 없음'}
+          음악 듣기
         </button>
         <button
           className="mob-act-btn mob-act-ghost"
@@ -874,7 +875,7 @@ function MobileDetail({ song, detail, onClose }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
           </svg>
-          {isFav ? '즐겨찾기 해제' : '즐겨찾기'}
+          즐겨찾기
         </button>
         <PersonalCategoryPicker
           songId={song.id}
@@ -983,8 +984,66 @@ function navigateToCounterpart(url) {
   window.location.href = withRestoreListParam(url)
 }
 
+function SavedCategoryTags({ song, onOpenCategory }) {
+  const { user, openLogin } = useStore()
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const load = () => {
+    if (!user || !song?.id) {
+      setCategories([])
+      return
+    }
+    setLoading(true)
+    getSongPersonalCategories(song.id)
+      .then(data => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => setCategories([]))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+  }, [song?.id, user?.id])
+
+  useEffect(() => {
+    if (!user || !song?.id) return
+    const handler = (event) => {
+      if (Number(event.detail?.songId) === Number(song.id)) load()
+    }
+    window.addEventListener('personal-category-song-saved', handler)
+    return () => window.removeEventListener('personal-category-song-saved', handler)
+  }, [song?.id, user?.id])
+
+  return (
+    <div className="m-saved-cats">
+      <div className="m-saved-cats-label">저장된 카테고리</div>
+      <div className="m-saved-cats-row">
+        {!user ? (
+          <button className="btn btn-ghost m-saved-cats-login" onClick={openLogin}>로그인하세요</button>
+        ) : loading ? (
+          <span className="m-saved-cats-muted">불러오는 중...</span>
+        ) : categories.length > 0 ? (
+          categories.map(category => (
+            <button
+              key={category.id}
+              className="m-saved-cat-tag"
+              title={`${category.name} 카테고리로 이동`}
+              onClick={() => onOpenCategory(category)}
+            >
+              {category.name}
+            </button>
+          ))
+        ) : (
+          <span className="m-saved-cats-muted">표시할 카테고리가 없습니다</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function SongModal() {
   const isMobile = useMobile()
+  const navigate = useNavigate()
   // SongModal은 App.jsx 루트에서 <Routes> 바깥에 렌더링되어 페이지의 [data-cat] cascade를
   // 받지 못한다. 그래서 모달 자체에 data-cat을 직접 부여한다 — 단, 페이지 필터가 아니라
   // 열려 있는 곡의 난이도 기반으로 결정해 매 곡마다 색이 자연스럽게 바뀌도록 한다.
@@ -1080,13 +1139,17 @@ export default function SongModal() {
     setMoreOpen(false)
   }
 
+  const handleOpenCategory = (category) => {
+    navigate(`/personal-categories/${category.category_code}`, { state: { keepCatalogOpen: true } })
+  }
+
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop song-catalog-backdrop"
       data-cat={catFromLevel(song.level)}
       onClick={e => e.target === e.currentTarget && closeModal()}
     >
-      <div className="modal">
+      <div className="modal song-catalog-panel">
           <div className="m-hero">
           <div className="m-top">
             <div className="m-breadcrumb">
@@ -1128,7 +1191,7 @@ export default function SongModal() {
                 음악 듣기
               </button>
             ) : (
-              <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>음악 없음</button>
+              <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>음악 듣기</button>
             )}
             <button
               className="btn btn-ghost"
@@ -1140,7 +1203,7 @@ export default function SongModal() {
               <svg width="13" height="13" viewBox="0 0 24 24" fill={favorites?.has(song.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
               </svg>
-              {favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기'}
+              즐겨찾기
             </button>
             <PersonalCategoryPicker songId={song.id} className="btn btn-ghost" />
             {counterpartUrl && (
@@ -1164,7 +1227,7 @@ export default function SongModal() {
               {moreOpen && (
                 <div ref={moreMenuRef} className="more-menu" style={{ top: morePos.top, right: morePos.right }} onClick={e => e.stopPropagation()}>
                   {!xyxMode && (
-                    <button onClick={() => { setMoreOpen(false); openFeedback(song) }}>
+                    <button onClick={() => { setMoreOpen(false); closeModal(); openFeedback(song) }}>
                       <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                       </svg>
@@ -1199,6 +1262,8 @@ export default function SongModal() {
             </div>
           ))}
         </div>
+
+        <SavedCategoryTags song={song} onOpenCategory={handleOpenCategory} />
 
           <div className="m-tabs">
           {[

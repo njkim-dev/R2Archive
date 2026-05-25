@@ -30,6 +30,7 @@ export default function PmangSidebar({
   topArtists,
   favorites,
   pmangYoutubeCandidates = [],
+  onNavigate = () => {},
 }) {
   const { user, openLogin, isAdmin } = useStore()
 
@@ -96,14 +97,14 @@ export default function PmangSidebar({
           <NavLink
             to="/groups"
             className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+            onClick={(e) => { onNavigate(); if (!user) { e.preventDefault(); openLogin() } }}
           >
             <span>그룹</span>
           </NavLink>
           <NavLink
             to="/personal-categories"
             className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
+            onClick={(e) => { onNavigate(); if (!user) { e.preventDefault(); openLogin() } }}
           >
             <span>음악 카테고리</span>
           </NavLink>
@@ -115,7 +116,7 @@ export default function PmangSidebar({
               <span>미출시곡</span>
             </NavLink>
           )}
-          <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
+          <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
             <span>피드백</span>
           </NavLink>
         </div>

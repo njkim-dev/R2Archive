@@ -54,6 +54,7 @@ export default function PersonalCategoryPicker({
     setBusyId(category.id)
     try {
       const result = await saveSong(category.id, songId)
+      window.dispatchEvent(new CustomEvent('personal-category-song-saved', { detail: { songId, categoryId: category.id } }))
       showToast(result.added
         ? `'${category.name}'에 저장했어요`
         : `'${category.name}'에 이미 저장된 곡이에요`)
