@@ -19,7 +19,7 @@ const CHIPS = [
   { key: 'sun',       label: '해',         icon: '☀', range: '7–12',    cat: true },
   { key: 'new',       label: '신곡',       icon: '◉', flag: true },
   { key: 'variant',   label: '변속곡',                 flag: true },
-  { key: 'popular',   label: '인기순',     icon: '★', flag: true },
+  { key: 'popular',   label: '인기순',     icon: '★', flag: true, adminOnly: true },
   { key: 'favorite',  label: '즐겨찾기',   icon: '★', flag: true, needLogin: true },
   { key: 'my_played', label: '내 플레이',  icon: '♪', flag: true, needLogin: true },
 ]
@@ -34,7 +34,7 @@ export default function MobileHeader({ totalFiltered }) {
     setFlagNew, setFlagVariants, setFlagFavorite, setFlagMyPlayed,
     meta, bpmMin, bpmMax,
     openMobileSheet,
-    sort, user,
+    sort, user, isAdmin,
     openLogin, logout, openOnboarding, openMyPage,
   } = useStore()
 
@@ -167,7 +167,7 @@ export default function MobileHeader({ totalFiltered }) {
         </label>
 
         <div className="mob-chips">
-          {CHIPS.filter(c => !c.needLogin || user).map(({ key, label, icon, range, flag }) => {
+          {CHIPS.filter(c => (!c.needLogin || user) && (!c.adminOnly || isAdmin)).map(({ key, label, icon, range, flag }) => {
             let isOn
             if (flag) {
               isOn = key === 'new' ? isNewOn
