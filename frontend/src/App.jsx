@@ -1,10 +1,9 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import useStore from './store/useStore'
 import { getSongs, getMeta } from './api/client'
 import { isXyxMode } from './utils/serverMode'
 import { readSavedListState, shouldRestoreListState } from './utils/listState'
-import SongModal from './components/SongModal'
 import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
@@ -12,6 +11,7 @@ import MyPageModal from './components/MyPageModal'
 import HelpTour from './components/HelpTour'
 import SongsPage from './pages/SongsPage'
 
+const SongModal = lazy(() => import('./components/SongModal'))
 const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
 const PmangSongsPage = lazy(() => import('./pages/PmangSongsPage'))
 const RankingsPage = lazy(() => import('./pages/RankingsPage'))
@@ -21,6 +21,22 @@ const PersonalCategoriesPage = lazy(() => import('./pages/PersonalCategoriesPage
 const PersonalCategoryDetailPage = lazy(() => import('./pages/PersonalCategoryDetailPage'))
 const PersonalCategorySubscribersPage = lazy(() => import('./pages/PersonalCategorySubscribersPage'))
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
+
+function SongModalHost() {
+  const modalOpen = useStore(s => s.modalOpen)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (modalOpen) setLoaded(true)
+  }, [modalOpen])
+
+  if (!loaded) return null
+  return (
+    <Suspense fallback={null}>
+      <SongModal />
+    </Suspense>
+  )
+}
 
 export default function App() {
   const { songs, setSongs, initFromMeta, openModal, refreshUser, user, openOnboarding, restoreListState } = useStore()
@@ -103,7 +119,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-      <SongModal />
+      <SongModalHost />
       <LoginModal />
       <OnboardingModal />
       <FeedbackModal />
