@@ -1,0 +1,360 @@
+/* ============================================================
+   Mobile: Groups + GroupDetail + Feedback  (max-width: 767px)
+   ============================================================ */
+@media (max-width: 767px) {
+  /* ---------- Shared: page nav chips ---------- */
+  .mob-pnav {
+    display: flex; gap: 6px; overflow-x: auto;
+    margin: 0 -14px; padding: 0 14px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mob-pnav::-webkit-scrollbar { display: none; }
+  .mob-pnav-item {
+    flex-shrink: 0;
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    background: var(--surface-1); border: 1px solid var(--line-soft);
+    text-decoration: none; white-space: nowrap; transition: all .12s;
+  }
+  .mob-pnav-item:active { transform: scale(0.96); }
+  .mob-pnav-item.on {
+    background: var(--cat-accent-dim); border-color: var(--cat-accent); color: var(--cat-accent);
+    font-weight: 600;
+  }
+
+  /* 카테고리별 활성 색상 — 명시적 셀렉터로 직접 지정 (변수 cascade가 안 먹는 환경 대비).
+     PC와 동일한 oklch 값. star=노랑, sun=빨강, 그 외(달/null)는 기본 --accent. */
+  [data-cat="star"] .mob-chip.on,
+  [data-cat="star"] .mob-pnav-item.on {
+    background: oklch(0.40 0.12 90 / 0.22);
+    border-color: oklch(0.82 0.16 90);
+    color: oklch(0.82 0.16 90);
+  }
+  [data-cat="sun"] .mob-chip.on,
+  [data-cat="sun"] .mob-pnav-item.on {
+    background: oklch(0.40 0.14 20 / 0.22);
+    border-color: oklch(0.78 0.18 20);
+    color: oklch(0.78 0.18 20);
+  }
+
+  /* ---------- Shared: action row + buttons ---------- */
+  .mob-action-row {
+    display: flex; gap: 8px; align-items: center;
+    padding-bottom: 8px;
+  }
+  .mob-action-btn {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 12px; border-radius: 10px;
+    background: var(--surface-1); border: 1px solid var(--line-soft);
+    color: var(--fg-2); font-size: 13px; font-weight: 500;
+    transition: transform .1s;
+  }
+  .mob-action-btn:active { transform: scale(0.97); }
+  .mob-action-btn.primary {
+    background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600;
+  }
+  .mob-action-pending {
+    font-size: 11px; padding: 4px 8px; border-radius: 6px;
+    background: var(--accent-dim); color: var(--accent); flex-shrink: 0;
+  }
+
+  /* ============================================================
+     GroupsPage (목록)
+     ============================================================ */
+  .grp-mob-body {
+    flex: 1; overflow-y: auto; padding: 12px 14px 40px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .grp-mob-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 60px 24px; text-align: center; color: var(--fg-3);
+  }
+  .grp-mob-empty h3 { font-size: 15px; color: var(--fg); margin: 0; }
+  .grp-mob-empty p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--fg-3); }
+
+  .grp-mob-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .grp-mob-card {
+    background: var(--surface-0); border: 1px solid var(--line-soft); border-radius: 12px;
+    padding: 12px 14px; cursor: pointer; transition: background .1s, transform .1s;
+  }
+  .grp-mob-card:active { background: var(--surface-1); transform: scale(0.99); }
+  .grp-mob-card-head { display: flex; align-items: flex-start; gap: 10px; }
+  .grp-mob-card-ic {
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+    background: var(--accent-dim); color: var(--accent);
+    display: grid; place-items: center; font-weight: 700; font-size: 15px;
+  }
+  .grp-mob-card-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .grp-mob-card-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .grp-mob-card-title {
+    font-size: 14.5px; font-weight: 600; color: var(--fg);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+  .grp-mob-card-meta {
+    font-size: 10.5px; color: var(--fg-4); letter-spacing: 0.02em;
+  }
+  .grp-mob-card-desc {
+    font-size: 12.5px; color: var(--fg-3); line-height: 1.5;
+    margin-top: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .grp-mob-card-stats {
+    display: flex; gap: 16px; margin-top: 10px;
+    padding-top: 10px; border-top: 1px solid var(--line-soft);
+  }
+  .grp-mob-stat { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .grp-mob-stat .lbl { font-size: 10px; color: var(--fg-4); letter-spacing: 0.04em; text-transform: uppercase; }
+  .grp-mob-stat .val { font-size: 14px; color: var(--fg-2); font-weight: 600; }
+  .grp-mob-stat .val.hot { color: var(--accent); }
+
+  /* 그룹 모달(Create/Join)을 모바일에선 풀스크린화 */
+  .grp-modal {
+    position: fixed !important; inset: 0 !important;
+    max-width: 100% !important; max-height: 100% !important;
+    border-radius: 0 !important;
+    padding-top: var(--safe-top) !important;
+    padding-bottom: var(--safe-bot) !important;
+    display: flex; flex-direction: column;
+  }
+  .grp-modal-body { flex: 1; overflow-y: auto; }
+
+  /* ============================================================
+     GroupDetailPage
+     ============================================================ */
+  .gd-mob-top {
+    background:
+      linear-gradient(135deg, oklch(0.30 0.18 var(--group-h, 280) / 0.18), oklch(0.155 0.012 270 / 0.92) 70%),
+      oklch(0.155 0.012 270 / 0.92);
+  }
+  .gd-mob-title-area { flex: 1; min-width: 0; }
+  .gd-mob-title {
+    font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--fg);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .gd-mob-meta {
+    display: flex; align-items: center; gap: 6px; margin-top: 2px;
+    font-size: 11px; color: var(--fg-3);
+  }
+  .gd-mob-desc {
+    font-size: 12px; color: var(--fg-3); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; padding-bottom: 2px;
+  }
+  .gd-mob-actions {
+    display: flex; gap: 6px; overflow-x: auto;
+    margin: 0 -14px 4px; padding: 0 14px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gd-mob-actions::-webkit-scrollbar { display: none; }
+  .gd-mob-action {
+    flex-shrink: 0; white-space: nowrap;
+    padding: 7px 12px; border-radius: 10px; font-size: 12.5px; font-weight: 500;
+    border: 1px solid var(--line-soft); background: var(--surface-1); color: var(--fg-2);
+    transition: transform .1s;
+  }
+  .gd-mob-action:active { transform: scale(0.97); }
+  .gd-mob-action.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  .gd-mob-action.ghost { background: var(--surface-1); }
+
+  .gd-mob-body {
+    flex: 1; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0 40px;
+  }
+  .gd-mob-body .gd-tab-pane { padding: 12px 14px 0; }
+  .gd-mob-body .gd-tabs {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    overflow-x: auto; padding: 8px 14px;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--line-soft); margin: 0;
+  }
+  .gd-mob-body .gd-tabs::-webkit-scrollbar { display: none; }
+  .gd-mob-body .gd-tab { flex-shrink: 0; white-space: nowrap; font-size: 13px; padding: 6px 12px; }
+
+  /* 메뉴 시트 */
+  .gd-mob-menu {
+    display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px;
+  }
+  .gd-mob-menu button {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 4px; font-size: 14px; color: var(--fg-2);
+    border-bottom: 1px solid var(--line-soft); background: transparent;
+    text-align: left; font-family: inherit;
+  }
+  .gd-mob-menu button:active { color: var(--fg); }
+  .gd-mob-menu button:last-child { border-bottom: none; }
+
+  /* 리더보드 모바일 카드 */
+  .gd-lb-mob {
+    display: flex; flex-direction: column; gap: 8px; padding-top: 4px;
+  }
+  .gd-lb-mob-card {
+    background: var(--surface-0); border: 1px solid var(--line-soft); border-radius: 10px;
+    padding: 10px 12px; cursor: pointer;
+  }
+  .gd-lb-mob-card:active { background: var(--surface-1); }
+  .gd-lb-mob-card.me { border-color: var(--accent); background: var(--accent-dim); }
+  .gd-lb-mob-top { display: flex; align-items: center; gap: 8px; }
+  .gd-lb-mob-rank {
+    flex-shrink: 0; min-width: 28px; text-align: center;
+    font-size: 15px; font-weight: 700; color: var(--fg-3);
+  }
+  .gd-lb-mob-rank.gold { color: var(--gold); }
+  .gd-lb-mob-rank.silver { color: var(--fg-2); }
+  .gd-lb-mob-rank.bronze { color: oklch(0.65 0.12 50); }
+  .gd-lb-mob-name {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px;
+    font-size: 14px; font-weight: 600; color: var(--fg);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .gd-lb-mob-avg { font-size: 13px; flex-shrink: 0; font-family: "JetBrains Mono", monospace; }
+  .gd-lb-mob-stats {
+    display: flex; align-items: center; gap: 14px;
+    font-size: 11.5px; color: var(--fg-3);
+  }
+  .gd-lb-mob-stats b { color: var(--fg-2); }
+  .gd-lb-mob-stats .dim { margin-left: auto; color: var(--fg-4); }
+
+  /* Members / Manage 행을 모바일에선 세로 스택으로 */
+  .gd-mob-body .gd-member-row,
+  .gd-mob-body .gd-app-row {
+    flex-wrap: wrap;
+    padding: 12px 0;
+  }
+  .gd-mob-body .gd-member-since,
+  .gd-mob-body .gd-app-time {
+    margin-left: auto;
+  }
+  .gd-mob-body .gd-member-actions,
+  .gd-mob-body .gd-app-actions {
+    width: 100%; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+  }
+  .gd-mob-body .gd-member-actions button,
+  .gd-mob-body .gd-app-actions button {
+    flex: 1; min-width: 0; padding: 8px 10px; font-size: 12px;
+  }
+
+  /* Feed mobile padding */
+  .gd-mob-body .gd-feed-item { padding: 10px 0; }
+
+  /* gd-myrank 모바일에선 컴팩트 */
+  .gd-mob-body .gd-myrank-grid {
+    grid-template-columns: repeat(4, 1fr); gap: 8px;
+  }
+
+  /* gd-blocked (비로그인/에러) wrapper가 mobile에서도 작동하도록 */
+  .app-mobile .gd-blocked {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 60px 24px; text-align: center;
+  }
+
+  /* ============================================================
+     FeedbackPage
+     ============================================================ */
+  .fb-mob-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    background: var(--surface-1); border-radius: 8px; padding: 3px;
+    margin-bottom: 4px;
+  }
+  .fb-mob-tabs button {
+    padding: 8px 0; border-radius: 6px; font-size: 12.5px; color: var(--fg-3); font-weight: 500;
+    background: transparent; border: none; font-family: inherit;
+  }
+  .fb-mob-tabs button.on { background: var(--surface-2); color: var(--fg); font-weight: 600; }
+
+  .fb-mob-body {
+    flex: 1; overflow-y: auto; padding: 14px 14px 40px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .fb-mob-cta {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 13px;
+    background: var(--accent); color: var(--accent-ink); border: none; border-radius: 12px;
+    font-size: 14.5px; font-weight: 600; font-family: inherit; letter-spacing: -0.005em;
+    margin-bottom: 14px;
+    transition: transform .1s;
+  }
+  .fb-mob-cta:active { transform: scale(0.98); }
+
+  .fb-mob-status {
+    display: flex; gap: 6px; overflow-x: auto;
+    margin: 0 -14px 10px; padding: 0 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .fb-mob-status::-webkit-scrollbar { display: none; }
+  .fb-mob-status-chip {
+    flex-shrink: 0; padding: 6px 12px; border-radius: 999px;
+    background: var(--surface-1); border: 1px solid var(--line-soft);
+    color: var(--fg-3); font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
+  .fb-mob-status-chip.on {
+    background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 600;
+  }
+  .fb-mob-count {
+    font-size: 11px; color: var(--fg-4); margin-bottom: 10px;
+  }
+  .fb-mob-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .fb-mob-list .fb-item {
+    border: 1px solid var(--line-soft); border-radius: 10px;
+    padding: 12px; background: var(--surface-0);
+  }
+
+  /* ----- Compose Sheet (fullscreen) ----- */
+  .fb-mob-sheet {
+    position: fixed; inset: 0; z-index: 70;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    animation: fadeIn .18s ease-out;
+  }
+  .fb-mob-sheet-top {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 10px;
+    padding: calc(var(--safe-top) + 10px) 14px 10px;
+    background: oklch(0.155 0.012 270 / 0.92);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .fb-mob-sheet-title {
+    flex: 1; font-size: 16px; font-weight: 700; color: var(--fg);
+  }
+  .fb-mob-sheet-body {
+    flex: 1; overflow-y: auto; padding: 16px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .fb-mob-desc {
+    font-size: 12.5px; color: var(--fg-3); line-height: 1.55; margin-bottom: 14px;
+  }
+  .fb-mob-field { margin-bottom: 14px; }
+  .fb-mob-type-list { display: flex; flex-direction: column; gap: 6px; }
+  .fb-mob-type-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; text-align: left;
+    background: var(--surface-1); border: 1px solid var(--line-soft);
+    font-family: inherit; color: var(--fg-2);
+    transition: background .1s;
+  }
+  .fb-mob-type-item:active { background: var(--surface-2); }
+  .fb-mob-type-item.on {
+    background: var(--accent-dim); border-color: var(--accent);
+  }
+  .fb-mob-type-ico { font-size: 18px; flex-shrink: 0; }
+  .fb-mob-type-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .fb-mob-type-lbl { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+  .fb-mob-type-desc { font-size: 11.5px; color: var(--fg-4); line-height: 1.4; }
+  .fb-mob-suggest {
+    position: relative; margin-top: 4px;
+    background: var(--surface-0); border: 1px solid var(--line-soft); border-radius: 8px;
+    max-height: 200px; overflow-y: auto;
+  }
+  .fb-mob-sheet-foot {
+    display: flex; gap: 8px; padding: 12px 14px calc(12px + var(--safe-bot));
+    border-top: 1px solid var(--line-soft); background: var(--bg);
+  }
+  .fb-mob-sheet-foot .fb-btn { flex: 1; padding: 12px; }
+}

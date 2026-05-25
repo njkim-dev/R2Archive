@@ -1,0 +1,62 @@
+/* ========= Rankings Page ========= */
+.search-mode-toggle {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  background: var(--surface-1); border-radius: 8px; padding: 3px;
+}
+.smt-btn {
+  padding: 7px 0; border-radius: 6px; font-size: 12.5px; color: var(--fg-3); font-weight: 500;
+}
+.smt-btn.on { background: var(--surface-2); color: var(--fg); box-shadow: 0 1px 0 oklch(1 0 0 / 0.04) inset; }
+
+.user-list {
+  display: flex; flex-direction: column; gap: 1px; margin-top: 8px;
+  max-height: 280px; overflow-y: auto;
+}
+.user-list-empty {
+  padding: 14px 8px; text-align: center; color: var(--fg-4); font-size: 12px;
+}
+.user-list-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  width: 100%; text-align: left;
+}
+.user-list-item:hover { background: var(--surface-1); }
+.user-list-avatar {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2);
+  display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--fg-2);
+  flex-shrink: 0;
+}
+.user-list-avatar.me { background: var(--accent); color: var(--accent-ink); }
+.user-list-name { flex: 1; font-size: 12.5px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-list-me { color: var(--accent); margin-left: 4px; font-size: 11px; }
+.user-list-count { color: var(--fg-4); font-size: 11px; flex-shrink: 0; }
+
+.user-pin {
+  margin: 0 0 18px; padding: 12px 12px;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: 10px; display: flex; align-items: center; gap: 10px;
+}
+.user-pin-medal { font-size: 18px; flex-shrink: 0; }
+.user-pin-main { flex: 1; min-width: 0; }
+.user-pin-name { font-weight: 600; color: var(--fg); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-pin-sub { color: var(--fg-3); font-size: 11px; margin-top: 1px; }
+.user-pin-close {
+  width: 22px; height: 22px; border-radius: 6px; color: var(--fg-3); font-size: 16px; line-height: 1;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.user-pin-close:hover { background: oklch(1 0 0 / 0.08); color: var(--fg); }
+
+.search { position: relative; }
+.search-mode-tag {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  background: var(--accent-dim); color: var(--accent);
+  font-size: 10.5px; padding: 3px 7px; border-radius: 5px; letter-spacing: 0.05em; font-weight: 600;
+  pointer-events: none;
+}
+
+.user-search-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: var(--surface-0); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px; z-index: 20;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.user-search-popover .user-list { margin-top: 0; }
