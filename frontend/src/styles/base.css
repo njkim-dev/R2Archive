@@ -1,0 +1,99 @@
+/* ========= Design Tokens ========= */
+:root {
+  --bg:         oklch(0.155 0.012 270);
+  --surface-0:  oklch(0.18 0.013 270);
+  --surface-1:  oklch(0.215 0.014 270);
+  --surface-2:  oklch(0.255 0.016 270);
+  --line:       oklch(0.30 0.018 270);
+  --line-soft:  oklch(0.25 0.014 270);
+
+  --fg:         oklch(0.97 0.005 270);
+  --fg-2:       oklch(0.80 0.012 270);
+  --fg-3:       oklch(0.60 0.014 270);
+  --fg-4:       oklch(0.46 0.014 270);
+
+  --accent-h:   220;
+  --accent:     oklch(0.78 0.15 var(--accent-h));
+  --accent-2:   oklch(0.68 0.17 var(--accent-h));
+  --accent-dim: oklch(0.38 0.10 var(--accent-h) / 0.22);
+  --accent-ink: oklch(0.18 0.04 var(--accent-h));
+
+  /* 사이드바의 페이지/빠른필터/카테고리 active 상태 전용 색상.
+     데이터-카테고리(별/해)에 따라서만 바뀌고, 그 외 인터렉션 색상은 --accent를 그대로 쓴다. */
+  --cat-accent:     var(--accent);
+  --cat-accent-2:   var(--accent-2);
+  --cat-accent-dim: var(--accent-dim);
+
+  --new:        oklch(0.72 0.18 25);
+  --new-dim:    oklch(0.72 0.18 25 / 0.18);
+  --warn:       oklch(0.82 0.15 85);
+  --ok:         oklch(0.78 0.14 150);
+
+  --gold:       oklch(0.85 0.16 90);
+  --silver:     oklch(0.80 0.02 270);
+  --bronze:     oklch(0.70 0.12 50);
+
+  --row-h:      44px;
+  --font-ui:    13px;
+}
+
+/* 카테고리별 인터렉션 색상: 별=노랑, 달=기본(파랑), 해=빨강.
+   사이드바의 페이지/빠른필터/카테고리 active 상태에만 적용됨 (var(--cat-accent) 사용처). */
+[data-cat="star"] {
+  /* --accent는 :root에서 oklch(0.78 0.15 var(--accent-h))로 정의되어 있는데,
+     브라우저는 --accent의 computed value를 :root 시점에 substitution해버려
+     후손에서 --accent-h만 바꿔서는 --accent가 재계산되지 않는다.
+     그래서 --accent 등 파생 변수를 여기서 직접 오버라이드한다.
+     --accent-h도 같이 갱신 — oklch(...var(--accent-h)) 형태로 직접 사용하는 룰(.btn:hover 등) 대응. */
+  --accent-h:       90;
+  --accent:         oklch(0.78 0.15 90);
+  --accent-2:       oklch(0.68 0.17 90);
+  --accent-dim:     oklch(0.38 0.10 90 / 0.22);
+  --accent-ink:     oklch(0.18 0.04 90);
+  --cat-accent:     oklch(0.82 0.16 90);
+  --cat-accent-2:   oklch(0.72 0.18 90);
+  --cat-accent-dim: oklch(0.40 0.12 90 / 0.22);
+}
+[data-cat="sun"] {
+  --accent-h:       20;
+  --accent:         oklch(0.78 0.15 20);
+  --accent-2:       oklch(0.68 0.17 20);
+  --accent-dim:     oklch(0.38 0.10 20 / 0.22);
+  --accent-ink:     oklch(0.18 0.04 20);
+  --cat-accent:     oklch(0.78 0.18 20);
+  --cat-accent-2:   oklch(0.68 0.20 20);
+  --cat-accent-dim: oklch(0.40 0.14 20 / 0.22);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: var(--font-ui);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+}
+
+#root { height: 100%; }
+
+button { font-family: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
+input, textarea { font-family: inherit; color: inherit; }
+a { text-decoration: none; color: inherit; }
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========= Scrollbar ========= */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 10px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--line); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ========= Focus ========= */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
