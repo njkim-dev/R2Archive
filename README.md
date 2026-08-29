@@ -15,6 +15,10 @@
 
 ## 기술 스택
 
-- **Backend**: FastAPI + PostgreSQL, JWT 세션 쿠키, slowapi rate limiter
+- **Backend**: FastAPI + PostgreSQL/PostGIS, JWT 세션 쿠키, slowapi rate limiter
 - **Frontend**: React + Vite, Zustand, react-window, Fuse.js
-- **배포**: Docker + Caddy (HTTPS)
+- **배포**: k3s + Caddy + Uvicorn + PostGIS (Synology nginx 진입점)
+
+## 운영 문서
+
+- 배포, 백업, 복원 및 운영 DB 접속: [k3s runbook](docs/k3s-runbook.md)

@@ -32,6 +32,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 ENV OMP_THREAD_LIMIT=1
+ENV API_UPSTREAM=localhost:8000
 
 # Caddy + Tesseract OCR
 RUN apt-get update && apt-get upgrade -y && \

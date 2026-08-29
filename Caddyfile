@@ -56,7 +56,7 @@ handle_path /static/pmang_image/* {
 # API 요청은 FastAPI로 프록시
 @api path /api/*
 handle @api {
-	reverse_proxy localhost:8000 {
+	reverse_proxy {$API_UPSTREAM} {
 		# NAS nginx가 외부 XFF를 제거하고 실제 remote_addr 하나만 전달한다.
 		# Docker 포트는 loopback 전용이므로 이 헤더를 신뢰해 애플리케이션 rate limit에 전달한다.
 		header_up -X-Forwarded-For
