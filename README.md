@@ -17,4 +17,4 @@
 
 - **Backend**: FastAPI + PostgreSQL/PostGIS, JWT 세션 쿠키, slowapi rate limiter
 - **Frontend**: React + Vite, Zustand, react-window, Fuse.js
-- **배포**: k3s + Caddy + Uvicorn + PostGIS (Synology nginx 진입점)
+- **배포**: OCI 컨테이너 + Caddy + Uvicorn + PostgreSQL/PostGIS

@@ -1,5 +1,10 @@
 .env
 backend/.env
+backend/.env.example
+backend/migrations
+backend/run_migrations.py
+backend/requirements.txt
+backend/tests
 .git
 .github
 .codex-backups
@@ -12,6 +17,7 @@ frontend/dist
 
 deploy
 docs
+docker-compose*.yml
 rnr_image
 xyx
 pmang_image
