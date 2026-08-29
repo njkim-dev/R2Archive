@@ -15,6 +15,18 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 
+# Export locked backend requirements without carrying Poetry into the runtime image.
+FROM python:3.12-slim AS backend-requirements
+
+WORKDIR /build/backend
+
+RUN python -m pip install --no-cache-dir poetry poetry-plugin-export
+
+COPY backend/pyproject.toml backend/poetry.lock ./
+
+RUN poetry export --only main --format requirements.txt --without-hashes --output /requirements.txt
+
+
 # ── Stage 2: Backend + Caddy ──────────────────────────────────────────────
 FROM python:3.12-slim
 
@@ -29,15 +41,13 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get update && apt-get install -y caddy && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Poetry 설치 및 Python 의존성
-RUN pip install poetry
-
-COPY backend/pyproject.toml backend/poetry.lock* ./backend/
+# Install only application dependencies, then remove packaging tools from runtime.
+COPY --from=backend-requirements /requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78.1.1" && \
-    cd backend && poetry config virtualenvs.create false && \
-    poetry install --only main --no-interaction && \
-    python -m pip install --no-cache-dir --upgrade "msgpack>=1.2.1" "setuptools>=78.1.1" && \
-    python -c "from importlib.metadata import version; assert tuple(map(int, version('msgpack').split('.'))) >= (1, 2, 1); assert tuple(map(int, version('setuptools').split('.'))) >= (78, 1, 1)"
+    python -m pip install --no-cache-dir --requirement /tmp/requirements.txt && \
+    python -c "from importlib.metadata import version; assert tuple(map(int, version('msgpack').split('.'))) >= (1, 2, 1)" && \
+    python -m pip uninstall --yes pip setuptools && \
+    rm -f /tmp/requirements.txt
 
 # 백엔드 소스
 COPY backend/ ./backend/
