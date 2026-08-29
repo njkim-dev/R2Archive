@@ -64,6 +64,10 @@
   cursor: pointer;
 }
 .tbl-row:hover .pcat-row-btn { opacity: 1; visibility: visible; }
+.tbl-row[data-restored-focus="true"]:hover .pcat-row-btn {
+  opacity: 0;
+  visibility: hidden;
+}
 .pcat-row-btn:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 .pcat-picker-backdrop {
   position: fixed; inset: 0; z-index: 120;

@@ -13,14 +13,15 @@ import psycopg2
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from auth import get_current_user_id, require_user_id, fetch_user
+from auth import get_current_user_id, require_admin, require_user_id, fetch_user
 from database import get_conn
 from rate_limit import limiter
 
 router = APIRouter(prefix="/api", tags=["feedback"])
 
-_BUG_TYPES = {"data", "ranking", "comment", "ui", "login", "other"}
-_FEATURE_TYPES = {"search", "ranking", "community", "record", "ux", "other"}
+_BUG_TYPES = {"data", "record_issue", "ranking", "comment", "ui", "login", "other"}
+_FEATURE_TYPES = {"search", "record_stats", "ranking", "community", "record", "ux", "other"}
+_SONG_FEEDBACK_TYPES = {"bpm", "combo", "time", "record_delete", "comment_delete"}
 
 
 class FeedbackCreate(BaseModel):
@@ -59,6 +60,80 @@ def _row_to_dict(row, viewer_uid: Optional[int]):
         "is_mine": (viewer_uid is not None and user_id is not None and int(user_id) == int(viewer_uid)),
         "created_at": created_at.isoformat() if created_at else None,
     }
+
+
+def _song_feedback_row_to_dict(row):
+    (fid, song_id, song_name, artist, level, anon_id, type_, body,
+     status, created_at, resolved_at, admin_note) = row
+    return {
+        "id": fid,
+        "song_id": song_id,
+        "song_name": song_name,
+        "artist": artist,
+        "level": float(level) if level is not None else None,
+        "anon_id": anon_id,
+        "type": type_,
+        "body": body,
+        "status": status,
+        "created_at": created_at.isoformat() if created_at else None,
+        "resolved_at": resolved_at.isoformat() if resolved_at else None,
+        "admin_note": admin_note,
+    }
+
+
+@router.get("/admin/song-feedback")
+def list_song_feedback(request: Request, status: str = "all", type: str = "all", q: str = ""):
+    require_admin(request)
+    if status not in ("all", "received", "processing", "completed"):
+        raise HTTPException(status_code=422, detail="잘못된 status입니다")
+    if type != "all" and type not in _SONG_FEEDBACK_TYPES:
+        raise HTTPException(status_code=422, detail=f"잘못된 유형입니다: {type}")
+
+    q_norm = (q or "").strip().lower()
+    where = ["1 = 1"]
+    params: list = []
+    if status != "all":
+        where.append("f.status = %s")
+        params.append(status)
+    if type != "all":
+        where.append("f.type = %s")
+        params.append(type)
+    if q_norm:
+        where.append(
+            "("
+            "LOWER(COALESCE(s.name, '')) LIKE %s OR "
+            "LOWER(COALESCE(s.artist, '')) LIKE %s OR "
+            "LOWER(f.body) LIKE %s OR "
+            "LOWER(f.anon_id) LIKE %s OR "
+            "f.song_id::text LIKE %s"
+            ")"
+        )
+        like = f"%{q_norm}%"
+        params.extend([like, like, like, like, like])
+    where_sql = " AND ".join(where)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT f.id, f.song_id, s.name AS song_name, s.artist, s.level,
+                       f.anon_id, f.type, f.body, f.status, f.created_at,
+                       f.resolved_at, f.admin_note
+                FROM feedback f
+                LEFT JOIN songs s ON s.id = f.song_id
+                WHERE {where_sql}
+                ORDER BY
+                    CASE f.status WHEN 'received' THEN 0
+                                  WHEN 'processing' THEN 1
+                                  WHEN 'completed' THEN 2
+                                  ELSE 3 END,
+                    f.created_at DESC
+                LIMIT 300
+                """,
+                tuple(params),
+            )
+            rows = cur.fetchall()
+    return [_song_feedback_row_to_dict(r) for r in rows]
 
 
 @router.get("/feedback")

@@ -66,13 +66,13 @@ function MobileRankingCard({ row, style, onClick }) {
         ) : (
           <div className="mob-rk-line empty">
             <span className="mob-rk-icon">·</span>
-            <span className="mob-rk-nick" style={{ color: 'var(--fg-4)' }}>아직 등록된 기록 없음</span>
+            <span className="mob-rk-nick" style={{ color: 'var(--fg-4)' }}>아직 등록된 성과 없음</span>
           </div>
         )}
         {mine && (
           <div className="mob-rk-line">
             <span className="mob-rk-icon">★</span>
-            <span className="mob-rk-nick">내 기록</span>
+            <span className="mob-rk-nick">내 성과</span>
             <span className={`mob-rk-jp judge ${judgeColor(mine.judgment_percent)} mono`}>{fmtJp(mine.judgment_percent)}%</span>
             {delta && (
               <span className={`mob-rk-delta mono ${delta.cls}`}>{delta.txt}</span>

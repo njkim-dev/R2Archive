@@ -41,7 +41,7 @@ export default function LoginModal() {
           </svg>
         </div>
         <h3>알투비트 아카이브</h3>
-        <p>로그인하면 기록을 등록하고<br/>내 기록을 관리할 수 있어요</p>
+        <p>로그인하면 성과를 등록하고<br/>내 성과를 관리할 수 있어요</p>
 
         <div style={btnWrap}>
           {recentBadge('naver')}

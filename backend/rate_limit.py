@@ -1,6 +1,8 @@
 from slowapi import Limiter
 from starlette.requests import Request
 
+from auth import get_current_user_id
+
 # 같은 호스트의 Caddy만 신뢰. 다른 컨테이너/외부에서 온 요청의 XFF는 무시한다.
 _TRUSTED_PROXIES = {"127.0.0.1", "::1"}
 
@@ -22,6 +24,22 @@ def ip_song_key(request: Request) -> str:
     """IP + song_id 조합. 같은 IP라도 다른 곡에는 독립 한도."""
     song_id = request.path_params.get("song_id", "")
     return f"{_client_ip(request)}:{song_id}"
+
+
+def client_ip(request: Request) -> str:
+    return _client_ip(request)
+
+
+def user_key(request: Request) -> str:
+    user_id = get_current_user_id(request)
+    if user_id is not None:
+        return f"user:{user_id}"
+    return f"ip:{_client_ip(request)}"
+
+
+def user_song_key(request: Request) -> str:
+    song_id = request.path_params.get("song_id", "")
+    return f"{user_key(request)}:{song_id}"
 
 
 limiter = Limiter(key_func=_client_ip, default_limits=[])

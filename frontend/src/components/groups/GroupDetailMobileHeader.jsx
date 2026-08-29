@@ -61,12 +61,6 @@ export default function GroupDetailMobileHeader({
           )}
 
           <div className="gd-mob-actions">
-            <button
-              className="gd-mob-action primary"
-              onClick={() => navigate(`/rankings?group=${g.id}`)}
-            >
-              🏆 그룹 랭킹 보기
-            </button>
             {isStaff && !g.code_revoked && g.join_code && (
               <button className="gd-mob-action ghost" onClick={onCopyCode}>
                 🔗 초대 링크 복사

@@ -1,13 +1,52 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Link2, Check, ExternalLink } from 'lucide-react'
+import { Link2, Check, ExternalLink, Layers } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, getRecords, addRecord, getRanking, getMyRecordsForSong, logPlay, getPlayVideos, addPlayVideo, getSong, getSongPersonalCategories } from '../api/client'
+import { getComments, addComment, getPerceivedStats, submitPerceived, updatePerceived, logPlay, getPlayVideos, addPlayVideo, getSong, getSongPersonalCategories, getRecommendedPracticeSections, getMyPracticeSections, getPracticeSections, addPracticeSection, recommendPracticeSection, deletePracticeSection, trackSongCatalogView } from '../api/client'
 import { artworkBg, fmt, fmtBpm, getAnonId, staticUrl } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode, SERVER_LINKS } from '../utils/serverMode'
 import { songCatalogUrl } from '../utils/catalogUrl'
+
+const COMBO_WARNING_TEXT = '공방에서 해당 노래 올콤하면 튕기는 버그가 있으니 주의하세요.'
+const BPM_TIMELINE_VIEW_KEY = 'r2b_bpm_timeline_view'
+
+function originalBpmText(song, detail) {
+  const value = detail?.real_bpm ?? song?.real_bpm
+  return value != null ? fmtBpm(value) : '-'
+}
+
+function readBpmTimelineView() {
+  if (typeof window === 'undefined') return 'graph'
+  try {
+    return window.localStorage.getItem(BPM_TIMELINE_VIEW_KEY) === 'table' ? 'table' : 'graph'
+  } catch {
+    return 'graph'
+  }
+}
+
+function saveBpmTimelineView(view) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(BPM_TIMELINE_VIEW_KEY, view)
+  } catch {
+    // localStorage가 막힌 환경에서는 기본 그래프 보기만 유지한다.
+  }
+}
+
+function formatBpmTimelineTime(s) {
+  if (s === 0) return '시작'
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return m > 0 ? `${m}분 ${sec}초` : `${sec}초`
+}
+
+function formatBpmDelta(delta) {
+  const abs = Math.abs(delta)
+  const value = abs % 1 === 0 ? abs : abs.toFixed(1)
+  return delta > 0 ? `+${value}` : `-${value}`
+}
 
 function BpmGraph({ timeline, songTime }) {
   const tooltipRef = useRef(null)
@@ -81,54 +120,121 @@ function BpmGraph({ timeline, songTime }) {
     tip.classList.add('show')
   }
 
-  const isChange = timeline.length > 1
-  const minBpm = Math.min(...bpms), maxBpm = Math.max(...bpms)
+  return (
+    <div className="bpm-graph" onMouseLeave={() => tooltipRef.current?.classList.remove('show')}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        {yTicks.map(v => {
+          const y = pad.t + (1 - (v - mn) / range) * gh
+          return (
+            <g key={v}>
+              <line className="grid-line" x1={pad.l} y1={y} x2={W - pad.r} y2={y}
+                stroke="var(--line-soft)" strokeWidth="1" strokeDasharray="2 3"/>
+              <text x={pad.l - 4} y={y + 3} textAnchor="end"
+                style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fill: 'var(--fg-4)' }}>{v}</text>
+            </g>
+          )
+        })}
+        {timeline.map((pt, i) => {
+          const prev = timeline[i - 1]
+          return (
+            <circle key={i} cx={tx(pt.time)} cy={ty(pt.bpm)} r={5}
+              fill="var(--accent)" opacity="0.9"
+              style={{ cursor: i > 0 ? 'pointer' : 'default' }}
+              onMouseEnter={i > 0 ? e => handleDotHover(e, pt, prev) : undefined}
+            />
+          )
+        })}
+        <text x={pad.l} y={H - 6} style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fill: 'var(--fg-3)' }}>{fmtT(viewStart)}</text>
+        <text x={W - pad.r} y={H - 6} textAnchor="end" style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fill: 'var(--fg-3)' }}>{fmtT(viewEnd)}</text>
+        {isDense && (
+          <text x={(pad.l + W - pad.r) / 2} y={H - 6} textAnchor="middle"
+            style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fill: 'var(--accent)', opacity: 0.7 }}>
+            ← 구간 확대 보기 →
+          </text>
+        )}
+      </svg>
+      <div className="bpm-tooltip" ref={tooltipRef} aria-hidden="true" />
+    </div>
+  )
+}
+
+function BpmTimelineTable({ timeline, compact = false }) {
+  if (!timeline?.length) return null
+
+  const rootClass = compact ? 'mob-bpm-list' : 'bpm-table'
+  const rowClass = compact ? 'mob-bpm-entry' : 'bpm-table-entry'
+  const timeClass = compact ? 'mob-bpm-time' : 'bpm-table-time'
+  const sepClass = compact ? 'mob-bpm-sep' : 'bpm-table-sep'
+  const valClass = compact ? 'mob-bpm-val' : 'bpm-table-val'
+  const deltaClass = compact ? 'mob-bpm-delta' : 'bpm-table-delta'
 
   return (
-    <div style={{ marginBottom: 22 }}>
+    <div className={rootClass}>
+      {timeline.map((pt, i) => {
+        const prev = timeline[i - 1]
+        const delta = prev ? pt.bpm - prev.bpm : null
+        return (
+          <div key={`${pt.time}-${pt.bpm}-${i}`} className={rowClass}>
+            <span className={timeClass}>{formatBpmTimelineTime(pt.time)}</span>
+            <span className={sepClass}>:</span>
+            <span className={valClass}>{fmtBpm(pt.bpm)}</span>
+            {delta != null && delta !== 0 && (
+              <span className={deltaClass} style={{ color: delta > 0 ? 'oklch(0.75 0.18 25)' : 'var(--ok)' }}>
+                {formatBpmDelta(delta)}
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BpmTimelineSection({ timeline, songTime }) {
+  const [view, setView] = useState(readBpmTimelineView)
+  if (!timeline?.length) return null
+
+  const bpms = timeline.map(p => p.bpm)
+  const isChange = timeline.length > 1
+  const minBpm = Math.min(...bpms)
+  const maxBpm = Math.max(...bpms)
+  const handleView = (next) => {
+    setView(next)
+    saveBpmTimelineView(next)
+  }
+
+  return (
+    <div className="bpm-timeline-section">
       <div className="bpm-head">
-        <h5>BPM 변속 타임라인</h5>
-        <span className="bpm-range">
-          {isChange
-            ? <>범위 <b>{minBpm.toFixed(1)} – {maxBpm.toFixed(1)}</b></>
-            : <>고정 <b>{bpms[0].toFixed(1)}</b></>
-          }
-        </span>
+        <div className="bpm-head-main">
+          <h5>BPM 변속 타임라인</h5>
+          <span className="bpm-range">
+            {isChange
+              ? <>범위 <b>{minBpm.toFixed(1)} – {maxBpm.toFixed(1)}</b></>
+              : <>고정 <b>{bpms[0].toFixed(1)}</b></>
+            }
+          </span>
+        </div>
+        <div className="bpm-view-toggle" role="group" aria-label="BPM 변속 타임라인 보기 방식">
+          <button
+            type="button"
+            className={view === 'graph' ? 'active' : ''}
+            onClick={() => handleView('graph')}
+          >
+            그래프로 보기
+          </button>
+          <button
+            type="button"
+            className={view === 'table' ? 'active' : ''}
+            onClick={() => handleView('table')}
+          >
+            테이블로 보기
+          </button>
+        </div>
       </div>
-      <div className="bpm-graph" onMouseLeave={() => tooltipRef.current?.classList.remove('show')}>
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-          {yTicks.map(v => {
-            const y = pad.t + (1 - (v - mn) / range) * gh
-            return (
-              <g key={v}>
-                <line className="grid-line" x1={pad.l} y1={y} x2={W - pad.r} y2={y}
-                  stroke="var(--line-soft)" strokeWidth="1" strokeDasharray="2 3"/>
-                <text x={pad.l - 4} y={y + 3} textAnchor="end"
-                  style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fill: 'var(--fg-4)' }}>{v}</text>
-              </g>
-            )
-          })}
-          {timeline.map((pt, i) => {
-            const prev = timeline[i - 1]
-            return (
-              <circle key={i} cx={tx(pt.time)} cy={ty(pt.bpm)} r={5}
-                fill="var(--accent)" opacity="0.9"
-                style={{ cursor: i > 0 ? 'pointer' : 'default' }}
-                onMouseEnter={i > 0 ? e => handleDotHover(e, pt, prev) : undefined}
-              />
-            )
-          })}
-          <text x={pad.l} y={H - 6} style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fill: 'var(--fg-3)' }}>{fmtT(viewStart)}</text>
-          <text x={W - pad.r} y={H - 6} textAnchor="end" style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fill: 'var(--fg-3)' }}>{fmtT(viewEnd)}</text>
-          {isDense && (
-            <text x={(pad.l + W - pad.r) / 2} y={H - 6} textAnchor="middle"
-              style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fill: 'var(--accent)', opacity: 0.7 }}>
-              ← 구간 확대 보기 →
-            </text>
-          )}
-        </svg>
-        <div className="bpm-tooltip" ref={tooltipRef} aria-hidden="true" />
-      </div>
+      {view === 'table'
+        ? <BpmTimelineTable timeline={timeline} />
+        : <BpmGraph timeline={timeline} songTime={songTime} />}
     </div>
   )
 }
@@ -300,7 +406,7 @@ function RecordsTab({ song }) {
   useEffect(() => { setNick(user?.nickname || '') }, [user?.id, user?.nickname])
 
   useEffect(() => {
-    // 본 게임 플레이 영상은 achievements 테이블에서 조회 (records는 랭킹 전용).
+    // 본 게임 플레이 영상은 achievements 테이블에서 조회.
     getPlayVideos(song.id).then(setRecords)
   }, [song.id])
 
@@ -458,189 +564,6 @@ function RecordsTab({ song }) {
   )
 }
 
-function RankingTab({ song }) {
-  const user = useStore(s => s.user)
-  const [rows, setRows] = useState(null)
-  const [myRecords, setMyRecords] = useState(null)
-  const [viewerUrl, setViewerUrl] = useState(null)
-
-  const reload = () => {
-    getRanking(song.id).then(setRows).catch(() => setRows([]))
-    if (user) {
-      getMyRecordsForSong(song.id).then(setMyRecords).catch(() => setMyRecords([]))
-    } else {
-      setMyRecords(null)
-    }
-  }
-
-  useEffect(() => { reload() }, [song.id, user?.id])  // eslint-disable-line
-
-  if (rows == null) {
-    return <div style={{ textAlign: 'center', color: 'var(--fg-4)', padding: 20 }}>불러오는 중…</div>
-  }
-
-  const meInTop = !!rows.some(r => r.is_mine)
-  const myBest = (myRecords || [])
-    .filter(r => r.judgment_percent != null)
-    .sort((a, b) => (b.judgment_percent ?? 0) - (a.judgment_percent ?? 0))[0]
-
-  return (
-    <div>
-      <div className="rk-head">
-        <div>
-          <div className="rk-title">판정 랭킹 TOP 10</div>
-          <div className="rk-sub">동점 시 먼저 등록한 기록이 상위</div>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="record-empty">
-          <span className="big">🏆</span>
-          아직 등록된 판정 기록이 없어요<br/>
-          <span style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>상단 '내 기록 등록' 버튼으로 스크린샷을 업로드해보세요</span>
-        </div>
-      ) : (
-        <div className="rk-list">
-          {rows.map((r, i) => (
-            <RankingRow key={r.id} r={r} rank={i + 1} onShowScreenshot={setViewerUrl} />
-          ))}
-
-          {user && myBest && !meInTop && (
-            <>
-              <div className="rk-sep"><span>내 기록</span></div>
-              <RankingRow r={{ ...myBest, is_mine: true }} rank="My" onShowScreenshot={setViewerUrl} />
-            </>
-          )}
-        </div>
-      )}
-
-      {user && myRecords && myRecords.filter(r => r.judgment_percent != null).length > 0 && (
-        <div className="myrec-block">
-          <div className="myrec-head">
-            <span>내 판정 기록 전체 ({myRecords.filter(r => r.judgment_percent != null).length}건)</span>
-          </div>
-          <div className="myrec-list">
-            {myRecords.filter(r => r.judgment_percent != null).map(r => (
-              <div key={r.id} className="myrec-row">
-                <span className="myrec-score">{r.judgment_percent.toFixed(3)}%</span>
-                {r.screenshot_url && (
-                  <button
-                    type="button"
-                    className="rk-ss-btn"
-                    title="스크린샷 보기"
-                    onClick={() => setViewerUrl(r.screenshot_url)}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="9" cy="9" r="2" />
-                      <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
-                    </svg>
-                  </button>
-                )}
-                {r.youtube_url && (
-                  <a
-                    className="rk-yt-btn"
-                    href={r.youtube_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="YouTube에서 재생"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M23 7.5s-.2-1.6-.8-2.3c-.8-.9-1.7-.9-2.1-.95C17 4 12 4 12 4s-5 0-8.1.25c-.4.05-1.3.05-2.1.95C1.2 5.9 1 7.5 1 7.5S.75 9.5.75 11.5v1c0 2 .25 4 .25 4s.2 1.6.8 2.3c.8.9 1.85.87 2.3.96C5.85 20 12 20.05 12 20.05s5 0 8.1-.25c.4-.05 1.3-.05 2.1-.95.6-.7.8-2.3.8-2.3s.25-2 .25-4v-1c0-2-.25-4-.25-4zM9.75 15.5V8.5l6.5 3.5-6.5 3.5z"/>
-                    </svg>
-                  </a>
-                )}
-                <span className="myrec-date">{r.created_at?.slice(0, 10)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {viewerUrl && (
-        <div className="modal-backdrop" style={{ zIndex: 120 }} onClick={() => setViewerUrl(null)}>
-          <div className="ss-viewer" onClick={e => e.stopPropagation()}>
-            <button className="ss-viewer-close" onClick={() => setViewerUrl(null)} aria-label="닫기">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
-            <img src={viewerUrl} alt="등록된 스크린샷" />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const MEDALS = ['🥇', '🥈', '🥉']
-
-function RankingRow({ r, rank, onShowScreenshot }) {
-  const medalIdx = typeof rank === 'number' && rank <= 3 ? rank - 1 : -1
-  const displayRank = medalIdx >= 0 ? MEDALS[medalIdx] : (typeof rank === 'number' ? `#${rank}` : rank)
-  const initial = ((r.nickname || '?')[0] || '?').toUpperCase()
-  const [memoOpen, setMemoOpen] = useState(false)
-  // 서버가 권한에 따라 memo를 마스킹해서 보내므로 여기서는 값 존재 여부만 체크.
-  const hasMemo = !!(r.memo && r.memo.trim())
-  return (
-    <div className={`rk-row${medalIdx >= 0 ? ' top' : ''}${r.is_mine ? ' me' : ''}`} style={{ flexWrap: 'wrap' }}>
-      <span className={`rk-rank${medalIdx >= 0 ? ' medal' : ''}`}>{displayRank}</span>
-      <div className="rk-player">
-        <div className="rk-avatar">{initial}</div>
-        <div className="rk-nick">
-          <span
-            onClick={hasMemo ? () => setMemoOpen(o => !o) : undefined}
-            style={{ cursor: hasMemo ? 'pointer' : 'default', textDecoration: hasMemo ? 'underline dotted var(--fg-4)' : 'none', textUnderlineOffset: 2 }}
-            title={hasMemo ? '한마디 보기' : undefined}
-          >
-            {r.nickname}
-          </span>
-          {r.is_mine && <span className="rk-me-tag">나</span>}
-          {r.screenshot_url && (
-            <button
-              type="button"
-              className="rk-ss-btn"
-              title="스크린샷 보기"
-              onClick={(e) => { e.stopPropagation(); onShowScreenshot(r.screenshot_url) }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="9" cy="9" r="2" />
-                <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
-              </svg>
-            </button>
-          )}
-          {r.youtube_url && (r.is_mine || r.owner_show_screenshot) && (
-            <a
-              className="rk-yt-btn"
-              href={r.youtube_url}
-              target="_blank"
-              rel="noreferrer"
-              title="YouTube에서 재생"
-              onClick={e => e.stopPropagation()}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M23 7.5s-.2-1.6-.8-2.3c-.8-.9-1.7-.9-2.1-.95C17 4 12 4 12 4s-5 0-8.1.25c-.4.05-1.3.05-2.1.95C1.2 5.9 1 7.5 1 7.5S.75 9.5.75 11.5v1c0 2 .25 4 .25 4s.2 1.6.8 2.3c.8.9 1.85.87 2.3.96C5.85 20 12 20.05 12 20.05s5 0 8.1-.25c.4-.05 1.3-.05 2.1-.95.6-.7.8-2.3.8-2.3s.25-2 .25-4v-1c0-2-.25-4-.25-4zM9.75 15.5V8.5l6.5 3.5-6.5 3.5z"/>
-              </svg>
-            </a>
-          )}
-        </div>
-      </div>
-      <div className="rk-score">
-        <div className="rk-score-v">{r.judgment_percent != null ? r.judgment_percent.toFixed(3) : '—'}</div>
-        <div className="rk-score-l">판정 %</div>
-      </div>
-      <div className="rk-date">{r.created_at?.slice(0, 10).replace(/-/g, '.')}</div>
-      {hasMemo && memoOpen && (
-        <div style={{ flexBasis: '100%', marginTop: 6, padding: '6px 10px', background: 'var(--surface-1)', borderRadius: 6, fontSize: 12.5, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          “{r.memo}”
-          {!r.memo_public && r.is_mine && (
-            <span style={{ marginLeft: 8, fontSize: 10.5, color: 'var(--fg-4)' }}>· 비공개</span>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function CommentsTab({ song }) {
   const user = useStore(s => s.user)
   const [comments, setComments] = useState(null)
@@ -735,42 +658,19 @@ function CommentsTab({ song }) {
 }
 
 function MobileBpmTimeline({ timeline }) {
-  const fmtTime = (s) => {
-    if (s === 0) return '시작'
-    const m = Math.floor(s / 60)
-    const sec = Math.floor(s % 60)
-    return m > 0 ? `${m}분 ${sec}초` : `${sec}초`
-  }
-
   return (
     <div className="mob-section">
       <div className="mob-section-title">BPM 변속 타임라인</div>
-      <div className="mob-bpm-list">
-        {timeline.map((pt, i) => {
-          const prev = timeline[i - 1]
-          const delta = prev ? pt.bpm - prev.bpm : null
-          return (
-            <div key={i} className="mob-bpm-entry">
-              <span className="mob-bpm-time">{fmtTime(pt.time)}</span>
-              <span className="mob-bpm-sep">:</span>
-              <span className="mob-bpm-val">{fmtBpm(pt.bpm)}</span>
-              {delta != null && (
-                <span className="mob-bpm-delta" style={{ color: delta > 0 ? 'oklch(0.75 0.18 25)' : 'var(--ok)' }}>
-                  {delta > 0 ? `+${delta % 1 === 0 ? delta : delta.toFixed(1)}` : delta % 1 === 0 ? delta : delta.toFixed(1)}
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <BpmTimelineTable timeline={timeline} compact />
     </div>
   )
 }
 
-function MobileDetail({ song, detail, onClose }) {
+function MobileDetail({ song, detail, onClose, difficultyVariants = [], onDifficultySelect }) {
   const [tab, setTab] = useState('overview')
   const [scrolled, setScrolled] = useState(false)
   const [perceivedStats, setPerceivedStats] = useState(null)
+  const [difficultyOpen, setDifficultyOpen] = useState(false)
   const bodyRef = useRef(null)
   const anonId = getAnonId()
   const user = useStore(s => s.user)
@@ -778,11 +678,17 @@ function MobileDetail({ song, detail, onClose }) {
   const toggleFavorite = useStore(s => s.toggleFavorite)
   const isFav = favorites?.has(song.id)
   const xyxMode = isXyxMode()
+  const practiceSectionCount = usePracticeSectionCount(song.id, !xyxMode)
   const counterpartUrl = getCounterpartUrl(song.counterpart)
   const counterpartLabel = getCounterpartLabel(song.counterpart)
 
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const catLabel = { star: '별 (1.5–3.5)', moon: '달 (4–6.5)', sun: '해 (7–12)' }[cat]
+  const linkedName = song.korea_name
+    ? { label: '한국 곡명', value: song.korea_name }
+    : song.xyx_name
+    ? { label: '중국 곡명', value: song.xyx_name }
+    : null
 
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
@@ -799,12 +705,28 @@ function MobileDetail({ song, detail, onClose }) {
     return () => el.removeEventListener('scroll', handler)
   }, [])
 
+  useEffect(() => {
+    setDifficultyOpen(false)
+    setTab('overview')
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [song.id])
+
+  useEffect(() => {
+    if (tab === 'practice-user' && practiceSectionCount === 0) setTab('overview')
+  }, [tab, practiceSectionCount])
+
   const handlePlay = () => {
     if (song.youtube_url) {
       logPlay(song.id)
       useStore.getState().markPlayed(song.id)
       window.open(song.youtube_url, '_blank')
     }
+  }
+
+  const hasDifficultyVariants = difficultyVariants.length > 0
+  const handleDifficultySelect = (targetSong) => {
+    setDifficultyOpen(false)
+    onDifficultySelect?.(targetSong)
   }
 
   return (
@@ -840,6 +762,9 @@ function MobileDetail({ song, detail, onClose }) {
           }
         </div>
         <h1 className="mob-hero-title">{song.name}</h1>
+        {linkedName && (
+          <div className="mob-hero-linked-name">{linkedName.label} : {linkedName.value}</div>
+        )}
         <div className="mob-hero-sub">{song.artist}{song.chapter ? ` · ${song.chapter}` : ''}</div>
         <div className="mob-hero-tags">
           <span className="mob-h-tag mob-h-tag-accent">LV {song.level.toFixed(1)}</span>
@@ -890,12 +815,55 @@ function MobileDetail({ song, detail, onClose }) {
             {counterpartLabel}
           </button>
         )}
+        <button
+          className="mob-act-btn mob-act-ghost mob-difficulty-action"
+          disabled={!hasDifficultyVariants}
+          style={!hasDifficultyVariants ? { opacity: 0.4 } : undefined}
+          title={hasDifficultyVariants ? '동일한 음악의 다른 난이도 보기' : '다른 난이도가 없습니다'}
+          onClick={() => { if (hasDifficultyVariants) setDifficultyOpen(true) }}
+        >
+          <Layers size={15} strokeWidth={2.4} />
+          다른 난이도로 이동
+        </button>
       </div>
+
+      {difficultyOpen && (
+        <div className="mob-difficulty-backdrop" onClick={() => setDifficultyOpen(false)}>
+          <div className="mob-difficulty-sheet" onClick={e => e.stopPropagation()}>
+            <div className="mob-difficulty-head">
+              <div>
+                <b>다른 난이도로 이동</b>
+                <span>{difficultyVariants.length}개</span>
+              </div>
+              <button type="button" onClick={() => setDifficultyOpen(false)} aria-label="닫기">닫기</button>
+            </div>
+            <div className="mob-difficulty-list">
+              {difficultyVariants.map(variant => (
+                <button
+                  key={variant.id}
+                  type="button"
+                  className="mob-difficulty-row"
+                  data-cat={catFromLevel(variant.level)}
+                  onClick={() => handleDifficultySelect(variant)}
+                >
+                  <span className="mob-difficulty-info">
+                    <span className="mob-difficulty-name">{variant.name}</span>
+                    <span className="mob-difficulty-meta">
+                    {fmtBpm(variant.bpm)} BPM · {fmt(variant.combo)} 콤보
+                    </span>
+                  </span>
+                  <span className="mob-difficulty-level">LV {Number(variant.level).toFixed(1)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mob-stats">
         {[
           { lbl: '난이도', val: song.level?.toFixed(1), cat },
-          { lbl: 'BPM', val: song.bpm?.toFixed(1) },
+          { lbl: '게임 BPM', val: song.bpm?.toFixed(1) },
           { lbl: '콤보', val: fmt(song.combo) },
           { lbl: '시간', val: song.time },
         ].map(({ lbl, val, cat: c }) => (
@@ -905,12 +873,20 @@ function MobileDetail({ song, detail, onClose }) {
           </div>
         ))}
       </div>
+      {song.combo_warning && (
+        <div className="mob-combo-warning">
+          {COMBO_WARNING_TEXT}
+        </div>
+      )}
 
       <div className="mob-tabs">
         {[
           { key: 'overview', label: '개요' },
           { key: 'records',  label: '플레이 영상' },
-          ...(!xyxMode ? [{ key: 'ranking',  label: '랭킹' }] : []),
+          ...(!xyxMode ? [
+            { key: 'practice-new', label: '연습구간 등록' },
+            ...(practiceSectionCount > 0 ? [{ key: 'practice-user', label: '유저 연습 구간' }] : []),
+          ] : []),
           { key: 'comments', label: '댓글' },
         ].map(({ key, label }) => (
           <button
@@ -936,9 +912,10 @@ function MobileDetail({ song, detail, onClose }) {
                 {[
                   { lbl: 'ID', val: song.id },
                   { lbl: '카테고리', val: catLabel },
+                  { lbl: '음악 원 BPM', val: originalBpmText(song, detail) },
                   { lbl: '콤보', val: fmt(song.combo) },
                   { lbl: '변속', val: song.is_change ? '있음' : '없음' },
-                  { lbl: '총 재생', val: `${(detail?.play_count ?? song.play_count ?? 0).toLocaleString()}회` },
+                  { lbl: '재생 수', val: `${(detail?.play_count ?? song.play_count ?? 0).toLocaleString()}회` },
                 ].map(({ lbl, val }) => (
                   <div key={lbl} className="mob-meta-row">
                     <span className="mob-meta-lbl">{lbl}</span>
@@ -950,7 +927,8 @@ function MobileDetail({ song, detail, onClose }) {
           </>
         )}
         {tab === 'records' && <RecordsTab song={song} />}
-        {!xyxMode && tab === 'ranking' && <RankingTab song={song} />}
+        {!xyxMode && tab === 'practice-new' && <PracticeSectionForm song={song} />}
+        {!xyxMode && practiceSectionCount > 0 && tab === 'practice-user' && <UserPracticeSectionsTab song={song} />}
         {tab === 'comments' && <CommentsTab song={song} />}
       </div>
     </div>
@@ -983,16 +961,34 @@ function navigateToCounterpart(url) {
   window.location.href = url
 }
 
+function normalizeSongIdentity(value) {
+  return String(value || '').normalize('NFKC').trim().toLocaleLowerCase()
+}
+
+function isDifficultyVariantOf(a, b) {
+  if (!a || !b || a.id === b.id) return false
+  const aGroup = Number(a.same_music_group_id || 0)
+  const bGroup = Number(b.same_music_group_id || 0)
+  if (aGroup > 0 && aGroup === bGroup) return true
+
+  const sameArtist = normalizeSongIdentity(a.artist) === normalizeSongIdentity(b.artist)
+  const sameTitle = normalizeSongIdentity(a.name) === normalizeSongIdentity(b.name)
+  const levelDiffers = Math.abs(Number(a.level) - Number(b.level)) > 1e-9
+  return sameTitle && sameArtist && levelDiffers
+}
+
 function SavedCategoryTags({ song, onOpenCategory }) {
-  const { user, openLogin } = useStore()
+  const user = useStore(s => s.user)
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(false)
 
   const load = () => {
     if (!user || !song?.id) {
       setCategories([])
+      setLoading(false)
       return
     }
+    setCategories([])
     setLoading(true)
     getSongPersonalCategories(song.id)
       .then(data => setCategories(Array.isArray(data) ? data : []))
@@ -1013,49 +1009,414 @@ function SavedCategoryTags({ song, onOpenCategory }) {
     return () => window.removeEventListener('personal-category-song-saved', handler)
   }, [song?.id, user?.id])
 
+  if (!user || loading || categories.length === 0) return null
+
   return (
     <div className="m-saved-cats">
       <div className="m-saved-cats-label">저장된 카테고리</div>
       <div className="m-saved-cats-row">
-        {!user ? (
-          <button className="btn btn-ghost m-saved-cats-login" onClick={openLogin}>로그인하세요</button>
-        ) : loading ? (
-          <span className="m-saved-cats-muted">불러오는 중...</span>
-        ) : categories.length > 0 ? (
-          categories.map(category => (
-            <button
-              key={category.id}
-              className="m-saved-cat-tag"
-              title={`${category.name} 카테고리로 이동`}
-              onClick={() => onOpenCategory(category)}
-            >
-              {category.name}
-            </button>
-          ))
-        ) : (
-          <span className="m-saved-cats-muted">표시할 카테고리가 없습니다</span>
-        )}
+        {categories.map(category => (
+          <button
+            key={category.id}
+            className="m-saved-cat-tag"
+            title={`${category.name} 카테고리로 이동`}
+            onClick={() => onOpenCategory(category)}
+          >
+            {category.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function formatPracticeTime(seconds) {
+  const total = Math.max(0, Number(seconds || 0))
+  const m = Math.floor(total / 60)
+  const s = Math.floor(total % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function parsePracticeTime(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const korean = raw.match(/^(?:(\d+)\s*시간)?\s*(?:(\d+)\s*분)?\s*(?:(\d+)\s*초)?$/)
+  if (korean && (korean[1] || korean[2] || korean[3])) {
+    return Number(korean[1] || 0) * 3600 + Number(korean[2] || 0) * 60 + Number(korean[3] || 0)
+  }
+  if (/^\d+$/.test(raw)) return Number(raw)
+  const parts = raw.split(':').map(x => x.trim())
+  if (parts.length === 2 && parts.every(x => /^\d+$/.test(x))) {
+    return Number(parts[0]) * 60 + Number(parts[1])
+  }
+  if (parts.length === 3 && parts.every(x => /^\d+$/.test(x))) {
+    return Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2])
+  }
+  return null
+}
+
+function PracticeSectionLine({ section, compact = false, action = null }) {
+  return (
+    <div className={`practice-section-line${compact ? ' compact' : ''}`}>
+      <div className="practice-section-main">
+        <span className="practice-section-time">
+          {formatPracticeTime(section.start_seconds)}~{formatPracticeTime(section.end_seconds)}
+        </span>
+        <span className="practice-section-desc">: {section.description}</span>
+      </div>
+      {!compact && (
+        <div className="practice-section-meta">
+          <span>{section.nickname || '사용자'}</span>
+          <span>{section.created_at?.slice(0, 10)}</span>
+        </div>
+      )}
+      {action}
+    </div>
+  )
+}
+
+function PracticeSectionsSummary({ song }) {
+  const { user, openLogin } = useStore()
+  const [recommended, setRecommended] = useState([])
+  const [mine, setMine] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const load = () => {
+    if (!song?.id || isXyxMode()) {
+      setRecommended([])
+      setMine([])
+      return
+    }
+    setLoading(true)
+    Promise.all([
+      getRecommendedPracticeSections(song.id).catch(() => []),
+      user ? getMyPracticeSections(song.id).catch(() => []) : Promise.resolve([]),
+    ])
+      .then(([rec, my]) => {
+        setRecommended(Array.isArray(rec) ? rec : [])
+        setMine(Array.isArray(my) ? my : [])
+      })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+  }, [song?.id, user?.id])
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (Number(event.detail?.songId) === Number(song?.id)) load()
+    }
+    window.addEventListener('practice-sections-updated', handler)
+    return () => window.removeEventListener('practice-sections-updated', handler)
+  }, [song?.id, user?.id])
+
+  if (isXyxMode()) return null
+
+  return (
+    <div className="practice-summary">
+      {recommended.length > 0 && (
+        <div className="practice-block">
+          <div className="practice-label">추천 연습 구간</div>
+          <div className="practice-list">
+            {recommended.map(section => <PracticeSectionLine key={section.id} section={section} compact />)}
+          </div>
+        </div>
+      )}
+
+      <div className="practice-block">
+        <div className="practice-label">개인 연습 구간</div>
+        <div className="practice-list">
+          {!user ? (
+            <button className="btn btn-ghost m-saved-cats-login" onClick={openLogin}>로그인하세요</button>
+          ) : loading ? (
+            <span className="m-saved-cats-muted">불러오는 중...</span>
+          ) : mine.length > 0 ? (
+            mine.map(section => <PracticeSectionLine key={section.id} section={section} compact />)
+          ) : (
+            <span className="m-saved-cats-muted">내가 등록한 연습 구간이 없습니다</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PracticeSectionForm({ song }) {
+  const { user, openLogin } = useStore()
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  const [endTouched, setEndTouched] = useState(false)
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    setStart('')
+    setEnd('')
+    setEndTouched(false)
+    setDescription('')
+    setDone(false)
+  }, [song.id])
+
+  const handleStartChange = (value) => {
+    setStart(value)
+    setDone(false)
+    if (endTouched) return
+    const startSeconds = parsePracticeTime(value)
+    setEnd(startSeconds == null ? '' : formatPracticeTime(startSeconds + 30))
+  }
+
+  const handleEndChange = (value) => {
+    setEndTouched(true)
+    setEnd(value)
+    setDone(false)
+  }
+
+  const handleSubmit = async () => {
+    const startSeconds = parsePracticeTime(start)
+    const endSeconds = parsePracticeTime(end)
+    const desc = description.trim()
+    if (startSeconds == null || endSeconds == null) {
+      alert('시간은 0:48 또는 48 형식으로 입력해주세요.')
+      return
+    }
+    if (endSeconds <= startSeconds) {
+      alert('종료 시간은 시작 시간보다 뒤여야 합니다.')
+      return
+    }
+    if (!desc) {
+      alert('설명을 입력해주세요.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await addPracticeSection(song.id, {
+        start_seconds: startSeconds,
+        end_seconds: endSeconds,
+        description: desc,
+      })
+      setStart('')
+      setEnd('')
+      setEndTouched(false)
+      setDescription('')
+      setDone(true)
+      window.dispatchEvent(new CustomEvent('practice-sections-updated', { detail: { songId: song.id } }))
+    } catch (e) {
+      const detail = e?.response?.data?.detail
+      alert(typeof detail === 'string' ? detail : '연습 구간 등록에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (!user) {
+    return (
+      <div className="record-empty">
+        연습 구간 등록은 로그인이 필요합니다.<br/>
+        <button className="btn btn-primary practice-login-btn" onClick={openLogin}>로그인하기</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="record-form practice-form">
+      <div className="practice-form-head">
+        <div>
+          <div className="practice-form-title">연습구간 등록</div>
+          <div className="practice-form-sub">예: 0:48 ~ 1:26 / 폭타구간</div>
+        </div>
+      </div>
+      <div className="practice-time-grid">
+        <div className="rf-field">
+          <label>시작 시간</label>
+          <input value={start} onChange={e => handleStartChange(e.target.value)} placeholder="0:48" />
+        </div>
+        <div className="rf-field">
+          <label>종료 시간</label>
+          <input value={end} onChange={e => handleEndChange(e.target.value)} placeholder="1:26" />
+        </div>
+      </div>
+      <div className="rf-field">
+        <label>설명</label>
+        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="폭타구간" />
+      </div>
+      <div className="practice-form-actions">
+        {done && <span className="practice-done">등록 완료</span>}
+        <button
+          className="btn btn-primary"
+          disabled={submitting || !start.trim() || !end.trim() || !description.trim()}
+          onClick={handleSubmit}
+        >
+          {submitting ? '등록 중...' : '등록'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function usePracticeSectionCount(songId, enabled = true) {
+  const [count, setCount] = useState(0)
+
+  const load = () => {
+    if (!enabled || !songId || isXyxMode()) {
+      setCount(0)
+      return
+    }
+    getPracticeSections(songId)
+      .then(data => setCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => setCount(0))
+  }
+
+  useEffect(() => {
+    load()
+  }, [songId, enabled])
+
+  useEffect(() => {
+    if (!enabled || !songId) return
+    const handler = (event) => {
+      if (Number(event.detail?.songId) === Number(songId)) load()
+    }
+    window.addEventListener('practice-sections-updated', handler)
+    return () => window.removeEventListener('practice-sections-updated', handler)
+  }, [songId, enabled])
+
+  return count
+}
+
+function UserPracticeSectionsTab({ song }) {
+  const isAdmin = useStore(s => s.isAdmin)
+  const [sections, setSections] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
+
+  const load = () => {
+    getPracticeSections(song.id)
+      .then(data => setSections(Array.isArray(data) ? data : []))
+      .catch(() => setSections([]))
+  }
+
+  useEffect(() => {
+    setSections(null)
+    load()
+  }, [song.id])
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (Number(event.detail?.songId) === Number(song.id)) load()
+    }
+    window.addEventListener('practice-sections-updated', handler)
+    return () => window.removeEventListener('practice-sections-updated', handler)
+  }, [song.id])
+
+  const handleRecommend = async (section) => {
+    try {
+      const updated = await recommendPracticeSection(song.id, section.id)
+      setSections(prev => (prev || []).map(x => x.id === updated.id ? updated : x))
+      window.dispatchEvent(new CustomEvent('practice-sections-updated', { detail: { songId: song.id } }))
+    } catch (e) {
+      const detail = e?.response?.data?.detail
+      alert(typeof detail === 'string' ? detail : '추천 연습 구간 등록에 실패했습니다.')
+    }
+  }
+
+  const handleDelete = async (section) => {
+    if (!confirm('이 연습 구간을 삭제할까요?')) return
+    setDeletingId(section.id)
+    try {
+      await deletePracticeSection(song.id, section.id)
+      setSections(prev => (prev || []).filter(x => x.id !== section.id))
+      window.dispatchEvent(new CustomEvent('practice-sections-updated', { detail: { songId: song.id } }))
+    } catch (e) {
+      const detail = e?.response?.data?.detail
+      alert(typeof detail === 'string' ? detail : '연습 구간 삭제에 실패했습니다.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  if (sections == null) {
+    return <div style={{ textAlign: 'center', color: 'var(--fg-4)', padding: 20 }}>불러오는 중...</div>
+  }
+
+  if (sections.length === 0) {
+    return <div className="record-empty">아직 등록된 연습 구간이 없습니다.</div>
+  }
+
+  return (
+    <div className="practice-user-list">
+      {sections.map(section => (
+        <PracticeSectionLine
+          key={section.id}
+          section={section}
+          action={(section.is_mine || isAdmin) ? (
+            <div className="practice-section-actions">
+              {isAdmin && !section.is_recommended && (
+                <button className="btn btn-ghost practice-recommend-btn" onClick={() => handleRecommend(section)}>
+                  추천 연습 구간으로 등록
+                </button>
+              )}
+              {(section.is_mine || isAdmin) && (
+                <button
+                  className="btn btn-ghost practice-delete-btn"
+                  disabled={deletingId === section.id}
+                  onClick={() => handleDelete(section)}
+                >
+                  {deletingId === section.id ? '삭제 중...' : '삭제'}
+                </button>
+              )}
+            </div>
+          ) : null}
+        />
+      ))}
+      <div className="practice-user-add">
+        <PracticeSectionForm song={song} />
       </div>
     </div>
   )
 }
 
 export default function SongModal() {
-  const isMobile = useMobile()
+  const xyxMode = isXyxMode()
+  const isMobile = useMobile(xyxMode ? 1100 : 768)
   const navigate = useNavigate()
   // SongModal은 App.jsx 루트에서 <Routes> 바깥에 렌더링되어 페이지의 [data-cat] cascade를
   // 받지 못한다. 그래서 모달 자체에 data-cat을 직접 부여한다 — 단, 페이지 필터가 아니라
   // 열려 있는 곡의 난이도 기반으로 결정해 매 곡마다 색이 자연스럽게 바뀌도록 한다.
-  const { modalOpen, modalSong, closeModal, openFeedback, user, favorites, toggleFavorite } = useStore()
-  const xyxMode = isXyxMode()
+  const { modalOpen, modalSong, closeModal, openModal, openFeedback, user, favorites, toggleFavorite, songs } = useStore()
   const [tab, setTab] = useState('overview')
   const [detail, setDetail] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [morePos, setMorePos] = useState({ top: 0, right: 0 })
+  const [difficultyOpen, setDifficultyOpen] = useState(false)
+  const [difficultyPos, setDifficultyPos] = useState({ top: 0, left: 0 })
   const [copied, setCopied] = useState(false)
+  const difficultyBtnRef = useRef(null)
+  const difficultyMenuRef = useRef(null)
   const moreBtnRef = useRef(null)
   const moreMenuRef = useRef(null)
+  const panelRef = useRef(null)
+  const previousFocusRef = useRef(null)
   const [show, setShow] = useState(false)
+  const currentSong = useMemo(() => {
+    if (!detail) return modalSong
+    return {
+      ...modalSong,
+      ...detail,
+      korea_name: detail.korea_name || modalSong?.korea_name || '',
+      xyx_name: detail.xyx_name || modalSong?.xyx_name || '',
+    }
+  }, [detail, modalSong])
+  const difficultyVariants = useMemo(() => {
+    if (!currentSong || !Array.isArray(songs)) return []
+    return songs
+      .filter(s => isDifficultyVariantOf(s, currentSong))
+      .sort((a, b) =>
+        Number(a.level) - Number(b.level) ||
+        Number(a.combo || 0) - Number(b.combo || 0) ||
+        Number(a.id) - Number(b.id)
+      )
+  }, [songs, currentSong?.id, currentSong?.name, currentSong?.artist, currentSong?.level, currentSong?.same_music_group_id])
+  const practiceSectionCount = usePracticeSectionCount(currentSong?.id, modalOpen && !xyxMode)
 
   useEffect(() => {
     if (!modalOpen || !modalSong) { setDetail(null); setTab('overview'); return }
@@ -1063,12 +1424,54 @@ export default function SongModal() {
   }, [modalOpen, modalSong?.id])
 
   useEffect(() => {
+    if (!modalOpen || !modalSong?.id) return
+    trackSongCatalogView({
+      server: xyxMode ? 'xyx' : 'kr',
+      song_id: modalSong.id,
+    })
+  }, [modalOpen, modalSong?.id, xyxMode])
+
+  useEffect(() => {
+    if (tab === 'practice-user' && practiceSectionCount === 0) setTab('overview')
+  }, [tab, practiceSectionCount])
+
+  useEffect(() => {
+    if (!modalOpen) return undefined
     const handler = (e) => {
       if (e.key === 'Escape') closeModal()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [closeModal])
+  }, [modalOpen, closeModal])
+
+  useLayoutEffect(() => {
+    if (!modalOpen) return undefined
+    const triggerSongId = modalSong?.id
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const frame = requestAnimationFrame(() => {
+      const selector = isMobile ? '.mob-detail-back' : '.m-close'
+      panelRef.current?.querySelector(selector)?.focus()
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      const songRow = triggerSongId ? document.querySelector(`[data-song-id="${triggerSongId}"]`) : null
+      if (songRow instanceof HTMLElement) {
+        songRow.dataset.restoredFocus = 'true'
+        const clearRestoredFocus = (event) => {
+          delete songRow.dataset.restoredFocus
+          songRow.removeEventListener('pointerleave', clearRestoredFocus)
+          songRow.removeEventListener('keydown', clearRestoredFocus)
+          songRow.removeEventListener('blur', clearRestoredFocus)
+          if (event?.type.startsWith('pointer') && document.activeElement === songRow) songRow.blur()
+        }
+        songRow.addEventListener('pointerleave', clearRestoredFocus, { once: true })
+        songRow.addEventListener('keydown', clearRestoredFocus, { once: true })
+        songRow.addEventListener('blur', clearRestoredFocus, { once: true })
+        songRow.focus({ preventScroll: true })
+      }
+      else previousFocusRef.current?.focus?.()
+    }
+  }, [modalOpen, isMobile])
 
   // 모바일에서 안드로이드 물리 뒤로가기로 모달 닫기 지원 (popstate)
   useEffect(() => {
@@ -1095,20 +1498,40 @@ export default function SongModal() {
     return () => document.removeEventListener('click', handler)
   }, [moreOpen])
 
+  useEffect(() => {
+    if (!difficultyOpen) return
+    const handler = () => setDifficultyOpen(false)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [difficultyOpen])
+
+  const handleDifficultySelect = (targetSong) => {
+    setDifficultyOpen(false)
+    setMoreOpen(false)
+    setTab('overview')
+    openModal(targetSong)
+  }
+
   if (isMobile) {
     if (!show && !modalOpen) return null
-    const song = detail ?? modalSong
+    const song = currentSong
     if (!song) return null
     return (
       <div
+        ref={panelRef}
         className={`mob-detail${modalOpen ? ' open' : ''}`}
         data-cat={catFromLevel(song.level)}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${song.name} 곡 상세`}
         aria-hidden={!modalOpen}
       >
         <MobileDetail
           song={song}
           detail={detail}
           onClose={handleMobileClose}
+          difficultyVariants={difficultyVariants}
+          onDifficultySelect={handleDifficultySelect}
         />
       </div>
     )
@@ -1116,10 +1539,15 @@ export default function SongModal() {
 
   if (!modalOpen || !modalSong) return null
 
-  const song = detail ?? modalSong
+  const song = currentSong
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
   const counterpartUrl = getCounterpartUrl(song.counterpart)
   const counterpartLabel = getCounterpartLabel(song.counterpart)
+  const linkedName = song.korea_name
+    ? { label: '한국 곡명', value: song.korea_name }
+    : song.xyx_name
+    ? { label: '중국 곡명', value: song.xyx_name }
+    : null
 
   const handlePlayClick = () => {
     if (song.youtube_url) {
@@ -1148,7 +1576,7 @@ export default function SongModal() {
       data-cat={catFromLevel(song.level)}
       onClick={e => e.target === e.currentTarget && closeModal()}
     >
-      <div className="modal song-catalog-panel">
+      <aside ref={panelRef} className="modal song-catalog-panel" aria-label={`${song.name} 곡 상세`}>
           <div className="m-hero">
           <div className="m-top">
             <div className="m-breadcrumb">
@@ -1179,68 +1607,124 @@ export default function SongModal() {
                 <span className="n">{song.level?.toFixed(1)}</span>
               </div>
               <div className="m-name">{song.name}</div>
+              {linkedName && (
+                <div className="m-linked-name">{linkedName.label} : {linkedName.value}</div>
+              )}
               <div className="m-artist">by <b>{song.artist}</b> · {song.time} · {fmt(song.combo)} 콤보</div>
             </div>
           </div>
 
-          <div className="m-actions">
-            {song.youtube_url ? (
-              <button className="btn btn-primary" onClick={handlePlayClick}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                음악 듣기
-              </button>
-            ) : (
-              <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>음악 듣기</button>
-            )}
-            <button
-              className="btn btn-ghost"
-              disabled={!user}
-              style={!user ? { opacity: 0.5 } : (favorites?.has(song.id) ? { color: 'var(--accent, #ff6b9d)' } : {})}
-              title={user ? (favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
-              onClick={() => { if (user) toggleFavorite(song.id) }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill={favorites?.has(song.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
-              </svg>
-              즐겨찾기
-            </button>
-            <PersonalCategoryPicker songId={song.id} className="btn btn-ghost" />
-            {counterpartUrl && (
-              <button className="btn btn-ghost" onClick={() => navigateToCounterpart(counterpartUrl)}>
-                <ExternalLink size={14} strokeWidth={2.4} />
-                {counterpartLabel}
-              </button>
-            )}
-            <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
-              {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
-            </button>
-            <div className="more-wrap">
-              <button ref={moreBtnRef} className="btn btn-ghost btn-icon" title="더 보기" onClick={e => {
-                e.stopPropagation()
-                const rect = moreBtnRef.current.getBoundingClientRect()
-                setMorePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
-                setMoreOpen(v => !v)
-              }}>
-                <span style={{ fontSize: 16, lineHeight: 1, letterSpacing: 1 }}>···</span>
-              </button>
-              {moreOpen && (
-                <div ref={moreMenuRef} className="more-menu" style={{ top: morePos.top, right: morePos.right }} onClick={e => e.stopPropagation()}>
-                  {!xyxMode && (
-                    <button onClick={() => { setMoreOpen(false); closeModal(); openFeedback(song) }}>
-                      <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                      </svg>
-                      <span>피드백</span>
-                    </button>
-                  )}
-                  <button onClick={handleCopyLink}>
-                    <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                    <span>링크 복사</span>
-                  </button>
-                </div>
+          <div className="m-actions is-split">
+            <div className="m-actions-row">
+              {song.youtube_url ? (
+                <button className="btn btn-primary" onClick={handlePlayClick}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  음악 듣기
+                </button>
+              ) : (
+                <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>음악 듣기</button>
               )}
+              <button
+                className="btn btn-ghost"
+                disabled={!user}
+                style={!user ? { opacity: 0.5 } : (favorites?.has(song.id) ? { color: 'var(--accent, #ff6b9d)' } : {})}
+                title={user ? (favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
+                onClick={() => { if (user) toggleFavorite(song.id) }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill={favorites?.has(song.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>
+                </svg>
+                즐겨찾기
+              </button>
+              <PersonalCategoryPicker songId={song.id} className="btn btn-ghost" />
+            </div>
+            <div className="m-actions-row">
+              {counterpartUrl && (
+                <button className="btn btn-ghost" onClick={() => navigateToCounterpart(counterpartUrl)}>
+                  <ExternalLink size={14} strokeWidth={2.4} />
+                  {counterpartLabel}
+                </button>
+              )}
+              <div className="difficulty-wrap">
+                <button
+                  ref={difficultyBtnRef}
+                  className="btn btn-ghost"
+                  disabled={difficultyVariants.length === 0}
+                  title={difficultyVariants.length ? '동일한 음악의 다른 난이도 보기' : '다른 난이도가 없습니다'}
+                  style={difficultyVariants.length === 0 ? { opacity: 0.5 } : undefined}
+                  onClick={e => {
+                    e.stopPropagation()
+                    if (difficultyVariants.length === 0) return
+                    const rect = difficultyBtnRef.current.getBoundingClientRect()
+                    const menuWidth = 260
+                    setDifficultyPos({
+                      top: rect.bottom + 6,
+                      left: Math.max(12, Math.min(window.innerWidth - menuWidth - 12, rect.left)),
+                    })
+                    setMoreOpen(false)
+                    setDifficultyOpen(v => !v)
+                  }}
+                >
+                  <Layers size={14} strokeWidth={2.4} />
+                  다른 난이도로 이동
+                </button>
+                {difficultyOpen && (
+                  <div
+                    ref={difficultyMenuRef}
+                    className="difficulty-menu"
+                    style={{ top: difficultyPos.top, left: difficultyPos.left }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {difficultyVariants.map(variant => (
+                      <button
+                        key={variant.id}
+                        data-cat={catFromLevel(variant.level)}
+                        onClick={() => handleDifficultySelect(variant)}
+                      >
+                        <span className="difficulty-info">
+                          <span className="difficulty-name">{variant.name}</span>
+                          <span className="difficulty-meta">
+                          {fmtBpm(variant.bpm)} BPM · {fmt(variant.combo)} 콤보
+                          </span>
+                        </span>
+                        <span className="difficulty-level">LV {Number(variant.level).toFixed(1)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
+                {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
+              </button>
+              <div className="more-wrap">
+                <button ref={moreBtnRef} className="btn btn-ghost btn-icon" title="더 보기" onClick={e => {
+                  e.stopPropagation()
+                  const rect = moreBtnRef.current.getBoundingClientRect()
+                  setMorePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+                  setDifficultyOpen(false)
+                  setMoreOpen(v => !v)
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1, letterSpacing: 1 }}>···</span>
+                </button>
+                {moreOpen && (
+                  <div ref={moreMenuRef} className="more-menu" style={{ top: morePos.top, right: morePos.right }} onClick={e => e.stopPropagation()}>
+                    {!xyxMode && (
+                      <button onClick={() => { setMoreOpen(false); closeModal(); openFeedback(song) }}>
+                        <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <span>피드백</span>
+                      </button>
+                    )}
+                    <button onClick={handleCopyLink}>
+                      <svg className="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                      <span>링크 복사</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1248,11 +1732,11 @@ export default function SongModal() {
         <div className="m-stats">
           {[
             { lbl: '난이도', val: song.level?.toFixed(1), sub: '공식', hi: true },
-            { lbl: 'BPM',   val: song.bpm?.toFixed(1),   sub: song.is_change ? '변속 있음' : '고정' },
+            { lbl: '게임 BPM',   val: song.bpm?.toFixed(1),   sub: song.is_change ? '변속 있음' : '고정' },
+            { lbl: '음악 원 BPM', val: originalBpmText(song, detail), sub: '원본' },
             { lbl: '콤보',  val: fmt(song.combo),         sub: '최대' },
             { lbl: '시간',  val: song.time,               sub: '재생' },
-            { lbl: '총 재생', val: detail?.play_count ?? song.play_count ?? 0, sub: '회' },
-            { lbl: '이번 주', val: detail?.play_count_week ?? 0, sub: '회' },
+            { lbl: '재생 수', val: detail?.play_count ?? song.play_count ?? 0, sub: '회' },
           ].map(({ lbl, val, sub, hi }) => (
             <div key={lbl} className={`m-stat${hi ? ' highlight' : ''}`}>
               <div className="lbl">{lbl}</div>
@@ -1261,34 +1745,50 @@ export default function SongModal() {
             </div>
           ))}
         </div>
+        {song.combo_warning && (
+          <div className="m-combo-warning">
+            {COMBO_WARNING_TEXT}
+          </div>
+        )}
 
         <SavedCategoryTags song={song} onOpenCategory={handleOpenCategory} />
+        {!xyxMode && <PracticeSectionsSummary song={song} />}
 
-          <div className="m-tabs">
+          <div className="m-tabs" role="tablist" aria-label="곡 상세 정보">
           {[
             { key: 'overview', label: '개요' },
             { key: 'records',  label: '플레이 영상' },
-            ...(!xyxMode ? [{ key: 'ranking',  label: '랭킹' }] : []),
+            ...(!xyxMode ? [
+              { key: 'practice-new', label: '연습구간 등록' },
+              ...(practiceSectionCount > 0 ? [{ key: 'practice-user', label: '유저 연습 구간' }] : []),
+            ] : []),
             { key: 'comments', label: '댓글' },
           ].map(({ key, label }) => (
-            <button key={key} className={`m-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+            <button
+              key={key}
+              className={`m-tab${tab === key ? ' active' : ''}`}
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+            >
               {label}
             </button>
           ))}
         </div>
 
-        <div className="m-body">
+        <div className="m-body" role="tabpanel">
           {tab === 'overview' && (
             <>
-              {detail && detail.is_change && <BpmGraph timeline={detail.bpm_timeline} songTime={detail.time} />}
+              {detail && detail.is_change && <BpmTimelineSection timeline={detail.bpm_timeline} songTime={detail.time} />}
               <PerceivedSection song={song} />
             </>
           )}
           {tab === 'records' && <RecordsTab song={song} />}
-          {!xyxMode && tab === 'ranking' && <RankingTab song={song} />}
+          {!xyxMode && tab === 'practice-new' && <PracticeSectionForm song={song} />}
+          {!xyxMode && practiceSectionCount > 0 && tab === 'practice-user' && <UserPracticeSectionsTab song={song} />}
           {tab === 'comments' && <CommentsTab song={song} />}
         </div>
-      </div>
+      </aside>
     </div>
   )
 }

@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import useStore from '../store/useStore'
 import { patchMe, checkNickname } from '../api/client'
 
+const normalizeVisibility = (value) => {
+  if (value === 'public' || value === 'group' || value === 'private') return value
+  if (value === 'anonymous') return 'private'
+  return 'public'
+}
+
 export default function OnboardingModal() {
   const { onboardingOpen, closeOnboarding, user, setUser, refreshUser } = useStore()
   const [nickname, setNickname] = useState('')
@@ -13,14 +19,18 @@ export default function OnboardingModal() {
   const [nickStatus, setNickStatus] = useState(null)   // null | 'checking' | 'ok' | 'taken' | 'invalid'
   const debRef = useRef(null)
 
+  // 모달이 열리면 서버에서 최신 사용자 정보를 다시 가져옴.
+  // 다른 PC에서 변경했거나 DB를 직접 수정한 경우에도 최신 값이 반영되도록.
   useEffect(() => {
     if (onboardingOpen) refreshUser()
   }, [onboardingOpen, refreshUser])
 
+  // user 객체가 갱신되면 폼 필드를 그 값으로 채움.
+  // 초기 오픈 시엔 캐시된 값으로 잠깐 보였다가 refresh 완료 후 최신 값으로 업데이트됨.
   useEffect(() => {
     if (onboardingOpen) {
       setNickname(user?.nickname || '')
-      setVisibility(user?.default_visibility || 'public')
+      setVisibility(normalizeVisibility(user?.default_visibility))
       setSearchable(user?.searchable || 'public')
       setShowScreenshot(!!user?.show_screenshot)
       setErr('')
@@ -69,6 +79,7 @@ export default function OnboardingModal() {
         nickname: nick,
         default_visibility: visibility,
         searchable,
+        // 공개 기록이 아닐 땐 스크린샷 공유는 무조건 false로 저장.
         show_screenshot: visibility === 'public' && showScreenshot,
       })
       setUser(updated)
@@ -130,12 +141,12 @@ export default function OnboardingModal() {
         </div>
 
         <div className="onb-field">
-          <label>랭킹 공개 여부</label>
+          <label>기록 공개 여부</label>
           <div className="onb-vis-col">
             {[
-              { v: 'public',    title: '공개',        desc: '닉네임과 함께 랭킹에 노출해요' },
-              { v: 'anonymous', title: '익명으로 공개', desc: '익명으로 랭킹에 노출해요' },
-              { v: 'private',   title: '비공개',      desc: '랭킹에 노출되지 않아요' },
+              { v: 'public',    title: '공개',        desc: '닉네임과 함께 기록에 노출해요' },
+              { v: 'group',     title: '같은 그룹원에게 공개', desc: '같은 그룹원에게만 기록을 노출해요' },
+              { v: 'private',   title: '비공개',      desc: '기록에 노출되지 않아요' },
             ].map(opt => (
               <label key={opt.v} className={`onb-vis-opt${visibility === opt.v ? ' on' : ''}`}>
                 <input
@@ -178,7 +189,7 @@ export default function OnboardingModal() {
         </div>
 
         <div className="onb-field">
-          {/* 스크린샷 공유는 visibility='public'일 때만 의미가 있음 — 익명/비공개에선 자동 비활성. */}
+          {/* 스크린샷 공유는 공개 기록일 때만 의미가 있음. */}
           <label className={`onb-checkbox${visibility === 'public' ? '' : ' disabled'}`}>
             <input
               type="checkbox"
@@ -187,10 +198,10 @@ export default function OnboardingModal() {
               disabled={visibility !== 'public'}
             />
             <span>
-              랭킹 등록 시 내 스크린샷 & YouTube 링크를 다른 사람이 볼 수 있게 합니다
+              기존 성과 기록의 스크린샷 & YouTube 링크를 다른 사람이 볼 수 있게 합니다
               {visibility !== 'public' && (
                 <em style={{ display: 'block', fontSize: 11, color: 'var(--fg-4)', marginTop: 3, fontStyle: 'normal' }}>
-                  ('익명' 또는 '비공개' 선택 시 사용할 수 없어요)
+                  (공개 선택 시에만 사용할 수 있어요)
                 </em>
               )}
             </span>

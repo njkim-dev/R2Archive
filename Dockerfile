@@ -1,10 +1,10 @@
 # ── Stage 1: Frontend build ───────────────────────────────────────────────
-FROM node:20-slim AS frontend-builder
+FROM node:22-slim AS frontend-builder
 
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY frontend/ ./
 
@@ -19,8 +19,9 @@ RUN npm run build
 FROM python:3.12-slim
 
 WORKDIR /app
+ENV OMP_THREAD_LIMIT=1
 
-# Caddy + Tesseract OCR 설치
+# Caddy + Tesseract OCR
 RUN apt-get update && apt-get install -y curl debian-keyring debian-archive-keyring apt-transport-https tesseract-ocr && \
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg && \
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list && \
@@ -31,7 +32,8 @@ RUN apt-get update && apt-get install -y curl debian-keyring debian-archive-keyr
 RUN pip install poetry
 
 COPY backend/pyproject.toml backend/poetry.lock* ./backend/
-RUN cd backend && poetry config virtualenvs.create false && \
+RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" && \
+    cd backend && poetry config virtualenvs.create false && \
     poetry install --only main --no-interaction
 
 # 백엔드 소스
@@ -42,8 +44,18 @@ COPY --from=frontend-builder /app/frontend/dist /srv
 
 # Caddyfile
 COPY Caddyfile /etc/caddy/Caddyfile
+RUN chown root:caddy /etc/caddy/Caddyfile && chmod 0640 /etc/caddy/Caddyfile
+
+# Match the owning NAS account so the only writable bind mount
+# (record_screenshots) remains usable without running the service as root.
+RUN useradd --uid 1026 --gid 100 --home-dir /app --no-create-home app \
+    && usermod --append --groups caddy app \
+    && chown -R app:users /app
 
 EXPOSE 3000
 
+USER app
+
 CMD caddy start --config /etc/caddy/Caddyfile && \
-    uvicorn main:app --app-dir /app/backend --host 127.0.0.1 --port 8000
+    uvicorn main:app --app-dir /app/backend --host 127.0.0.1 --port 8000 \
+      --limit-concurrency 64 --backlog 128 --timeout-keep-alive 5

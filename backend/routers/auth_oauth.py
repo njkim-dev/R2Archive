@@ -124,10 +124,12 @@ def _verify_google_id_token(id_token: str) -> tuple[dict | None, str | None]:
 
 
 def _set_state_cookie(resp, state: str, request: Request) -> None:
-    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+    # OAuth 임시 쿠키는 callback을 받는 현재 호스트에만 필요하다. 과거 parent-domain
+    # 쿠키를 먼저 만료해 sibling subdomain의 cookie-tossing 영향을 제거한다.
     domain = _cookie_domain(request)
     if domain:
-        kwargs["domain"] = domain
+        resp.delete_cookie(STATE_COOKIE, path="/", domain=domain)
+    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
     resp.set_cookie(STATE_COOKIE, state, **kwargs)
 
 
@@ -146,10 +148,10 @@ def _clear_state_cookie(resp, request: Request | None = None) -> None:
 
 def _set_remember_cookie(resp, remember: bool, request: Request) -> None:
     """'로그인 상태 유지' 선택 여부를 fallback까지 전달하기 위한 임시 쿠키"""
-    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
     domain = _cookie_domain(request)
     if domain:
-        kwargs["domain"] = domain
+        resp.delete_cookie(REMEMBER_COOKIE, path="/", domain=domain)
+    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
     resp.set_cookie(REMEMBER_COOKIE, "1" if remember else "0", **kwargs)
 
 
@@ -164,12 +166,12 @@ def _clear_remember_cookie(resp, request: Request | None = None) -> None:
         resp.delete_cookie(REMEMBER_COOKIE, path="/", domain=domain)
 
 
-def _set_return_cookie(resp, request: Request) -> None:
-    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+def _set_return_cookie(resp, request: Request, return_origin: str | None = None) -> None:
     domain = _cookie_domain(request)
     if domain:
-        kwargs["domain"] = domain
-    resp.set_cookie(RETURN_COOKIE, _safe_return_origin(_request_origin(request)), **kwargs)
+        resp.delete_cookie(RETURN_COOKIE, path="/", domain=domain)
+    kwargs = dict(max_age=600, httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+    resp.set_cookie(RETURN_COOKIE, _safe_return_origin(return_origin or _request_origin(request)), **kwargs)
 
 
 def _read_return_origin(request: Request) -> str:
@@ -218,20 +220,46 @@ def logout(request: Request):
     return resp
 
 
-def _build_login_redirect(provider: str, request: Request, auth_url: str, params: dict, remember: bool) -> RedirectResponse:
+def _central_login_redirect(
+    provider: str,
+    request: Request,
+    remember: bool,
+    return_origin: str | None = None,
+) -> RedirectResponse | None:
+    request_origin = _safe_return_origin(_request_origin(request))
+    if _request_host(request) not in PUBLIC_APP_HOSTS or request_origin == BASE_URL:
+        return None
+    query = urlencode({
+        "remember": "1" if remember else "0",
+        "return_origin": _safe_return_origin(return_origin or request_origin),
+    })
+    return RedirectResponse(f"{BASE_URL}/api/auth/{provider}/login?{query}", status_code=302)
+
+
+def _build_login_redirect(
+    provider: str,
+    request: Request,
+    auth_url: str,
+    params: dict,
+    remember: bool,
+    return_origin: str | None = None,
+) -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     params = {**params, "state": state, "redirect_uri": _redirect_uri(provider, request)}
     url = f"{auth_url}?{urlencode(params)}"
     resp = RedirectResponse(url, status_code=302)
     _set_state_cookie(resp, state, request)
     _set_remember_cookie(resp, remember, request)
-    _set_return_cookie(resp, request)
+    _set_return_cookie(resp, request, return_origin)
     return resp
 
 
 @router.get("/kakao/login")
-def kakao_login(request: Request, remember: int = 0):
+def kakao_login(request: Request, remember: int = 0, return_origin: str | None = None):
     _require("kakao", KAKAO_CLIENT_ID)
+    central = _central_login_redirect("kakao", request, bool(remember), return_origin)
+    if central is not None:
+        return central
     # scope 생략: 카카오는 별도 scope 없이도 id를 반환함
     return _build_login_redirect(
         "kakao",
@@ -239,24 +267,32 @@ def kakao_login(request: Request, remember: int = 0):
         "https://kauth.kakao.com/oauth/authorize",
         {"client_id": KAKAO_CLIENT_ID, "response_type": "code"},
         remember=bool(remember),
+        return_origin=return_origin,
     )
 
 
 @router.get("/naver/login")
-def naver_login(request: Request, remember: int = 0):
+def naver_login(request: Request, remember: int = 0, return_origin: str | None = None):
     _require("naver", NAVER_CLIENT_ID, NAVER_CLIENT_SECRET)
+    central = _central_login_redirect("naver", request, bool(remember), return_origin)
+    if central is not None:
+        return central
     return _build_login_redirect(
         "naver",
         request,
         "https://nid.naver.com/oauth2.0/authorize",
         {"client_id": NAVER_CLIENT_ID, "response_type": "code"},
         remember=bool(remember),
+        return_origin=return_origin,
     )
 
 
 @router.get("/google/login")
-def google_login(request: Request, remember: int = 0):
+def google_login(request: Request, remember: int = 0, return_origin: str | None = None):
     _require("google", GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+    central = _central_login_redirect("google", request, bool(remember), return_origin)
+    if central is not None:
+        return central
     # openid: sub 클레임만 필요. profile/email 요청 안 함.
     return _build_login_redirect(
         "google",
@@ -264,6 +300,7 @@ def google_login(request: Request, remember: int = 0):
         "https://accounts.google.com/o/oauth2/v2/auth",
         {"client_id": GOOGLE_CLIENT_ID, "response_type": "code", "scope": "openid"},
         remember=bool(remember),
+        return_origin=return_origin,
     )
 
 

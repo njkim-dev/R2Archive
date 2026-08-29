@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import useStore from '../store/useStore'
 import { filterSongs } from '../utils/helpers'
 
@@ -21,6 +21,8 @@ export default function FilterSheet() {
 
   const [sBpmMin, setSBpmMin] = useState(bpmMin)
   const [sBpmMax, setSBpmMax] = useState(bpmMax)
+  const sheetRef = useRef(null)
+  const previousFocusRef = useRef(null)
 
   useEffect(() => {
     if (mobileSheetOpen) {
@@ -28,6 +30,52 @@ export default function FilterSheet() {
       setSBpmMax(bpmMax)
     }
   }, [mobileSheetOpen])
+
+  useEffect(() => {
+    if (!mobileSheetOpen) return undefined
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const backgroundElements = [...(sheetRef.current?.parentElement?.children || [])]
+      .filter(element => !element.classList.contains('mob-backdrop') && !element.classList.contains('mob-sheet'))
+      .map(element => ({ element, ariaHidden: element.getAttribute('aria-hidden'), inert: element.inert }))
+    backgroundElements.forEach(({ element }) => {
+      element.inert = true
+      element.setAttribute('aria-hidden', 'true')
+    })
+    const frame = requestAnimationFrame(() => {
+      sheetRef.current?.querySelector('button:not([disabled]), input:not([disabled])')?.focus()
+    })
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeMobileSheet()
+        return
+      }
+      if (e.key !== 'Tab' || !sheetRef.current) return
+      const focusable = [...sheetRef.current.querySelectorAll('button:not([disabled]), input:not([disabled])')]
+        .filter(element => element.getClientRects().length > 0)
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKeyDown)
+      backgroundElements.forEach(({ element, ariaHidden, inert }) => {
+        element.inert = inert
+        if (ariaHidden == null) element.removeAttribute('aria-hidden')
+        else element.setAttribute('aria-hidden', ariaHidden)
+      })
+      requestAnimationFrame(() => previousFocusRef.current?.focus?.())
+    }
+  }, [mobileSheetOpen, closeMobileSheet])
 
   const previewCount = useMemo(() => {
     const { levelMin, levelMax } = useStore.getState()
@@ -51,17 +99,30 @@ export default function FilterSheet() {
     setSBpmMax(meta?.bpm_max ?? 220)
   }
 
+  if (!mobileSheetOpen) return null
+
   return (
     <>
       <div
-        className={`mob-backdrop${mobileSheetOpen ? ' open' : ''}`}
+        className="mob-backdrop open"
         onClick={closeMobileSheet}
+        aria-hidden="true"
       />
-      <section className={`mob-sheet${mobileSheetOpen ? ' open' : ''}`} role="dialog" aria-label="필터">
+      <section
+        ref={sheetRef}
+        className="mob-sheet open"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-filter-title"
+        tabIndex={-1}
+      >
         <div className="mob-sheet-handle" />
         <div className="mob-sheet-head">
-          <div className="mob-sheet-title">필터 / 정렬</div>
-          <button className="mob-sheet-reset" onClick={handleBpmReset}>BPM 초기화</button>
+          <h2 className="mob-sheet-title" id="mobile-filter-title">필터 / 정렬</h2>
+          <div className="mob-sheet-actions">
+            <button className="mob-sheet-reset" onClick={handleBpmReset}>BPM 초기화</button>
+            <button className="mob-sheet-close" onClick={closeMobileSheet} aria-label="필터 닫기">×</button>
+          </div>
         </div>
 
         <div className="mob-sheet-group">
@@ -73,6 +134,7 @@ export default function FilterSheet() {
             <input
               className="mob-range-num mono"
               type="number" min="40" max="300" step="1"
+              aria-label="BPM 최솟값"
               value={sBpmMin}
               onChange={e => setSBpmMin(+e.target.value)}
               onBlur={() => { if (sBpmMin > sBpmMax) { setSBpmMin(sBpmMax); setSBpmMax(sBpmMin) } }}
@@ -81,6 +143,7 @@ export default function FilterSheet() {
             <input
               className="mob-range-num mono"
               type="number" min="40" max="300" step="1"
+              aria-label="BPM 최댓값"
               value={sBpmMax}
               onChange={e => setSBpmMax(+e.target.value)}
               onBlur={() => { if (sBpmMin > sBpmMax) { setSBpmMin(sBpmMax); setSBpmMax(sBpmMin) } }}
@@ -103,6 +166,7 @@ export default function FilterSheet() {
                     <button
                       key={opt.dir}
                       className={`mob-sort-tog${sort.key === row.key && sort.dir === opt.dir ? ' on' : ''}`}
+                      aria-pressed={sort.key === row.key && sort.dir === opt.dir}
                       onClick={() => { setSortDirect({ key: row.key, dir: opt.dir }); closeMobileSheet() }}
                     >
                       {opt.label}

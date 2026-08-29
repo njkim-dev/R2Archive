@@ -10,6 +10,7 @@ Tesseract 한 줄(PSM 7) + 숫자/점 화이트리스트로 인식 후,
 import io
 import logging
 import re
+import warnings
 from typing import Optional
 
 from fastapi import APIRouter, File, Request, UploadFile
@@ -17,13 +18,15 @@ from PIL import Image, ImageOps
 import pytesseract
 
 from auth import require_user_id
-from rate_limit import limiter
+from rate_limit import limiter, user_key
 
 logger = logging.getLogger("ocr.screenshot")
 
 router = APIRouter(prefix="/api", tags=["screenshot"])
 
 _MAX_BYTES = 10 * 1024 * 1024
+_ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP"}
+_TESSERACT_TIMEOUT_SEC = 5
 _MAX_DIMENSION = 4000          # 가로/세로 각각의 한도
 _MAX_PIXELS = 16 * 1024 * 1024  # 16MP — decompression bomb 방지
 
@@ -86,7 +89,7 @@ def _crop(img: Image.Image) -> Image.Image:
 
 
 @router.post("/parse-screenshot")
-@limiter.limit("60/hour")
+@limiter.limit("20/hour", key_func=user_key)
 async def parse_screenshot(request: Request, image: UploadFile = File(...)):
     # 로그인 필수 — Pillow 공격 표면 축소. 기록 업로드 흐름에서만 호출됨.
     require_user_id(request)
@@ -96,6 +99,12 @@ async def parse_screenshot(request: Request, image: UploadFile = File(...)):
         return {"judgment_percent": None, "error": "파일 용량이 너무 큽니다"}
 
     try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(content)) as candidate:
+                if candidate.format not in _ALLOWED_FORMATS:
+                    return {"judgment_percent": None, "error": "지원하지 않는 이미지 형식입니다."}
+                candidate.verify()
         img = Image.open(io.BytesIO(content))
         # 픽셀 디코드 전에 헤더의 dimension부터 검사 — decompression bomb 방어.
         w, h = img.size
@@ -121,7 +130,11 @@ async def parse_screenshot(request: Request, image: UploadFile = File(...)):
             continue
         for cfg in _TESS_CONFIGS:
             try:
-                text = pytesseract.image_to_string(bw, config=cfg)
+                text = pytesseract.image_to_string(
+                    bw,
+                    config=cfg,
+                    timeout=_TESSERACT_TIMEOUT_SEC,
+                )
             except Exception as e:
                 logger.warning("[ocr] tesseract 실패 (inv=%s cfg=%s): %s", inverted, cfg, e)
                 continue

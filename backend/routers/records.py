@@ -1,12 +1,14 @@
 import os
 import re
 import uuid
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 import httpx
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -18,6 +20,7 @@ from routers.songs import ensure_active_song, get_active_song_combo
 
 _YT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{11}$')
 _ALLOWED_IMG_EXT = {"png", "jpg", "jpeg", "webp"}
+_CANONICAL_IMG_EXT = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
 _ALLOWED_IMG_FORMATS = {"PNG", "JPEG", "WEBP"}  # Pillow가 보고하는 format 명
 _MAX_IMG_DIMENSION = 4000  # 메모리 폭탄 방지 — 가로/세로 각각 4000px 한도
 _SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent.parent / "record_screenshots"
@@ -62,8 +65,6 @@ async def _fetch_youtube_title(url: str) -> str | None:
 
 
 def _mask_nickname(nickname: str, visibility: str, is_mine: bool) -> str:
-    if visibility == "anonymous" and not is_mine:
-        return "익명"
     return nickname or ""
 
 
@@ -130,12 +131,25 @@ def get_records(request: Request, song_id: int):
                     r.is_play_video = TRUE
                     OR (
                       r.judgment_percent IS NULL
-                      AND (r.visibility <> 'private' OR r.user_id = %s)
+                      AND (
+                        r.visibility = 'public'
+                        OR r.user_id = %s
+                        OR (
+                          r.visibility = 'group'
+                          AND %s IS NOT NULL
+                          AND r.user_id IS NOT NULL
+                          AND EXISTS (
+                            SELECT 1 FROM group_members me
+                            JOIN group_members them ON them.group_id = me.group_id
+                            WHERE me.user_id = %s AND them.user_id = r.user_id
+                          )
+                        )
+                      )
                     )
                   )
                 ORDER BY r.score DESC NULLS LAST, r.created_at ASC
                 """,
-                (song_id, current_uid),
+                (song_id, current_uid, current_uid, current_uid),
             )
             rows = cur.fetchall()
     return [_row_to_response(r, current_uid) for r in rows]
@@ -172,7 +186,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                     LEFT JOIN users u ON u.id = r.user_id
                     WHERE r.song_id = %s
                       AND r.judgment_percent IS NOT NULL
-                      AND r.visibility IN ('public', 'anonymous')
+                      AND r.visibility = 'public'
                       -- manual + URL이면 랭킹 합류 (편집모드의 영상 인증)
                       AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                 ) t
@@ -325,8 +339,6 @@ async def upload_record_screenshot(
 
     # 매직바이트 검증 — 확장자만 믿지 않고 실제 이미지인지 확인.
     # verify()는 픽셀 디코드를 하지 않아 메모리/CPU 부담이 작음.
-    from io import BytesIO
-    from PIL import Image
     try:
         with Image.open(BytesIO(content)) as im:
             img_format = im.format
@@ -342,6 +354,23 @@ async def upload_record_screenshot(
             detail=f"이미지 크기가 너무 큽니다 (최대 {_MAX_IMG_DIMENSION}x{_MAX_IMG_DIMENSION})",
         )
 
+    try:
+        # Persist decoded pixels, not the original byte stream. This strips
+        # metadata and appended/polyglot payloads and normalizes the extension.
+        with Image.open(BytesIO(content)) as decoded:
+            decoded.load()
+            if decoded.mode not in {"RGB", "RGBA", "L"}:
+                decoded = decoded.convert("RGBA" if "A" in decoded.getbands() else "RGB")
+            if img_format == "JPEG" and decoded.mode != "RGB":
+                decoded = decoded.convert("RGB")
+            canonical = BytesIO()
+            save_kwargs = {"quality": 92} if img_format in {"JPEG", "WEBP"} else {"optimize": True}
+            decoded.save(canonical, format=img_format, **save_kwargs)
+            content = canonical.getvalue()
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(status_code=422, detail="이미지를 안전하게 처리할 수 없습니다.")
+
+    ext = _CANONICAL_IMG_EXT[img_format]
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = _SCREENSHOTS_DIR / filename
     with open(filepath, "wb") as f:

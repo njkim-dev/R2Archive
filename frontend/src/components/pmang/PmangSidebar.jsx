@@ -83,6 +83,13 @@ export default function PmangSidebar({
 
   return (
     <aside className="side">
+      <div className="brand">
+        <div className="brand-mark" aria-hidden="true">R2</div>
+        <div>
+          <h1 className="brand-title">R2Music Archive</h1>
+          <div className="brand-sub">Music Catalog</div>
+        </div>
+      </div>
       <ServerSwitcher />
 
       <div className="side-section">
@@ -91,8 +98,8 @@ export default function PmangSidebar({
           <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
             <span>곡 목록</span>
           </NavLink>
-          <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>음악 랭킹</span>
+          <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
+            <span>개인 성과</span>
           </NavLink>
           <NavLink
             to="/groups"
@@ -116,6 +123,11 @@ export default function PmangSidebar({
               <span>미출시곡</span>
             </NavLink>
           )}
+          {isAdmin && (
+            <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
+              <span>접속 통계</span>
+            </NavLink>
+          )}
           <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
             <span>피드백</span>
           </NavLink>
@@ -124,7 +136,7 @@ export default function PmangSidebar({
 
       <div className="side-section">
         <div className="side-label"><span>빠른 필터</span></div>
-        <div className="nav">
+        <div className="nav" role="group" aria-label="빠른 필터">
           {[
             { key: 'all',      label: '전체 곡',           count: filteredCounts.all },
             { key: 'popular',  label: '인기순',             count: filteredCounts.popular, adminOnly: true },
@@ -140,6 +152,8 @@ export default function PmangSidebar({
                 className={`${quick === key ? 'active' : ''}${disabled ? ' locked' : ''}`}
                 onClick={() => !disabled && setQuick(key)}
                 title={disabled ? '로그인 후 이용 가능' : undefined}
+                aria-pressed={quick === key}
+                aria-disabled={disabled}
               >
                 <span>{label}</span>
                 <span className="tag">{disabled ? '—' : count.toLocaleString()}</span>
@@ -151,13 +165,14 @@ export default function PmangSidebar({
 
       <div className="side-section">
         <div className="side-label"><span>카테고리</span></div>
-        <div className="cat-group">
+        <div className="cat-group" role="group" aria-label="난이도 카테고리">
           {CATEGORIES.map(({ key, label, rng, icon }) => (
             <button
               key={key}
               className={`cat-btn${category === key ? ' active' : ''}`}
               onClick={() => setCategory(key)}
               title={`${label} (난이도 ${rng})`}
+              aria-pressed={category === key}
             >
               {icon}
               <span>{label}</span>
@@ -176,6 +191,7 @@ export default function PmangSidebar({
           <input
             type="number" min={levelBounds[0]} max={levelBounds[1]} step="0.5"
             value={levelMin}
+            aria-label="난이도 최솟값"
             onChange={e => setLevelMin(+e.target.value)}
             onBlur={handleLvBlur}
           />
@@ -183,6 +199,7 @@ export default function PmangSidebar({
           <input
             type="number" min={levelBounds[0]} max={levelBounds[1]} step="0.5"
             value={levelMax}
+            aria-label="난이도 최댓값"
             onChange={e => setLevelMax(+e.target.value)}
             onBlur={handleLvBlur}
           />
@@ -204,6 +221,7 @@ export default function PmangSidebar({
             <input
               type="number" min={bpmBounds[0]} max={bpmBounds[1]} step="1"
               value={bpmMin}
+              aria-label="BPM 최솟값"
               onChange={e => setBpmMin(+e.target.value)}
               onBlur={handleBpmBlur}
             />
@@ -211,6 +229,7 @@ export default function PmangSidebar({
             <input
               type="number" min={bpmBounds[0]} max={bpmBounds[1]} step="1"
               value={bpmMax}
+              aria-label="BPM 최댓값"
               onChange={e => setBpmMax(+e.target.value)}
               onBlur={handleBpmBlur}
             />
@@ -222,17 +241,18 @@ export default function PmangSidebar({
         <div className="side-label">
           <span>아티스트</span>
           {selectedCount > 0 && (
-            <span className="ct" style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={clearArtists}>
-              {selectedCount}개 선택
-            </span>
+            <button className="ct side-clear-selection" onClick={clearArtists}>
+              {selectedCount}개 선택 해제
+            </button>
           )}
         </div>
-        <div className="chips">
+        <div className="chips" role="group" aria-label="아티스트 필터">
           {topArtists.map(a => (
             <button
               key={a}
               className={`chip${artists.has(a) ? ' on' : ''}`}
               onClick={() => toggleArtist(a)}
+              aria-pressed={artists.has(a)}
             >
               {a}
             </button>

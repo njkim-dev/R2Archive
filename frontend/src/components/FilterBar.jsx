@@ -3,7 +3,7 @@ import useStore from '../store/useStore'
 export default function FilterBar() {
   const {
     meta,
-    search, setSearch,
+    search, setSearch, excludeSearch,
     levelMin, levelMax, setLevelMin, setLevelMax,
     bpmMin, bpmMax, setBpmMin, setBpmMax,
     category, setCategory,
@@ -19,7 +19,7 @@ export default function FilterBar() {
     pills.push(
       <span key="cat" className="pill">
         {labels[category]}
-        <button onClick={() => setCategory(category)}>×</button>
+        <button onClick={() => setCategory(category)} aria-label={`${labels[category]} 필터 해제`}>×</button>
       </span>
     )
   }
@@ -28,7 +28,7 @@ export default function FilterBar() {
     pills.push(
       <span key="lv" className="pill">
         난이도 <b>{levelMin?.toFixed(1)}~{levelMax?.toFixed(1)}</b>
-        <button onClick={() => { setLevelMin(meta?.level_min); setLevelMax(meta?.level_max) }}>×</button>
+        <button onClick={() => { setLevelMin(meta?.level_min); setLevelMax(meta?.level_max) }} aria-label="난이도 필터 해제">×</button>
       </span>
     )
   }
@@ -37,7 +37,7 @@ export default function FilterBar() {
     pills.push(
       <span key="bpm" className="pill">
         BPM <b>{bpmMin}~{bpmMax}</b>
-        <button onClick={() => { setBpmMin(meta?.bpm_min); setBpmMax(meta?.bpm_max) }}>×</button>
+        <button onClick={() => { setBpmMin(meta?.bpm_min); setBpmMax(meta?.bpm_max) }} aria-label="BPM 필터 해제">×</button>
       </span>
     )
   }
@@ -55,7 +55,7 @@ export default function FilterBar() {
     pills.push(
       <span key="quick" className="pill">
         {labels[quick] ?? quick}
-        <button onClick={() => setQuick('all')}>×</button>
+        <button onClick={() => setQuick('all')} aria-label={`${labels[quick] ?? quick} 필터 해제`}>×</button>
       </span>
     )
   }
@@ -64,7 +64,7 @@ export default function FilterBar() {
     pills.push(
       <span key={`artist:${a}`} className="pill">
         {a}
-        <button onClick={() => toggleArtist(a)}>×</button>
+        <button onClick={() => toggleArtist(a)} aria-label={`${a} 아티스트 필터 해제`}>×</button>
       </span>
     )
   })
@@ -72,8 +72,8 @@ export default function FilterBar() {
   if (search) {
     pills.push(
       <span key="search" className="pill">
-        검색 <b>"{search}"</b>
-        <button onClick={() => setSearch('')}>×</button>
+        {excludeSearch ? '검색 제외' : '검색'} <b>"{search}"</b>
+        <button onClick={() => setSearch('')} aria-label="검색어 필터 해제">×</button>
       </span>
     )
   }

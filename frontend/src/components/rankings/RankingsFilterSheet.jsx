@@ -4,7 +4,7 @@ import useRankingsStore from '../../store/useRankingsStore'
 const SORT_ROWS = [
   { key: 'idx', label: '날짜', opts: [{ dir: 'desc', label: '최신곡순' }, { dir: 'asc', label: '구곡순' }] },
   { key: 'level', label: '난이도', opts: [{ dir: 'desc', label: '높은 순' }, { dir: 'asc', label: '낮은 순' }] },
-  { key: 'rankScore', label: '랭킹 판정', opts: [{ dir: 'desc', label: '높은 순' }, { dir: 'asc', label: '낮은 순' }] },
+  { key: 'rankScore', label: '성과 판정', opts: [{ dir: 'desc', label: '높은 순' }, { dir: 'asc', label: '낮은 순' }] },
   { key: 'myScore', label: '내 판정', opts: [{ dir: 'desc', label: '높은 순' }, { dir: 'asc', label: '낮은 순' }] },
   { key: 'name', label: '곡명', opts: [{ dir: 'asc', label: '오름차순' }, { dir: 'desc', label: '내림차순' }] },
 ]
@@ -38,7 +38,7 @@ export default function RankingsFilterSheet({ open, onClose }) {
   return (
     <>
       <div className={`mob-backdrop${open ? ' open' : ''}`} onClick={onClose} />
-      <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="랭킹 필터">
+      <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="개인 성과 필터">
         <div className="mob-sheet-handle" />
         <div className="mob-sheet-head">
           <div className="mob-sheet-title">필터 / 정렬</div>

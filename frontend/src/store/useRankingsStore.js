@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { getRankings, searchRankingUsers, getUserRankingRecords, getMyRecords, saveManualRecords } from '../api/client'
 
-// 랭킹 페이지 전용 상태. useStore(전역)는 user/songs만 공유하고, 랭킹 필터·집계는 분리.
+// 개인 성과 페이지 전용 상태. useStore(전역)는 user/songs만 공유하고, 성과 필터·집계는 분리.
 const useRankingsStore = create((set, get) => ({
   rankings: [],
   rankingsBySong: new Map(),
@@ -32,7 +32,7 @@ const useRankingsStore = create((set, get) => ({
   search: '',
   searchMode: 'song',
   quick: 'all',
-  // 모바일 칩에서 '랭킹있음'을 카테고리/내기록과 동시 선택 가능하게 하기 위한 독립 플래그.
+  // 모바일 칩에서 '성과있음'을 카테고리/내성과와 동시 선택 가능하게 하기 위한 독립 플래그.
   // RankingsPage rows useMemo에서 quick과 AND로 적용된다.
   flagRanked: false,
   levelMin: 1,

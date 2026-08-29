@@ -18,14 +18,46 @@ function distinctSongCount(items) {
   return keys.size
 }
 
+function CatalogLoadingState({ isMobile }) {
+  const count = isMobile ? 7 : 10
+  return (
+    <div className={`catalog-loading${isMobile ? ' mobile' : ''}`} role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">곡 목록을 불러오는 중입니다.</span>
+      <div className="catalog-loading-label" aria-hidden="true">곡 목록을 불러오는 중입니다</div>
+      <div className="catalog-skeleton-list" aria-hidden="true">
+        {Array.from({ length: count }, (_, index) => (
+          <div className="catalog-skeleton-row" key={index}>
+            <span className="catalog-skeleton-thumb" />
+            <span className="catalog-skeleton-lines"><i /><i /></span>
+            <span className="catalog-skeleton-value" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CatalogErrorState({ message, onRetry, isMobile }) {
+  return (
+    <div className={`catalog-error${isMobile ? ' mobile' : ''}`} role="alert">
+      <div className="catalog-error-icon" aria-hidden="true">!</div>
+      <h2>곡 목록을 불러오지 못했습니다</h2>
+      <p>{message}</p>
+      <button type="button" onClick={onRetry}>다시 시도</button>
+    </div>
+  )
+}
+
 export default function SongsPage() {
   const isMobile = useMobile(isXyxMode() ? 1100 : 768)
   const {
-    songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
+    songs, search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll,
     meta, setCategory, setQuick, isAdmin, modalOpen,
+    loading, error, loadCatalog,
   } = useStore()
+  const effectiveExcludeSearch = !isMobile && excludeSearch
 
   useEffect(() => {
     if (quick === 'popular' && !isAdmin) setQuick('all')
@@ -36,17 +68,17 @@ export default function SongsPage() {
     // OFF면 채널별 분리된 played를 그대로 사용해 중복 표시를 피한다.
     const playedForFilter = category ? playedAll : played
     const { exact, fuzzy } = filterSongs(songs, {
-      search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
+      search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
       artists, favorites, played: playedForFilter,
     })
     const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
     return { exact: sortSongs(exact, effectiveSort), fuzzy: sortSongs(fuzzy, effectiveSort) }
-  }, [songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
-    if (!search.trim() || !category) return null
+    if (effectiveExcludeSearch || !search.trim() || !category) return null
     const levelBounds = {
       levelMin: meta?.level_min ?? levelMin,
       levelMax: meta?.level_max ?? levelMax,
@@ -73,13 +105,18 @@ export default function SongsPage() {
     return {
       onApply: () => setCategory(category),
     }
-  }, [search, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory])
 
   if (isMobile) {
     return (
       <div className="app-mobile" data-cat={category || undefined}>
         <MobileHeader totalFiltered={totalFiltered} />
-        <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} />
+        {loading
+          ? <CatalogLoadingState isMobile />
+          : error
+            ? <CatalogErrorState message={error} onRetry={loadCatalog} isMobile />
+            : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} />
+        }
         <FilterSheet />
       </div>
     )
@@ -89,16 +126,21 @@ export default function SongsPage() {
 
   return (
     <div className={`app${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
-      <Sidebar songs={songs} filtered={filtered.exact} />
+      <Sidebar songs={songs} filtered={filtered.exact} loading={loading} error={error} />
       <main className="main">
-        <TopBar filteredCount={totalFiltered} totalCount={songs.length} />
-        <FilterBar />
-        <SongsTable
-          exact={filtered.exact}
-          fuzzy={filtered.fuzzy}
-          categorySuggestion={categorySuggestion}
-          compact={catalogPanelOpen}
-        />
+        <TopBar filteredCount={totalFiltered} totalCount={songs.length} loading={loading} error={error} showOriginalBpmToggle />
+        {!loading && !error && <FilterBar />}
+        {loading
+          ? <CatalogLoadingState />
+          : error
+            ? <CatalogErrorState message={error} onRetry={loadCatalog} />
+            : <SongsTable
+                exact={filtered.exact}
+                fuzzy={filtered.fuzzy}
+                categorySuggestion={categorySuggestion}
+                compact={catalogPanelOpen}
+              />
+        }
       </main>
     </div>
   )

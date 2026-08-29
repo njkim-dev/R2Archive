@@ -23,11 +23,12 @@ export default function RemovedSongsPage() {
   const isMobile = useMobile(isXyxMode() ? 1100 : 768)
   const {
     authLoaded, user, isAdmin, openLogin,
-    search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
+    search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll, meta, setCategory, setCategoryDirect,
     openModal, modalOpen,
   } = useStore()
+  const effectiveExcludeSearch = !isMobile && excludeSearch
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -66,16 +67,16 @@ export default function RemovedSongsPage() {
   const filtered = useMemo(() => {
     const playedForFilter = category ? playedAll : played
     const { exact, fuzzy } = filterSongs(songs, {
-      search, searchMode, levelMin, levelMax, bpmMin, bpmMax,
+      search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
       artists, favorites, played: playedForFilter,
     })
     return { exact: sortSongs(exact, sort), fuzzy: sortSongs(fuzzy, sort) }
-  }, [songs, search, searchMode, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
-    if (!search.trim() || !category) return null
+    if (effectiveExcludeSearch || !search.trim() || !category) return null
     const result = filterSongs(songs, {
       search,
       searchMode,
@@ -97,7 +98,7 @@ export default function RemovedSongsPage() {
     const expandedDistinct = distinctSongCount([...result.exact, ...result.fuzzy])
     if (expandedDistinct <= currentDistinct) return null
     return { onApply: () => setCategory(category) }
-  }, [search, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory])
 
   const stateMessage = !authLoaded || loading
     ? '불러오는 중...'

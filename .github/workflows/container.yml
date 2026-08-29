@@ -1,0 +1,70 @@
+name: Build R2Archive image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: r2archive-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-scan-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Test backend
+        run: |
+          python -m pip install --upgrade pip poetry
+          cd backend
+          poetry config virtualenvs.create false
+          poetry install --only main --no-interaction
+          python -m unittest discover -s tests -v
+
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ghcr.io/njkim-dev/r2archive:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ghcr.io/njkim-dev/r2archive:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push immutable image
+        run: docker push ghcr.io/njkim-dev/r2archive:${GITHUB_SHA}

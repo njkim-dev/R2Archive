@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link2, Check } from 'lucide-react'
 import useStore from '../../store/useStore'
 import { artworkBg, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 import { useMobile } from '../../hooks/useMobile'
-import { getPmangComments, addPmangComment, getPmangRecords, addPmangRecord } from '../../api/client'
+import { getPmangComments, addPmangComment, getPmangRecords, addPmangRecord, trackSongCatalogView } from '../../api/client'
 import { pmangSongCatalogHash } from '../../utils/catalogUrl'
 
 function catFromLevel(lv) {
@@ -279,6 +279,7 @@ function PmangCommentsTab({ song }) {
 }
 
 function PmangMobileDetail({
+  panelRef,
   song,
   tab,
   setTab,
@@ -295,7 +296,7 @@ function PmangMobileDetail({
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   return (
-    <div className="mob-detail open" data-cat={cat}>
+    <div ref={panelRef} className="mob-detail open" data-cat={cat} role="dialog" aria-modal="true" aria-label={`${song.name} 곡 상세`}>
       <div className="mob-detail-top scrolled">
         <button className="mob-detail-back" onClick={onClose} aria-label="닫기">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -414,6 +415,9 @@ export default function PmangSongModal({ song, onClose }) {
   const { user, pmangFavorites, togglePmangFavorite } = useStore()
   const [tab, setTab] = useState('records')
   const [copied, setCopied] = useState(false)
+  const panelRef = useRef(null)
+  const previousFocusRef = useRef(null)
+  const modalOpen = !!song
 
   useEffect(() => {
     if (!song) return
@@ -423,6 +427,32 @@ export default function PmangSongModal({ song, onClose }) {
   }, [song, onClose])
 
   useEffect(() => { if (song) setTab('records') }, [song?.id])
+
+  useEffect(() => {
+    if (!song?.id) return
+    trackSongCatalogView({
+      server: 'pmang',
+      song_id: song.id,
+    })
+  }, [song?.id])
+
+  useEffect(() => {
+    if (!modalOpen) return undefined
+    const triggerSongId = song?.id
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const frame = requestAnimationFrame(() => {
+      const selector = isMobile ? '.mob-detail-back' : '.m-close'
+      panelRef.current?.querySelector(selector)?.focus()
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      requestAnimationFrame(() => {
+        const songRow = triggerSongId ? document.querySelector(`[data-song-id="${triggerSongId}"]`) : null
+        if (songRow instanceof HTMLElement) songRow.focus()
+        else previousFocusRef.current?.focus?.()
+      })
+    }
+  }, [modalOpen, isMobile])
 
   useEffect(() => {
     if (!isMobile || !song) return
@@ -457,6 +487,7 @@ export default function PmangSongModal({ song, onClose }) {
   if (isMobile) {
     return (
       <PmangMobileDetail
+        panelRef={panelRef}
         song={song}
         tab={tab}
         setTab={setTab}
@@ -477,7 +508,7 @@ export default function PmangSongModal({ song, onClose }) {
       data-cat={catFromLevel(displayLv)}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal song-catalog-panel">
+      <aside ref={panelRef} className="modal song-catalog-panel" aria-label={`${song.name} 곡 상세`}>
         <div className="m-hero">
           <div className="m-top">
             <div className="m-breadcrumb">
@@ -570,22 +601,22 @@ export default function PmangSongModal({ song, onClose }) {
           ))}
         </div>
 
-        <div className="m-tabs">
+        <div className="m-tabs" role="tablist" aria-label="곡 상세 정보">
           {[
             { key: 'records',  label: '플레이 영상' },
             { key: 'comments', label: '댓글' },
           ].map(({ key, label }) => (
-            <button key={key} className={`m-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+            <button key={key} className={`m-tab${tab === key ? ' active' : ''}`} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
               {label}
             </button>
           ))}
         </div>
 
-        <div className="m-body">
+        <div className="m-body" role="tabpanel">
           {tab === 'records'  && <PmangRecordsTab song={song} />}
           {tab === 'comments' && <PmangCommentsTab song={song} />}
         </div>
-      </div>
+      </aside>
     </div>
   )
 }

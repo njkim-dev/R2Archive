@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
 import UserChip from '../components/UserChip'
-import { listFeedback, createFeedback, voteFeedback } from '../api/client'
+import { listFeedback, listSongFeedback, createFeedback, voteFeedback } from '../api/client'
 import { matchSong } from '../utils/helpers'
 import { useMobile } from '../hooks/useMobile'
 import FeedbackMobileHeader from '../components/feedback/FeedbackMobileHeader'
@@ -12,7 +12,7 @@ import ServerSwitcher from '../components/ServerSwitcher'
 
 const BUG_TYPES = [
   { v: 'data',    label: '데이터 오류',         desc: 'BPM·콤보·시간이 실제와 다를 때',   icon: '📊' },
-  { v: 'ranking', label: '랭킹/기록 문제',      desc: '잘못된 성과 등록·삭제 요청',       icon: '🏁' },
+  { v: 'record_issue', label: '기록 문제',          desc: '잘못된 성과 등록·삭제 요청',       icon: '🏁' },
   { v: 'comment', label: '부적절 댓글/게시물',  desc: '신고하고 싶은 콘텐츠',             icon: '🗯' },
   { v: 'ui',      label: '화면/동작 이상',      desc: 'UI가 깨지거나 버튼이 안 눌릴 때',  icon: '🖥' },
   { v: 'login',   label: '로그인/계정',         desc: '소셜 로그인·세션 관련',            icon: '🔑' },
@@ -21,7 +21,7 @@ const BUG_TYPES = [
 
 const FEATURE_TYPES = [
   { v: 'search',    label: '검색·필터',     desc: '새로운 정렬·필터 옵션',  icon: '🔍' },
-  { v: 'ranking',   label: '랭킹·통계',     desc: '순위 표시 방식 개선',    icon: '🏆' },
+  { v: 'record_stats',   label: '기록·통계',     desc: '기록 표시 방식 개선',    icon: '🏆' },
   { v: 'community', label: '커뮤니티',      desc: '게시판·댓글 기능',       icon: '💬' },
   { v: 'record',    label: '성과 등록',     desc: '기록 입력·인증 방식',    icon: '🎯' },
   { v: 'ux',        label: 'UX·디자인',     desc: '사용성 개선 제안',       icon: '🎨' },
@@ -30,8 +30,29 @@ const FEATURE_TYPES = [
 
 const TYPE_LABEL = { ...Object.fromEntries(BUG_TYPES.map(t => [t.v, [t.label, t.icon]])),
                      ...Object.fromEntries(FEATURE_TYPES.map(t => [t.v, [t.label, t.icon]])) }
+TYPE_LABEL.ranking = ['기록 문제', '🏁']
 const STATUS_LABEL = { open: '접수', in_review: '검토 중', resolved: '해결됨', rejected: '거부됨' }
 const SEVERITY_LABEL = { low: '낮음', med: '중간', high: '높음' }
+const SONG_FEEDBACK_TYPE_LABEL = {
+  bpm: 'BPM 오류',
+  combo: '콤보 오류',
+  time: '재생 시간 오류',
+  record_delete: '잘못된 성과 삭제 요청',
+  comment_delete: '부적절 댓글 삭제 요청',
+}
+const SONG_FEEDBACK_STATUS_LABEL = { received: '접수', processing: '처리 중', completed: '완료' }
+const APP_STATUS_OPTIONS = [
+  { v: 'all', label: '전체' },
+  { v: 'open', label: '접수' },
+  { v: 'in_review', label: '검토 중' },
+  { v: 'resolved', label: '해결됨' },
+]
+const SONG_FEEDBACK_STATUS_OPTIONS = [
+  { v: 'all', label: '전체' },
+  { v: 'received', label: '접수' },
+  { v: 'processing', label: '처리 중' },
+  { v: 'completed', label: '완료' },
+]
 
 function fmtRel(at) {
   if (!at) return ''
@@ -55,7 +76,7 @@ function PageNav() {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -72,6 +93,7 @@ function PageNav() {
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
+        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
       </div>
     </div>
@@ -206,7 +228,7 @@ function ComposeCard({ tab, onSubmitted }) {
               ref={songInputRef}
               type="text"
               className="fb-input"
-              placeholder="곡명·아티스트 검색…"
+              placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
               value={songQuery}
               onChange={e => { setSongQuery(e.target.value); setPickedSong(null); setShowSuggest(true) }}
               onFocus={() => setShowSuggest(true)}
@@ -355,28 +377,84 @@ function FeedbackItem({ item, onVote }) {
   )
 }
 
+function SongFeedbackItem({ item }) {
+  const songTitle = item.song_name
+    ? `${item.song_name} · ${item.artist || '아티스트 없음'}`
+    : `삭제되었거나 찾을 수 없는 곡 #${item.song_id}`
+  const anon = item.anon_id ? item.anon_id.slice(-8) : 'unknown'
+
+  return (
+    <article className="fb-item fb-song-feedback-item">
+      <div className="fb-song-feedback-id mono">#{item.id}</div>
+      <div className="fb-main">
+        <div className="fb-meta">
+          <span className="fb-badge type">{SONG_FEEDBACK_TYPE_LABEL[item.type] || item.type}</span>
+          <span className={`fb-badge status ${item.status}`}>{SONG_FEEDBACK_STATUS_LABEL[item.status] || item.status}</span>
+          <span className="fb-badge song">익명 {anon}</span>
+        </div>
+        <h4 className="fb-title">{songTitle}</h4>
+        <div className="fb-song-feedback-sub mono">
+          song_id {item.song_id}
+          {item.level != null && <> · Lv {Number(item.level).toFixed(1)}</>}
+        </div>
+        <p className="fb-body">{item.body}</p>
+        {item.admin_note && <p className="fb-body fb-admin-note">관리자 메모: {item.admin_note}</p>}
+        <div className="fb-foot">
+          <span className="fb-muted">{fmtRel(item.created_at)}</span>
+          {item.resolved_at && (
+            <>
+              <span className="fb-muted">·</span>
+              <span className="fb-muted">처리 {fmtRel(item.resolved_at)}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </article>
+  )
+}
+
 // ---------- Page ----------
 export default function FeedbackPage() {
   const isMobile = useMobile()
-  const { user, openLogin } = useStore()
+  const { user, openLogin, isAdmin } = useStore()
   const [tab, setTab] = useState('bug')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [composeOpen, setComposeOpen] = useState(false)
+  const isSongFeedbackTab = tab === 'song_feedback'
+  const statusOptions = isSongFeedbackTab ? SONG_FEEDBACK_STATUS_OPTIONS : APP_STATUS_OPTIONS
+
+  const handleTabChange = (nextTab) => {
+    setTab(nextTab)
+    setStatusFilter('all')
+    setSearch('')
+  }
 
   const fetchList = async () => {
+    if (isSongFeedbackTab && !isAdmin) {
+      setItems([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
-      const data = await listFeedback({ tab, status: statusFilter, q: search })
+      const data = isSongFeedbackTab
+        ? await listSongFeedback({ status: statusFilter, q: search })
+        : await listFeedback({ tab, status: statusFilter, q: search })
       setItems(data)
     } catch {
       setItems([])
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { fetchList() /* eslint-disable-line */ }, [tab, statusFilter])
+  useEffect(() => {
+    if (tab === 'song_feedback' && !isAdmin) handleTabChange('bug')
+    // eslint-disable-next-line
+  }, [tab, isAdmin])
+
+  useEffect(() => { fetchList() /* eslint-disable-line */ }, [tab, statusFilter, isAdmin])
 
   // 검색은 디바운스
   useEffect(() => {
@@ -410,28 +488,26 @@ export default function FeedbackPage() {
       <div className="app-mobile">
         <FeedbackMobileHeader
           tab={tab}
-          onTabChange={setTab}
+          onTabChange={handleTabChange}
           search={search}
           onSearchChange={setSearch}
+          searchPlaceholder={isSongFeedbackTab ? '곡명 · 아티스트 · 내용 검색' : '제목 · 내용 검색'}
         />
         <div className="fb-mob-body">
-          <button
-            className="fb-mob-cta"
-            onClick={() => { if (!user) { openLogin(); return } setComposeOpen(true) }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            {tab === 'bug' ? '버그 신고하기' : '기능 제안하기'}
-          </button>
+          {!isSongFeedbackTab && (
+            <button
+              className="fb-mob-cta"
+              onClick={() => { if (!user) { openLogin(); return } setComposeOpen(true) }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              {tab === 'bug' ? '버그 신고하기' : '기능 제안하기'}
+            </button>
+          )}
 
           <div className="fb-mob-status">
-            {[
-              { v: 'all', label: '전체' },
-              { v: 'open', label: '접수' },
-              { v: 'in_review', label: '검토 중' },
-              { v: 'resolved', label: '해결됨' },
-            ].map(s => (
+            {statusOptions.map(s => (
               <button
                 key={s.v}
                 className={`fb-mob-status-chip${statusFilter === s.v ? ' on' : ''}`}
@@ -454,18 +530,22 @@ export default function FeedbackPage() {
           ) : (
             <div className="fb-mob-list">
               {items.map(item => (
-                <FeedbackItem key={item.id} item={item} onVote={handleVote} />
+                isSongFeedbackTab
+                  ? <SongFeedbackItem key={item.id} item={item} />
+                  : <FeedbackItem key={item.id} item={item} onVote={handleVote} />
               ))}
             </div>
           )}
         </div>
 
-        <FeedbackComposeSheet
-          open={composeOpen}
-          tab={tab}
-          onClose={() => setComposeOpen(false)}
-          onSubmitted={handleSubmitted}
-        />
+        {!isSongFeedbackTab && (
+          <FeedbackComposeSheet
+            open={composeOpen}
+            tab={tab}
+            onClose={() => setComposeOpen(false)}
+            onSubmitted={handleSubmitted}
+          />
+        )}
       </div>
     )
   }
@@ -492,43 +572,49 @@ export default function FeedbackPage() {
           <div className="fb-tabs">
             <button
               className={tab === 'bug' ? 'on' : ''}
-              onClick={() => setTab('bug')}
+              onClick={() => handleTabChange('bug')}
             >
               <span>🐞 버그 신고</span>
               {tab === 'bug' && <span className="fb-tab-ct mono">{items.length}</span>}
             </button>
             <button
               className={tab === 'feature' ? 'on' : ''}
-              onClick={() => setTab('feature')}
+              onClick={() => handleTabChange('feature')}
             >
               <span>✨ 기능 개선</span>
               {tab === 'feature' && <span className="fb-tab-ct mono">{items.length}</span>}
             </button>
+            {isAdmin && (
+              <button
+                className={tab === 'song_feedback' ? 'on' : ''}
+                onClick={() => handleTabChange('song_feedback')}
+              >
+                <span>음악별 피드백</span>
+                {tab === 'song_feedback' && <span className="fb-tab-ct mono">{items.length}</span>}
+              </button>
+            )}
           </div>
 
-          <ComposeCard tab={tab} onSubmitted={handleSubmitted} />
+          {!isSongFeedbackTab && <ComposeCard tab={tab} onSubmitted={handleSubmitted} />}
 
-          <div className="fb-card" style={{ marginTop: 24 }}>
+          <div className="fb-card" style={{ marginTop: isSongFeedbackTab ? 0 : 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div>
                 <h2 className="fb-card-title" style={{ marginBottom: 2 }}>
-                  {tab === 'bug' ? '최근 신고된 버그' : '최근 제안된 기능'}{' '}
+                  {isSongFeedbackTab ? '음악별 피드백' : tab === 'bug' ? '최근 신고된 버그' : '최근 제안된 기능'}{' '}
                   <span className="fb-muted mono" style={{ fontWeight: 400, fontSize: 12 }}>{items.length}건</span>
                 </h2>
                 <p className="fb-card-desc" style={{ margin: 0, fontSize: 11.5 }}>
-                  제출된 피드백은 운영팀이 검토 후 반영합니다
+                  {isSongFeedbackTab
+                    ? '음악 카탈로그에서 제출된 곡별 문의를 확인합니다'
+                    : '제출된 피드백은 운영팀이 검토 후 반영합니다'}
                 </p>
               </div>
             </div>
 
             <div className="fb-filter-row">
               <div className="fb-seg">
-                {[
-                  { v: 'all', label: '전체' },
-                  { v: 'open', label: '접수' },
-                  { v: 'in_review', label: '검토 중' },
-                  { v: 'resolved', label: '해결됨' },
-                ].map(s => (
+                {statusOptions.map(s => (
                   <button
                     key={s.v}
                     className={statusFilter === s.v ? 'on' : ''}
@@ -540,7 +626,7 @@ export default function FeedbackPage() {
                 type="search"
                 className="fb-input"
                 style={{ maxWidth: 240, padding: '7px 12px' }}
-                placeholder="제목·내용 검색…"
+                placeholder={isSongFeedbackTab ? '곡명·아티스트·내용 검색…' : '제목·내용 검색…'}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -557,7 +643,9 @@ export default function FeedbackPage() {
             ) : (
               <div className="fb-list">
                 {items.map(item => (
-                  <FeedbackItem key={item.id} item={item} onVote={handleVote} />
+                  isSongFeedbackTab
+                    ? <SongFeedbackItem key={item.id} item={item} />
+                    : <FeedbackItem key={item.id} item={item} onVote={handleVote} />
                 ))}
               </div>
             )}

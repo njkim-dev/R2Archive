@@ -1,10 +1,11 @@
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class BpmPoint(BaseModel):
-    time: float   # seconds
+    time: float
     bpm: float
 
 
@@ -20,10 +21,13 @@ class SongListItem(BaseModel):
     id: int
     name: str
     korea_name: str = ""
+    xyx_name: str = ""
     artist: str
     level: float
     bpm: float
+    real_bpm: Optional[float] = None
     combo: int
+    combo_warning: bool = False
     time: str
     youtube_url: str
     is_new: bool
@@ -35,15 +39,21 @@ class SongListItem(BaseModel):
     user_level_avg: Optional[float] = None
     user_level_votes: int = 0
     aliases: list[str] = []
+    artist_aliases: list[str] = []
+    same_music_group_id: Optional[int] = None
 
 
 class SongDetail(BaseModel):
     id: int
     name: str
+    korea_name: str = ""
+    xyx_name: str = ""
     artist: str
     level: float
     bpm: float
+    real_bpm: Optional[float] = None
     combo: int
+    combo_warning: bool = False
     time: str
     youtube_url: str
     is_new: bool
@@ -72,7 +82,7 @@ class PlayLogCreate(BaseModel):
 
 
 class CommentCreate(BaseModel):
-    nickname: Optional[str] = Field(default=None, max_length=30)   # Null값을 받으면 서버에서 자동 부여
+    nickname: Optional[str] = Field(default=None, max_length=30)
     content: str = Field(min_length=1, max_length=1000)
     perceived_level: Optional[float] = Field(default=None, ge=0.5, le=12.0)
 
@@ -86,7 +96,6 @@ class CommentResponse(BaseModel):
 
 
 class PerceivedCreate(BaseModel):
-    # 로그인 사용자는 anon_id 생략 가능. 보내면 과거 익명 투표 자동 승계용으로만 쓰임.
     anon_id: Optional[str] = Field(default=None, min_length=8, max_length=64)
     level: float = Field(ge=0.5, le=12.0)
     opinion: Optional[str] = Field(default=None, max_length=500)
@@ -105,18 +114,17 @@ class PerceivedDelete(BaseModel):
 class PerceivedStats(BaseModel):
     avg: Optional[float]
     total_votes: int
-    bins: list[int]             # 24 bins: 0.5 ~ 12.0 step 0.5
-    my_vote: Optional[dict]     # {"level": float, "opinion": str|null}
+    bins: list[int]
+    my_vote: Optional[dict]
 
 
 class FeedbackCreate(BaseModel):
     anon_id: str = Field(min_length=8, max_length=64)
-    type: str = Field(max_length=30)   # bpm | combo | time | record_delete | comment_delete
+    type: str = Field(max_length=30)
     body: str = Field(min_length=1, max_length=2000)
 
 
 class RecordCreate(BaseModel):
-    # 기존 YouTube URL 기반 등록과, 스크린샷 판정 기반 등록이 같은 테이블을 공유.
     anon_id: Optional[str] = Field(default=None, max_length=64)
     nickname: str = Field(min_length=1, max_length=30)
     score: Optional[int] = Field(default=None, ge=0, le=99_999_999)
@@ -125,9 +133,7 @@ class RecordCreate(BaseModel):
     youtube_url: Optional[str] = Field(default=None, max_length=300)
     memo: Optional[str] = Field(default=None, max_length=500)
     memo_public: bool = False
-    # 개인 성과는 서버에 공개 여부를 요청에 담지 않음 -> 서버가 유저의 default_visibility를 사용하고 수신만 허용.
-    visibility: Optional[str] = Field(default=None, pattern=r"^(public|anonymous|private)$")
-    # True면 곡 상세 '플레이 영상' 탭에 visibility 무관하게 노출. 한마디(memo)도 공개로 간주.
+    visibility: Optional[str] = Field(default=None, pattern=r"^(public|group|private)$")
     register_as_play_video: bool = False
 
 
@@ -144,18 +150,14 @@ class RecordResponse(BaseModel):
     visibility: str = "public"
     is_mine: bool = False
     is_manual: bool = False
-    # 스크린샷이 업로드되어 있고 소유자가 공개(show_screenshot=true)한 경우에만 채워짐.
     screenshot_url: Optional[str] = None
-    # 소유자가 스크린샷/미디어 공유를 허용했는지 (버튼 노출 판단용)
     owner_show_screenshot: bool = False
     created_at: datetime
 
 
 class ManualRecordEntry(BaseModel):
     song_id: int = Field(ge=1)
-    # None 또는 빈 값으로 보내면 해당 곡의 manual 기록 삭제.
     judgment_percent: Optional[float] = Field(default=None, ge=0.0, le=99.0)
-    # 함께 저장할 YouTube URL. 입력되면 oEmbed 검증을 거치고, 통과 시 manual 기록이라도 랭킹에 합류.
     youtube_url: Optional[str] = Field(default=None, max_length=300)
 
 

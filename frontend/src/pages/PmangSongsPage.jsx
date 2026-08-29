@@ -76,6 +76,8 @@ function PmangMobileFilterSheet({
 }) {
   const [sBpmMin, setSBpmMin] = useState(bpmMin)
   const [sBpmMax, setSBpmMax] = useState(bpmMax)
+  const sheetRef = useRef(null)
+  const previousFocusRef = useRef(null)
 
   useEffect(() => {
     if (open) {
@@ -83,6 +85,52 @@ function PmangMobileFilterSheet({
       setSBpmMax(bpmMax)
     }
   }, [open, bpmMin, bpmMax])
+
+  useEffect(() => {
+    if (!open) return undefined
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const backgroundElements = [...(sheetRef.current?.parentElement?.children || [])]
+      .filter(element => !element.classList.contains('mob-backdrop') && !element.classList.contains('mob-sheet'))
+      .map(element => ({ element, ariaHidden: element.getAttribute('aria-hidden'), inert: element.inert }))
+    backgroundElements.forEach(({ element }) => {
+      element.inert = true
+      element.setAttribute('aria-hidden', 'true')
+    })
+    const frame = requestAnimationFrame(() => {
+      sheetRef.current?.querySelector('button:not([disabled]), input:not([disabled])')?.focus()
+    })
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !sheetRef.current) return
+      const focusable = [...sheetRef.current.querySelectorAll('button:not([disabled]), input:not([disabled])')]
+        .filter(element => element.getClientRects().length > 0)
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKeyDown)
+      backgroundElements.forEach(({ element, ariaHidden, inert }) => {
+        element.inert = inert
+        if (ariaHidden == null) element.removeAttribute('aria-hidden')
+        else element.setAttribute('aria-hidden', ariaHidden)
+      })
+      requestAnimationFrame(() => previousFocusRef.current?.focus?.())
+    }
+  }, [open, onClose])
 
   const previewCount = useMemo(() => {
     const { exact, fuzzy } = filterPmangSongs(songs, {
@@ -106,14 +154,19 @@ function PmangMobileFilterSheet({
     onClose()
   }
 
+  if (!open) return null
+
   return (
     <>
-      <div className={`mob-backdrop${open ? ' open' : ''}`} onClick={onClose} />
-      <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="피망 필터">
+      <div className="mob-backdrop open" onClick={onClose} aria-hidden="true" />
+      <section ref={sheetRef} className="mob-sheet open" role="dialog" aria-modal="true" aria-labelledby="pmang-mobile-filter-title" tabIndex={-1}>
         <div className="mob-sheet-handle" />
         <div className="mob-sheet-head">
-          <div className="mob-sheet-title">필터 / 정렬</div>
-          <button className="mob-sheet-reset" onClick={() => { setSBpmMin(bpmBounds[0]); setSBpmMax(bpmBounds[1]) }}>BPM 초기화</button>
+          <h2 className="mob-sheet-title" id="pmang-mobile-filter-title">필터 / 정렬</h2>
+          <div className="mob-sheet-actions">
+            <button className="mob-sheet-reset" onClick={() => { setSBpmMin(bpmBounds[0]); setSBpmMax(bpmBounds[1]) }}>BPM 초기화</button>
+            <button className="mob-sheet-close" onClick={onClose} aria-label="필터 닫기">×</button>
+          </div>
         </div>
 
         <div className="mob-sheet-group">
@@ -128,6 +181,7 @@ function PmangMobileFilterSheet({
               min={bpmBounds[0]}
               max={bpmBounds[1]}
               step="1"
+              aria-label="BPM 최솟값"
               value={sBpmMin ?? bpmBounds[0]}
               onChange={e => setSBpmMin(+e.target.value)}
             />
@@ -138,6 +192,7 @@ function PmangMobileFilterSheet({
               min={bpmBounds[0]}
               max={bpmBounds[1]}
               step="1"
+              aria-label="BPM 최댓값"
               value={sBpmMax ?? bpmBounds[1]}
               onChange={e => setSBpmMax(+e.target.value)}
             />
@@ -159,6 +214,7 @@ function PmangMobileFilterSheet({
                     <button
                       key={opt.dir}
                       className={`mob-sort-tog${sort.key === row.key && sort.dir === opt.dir ? ' on' : ''}`}
+                      aria-pressed={sort.key === row.key && sort.dir === opt.dir}
                       onClick={() => { setSortState({ key: row.key, dir: opt.dir }); onClose() }}
                     >
                       {opt.label}
@@ -243,8 +299,15 @@ export default function PmangSongsPage() {
     const onClick = (e) => {
       if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false)
     }
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setModeOpen(false)
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [])
 
   useEffect(() => {
@@ -398,12 +461,13 @@ export default function PmangSongsPage() {
     return (
       <div className="app-mobile" data-cat={category || undefined}>
         <div className="mob-top">
+          <h1 className="sr-only">R2Music Archive</h1>
           <div className="mob-top-inner">
             <div className="mob-top-row">
               <ServerSwitcher className="mob-server-switcher" />
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
-                <button className="mob-icon-btn" onClick={() => setMobileSheetOpen(true)} aria-label="필터">
+                <button className="mob-icon-btn" onClick={() => setMobileSheetOpen(true)} aria-label="필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
                   </svg>
@@ -434,7 +498,8 @@ export default function PmangSongsPage() {
               </svg>
               <input
                 type="text"
-                placeholder="곡명 또는 아티스트 검색"
+                placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
+                aria-label="과거 피망곡 곡명과 아티스트 검색"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -447,7 +512,7 @@ export default function PmangSongsPage() {
               )}
             </div>
 
-            <div className="mob-chips">
+            <div className="mob-chips" role="group" aria-label="곡 필터">
               {[
                 { key: 'all',  label: '전체' },
                 { key: 'star', label: '별' },
@@ -459,6 +524,7 @@ export default function PmangSongsPage() {
                   <button
                     key={c.key}
                     className={`mob-chip${isOn ? ' on' : ''}`}
+                    aria-pressed={isOn}
                     onClick={() => {
                       if (c.key === 'all') {
                         if (category) setCategory(category) // 같은 키 클릭 → 토글 OFF (PC와 동일)
@@ -472,24 +538,28 @@ export default function PmangSongsPage() {
               {user && (
                 <button
                   className={`mob-chip${quick === 'favorite' ? ' on' : ''}`}
+                  aria-pressed={quick === 'favorite'}
                   onClick={() => setQuick(quick === 'favorite' ? 'all' : 'favorite')}
                 >★ 즐겨찾기</button>
               )}
               {isAdmin && (
                 <button
                   className={`mob-chip${quick === 'youtube_candidates' ? ' on' : ''}`}
+                  aria-pressed={quick === 'youtube_candidates'}
                   onClick={() => setQuick(quick === 'youtube_candidates' ? 'all' : 'youtube_candidates')}
                 >후보곡</button>
               )}
               {isAdmin && (
                 <button
                   className={`mob-chip${quick === 'no_music' ? ' on' : ''}`}
+                  aria-pressed={quick === 'no_music'}
                   onClick={() => setQuick(quick === 'no_music' ? 'all' : 'no_music')}
                 >음악 없음</button>
               )}
               {isAdmin && (
                 <button
                   className={`mob-chip${quick === 'popular' ? ' on' : ''}`}
+                  aria-pressed={quick === 'popular'}
                   onClick={() => setQuick(quick === 'popular' ? 'all' : 'popular')}
                 >인기순</button>
               )}
@@ -566,6 +636,9 @@ export default function PmangSongsPage() {
                 type="button"
                 className="search-mode-btn"
                 onClick={() => setModeOpen(v => !v)}
+                aria-haspopup="menu"
+                aria-expanded={modeOpen}
+                aria-controls="pmang-search-mode-menu"
               >
                 <span className="search-mode-label">{currentMode.label}</span>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -573,12 +646,14 @@ export default function PmangSongsPage() {
                 </svg>
               </button>
               {modeOpen && (
-                <div className="search-mode-menu">
+                <div className="search-mode-menu" id="pmang-search-mode-menu" role="menu">
                   {SEARCH_MODES.map(m => (
                     <button
                       key={m.key}
                       type="button"
                       className={`search-mode-item${m.key === searchMode ? ' active' : ''}`}
+                      role="menuitemradio"
+                      aria-checked={m.key === searchMode}
                       onClick={() => { setSearchMode(m.key); setModeOpen(false); inputRef.current?.focus() }}
                     >
                       {m.label}
@@ -593,7 +668,8 @@ export default function PmangSongsPage() {
             <input
               ref={inputRef}
               type="text"
-              placeholder={`${currentMode.label}(으)로 검색…`}
+              placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
+              aria-label={`${currentMode.label} 검색`}
               value={search}
               onChange={e => setSearch(e.target.value)}
             />

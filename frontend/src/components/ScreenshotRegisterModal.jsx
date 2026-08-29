@@ -176,7 +176,7 @@ function UploadView({ shots, onAdd, onRemove, onStart, onClose }) {
   return (
     <>
       <div className="rr-head">
-        <h3>내 기록 등록 · 스크린샷 업로드</h3>
+        <h3>성과 등록 · 스크린샷 업로드</h3>
         {has && <div className="rr-prog">{shots.length}장 · 최대 {MAX_FILES}장</div>}
         <button className="rr-close" onClick={onClose} aria-label="닫기">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -396,7 +396,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
   return (
     <>
       <div className="rr-head">
-        <h3>내 기록 등록</h3>
+      <h3>성과 등록</h3>
         <div className="rr-prog">{idx + 1} / {total}</div>
         <button className="rr-close" onClick={() => {
           onClose()
@@ -497,7 +497,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
                   onChange={e => setMemoPublic(e.target.checked)}
                   style={{ width: 14, height: 14, margin: 0, padding: 0, flexShrink: 0, accentColor: 'var(--accent)' }}
                 />
-                <span>한마디 공개 (랭킹에서 닉네임 클릭 시 다른 사람도 볼 수 있음)</span>
+                <span>한마디 공개 (개인 성과에서 닉네임 클릭 시 다른 사람도 볼 수 있음)</span>
               </label>
               {youtubeUrl.trim() && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: 'var(--fg-3)', cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
@@ -665,8 +665,8 @@ function DoneView({ registered, onClose }) {
           <div className="big">
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
           </div>
-          <h3>{registered}건의 기록이 등록됐어요</h3>
-          <p>각 곡의 "랭킹" 탭에서 확인할 수 있어요</p>
+          <h3>{registered}건의 성과가 등록됐어요</h3>
+          <p>개인 성과 페이지에서 확인할 수 있어요</p>
         </div>
       </div>
       <div className="rr-foot">

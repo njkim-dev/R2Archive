@@ -52,7 +52,7 @@ function roleLabel(r) {
 }
 
 // ---------- Hero ----------
-function Hero({ g, hue, isOwner, isStaff, pendingCount, onCopyCode, onRegen, onGoManage, navigate }) {
+function Hero({ g, hue, isOwner, isStaff, pendingCount, onCopyCode, onRegen, onGoManage }) {
   // admin은 staff는 아니지만 코드 열람 가능. 운영 액션(재발급/신청 처리)은 owner/manager만.
   const canSeeCode = isStaff || g.my_role === 'admin'
   return (
@@ -82,9 +82,6 @@ function Hero({ g, hue, isOwner, isStaff, pendingCount, onCopyCode, onRegen, onG
             </div>
           </div>
           <div className="gd-hero-actions">
-            <button className="gd-btn primary" onClick={() => navigate(`/rankings?group=${g.id}`)}>
-              이 그룹 랭킹 보기
-            </button>
             {/* 가입 코드 표시·복사: owner/manager + admin. 재발급은 owner만 (아래) */}
             {canSeeCode && !g.code_revoked && g.join_code && (
               <button className="gd-btn ghost" onClick={onCopyCode}>
@@ -140,22 +137,6 @@ function TabsStrip({ tab, setTab, isStaff, pendingCount, memberCount }) {
 }
 
 // 핀 이동 헬퍼 — 모든 탭에서 동일하게 사용.
-function jumpToPin(navigate, userId, nickname) {
-  const q = new URLSearchParams({ pinUser: String(userId), pinNick: nickname || '' })
-  navigate(`/rankings?${q.toString()}`)
-}
-
-// 검색 비허용 사용자는 클릭해도 랭킹 페이지로 가지 않게 차단.
-// memberMap: Map<user_id, { searchable, ... }>
-function safeJumpToPin(navigate, userId, nickname, memberMap, currentUserId) {
-  const info = memberMap?.get(userId)
-  if (info && info.searchable === 'private' && userId !== currentUserId) {
-    alert(`${nickname || '이 사용자'}님은 검색을 허용하지 않아 정보를 볼 수 없어요`)
-    return
-  }
-  jumpToPin(navigate, userId, nickname)
-}
-
 // ---------- Leaderboard tab ----------
 function LeaderboardTab({ leaderboard, currentUserId, navigate, memberMap, isMobile = false }) {
   const [sort, setSort] = useState({ key: 'rank', dir: 'asc' })
@@ -253,7 +234,6 @@ function LeaderboardTab({ leaderboard, currentUserId, navigate, memberMap, isMob
               <div
                 key={s.user_id}
                 className={`gd-lb-mob-card${isMe ? ' me' : ''}`}
-                onClick={() => safeJumpToPin(navigate, s.user_id, s.nickname, memberMap, currentUserId)}
               >
                 <div className="gd-lb-mob-top">
                   <span className={`gd-lb-mob-rank${rankCls}`}>{rankSym}</span>
@@ -314,7 +294,6 @@ function LeaderboardTab({ leaderboard, currentUserId, navigate, memberMap, isMob
                 <tr
                   key={s.user_id}
                   className={isMe ? 'me' : ''}
-                  onClick={() => safeJumpToPin(navigate, s.user_id, s.nickname, memberMap, currentUserId)}
                 >
                   <td className={`gd-rank-cell${rankCls}`}>{rankSym}</td>
                   <td>
@@ -419,8 +398,6 @@ function FeedTab({ feed, navigate, memberMap, currentUserId }) {
                   <div className={`gd-feed-ic ${icCls}`}>{icSym}</div>
                   <div className="gd-feed-msg">
                     <b
-                      className="gd-feed-clickable"
-                      onClick={() => safeJumpToPin(navigate, ev.user_id, ev.nickname, memberMap, currentUserId)}
                     >
                       {ev.nickname}
                     </b>
@@ -524,7 +501,6 @@ function FirstsTab({ songFirsts, currentUserId, navigate, memberMap }) {
             <div
               key={r.user_id}
               className="gd-dist-card"
-              onClick={() => safeJumpToPin(navigate, r.user_id, r.nickname, memberMap, currentUserId)}
             >
               <div className="gd-dist-head">
                 <div className={`gd-dist-av${isMe ? ' me' : ''}`}>{(r.nickname || '?')[0]}</div>
@@ -593,8 +569,6 @@ function MembersTab({ g, leaderboard, currentUserId, navigate, memberMap }) {
               <div className="gd-member-meta">
                 <div className="gd-member-name">
                   <span
-                    className="gd-feed-clickable"
-                    onClick={() => safeJumpToPin(navigate, m.user_id, m.nickname, memberMap, currentUserId)}
                   >
                     {m.nickname}
                   </span>
@@ -997,7 +971,6 @@ export default function GroupDetailPage() {
             onCopyCode={onCopyCode}
             onRegen={onRegen}
             onGoManage={onGoManage}
-            navigate={navigate}
           />
 
           <TabsStrip
@@ -1031,7 +1004,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>
+        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>
         <NavLink
           to="/groups"
           className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
@@ -1048,6 +1021,7 @@ function PageNav({ user }) {
         </NavLink>
         <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
         {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
+        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
         <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
           <span>피드백</span>
         </NavLink>

@@ -115,7 +115,7 @@ def get_pmang_records(request: Request, song_id: int):
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s
                   AND r.youtube_url IS NOT NULL
-                  AND (r.visibility <> 'private' OR r.user_id = %s)
+                  AND (r.visibility = 'public' OR r.user_id = %s)
                 ORDER BY r.created_at DESC
                 """,
                 (song_id, current_uid),
@@ -127,8 +127,7 @@ def get_pmang_records(request: Request, song_id: int):
                    and int(r[6]) == int(current_uid))
         visibility = r[7] or "public"
         memo_public = bool(r[8])
-        # 익명 설정인 경우 닉네임 마스킹, 메모 비공개면 본인만 노출
-        nickname = "익명" if (visibility == "anonymous" and not is_mine) else (r[1] or "")
+        nickname = r[1] or ""
         memo = r[4] if (memo_public or is_mine) else None
         result.append(PmangRecordResponse(
             id=r[0], nickname=nickname, youtube_url=r[2], youtube_title=r[3],

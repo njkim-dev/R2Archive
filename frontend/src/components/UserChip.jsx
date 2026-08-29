@@ -1,5 +1,7 @@
 import useStore from '../store/useStore'
 
+// 우측 상단에 노출되는 사용자 칩 (마이페이지 / 프로필 수정 / 로그아웃) 또는 로그인 버튼.
+// TopBar.jsx 의 동일 마크업을 재사용 가능하게 분리.
 export default function UserChip() {
   const { user, openLogin, openMyPage, openOnboarding, logout } = useStore()
 

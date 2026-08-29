@@ -3,13 +3,79 @@ import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { Trash2 } from 'lucide-react'
 import useStore from '../store/useStore'
-import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg, staticUrl } from '../utils/helpers'
+import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg, artworkThumbnailUrl, staticUrl } from '../utils/helpers'
 import { logPlay } from '../api/client'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode } from '../utils/serverMode'
-import { readSavedListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
+import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 
-function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount, active = false }) {
+const COMBO_WARNING_TEXT = '공방에서 해당 노래 올콤하면 튕기는 버그가 있으니 주의하세요.'
+const loadedArtworkPaths = new Set()
+
+function openRowFromKeyboard(e, song, onClick) {
+  if (e.target !== e.currentTarget) return
+  if (e.key !== 'Enter' && e.key !== ' ') return
+  e.preventDefault()
+  onClick(song)
+}
+
+function rowAriaLabel(song) {
+  return `${song.name}, ${song.artist}, 난이도 ${song.level.toFixed(1)}. Enter 또는 Space로 상세 열기`
+}
+
+function ArtworkThumbnail({ image }) {
+  const optimizedSrc = artworkThumbnailUrl(image)
+  const originalSrc = staticUrl(image)
+
+  return (
+    <img
+      key={optimizedSrc}
+      src={optimizedSrc}
+      alt=""
+      decoding="async"
+      draggable={false}
+      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+      onLoad={() => loadedArtworkPaths.add(String(image))}
+      onError={e => {
+        const el = e.currentTarget
+        if (optimizedSrc !== originalSrc && el.dataset.originalTried !== 'true') {
+          el.dataset.originalTried = 'true'
+          el.src = originalSrc
+          return
+        }
+        el.style.display = 'none'
+      }}
+    />
+  )
+}
+
+function useElementWidth() {
+  const ref = useRef(null)
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const update = () => setWidth(node.getBoundingClientRect().width)
+    update()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+
+    const observer = new ResizeObserver(entries => {
+      const nextWidth = entries[0]?.contentRect?.width
+      if (nextWidth != null) setWidth(nextWidth)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return [ref, width]
+}
+
+function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount, suppressArtwork = false, active = false }) {
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const hasMusic = !!song.youtube_url
 
@@ -23,7 +89,16 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
   }
 
   return (
-    <div className={`mob-card${active ? ' is-catalog-active' : ''}`} data-song-id={song.id} style={style} onClick={() => onClick(song)}>
+    <div
+      className={`mob-card${active ? ' is-catalog-active' : ''}`}
+      data-song-id={song.id}
+      style={style}
+      role="group"
+      tabIndex={0}
+      aria-label={rowAriaLabel(song)}
+      onClick={() => onClick(song)}
+      onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
+    >
       {(canDelete || hasMusic || canFav) && (
         <div className="mob-card-actions">
           {canDelete && (
@@ -57,13 +132,8 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
         </div>
       )}
       <div className="mob-art" style={{ background: artworkBg(song.id) }}>
-        {song.image
-          ? <img
-              src={staticUrl(song.image)}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-              onError={e => { e.currentTarget.style.display = 'none' }}
-            />
+        {song.image && !suppressArtwork
+          ? <ArtworkThumbnail image={song.image} />
           : <span style={{ fontFamily: '"JetBrains Mono",monospace', fontWeight: 700, fontSize: 13, color: 'oklch(0.98 0.01 270 / 0.9)' }}>
               {(song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'}
             </span>
@@ -73,8 +143,16 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
       <div className="mob-card-main">
         <div className="mob-card-title">
           {song.is_new && <span className="mob-new-dot" />}
+          {song.combo_warning && (
+            <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
+          )}
           <span className="mob-card-name">{song.name}</span>
         </div>
+        {song.korea_name && (
+          <div className="mob-card-korea">
+            한국 곡명 : {song.korea_name}
+          </div>
+        )}
         <div className="mob-card-artist">{song.artist}</div>
         <div className="mob-card-inline">
           <span className="mob-lv" data-cat={cat}>Lv {song.level.toFixed(1)}</span>
@@ -96,7 +174,8 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
 
 const COL_TEMPLATE = '56px 2fr 1fr 76px 100px 110px 110px 68px 80px 56px'
 const COMPACT_COL_TEMPLATE = 'minmax(0, 1.45fr) minmax(110px, 0.9fr) 76px'
-const XYX_COL_TEMPLATE = '50px minmax(0, 2.2fr) minmax(0, 1.15fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 46px'
+const LINKED_COMPACT_COL_TEMPLATE = 'minmax(0, 1.25fr) minmax(0, 1fr) minmax(100px, 0.8fr) 76px'
+const XYX_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
 const XYX_CATEGORY_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
 
 const DEFAULT_HEADERS = [
@@ -112,16 +191,29 @@ const DEFAULT_HEADERS = [
   { label: '변속',    key: null,        cls: 'center' },
 ]
 
+const REAL_BPM_HEADER = { label: '원 BPM', key: 'real_bpm', cls: 'num' }
+const DEFAULT_HEADERS_WITH_REAL_BPM = [
+  ...DEFAULT_HEADERS.slice(0, 6),
+  REAL_BPM_HEADER,
+  ...DEFAULT_HEADERS.slice(6),
+]
+
 const XYX_HEADERS = [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
-  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'play_count'),
+  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'userLevel'),
 ]
 
 const FAVORITE_COUNT_HEADER = { label: '즐겨찾기', key: 'favorite_count', cls: 'num' }
 const COMPACT_HEADERS = [
   { label: '곡명', key: 'name', cls: '' },
+  { label: '아티스트', key: 'artist', cls: '' },
+  { label: '난이도', key: 'level', cls: 'num' },
+]
+const compactLinkedHeaders = (label, key) => [
+  { label: '곡명', key: 'name', cls: '' },
+  { label, key, cls: '' },
   { label: '아티스트', key: 'artist', cls: '' },
   { label: '난이도', key: 'level', cls: 'num' },
 ]
@@ -134,7 +226,7 @@ const xyxFavoriteCountHeaders = [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
-  ...DEFAULT_HEADERS.slice(2).map(header =>
+  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'userLevel').map(header =>
     header.key === 'play_count' ? FAVORITE_COUNT_HEADER : header
   ),
 ]
@@ -143,8 +235,22 @@ const XYX_CATEGORY_HEADERS = [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
-  ...DEFAULT_HEADERS.slice(2),
+  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'userLevel'),
 ]
+
+const KOREA_NAME_HEADER = XYX_HEADERS[2]
+const xyxHeaders = (showOriginalBpmColumn = false) => [
+  DEFAULT_HEADERS[0],
+  DEFAULT_HEADERS[1],
+  KOREA_NAME_HEADER,
+  ...DEFAULT_HEADERS.slice(2, 6).filter(header => header.key !== 'userLevel'),
+  ...(showOriginalBpmColumn ? [REAL_BPM_HEADER] : []),
+  ...DEFAULT_HEADERS.slice(6),
+]
+const xyxHeadersWithFavoriteCount = (showOriginalBpmColumn = false) =>
+  xyxHeaders(showOriginalBpmColumn).map(header =>
+    header.key === 'play_count' ? FAVORITE_COUNT_HEADER : header
+  )
 
 const personalCategoryHeaders = (headers) => headers.map(header =>
   header.key === 'play_count'
@@ -152,25 +258,73 @@ const personalCategoryHeaders = (headers) => headers.map(header =>
     : header
 )
 
+function hideColumnsForWidth(width, showOriginalBpmColumn) {
+  const hidden = new Set()
+  if (!width) return hidden
+  if (width < 1180) {
+    hidden.add('play_count')
+    hidden.add('favorite_count')
+  }
+  if (width < 1080) hidden.add('userLevel')
+  if (width < 980) hidden.add('time')
+  if (width < 900) hidden.add('combo')
+  if (showOriginalBpmColumn && width < 820) hidden.add('real_bpm')
+  if (width < 740) hidden.add('artist')
+  return hidden
+}
+
+function columnWidthForHeader(header) {
+  if (header.key === 'file_order') return '56px'
+  if (header.key === 'name') return 'minmax(240px, 2fr)'
+  if (header.key === 'korea_name') return 'minmax(140px, 1.1fr)'
+  if (header.key === 'artist') return 'minmax(120px, 1fr)'
+  if (header.key === 'level') return '76px'
+  if (header.key === 'userLevel') return '100px'
+  if (header.key === 'bpm') return '100px'
+  if (header.key === 'real_bpm') return '100px'
+  if (header.key === 'combo') return '110px'
+  if (header.key === 'time') return '68px'
+  if (header.key === 'play_count' || header.key === 'favorite_count') return '80px'
+  return '56px'
+}
+
+function templateFromHeaders(headers) {
+  return headers.map(columnWidthForHeader).join(' ')
+}
+
 function TableHeader({ sort, onSort, headers = DEFAULT_HEADERS, colTemplate = COL_TEMPLATE }) {
   return (
-    <div className="tbl-header" style={{ gridTemplateColumns: colTemplate }}>
-      {headers.map(({ label, key, cls }) => (
-        <div
-          key={label}
-          className={`th ${cls}${sort.key === key ? ' sorted' : ''}`}
-          onClick={() => key && onSort(key)}
-          style={key ? { cursor: 'pointer' } : {}}
-        >
-          {label}
-          {key && sort.key === key && (
-            <span className="arrow">{sort.dir === 'asc' ? '▲' : '▼'}</span>
-          )}
-          {key && sort.key !== key && (
-            <span style={{ color: 'var(--fg-4)', fontSize: 9, opacity: 0.5 }}>⇅</span>
-          )}
-        </div>
-      ))}
+    <div className="tbl-header" style={{ gridTemplateColumns: colTemplate }} role="row">
+      {headers.map(({ label, key, cls }) => {
+        const content = (
+          <>
+            {label}
+            {key && sort.key === key && (
+              <span className="arrow" aria-hidden="true">{sort.dir === 'asc' ? '▲' : '▼'}</span>
+            )}
+            {key && sort.key !== key && (
+              <span style={{ color: 'var(--fg-4)', fontSize: 9, opacity: 0.5 }} aria-hidden="true">⇅</span>
+            )}
+          </>
+        )
+        if (!key) {
+          return <div key={label} className={`th ${cls}`} role="columnheader">{content}</div>
+        }
+        const direction = sort.key === key ? (sort.dir === 'asc' ? '오름차순' : '내림차순') : '정렬되지 않음'
+        return (
+          <button
+            type="button"
+            key={label}
+            className={`th ${cls}${sort.key === key ? ' sorted' : ''}`}
+            role="columnheader"
+            aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+            onClick={() => onSort(key)}
+            aria-label={`${label} 기준 정렬, 현재 ${direction}`}
+          >
+            {content}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -190,8 +344,11 @@ function SongRow({
   showKoreaName,
   showPlayCount,
   showFavoriteCount,
+  showOriginalBpmColumn,
+  hiddenColumns,
   colTemplate,
   compact,
+  suppressArtwork,
   active = false,
 }) {
   const [copied, setCopied] = useState(false)
@@ -204,11 +361,13 @@ function SongRow({
       : song.bpm >= 200 ? 'warm'
       : song.bpm < 120 ? 'cool'
       : undefined
+  const showColumn = (key) => !hiddenColumns?.has(key)
 
   const handleCopyName = (e) => {
     e.stopPropagation()
     if (copied) return
-    navigator.clipboard?.writeText(song.name).then(() => {
+    const copyText = `${song.name || ''} - ${song.artist || ''}`.trim()
+    navigator.clipboard?.writeText(copyText).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1200)
     }).catch(() => {})
@@ -221,21 +380,23 @@ function SongRow({
         data-song-id={song.id}
         data-bpm-tier={bpmTier}
         style={{ ...style, gridTemplateColumns: colTemplate }}
+        role="row"
+        tabIndex={0}
+        aria-label={rowAriaLabel(song)}
         onClick={() => onClick(song)}
+        onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
       >
-        <div className="td">
+        <div className="td" role="cell">
           <div className="title-cell">
             <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
-              {song.image
-                ? <img
-                    src={staticUrl(song.image)}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-                    onError={e => { e.currentTarget.style.display = 'none' }}
-                  />
+              {song.image && !suppressArtwork
+                ? <ArtworkThumbnail image={song.image} />
                 : null
               }
             </div>
+            {song.combo_warning && (
+              <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
+            )}
             <span className="title-main">{song.name}</span>
             {song.youtube_url && (
               <button
@@ -256,11 +417,17 @@ function SongRow({
           </div>
         </div>
 
-        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {showKoreaName && (
+          <div className="td korea-name-cell" title={song.korea_name || ''} role="cell">
+            {song.korea_name || <span className="muted-dash">—</span>}
+          </div>
+        )}
+
+        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
           {song.artist}
         </div>
 
-        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }}>
+        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
           <span className="level-val">
             <span className="int">{lvInt}</span>
             <span className="dec">{lvDec}</span>
@@ -276,15 +443,20 @@ function SongRow({
       data-song-id={song.id}
       data-bpm-tier={bpmTier}
       style={{ ...style, gridTemplateColumns: colTemplate }}
+      role="row"
+      tabIndex={0}
+      aria-label={rowAriaLabel(song)}
       onClick={() => onClick(song)}
+      onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
     >
       {/* # / new tag */}
-      <div className="td">
+      <div className="td" role="cell">
         <div className="idx-cell">
           {song.is_new && <span className="new-tag">NEW</span>}
           <button
             className={`fav-btn${isFav ? ' on' : ''}`}
             title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+            aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
             onClick={e => { e.stopPropagation(); if (canFav) onToggleFav(song.id) }}
             disabled={!canFav}
           >{isFav ? '★' : '☆'}</button>
@@ -292,19 +464,17 @@ function SongRow({
       </div>
 
       {/* 곡명 */}
-      <div className="td">
+      <div className="td" role="cell">
         <div className="title-cell">
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
-            {song.image
-              ? <img
-                  src={staticUrl(song.image)}
-                  alt=""
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-                  onError={e => { e.currentTarget.style.display = 'none' }}
-                />
+            {song.image && !suppressArtwork
+              ? <ArtworkThumbnail image={song.image} />
               : null
             }
           </div>
+          {song.combo_warning && (
+            <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
+          )}
           <span className="title-main">{song.name}</span>
           {song.youtube_candidate && (
             <span
@@ -334,7 +504,8 @@ function SongRow({
           {isAdmin && (
             <button
               className={`copy-name-btn${copied ? ' copied' : ''}`}
-              title={copied ? '곡명 복사됨' : '곡명 복사'}
+              title={copied ? '곡명 - 아티스트 복사됨' : '곡명 - 아티스트 복사'}
+              aria-label={copied ? '곡명 - 아티스트 복사됨' : '곡명 - 아티스트 복사'}
               onClick={handleCopyName}
             >
               {copied ? (
@@ -354,18 +525,20 @@ function SongRow({
       </div>
 
       {showKoreaName && (
-        <div className="td korea-name-cell" title={song.korea_name || ''}>
+        <div className="td korea-name-cell" title={song.korea_name || ''} role="cell">
           {song.korea_name || <span className="muted-dash">—</span>}
         </div>
       )}
 
       {/* 아티스트 */}
-      <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {song.artist}
-      </div>
+      {showColumn('artist') && (
+        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
+          {song.artist}
+        </div>
+      )}
 
       {/* 난이도 */}
-      <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }}>
+      <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
         <span className="level-val">
           <span className="int">{lvInt}</span>
           <span className="dec">{lvDec}</span>
@@ -373,34 +546,51 @@ function SongRow({
       </div>
 
       {/* 유저 난이도 */}
-      <div className="td num">
-        {song.user_level_avg != null
-          ? <span className="user-lv">{song.user_level_avg.toFixed(1)}</span>
-          : <span className="user-lv-empty">—</span>
-        }
-      </div>
+      {showColumn('userLevel') && (
+        <div className="td num" role="cell">
+          {song.user_level_avg != null
+            ? <span className="user-lv">{song.user_level_avg.toFixed(1)}</span>
+            : <span className="user-lv-empty">—</span>
+          }
+        </div>
+      )}
 
       {/* BPM */}
-      <div className="td num bpm-cell">
+      <div className="td num bpm-cell" role="cell">
         <span className="bpm-num">{fmtBpm(song.bpm)}</span>
         <div className="bpm-wave">
           {bpmWaveBars(song.bpm).map((style, i) => <div key={i} className="bar" style={style} />)}
         </div>
       </div>
 
-      {/* 콤보 */}
-      <div className="td num">
-        <span className="combo-num">{fmt(song.combo)}</span>
-        <div className="combo-bar">
-          <div style={{ width: `${comboPct}%` }} />
+      {showOriginalBpmColumn && showColumn('real_bpm') && (
+        <div className="td num bpm-cell real-bpm-cell" role="cell">
+          <span className="bpm-num">{song.real_bpm != null ? fmtBpm(song.real_bpm) : '-'}</span>
+          {song.real_bpm != null && (
+            <div className="bpm-wave">
+              {bpmWaveBars(song.real_bpm).map((style, i) => <div key={i} className="bar" style={style} />)}
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* 콤보 */}
+      {showColumn('combo') && (
+        <div className="td num" role="cell">
+          <span className="combo-num">{fmt(song.combo)}</span>
+          <div className="combo-bar">
+            <div style={{ width: `${comboPct}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* 시간 */}
-      <div className="td num" style={{ color: 'var(--fg-2)' }}>{song.time}</div>
+      {showColumn('time') && (
+        <div className="td num" style={{ color: 'var(--fg-2)' }} role="cell">{song.time}</div>
+      )}
 
       {tableMode === 'personalCategory' ? (
-        <div className="td center">
+        <div className="td center" role="cell">
           <button
             className="pcat-song-delete"
             disabled={!canDelete}
@@ -411,18 +601,18 @@ function SongRow({
             <Trash2 size={14} />
           </button>
         </div>
-      ) : showPlayCount ? (
-        <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
+      ) : showPlayCount && showColumn('play_count') ? (
+        <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">
           {song.play_count ? fmt(song.play_count) : '—'}
         </div>
-      ) : showFavoriteCount ? (
-        <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
+      ) : showFavoriteCount && showColumn('favorite_count') ? (
+        <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">
           {song.favorite_count ? fmt(song.favorite_count) : '—'}
         </div>
       ) : null}
 
       {/* 변속 */}
-      <div className="td center">
+      <div className="td center" role="cell">
         <span className={`variant${song.is_change ? ' has' : ''}`}>
           {song.is_change ? '✓' : '×'}
         </span>
@@ -468,32 +658,48 @@ export default function SongsTable({
   categorySuggestion = null,
   compact = false,
 }) {
-  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong } = useStore()
+  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm } = useStore()
   const canFav = !!user
   const showKoreaName = isXyxMode()
   const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
-  const showPlayCount = !showFavoriteCount && !(showKoreaName && tableMode !== 'personalCategory')
-  const colTemplate = compact
-    ? COMPACT_COL_TEMPLATE
-    : showKoreaName
-    ? (tableMode === 'personalCategory'
-      ? XYX_CATEGORY_COL_TEMPLATE
-      : (showFavoriteCount ? XYX_CATEGORY_COL_TEMPLATE : XYX_COL_TEMPLATE))
-    : COL_TEMPLATE
+  const showPlayCount = !showFavoriteCount && tableMode !== 'personalCategory'
+  const [tableRef, tableWidth] = useElementWidth()
+  const showOriginalBpmColumn = !compact && tableMode !== 'personalCategory' && showOriginalBpm
+  const hiddenColumns = useMemo(
+    () => {
+      const hidden = !compact ? hideColumnsForWidth(tableWidth, showOriginalBpmColumn) : new Set()
+      if (showKoreaName) hidden.add('userLevel')
+      return hidden
+    },
+    [compact, showKoreaName, tableWidth, showOriginalBpmColumn]
+  )
   const baseHeaders = compact
-    ? COMPACT_HEADERS
+    ? (showKoreaName
+      ? compactLinkedHeaders('한국 곡명', 'korea_name')
+      : COMPACT_HEADERS)
     : showKoreaName
     ? (tableMode === 'personalCategory'
       ? XYX_CATEGORY_HEADERS
-      : (showFavoriteCount ? xyxFavoriteCountHeaders : XYX_HEADERS))
-    : DEFAULT_HEADERS
-  const headers = compact
-    ? COMPACT_HEADERS
+      : (showFavoriteCount ? xyxHeadersWithFavoriteCount(showOriginalBpmColumn) : xyxHeaders(showOriginalBpmColumn)))
+    : (showOriginalBpmColumn ? DEFAULT_HEADERS_WITH_REAL_BPM : DEFAULT_HEADERS)
+  const unfilteredHeaders = compact
+    ? baseHeaders
     : tableMode === 'personalCategory'
     ? personalCategoryHeaders(baseHeaders)
     : (showFavoriteCount && !showKoreaName ? favoriteCountHeaders(baseHeaders) : baseHeaders)
+  const headers = !compact
+    ? unfilteredHeaders.filter(header => !hiddenColumns.has(header.key))
+    : unfilteredHeaders
+  const colTemplate = compact
+    ? (showKoreaName ? LINKED_COMPACT_COL_TEMPLATE : COMPACT_COL_TEMPLATE)
+    : templateFromHeaders(headers)
   const listRef = useRef(null)
+  const listHeightRef = useRef(0)
   const scrollOffsetRef = useRef(0)
+  const scrollSampleRef = useRef({ offset: 0, time: 0 })
+  const fastScrollTimerRef = useRef(null)
+  const fastScrollingRef = useRef(false)
+  const [fastScrolling, setFastScrolling] = useState(false)
   const savedOffsetRef = useRef(0)
   const prevSearchRef = useRef(search)
   const restoredScrollRef = useRef(false)
@@ -504,6 +710,11 @@ export default function SongsTable({
     if (!fuzzy.length) return exact
     return [...exact, SEPARATOR, ...fuzzy]
   }, [exact, fuzzy])
+  const hasMobileAltName = useMemo(
+    () => isMobile && items.some(item => item !== SEPARATOR && item.korea_name),
+    [isMobile, items]
+  )
+  const rowHeight = isMobile ? (hasMobileAltName ? 92 : 80) : 44
 
   useEffect(() => {
     const prev = prevSearchRef.current
@@ -521,15 +732,63 @@ export default function SongsTable({
     prevSearchRef.current = curr
   }, [search])
 
-  const handleScroll = useCallback(({ scrollOffset }) => {
+  const handleScroll = useCallback(({ scrollOffset, scrollUpdateWasRequested }) => {
     scrollOffsetRef.current = scrollOffset
     setCurrentListScrollOffset(scrollOffset)
+
+    if (scrollUpdateWasRequested) return
+    const now = performance.now()
+    const previous = scrollSampleRef.current
+    const elapsed = previous.time ? Math.max(1, now - previous.time) : Infinity
+    const velocity = Math.abs(scrollOffset - previous.offset) / elapsed
+    scrollSampleRef.current = { offset: scrollOffset, time: now }
+
+    if (velocity >= 1.2 && !fastScrollingRef.current) {
+      fastScrollingRef.current = true
+      setFastScrolling(true)
+    }
+    clearTimeout(fastScrollTimerRef.current)
+    fastScrollTimerRef.current = setTimeout(() => {
+      fastScrollingRef.current = false
+      setFastScrolling(false)
+    }, 120)
   }, [])
+
+  useEffect(() => () => clearTimeout(fastScrollTimerRef.current), [])
+
+  useEffect(() => {
+    const isTypingTarget = (target) => {
+      if (!(target instanceof Element)) return false
+      return !!target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="textbox"]')
+    }
+
+    const handlePageKey = (e) => {
+      if (e.defaultPrevented || modalOpen || isTypingTarget(e.target)) return
+      if (e.key !== 'PageDown' && e.key !== 'PageUp') return
+
+      const list = listRef.current
+      const height = listHeightRef.current
+      if (!list || !height || items.length === 0) return
+
+      e.preventDefault()
+      const pageStep = Math.max(rowHeight, height - rowHeight)
+      const maxOffset = Math.max(0, items.length * rowHeight - height)
+      const direction = e.key === 'PageDown' ? 1 : -1
+      const nextOffset = Math.max(0, Math.min(maxOffset, scrollOffsetRef.current + direction * pageStep))
+
+      scrollOffsetRef.current = nextOffset
+      setCurrentListScrollOffset(nextOffset)
+      list.scrollTo(nextOffset)
+    }
+
+    window.addEventListener('keydown', handlePageKey)
+    return () => window.removeEventListener('keydown', handlePageKey)
+  }, [items.length, rowHeight, modalOpen])
 
   useEffect(() => {
     if (restoredScrollRef.current || !shouldRestoreListState() || items.length === 0) return
     restoredScrollRef.current = true
-    const offset = Math.max(0, Number(readSavedListState()?.scrollOffset) || 0)
+    const offset = Math.max(0, Number(readRestorableListState()?.scrollOffset) || 0)
     if (!offset) return
     requestAnimationFrame(() => {
       listRef.current?.scrollTo(offset)
@@ -554,10 +813,10 @@ export default function SongsTable({
       if (typeof listRef.current?.scrollToItem === 'function') {
         listRef.current.scrollToItem(index, 'center')
       } else {
-        listRef.current?.scrollTo(index * (isMobile ? 80 : 44))
+        listRef.current?.scrollTo(index * rowHeight)
       }
     })
-  }, [activeSongId, items, isMobile])
+  }, [activeSongId, items, isMobile, rowHeight])
 
   const handleRowClick = useCallback((song) => {
     openModal(song)
@@ -585,6 +844,7 @@ export default function SongsTable({
     }
     const isFav = favorites?.has(item.id)
     const active = activeSongId === item.id
+    const suppressArtwork = !!(fastScrolling && item.image && !loadedArtworkPaths.has(String(item.image)))
     if (isMobile) {
       return (
         <MobileCard
@@ -597,6 +857,7 @@ export default function SongsTable({
           canDelete={tableMode === 'personalCategory' && canDeleteSongs}
           onDeleteSong={onDeleteSong}
           showFavoriteCount={showFavoriteCount}
+          suppressArtwork={suppressArtwork}
           active={active}
         />
       )
@@ -617,12 +878,15 @@ export default function SongsTable({
         showKoreaName={showKoreaName}
         showPlayCount={showPlayCount}
         showFavoriteCount={showFavoriteCount}
+        showOriginalBpmColumn={showOriginalBpmColumn}
+        hiddenColumns={hiddenColumns}
         colTemplate={colTemplate}
         compact={compact}
+        suppressArtwork={suppressArtwork}
         active={active}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, colTemplate, compact, activeSongId])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, hiddenColumns, colTemplate, compact, activeSongId, fastScrolling])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -640,18 +904,22 @@ export default function SongsTable({
           : (
             <div style={{ flex: 1 }}>
               <AutoSizer>
-                {({ height, width }) => (
-                  <FixedSizeList
-                    ref={listRef}
-                    height={height}
-                    width={width}
-                    itemCount={items.length}
-                    itemSize={80}
-                    onScroll={handleScroll}
-                  >
-                    {Row}
-                  </FixedSizeList>
-                )}
+                {({ height, width }) => {
+                  listHeightRef.current = height
+                  return (
+                    <FixedSizeList
+                      ref={listRef}
+                      height={height}
+                      width={width}
+                      itemCount={items.length}
+                      itemSize={rowHeight}
+                      overscanCount={20}
+                      onScroll={handleScroll}
+                    >
+                      {Row}
+                    </FixedSizeList>
+                  )
+                }}
               </AutoSizer>
             </div>
           )
@@ -661,27 +929,31 @@ export default function SongsTable({
   }
 
   return (
-    <div className={`table-wrap${compact ? ' compact' : ''}`}>
+    <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="곡 목록" aria-rowcount={items.length + 1}>
       <TableHeader sort={sort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
-      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>
+      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
         {items.length === 0 ? (
           <SearchEmptyState search={search} />
         ) : (
           <AutoSizer>
-            {({ height, width }) => (
-              <FixedSizeList
-                ref={listRef}
-                height={height}
-                width={width}
-                itemCount={items.length}
-                itemSize={44}
-                style={{ overflowX: 'hidden' }}
-                onScroll={handleScroll}
-              >
-                {Row}
-              </FixedSizeList>
-            )}
+            {({ height, width }) => {
+              listHeightRef.current = height
+              return (
+                <FixedSizeList
+                  ref={listRef}
+                  height={height}
+                  width={width}
+                  itemCount={items.length}
+                  itemSize={rowHeight}
+                  overscanCount={20}
+                  style={{ overflowX: 'hidden' }}
+                  onScroll={handleScroll}
+                >
+                  {Row}
+                </FixedSizeList>
+              )
+            }}
           </AutoSizer>
         )}
       </div>
