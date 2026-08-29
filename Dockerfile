@@ -22,7 +22,8 @@ WORKDIR /app
 ENV OMP_THREAD_LIMIT=1
 
 # Caddy + Tesseract OCR
-RUN apt-get update && apt-get install -y curl debian-keyring debian-archive-keyring apt-transport-https tesseract-ocr && \
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y curl debian-keyring debian-archive-keyring apt-transport-https tesseract-ocr && \
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg && \
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list && \
     apt-get update && apt-get install -y caddy && \
@@ -32,7 +33,7 @@ RUN apt-get update && apt-get install -y curl debian-keyring debian-archive-keyr
 RUN pip install poetry
 
 COPY backend/pyproject.toml backend/poetry.lock* ./backend/
-RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" && \
+RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78.1.1" && \
     cd backend && poetry config virtualenvs.create false && \
     poetry install --only main --no-interaction
 
