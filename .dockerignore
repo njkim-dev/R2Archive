@@ -1,8 +1,18 @@
 .env
 backend/.env
+.git
+.github
+.codex-backups
 
 **/node_modules
 frontend/dist
 
 **/__pycache__
 *.pyc
+
+deploy
+docs
+rnr_image
+xyx
+pmang_image
+record_screenshots
