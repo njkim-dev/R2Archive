@@ -3,11 +3,39 @@ import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import UserSearchList from './UserSearchList'
 import { HelpButton } from '../HelpTour'
+import ScreenshotRegisterButton from '../ScreenshotRegisterButton'
 
 const SEARCH_MODES = [
   { key: 'song', label: '곡명 + 아티스트' },
   { key: 'user', label: '사용자' },
 ]
+
+function useElementWidth() {
+  const ref = useRef(null)
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+
+    const update = () => setWidth(node.getBoundingClientRect().width)
+    update()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+
+    const observer = new ResizeObserver(entries => {
+      const nextWidth = entries[0]?.contentRect?.width
+      if (nextWidth != null) setWidth(nextWidth)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return [ref, width]
+}
 
 export default function RankingsTopBar({ filteredCount, totalCount }) {
   const {
@@ -22,8 +50,8 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
     if (e.target.checked) {
       if (!user) { openLogin(); e.target.checked = false; return }
       const ok = window.confirm(
-        '편집 모드에서 입력한 판정은 유튜브 링크를 등록한 것에 한해서만 랭킹에 반영되며,\n' +
-        '랭킹에 반영되지 않은 것은 본인 확인 혹은 다른 사람이 본인 닉네임을 검색하여 확인할 수만 있습니다. 계속 하시겠습니까?'
+        '편집 모드에서 입력한 판정은 유튜브 링크를 등록한 것에 한해서만 개인 성과에 반영되며,\n' +
+        '영상 링크가 없는 성과는 본인 확인 혹은 다른 사람이 본인 닉네임을 검색하여 확인할 수만 있습니다. 계속 하시겠습니까?'
       )
       if (!ok) { e.target.checked = false; return }
       enableEditMode()
@@ -66,6 +94,7 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
   const modeRef = useRef(null)
   const searchWrapRef = useRef(null)
   const [userListOpen, setUserListOpen] = useState(false)
+  const [topbarRef, topbarWidth] = useElementWidth()
 
   useEffect(() => {
     const onClick = (e) => {
@@ -95,11 +124,14 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
   const sortLabels = {
     idx: '신곡', name: '곡명', artist: '아티스트',
     level: '난이도', bpm: 'BPM', combo: '콤보',
-    rankScore: '랭킹 판정', myScore: '내 판정',
+    rankScore: '성과 판정', myScore: '내 판정',
   }
 
+  const hideHelp = topbarWidth > 0 && topbarWidth < 980
+  const topbarClassName = ['topbar', 'rankings-topbar', hideHelp && 'hide-help'].filter(Boolean).join(' ')
+
   return (
-    <div className="topbar">
+    <div ref={topbarRef} className={topbarClassName}>
       <div className="search" ref={searchWrapRef}>
         <div className="search-mode" ref={modeRef}>
           <button
@@ -148,7 +180,7 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
       </div>
 
       <div className="topbar-meta">
-        <HelpButton />
+        <HelpButton className="topbar-help-control" />
         <span className="count">
           <b>{filteredCount.toLocaleString()}</b>
           {' '}<span style={{ color: 'var(--fg-3)' }}>/ {totalCount.toLocaleString()} 곡</span>
@@ -160,6 +192,8 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
           </b>
         </span>
       </div>
+
+      <ScreenshotRegisterButton className="reg-btn rankings-reg-btn" />
 
       <label className="edit-toggle" title="내 판정을 직접 입력하는 편집 모드">
         <input type="checkbox" checked={editMode} onChange={handleEditToggle} />

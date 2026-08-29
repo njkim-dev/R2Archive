@@ -1,41 +1,38 @@
 /* ============================================================
-   Mobile: Groups + GroupDetail + Feedback  (max-width: 767px)
+   Mobile: Groups + GroupDetail + Feedback
    ============================================================ */
-@media (max-width: 767px) {
-  /* ---------- Shared: page nav chips ---------- */
-  .mob-pnav {
-    display: flex; gap: 6px; overflow-x: auto;
-    margin: 0 -14px; padding: 0 14px 8px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .mob-pnav::-webkit-scrollbar { display: none; }
-  .mob-pnav-item {
-    flex-shrink: 0;
-    padding: 6px 12px; border-radius: 999px;
-    font-size: 12px; font-weight: 500; color: var(--fg-3);
-    background: var(--surface-1); border: 1px solid var(--line-soft);
-    text-decoration: none; white-space: nowrap; transition: all .12s;
-  }
-  .mob-pnav-item:active { transform: scale(0.96); }
-  .mob-pnav-item.on {
-    background: var(--cat-accent-dim); border-color: var(--cat-accent); color: var(--cat-accent);
-    font-weight: 600;
-  }
+.mob-pnav {
+  display: flex; gap: 6px; overflow-x: auto;
+  margin: 0 -14px; padding: 0 14px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.mob-pnav::-webkit-scrollbar { display: none; }
+.mob-pnav-item {
+  flex-shrink: 0;
+  padding: 6px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; color: var(--fg-3);
+  background: var(--surface-1); border: 1px solid var(--line-soft);
+  text-decoration: none; white-space: nowrap; transition: all .12s;
+}
+.mob-pnav-item:active { transform: scale(0.96); }
+.mob-pnav-item.on {
+  background: var(--cat-accent-dim); border-color: var(--cat-accent); color: var(--cat-accent);
+  font-weight: 600;
+}
+[data-cat="star"] .mob-chip.on,
+[data-cat="star"] .mob-pnav-item.on {
+  background: oklch(0.40 0.12 90 / 0.22);
+  border-color: oklch(0.82 0.16 90);
+  color: oklch(0.82 0.16 90);
+}
+[data-cat="sun"] .mob-chip.on,
+[data-cat="sun"] .mob-pnav-item.on {
+  background: oklch(0.40 0.14 20 / 0.22);
+  border-color: oklch(0.78 0.18 20);
+  color: oklch(0.78 0.18 20);
+}
 
-  /* 카테고리별 활성 색상 — 명시적 셀렉터로 직접 지정 (변수 cascade가 안 먹는 환경 대비).
-     PC와 동일한 oklch 값. star=노랑, sun=빨강, 그 외(달/null)는 기본 --accent. */
-  [data-cat="star"] .mob-chip.on,
-  [data-cat="star"] .mob-pnav-item.on {
-    background: oklch(0.40 0.12 90 / 0.22);
-    border-color: oklch(0.82 0.16 90);
-    color: oklch(0.82 0.16 90);
-  }
-  [data-cat="sun"] .mob-chip.on,
-  [data-cat="sun"] .mob-pnav-item.on {
-    background: oklch(0.40 0.14 20 / 0.22);
-    border-color: oklch(0.78 0.18 20);
-    color: oklch(0.78 0.18 20);
-  }
+@media (max-width: 767px) {
 
   /* ---------- Shared: action row + buttons ---------- */
   .mob-action-row {
@@ -256,7 +253,7 @@
      FeedbackPage
      ============================================================ */
   .fb-mob-tabs {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 4px;
     background: var(--surface-1); border-radius: 8px; padding: 3px;
     margin-bottom: 4px;
   }
@@ -303,6 +300,12 @@
   .fb-mob-list .fb-item {
     border: 1px solid var(--line-soft); border-radius: 10px;
     padding: 12px; background: var(--surface-0);
+  }
+  .fb-mob-list .fb-song-feedback-item {
+    grid-template-columns: 48px 1fr;
+  }
+  .fb-mob-list .fb-song-feedback-id {
+    font-size: 10.5px;
   }
 
   /* ----- Compose Sheet (fullscreen) ----- */

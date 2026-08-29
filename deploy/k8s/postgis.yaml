@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: r2-postgis-init
+  namespace: r2
+data:
+  10-r2archive.sh: |
+    #!/bin/sh
+    set -eu
+    export PGPASSWORD="$POSTGRES_PASSWORD"
+    role_exists=$(psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT 1 FROM pg_roles WHERE rolname = '$APP_DB_USER'")
+    if [ "$role_exists" != "1" ]; then
+      psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+        --set=app_user="$APP_DB_USER" --set=app_password="$APP_DB_PASSWORD" <<'SQL'
+    CREATE ROLE :"app_user" LOGIN PASSWORD :'app_password';
+    SQL
+    fi
+    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+      --set=app_user="$APP_DB_USER" <<'SQL'
+    ALTER DATABASE r2music OWNER TO :"app_user";
+    CREATE EXTENSION IF NOT EXISTS postgis;
+    CREATE EXTENSION IF NOT EXISTS postgis_topology;
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    SQL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: r2-postgis
+  namespace: r2
+spec:
+  selector:
+    app.kubernetes.io/name: r2-postgis
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: r2-postgis
+  namespace: r2
+spec:
+  serviceName: r2-postgis
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: r2-postgis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: r2-postgis
+        app.kubernetes.io/part-of: r2archive
+    spec:
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgis
+          image: postgis/postgis:17-3.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: r2-postgis-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: database
+              mountPath: /var/lib/postgresql/data
+            - name: backups
+              mountPath: /backup
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d/10-r2archive.sh
+              subPath: 10-r2archive.sh
+              readOnly: true
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+      volumes:
+        - name: init
+          configMap:
+            name: r2-postgis-init
+            defaultMode: 0555
+        - name: backups
+          persistentVolumeClaim:
+            claimName: r2-data
+  volumeClaimTemplates:
+    - metadata:
+        name: database
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 8Gi

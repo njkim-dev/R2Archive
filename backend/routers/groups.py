@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 
 from auth import require_user_id, fetch_user
 from database import get_conn
+from record_policy import SCREENSHOT_RECORD_ELIGIBLE_SQL
 
 router = APIRouter(prefix="/api", tags=["groups"])
 
@@ -96,6 +97,7 @@ def _ensure_member_or_admin(cur, gid: int, uid: int) -> dict:
     raise HTTPException(status_code=403, detail="그룹 멤버가 아닙니다")
 
 
+# ---------- Pydantic 모델 ----------
 
 class GroupCreate(BaseModel):
     name: str = Field(min_length=2, max_length=40)
@@ -123,6 +125,7 @@ class TransferOwner(BaseModel):
     to_user_id: int = Field(ge=1)
 
 
+# ---------- 조회 ----------
 
 @router.get("/me/groups")
 def list_my_groups(request: Request):
@@ -134,8 +137,9 @@ def list_my_groups(request: Request):
         with conn.cursor() as cur:
             is_admin = _is_admin(cur, uid)
             if is_admin:
+                # 모든 그룹 LEFT JOIN해서 멤버면 실제 role, 아니면 'admin' 합성 값.
                 cur.execute(
-                    """
+                    f"""
                     SELECT g.id, g.name, g.description, g.owner_id, g.auto_accept,
                            g.join_code, g.code_revoked, g.created_at,
                            COALESCE(gm.role, 'admin') AS role,
@@ -146,8 +150,8 @@ def list_my_groups(request: Request):
                             FROM records r
                             JOIN group_members gm2 ON gm2.user_id = r.user_id AND gm2.group_id = g.id
                             WHERE r.judgment_percent IS NOT NULL
-                              AND NOT r.is_manual
-                              AND r.visibility IN ('public', 'anonymous')
+                              AND {SCREENSHOT_RECORD_ELIGIBLE_SQL}
+                              AND r.visibility IN ('public', 'group')
                            ) AS ranked_song_count
                     FROM groups g
                     LEFT JOIN group_members gm
@@ -158,7 +162,7 @@ def list_my_groups(request: Request):
                 )
             else:
                 cur.execute(
-                    """
+                    f"""
                     SELECT g.id, g.name, g.description, g.owner_id, g.auto_accept,
                            g.join_code, g.code_revoked, g.created_at,
                            gm.role,
@@ -169,8 +173,8 @@ def list_my_groups(request: Request):
                             FROM records r
                             JOIN group_members gm2 ON gm2.user_id = r.user_id AND gm2.group_id = g.id
                             WHERE r.judgment_percent IS NOT NULL
-                              AND NOT r.is_manual
-                              AND r.visibility IN ('public', 'anonymous')
+                              AND {SCREENSHOT_RECORD_ELIGIBLE_SQL}
+                              AND r.visibility IN ('public', 'group')
                            ) AS ranked_song_count
                     FROM group_members gm
                     JOIN groups g ON g.id = gm.group_id
@@ -187,6 +191,7 @@ def list_my_groups(request: Request):
             "description": r[2],
             "owner_id": r[3],
             "auto_accept": bool(r[4]),
+            # 가입 코드 노출: owner/manager 또는 admin이면 보임. 일반 멤버에겐 null.
             "join_code": r[5] if r[8] in ("owner", "manager", "admin") else None,
             "code_revoked": bool(r[6]),
             "created_at": r[7].isoformat() if r[7] else None,
@@ -247,6 +252,7 @@ def get_group_detail(request: Request, gid: int):
                 for r in cur.fetchall()
             ]
 
+            # 신청은 staff(owner/manager)와 admin만 조회.
             applications = []
             if me["role"] in ("owner", "manager", "admin"):
                 cur.execute(
@@ -277,6 +283,7 @@ def get_group_detail(request: Request, gid: int):
         "description": g[2],
         "owner_id": g[3],
         "auto_accept": bool(g[4]),
+        # 가입 코드는 owner/manager 또는 admin만 볼 수 있음. 일반 멤버에겐 null.
         "join_code": g[5] if me["role"] in ("owner", "manager", "admin") else None,
         "code_revoked": bool(g[6]),
         "created_at": g[7].isoformat() if g[7] else None,
@@ -286,6 +293,7 @@ def get_group_detail(request: Request, gid: int):
     }
 
 
+# ---------- 생성/가입 ----------
 
 @router.post("/groups", status_code=201)
 def create_group(request: Request, body: GroupCreate):
@@ -298,6 +306,7 @@ def create_group(request: Request, body: GroupCreate):
     if len(name) < 2:
         raise HTTPException(status_code=422, detail="그룹 이름은 2자 이상 입력해주세요")
 
+    # 코드 충돌 시 최대 5번 재시도.
     last_err = None
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -414,6 +423,7 @@ def join_group(request: Request, body: GroupJoin):
                 conn.commit()
                 return {"status": "joined", "group_id": gid, "group_name": gname}
 
+            # 신청 큐
             try:
                 cur.execute(
                     "INSERT INTO group_applications (group_id, user_id, bio) "
@@ -427,6 +437,7 @@ def join_group(request: Request, body: GroupJoin):
             return {"status": "applied", "group_id": gid, "group_name": gname}
 
 
+# ---------- 그룹 메타 변경 ----------
 
 @router.patch("/groups/{gid}")
 def patch_group(request: Request, gid: int, body: GroupPatch):
@@ -496,6 +507,7 @@ def revoke_code(request: Request, gid: int):
     return {"ok": True}
 
 
+# ---------- 신청 처리 ----------
 
 @router.post("/groups/{gid}/applications/{aid}/accept")
 def accept_application(request: Request, gid: int, aid: int):
@@ -546,6 +558,7 @@ def reject_application(request: Request, gid: int, aid: int):
     return {"ok": True}
 
 
+# ---------- 멤버 관리 ----------
 
 @router.patch("/groups/{gid}/members/{mid}/role")
 def change_role(request: Request, gid: int, mid: int, body: RolePatch):
@@ -647,6 +660,7 @@ def leave_group(request: Request, gid: int):
         conn.commit()
 
 
+# ---------- 집계 엔드포인트 (그룹 상세 페이지 전용) ----------
 
 @router.get("/groups/{gid}/leaderboard")
 def get_group_leaderboard(request: Request, gid: int):
@@ -658,15 +672,15 @@ def get_group_leaderboard(request: Request, gid: int):
         with conn.cursor() as cur:
             _ensure_member_or_admin(cur, gid, uid)
             cur.execute(
-                """
+                f"""
                 WITH user_best AS (
                     SELECT DISTINCT ON (r.user_id, r.song_id)
                            r.user_id, r.song_id, r.judgment_percent, r.created_at
                     FROM records r
                     JOIN group_members gm ON gm.user_id = r.user_id AND gm.group_id = %s
                     WHERE r.judgment_percent IS NOT NULL
-                      AND NOT r.is_manual
-                      AND r.visibility IN ('public', 'anonymous')
+                      AND {SCREENSHOT_RECORD_ELIGIBLE_SQL}
+                      AND r.visibility IN ('public', 'group')
                     ORDER BY r.user_id, r.song_id,
                              r.judgment_percent DESC NULLS LAST, r.created_at ASC
                 ),
@@ -731,9 +745,7 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
     그룹 생성자(joined_at == groups.created_at)의 join 이벤트는 제외.
 
     노출 정책:
-      - visibility='public'/'anonymous' 기록은 항상 피드에 포함.
-      - visibility='private' 기록은 owner.searchable이 'public' 또는 'group'일 때만 포함
-        (그룹 내 신뢰 컨텍스트 — searchable로 그룹 멤버에게의 식별을 허용한 사용자에 한해 노출).
+      - visibility='public'/'group' 기록만 피드에 포함.
       - score 이벤트의 record_id/screenshot_url/youtube_url은 can_view 통과 시에만:
         본인 / show_screenshot=TRUE / searchable in ('public','group').
     """
@@ -743,7 +755,7 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
         with conn.cursor() as cur:
             _ensure_member_or_admin(cur, gid, uid)
             cur.execute(
-                """
+                f"""
                 (
                     SELECT 'join' AS kind,
                            gm.joined_at AS at,
@@ -784,13 +796,9 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
                     LEFT JOIN users u ON u.id = r.user_id
                     LEFT JOIN songs s ON s.id = r.song_id
                     WHERE r.judgment_percent IS NOT NULL
-                      AND NOT r.is_manual
+                      AND {SCREENSHOT_RECORD_ELIGIBLE_SQL}
                       AND (
-                        r.visibility IN ('public', 'anonymous')
-                        OR (
-                          r.visibility = 'private'
-                          AND COALESCE(u.searchable, 'public') IN ('public', 'group')
-                        )
+                        r.visibility IN ('public', 'group')
                       )
                 )
                 ORDER BY at DESC NULLS LAST
@@ -811,6 +819,8 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
         owner_searchable = r[12]
         is_mine = (owner_uid is not None and int(owner_uid) == int(uid))
 
+        # 그룹 피드는 멤버끼리만 보이므로 viewer-owner 동일 그룹은 항상 True.
+        # 권한: 본인 / show_screenshot 켬 / searchable이 'public' 또는 'group'
         can_view = (
             is_mine
             or owner_show
@@ -849,15 +859,15 @@ def get_group_song_firsts(request: Request, gid: int):
         with conn.cursor() as cur:
             _ensure_member_or_admin(cur, gid, uid)
             cur.execute(
-                """
+                f"""
                 WITH user_best AS (
                     SELECT DISTINCT ON (r.user_id, r.song_id)
                            r.user_id, r.song_id, r.judgment_percent, r.created_at
                     FROM records r
                     JOIN group_members gm ON gm.user_id = r.user_id AND gm.group_id = %s
                     WHERE r.judgment_percent IS NOT NULL
-                      AND NOT r.is_manual
-                      AND r.visibility IN ('public', 'anonymous')
+                      AND {SCREENSHOT_RECORD_ELIGIBLE_SQL}
+                      AND r.visibility IN ('public', 'group')
                     ORDER BY r.user_id, r.song_id,
                              r.judgment_percent DESC NULLS LAST, r.created_at ASC
                 ),

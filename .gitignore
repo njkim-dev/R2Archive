@@ -25,4 +25,8 @@ npm-debug.log*
 *.sqlite
 *.db
 record_screenshots/
+deploy/k8s/runtime/
+deploy/k8s/secrets/*.yaml
+!deploy/k8s/secrets/*.example.yaml
+deploy/backups/
 rnr_image/

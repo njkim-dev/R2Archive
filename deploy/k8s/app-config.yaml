@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: r2archive-config
+  namespace: r2
+data:
+  DB_HOST: r2-postgis.r2.svc.cluster.local
+  DB_PORT: "5432"
+  DB_NAME: r2music
+  CORS_ORIGINS: https://music.r2archive.com,https://xyx.r2archive.com
+  TRUSTED_HOSTS: music.r2archive.com,xyx.r2archive.com,r2archive.com,localhost,127.0.0.1
+  PYTHONDONTWRITEBYTECODE: "1"
+  XDG_CONFIG_HOME: /config
+  XDG_DATA_HOME: /data

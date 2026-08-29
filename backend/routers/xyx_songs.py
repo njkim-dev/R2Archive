@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Request
-from functools import lru_cache
 from pathlib import Path
 
 from auth import get_current_user_id, require_admin, require_user_id
@@ -31,12 +30,30 @@ def _parse_bpm_timeline(raw: str) -> list[BpmPoint]:
     return points
 
 
-def _song_aliases(korea_name: str | None) -> list[str]:
-    korea_name = (korea_name or "").strip()
-    return [korea_name] if korea_name else []
+def _song_aliases(korea_name: str | None, aliases: list[str] | tuple[str, ...] | None) -> list[str]:
+    result = []
+    seen = set()
+    for value in (korea_name, *(aliases or [])):
+        alias = (value or "").strip()
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        result.append(alias)
+    return result
 
 
-@lru_cache(maxsize=10000)
+def _artist_aliases(artist: str | None, aliases: list[str] | tuple[str, ...] | None) -> list[str]:
+    result = []
+    seen = {(artist or "").strip()}
+    for value in aliases or []:
+        alias = (value or "").strip()
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        result.append(alias)
+    return result
+
+
 def _static_asset_exists(prefix: str, image: str) -> bool:
     return (PROJECT_ROOT / prefix / Path(*image.split("/"))).exists()
 
@@ -46,13 +63,11 @@ def _xyx_image_path(image: str | None, *, fallback_to_korea: bool = False) -> st
     if not image:
         return None
     if image.startswith("xyx/"):
-        image = image[4:]
+        return image
     if image.startswith("rnr_image/"):
-        if _static_asset_exists("xyx", image):
-            return f"xyx/{image}"
-        if fallback_to_korea and _static_asset_exists("", image):
+        if fallback_to_korea and not _static_asset_exists("xyx", image) and _static_asset_exists("", image):
             return image
-        return None
+        return f"xyx/{image}"
     return image
 
 
@@ -83,12 +98,16 @@ def _rows_to_song_items(
             level,
             bpm,
             combo,
+            real_bpm,
             time_,
             change_bpm,
             yt_url,
             stat,
             file_order,
             image,
+            aliases,
+            artist_aliases,
+            same_music_group_id,
         ) = row
         p_avg, p_votes = perceived.get(sid, (None, 0))
         songs.append(
@@ -99,6 +118,7 @@ def _rows_to_song_items(
                 artist=artist or "",
                 level=float(level or 0),
                 bpm=float(bpm or 0),
+                real_bpm=float(real_bpm) if real_bpm is not None else None,
                 combo=int(combo or 0),
                 time=time_ or "",
                 youtube_url=yt_url or "",
@@ -110,7 +130,9 @@ def _rows_to_song_items(
                 image=_xyx_image_path(image, fallback_to_korea=removed),
                 user_level_avg=round(p_avg, 2) if p_avg is not None else None,
                 user_level_votes=int(p_votes),
-                aliases=_song_aliases(korea_name),
+                aliases=_song_aliases(korea_name, aliases),
+                artist_aliases=_artist_aliases(artist, artist_aliases),
+                same_music_group_id=int(same_music_group_id) if same_music_group_id is not None else None,
             )
         )
     return songs
@@ -125,30 +147,71 @@ def _fetch_song_items(removed: bool = False, request: Request | None = None) -> 
                 "SELECT s.name, s.artist, COUNT(*) "
                 "FROM xyx_play_logs pl "
                 "JOIN xyx_songs s ON s.id = pl.song_id "
-                "WHERE pl.played_at >= NOW() - INTERVAL '30 days' "
-                f"AND {where_sql} "
+                f"WHERE {where_sql} "
                 "GROUP BY s.name, s.artist"
             )
             play_counts = {(r[0], r[1]): r[2] for r in cur.fetchall()}
 
             cur.execute(
                 """
-                WITH visible_korea_names AS (
-                    SELECT l.xyx_song_id, MIN(ks.name) AS korea_name
+                WITH visible_korea_songs AS (
+                    SELECT l.xyx_song_id, ks.id AS kr_song_id, ks.name, ks.artist
                     FROM song_server_links l
                     JOIN songs ks ON ks.id = l.kr_song_id
                     WHERE l.confidence = 100
                       AND (COALESCE(ks.is_removed, FALSE) IS FALSE OR %s)
-                    GROUP BY l.xyx_song_id
-                    HAVING COUNT(DISTINCT ks.name) = 1
+                ),
+                visible_korea_names AS (
+                    SELECT xyx_song_id, MIN(name) AS korea_name
+                    FROM visible_korea_songs
+                    GROUP BY xyx_song_id
+                    HAVING COUNT(DISTINCT name) = 1
+                ),
+                combined_aliases AS (
+                    SELECT song_id AS xyx_song_id, alias
+                    FROM xyx_song_aliases
+                    UNION ALL
+                    SELECT vks.xyx_song_id, sa.alias
+                    FROM visible_korea_songs vks
+                    JOIN song_aliases sa ON sa.song_id = vks.kr_song_id
+                ),
+                combined_artist_aliases AS (
+                    SELECT s.id AS xyx_song_id, aa.alias
+                    FROM xyx_songs s
+                    JOIN artist_aliases aa
+                      ON aa.server = 'xyx'
+                     AND aa.artist = s.artist
+                    UNION ALL
+                    SELECT vks.xyx_song_id, vks.artist AS alias
+                    FROM visible_korea_songs vks
+                    WHERE NULLIF(TRIM(vks.artist), '') IS NOT NULL
+                    UNION ALL
+                    SELECT vks.xyx_song_id, aa.alias
+                    FROM visible_korea_songs vks
+                    JOIN artist_aliases aa
+                      ON aa.server = 'kr'
+                     AND aa.artist = vks.artist
                 )
-                SELECT s.id, s.name, vkn.korea_name, s.artist, s.level, s.bpm, s.combo,
+                SELECT s.id, s.name, vkn.korea_name, s.artist, s.level, s.bpm, s.combo, s.real_bpm,
                        COALESCE(s.real_time, s.time) AS time,
-                       s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image
+                       s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image,
+                       COALESCE(array_agg(DISTINCT ca.alias) FILTER (
+                           WHERE NULLIF(TRIM(ca.alias), '') IS NOT NULL
+                       ), ARRAY[]::text[]) AS aliases,
+                       COALESCE(array_agg(DISTINCT caa.alias) FILTER (
+                           WHERE NULLIF(TRIM(caa.alias), '') IS NOT NULL
+                       ), ARRAY[]::text[]) AS artist_aliases,
+                       smgm.group_id AS same_music_group_id
                 FROM xyx_songs s
                 LEFT JOIN visible_korea_names vkn ON vkn.xyx_song_id = s.id
+                LEFT JOIN combined_aliases ca ON ca.xyx_song_id = s.id
+                LEFT JOIN combined_artist_aliases caa ON caa.xyx_song_id = s.id
+                LEFT JOIN same_music_group_members smgm
+                  ON smgm.server = 'xyx' AND smgm.song_id = s.id
                 """
                 f"WHERE {where_sql} "
+                "GROUP BY s.id, s.name, vkn.korea_name, s.artist, s.level, s.bpm, s.combo, s.real_bpm, "
+                "s.time, s.real_time, s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image, smgm.group_id "
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST",
                 (include_removed_korea_names,),
             )
@@ -238,16 +301,17 @@ def get_xyx_song(request: Request, song_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, name, artist, level, bpm, combo, "
+                "SELECT id, name, artist, level, bpm, real_bpm, combo, "
                 "COALESCE(real_time, time) AS time, "
-                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index "
+                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index, "
+                "COALESCE(korea_name, '') AS korea_name "
                 "FROM xyx_songs WHERE id = %s",
                 (song_id,),
             )
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Song not found")
-            if row[11]:
+            if row[12]:
                 require_admin(request)
             viewer_is_admin = _is_admin(cur, request)
 
@@ -286,7 +350,7 @@ def get_xyx_song(request: Request, song_id: int):
                   s.id
                 LIMIT 1
                 """,
-                (song_id, viewer_is_admin, row[3], row[12]),
+                (song_id, viewer_is_admin, row[3], row[13]),
             )
             counterpart_row = cur.fetchone()
             if counterpart_row:
@@ -298,7 +362,7 @@ def get_xyx_song(request: Request, song_id: int):
                     is_removed=bool(counterpart_row[3]),
                 )
 
-    sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, image, is_removed, game_index = row
+    sid, name, artist, level, bpm, real_bpm, combo, time_, change_bpm, yt_url, stat, image, is_removed, game_index, korea_name = row
     base_bpm = float(bpm or 0)
     timeline = _parse_bpm_timeline(change_bpm or "")
     if timeline:
@@ -310,9 +374,11 @@ def get_xyx_song(request: Request, song_id: int):
     return SongDetail(
         id=sid,
         name=name or "",
+        korea_name=korea_name or "",
         artist=artist or "",
         level=float(level or 0),
         bpm=float(bpm or 0),
+        real_bpm=float(real_bpm) if real_bpm is not None else None,
         combo=int(combo or 0),
         time=time_ or "",
         youtube_url=yt_url or "",

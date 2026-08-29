@@ -31,7 +31,7 @@ export default function UserSearchList() {
             key={u.user_id}
             className="user-list-item"
             onClick={() => pinUser(u)}
-            title={`${u.nickname}의 기록 보기`}
+            title={`${u.nickname}의 성과 보기`}
           >
             <span className={`user-list-avatar${isMe ? ' me' : ''}`}>
               {(u.nickname[0] || '?').toUpperCase()}

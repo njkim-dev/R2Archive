@@ -33,7 +33,7 @@ export default function PmangFilterBar({
     pills.push(
       <span key="cat" className="pill">
         {CATEGORY_LABELS[category] ?? category}
-        <button onClick={() => setCategory(category)}>×</button>
+        <button onClick={() => setCategory(category)} aria-label={`${CATEGORY_LABELS[category] ?? category} 필터 해제`}>×</button>
       </span>
     )
   }
@@ -42,7 +42,7 @@ export default function PmangFilterBar({
     pills.push(
       <span key="lv" className="pill">
         난이도 <b>{levelMin?.toFixed(1)}~{levelMax?.toFixed(1)}</b>
-        <button onClick={() => { setLevelMin(minBound); setLevelMax(maxBound) }}>×</button>
+        <button onClick={() => { setLevelMin(minBound); setLevelMax(maxBound) }} aria-label="난이도 필터 해제">×</button>
       </span>
     )
   }
@@ -51,7 +51,7 @@ export default function PmangFilterBar({
     pills.push(
       <span key="bpm" className="pill">
         BPM <b>{bpmMin}~{bpmMax}</b>
-        <button onClick={() => { setBpmMin(bpmMinBound); setBpmMax(bpmMaxBound) }}>×</button>
+        <button onClick={() => { setBpmMin(bpmMinBound); setBpmMax(bpmMaxBound) }} aria-label="BPM 필터 해제">×</button>
       </span>
     )
   }
@@ -61,7 +61,7 @@ export default function PmangFilterBar({
     pills.push(
       <span key="quick" className="pill">
         {labels[quick] ?? quick}
-        <button onClick={() => setQuick('all')}>×</button>
+        <button onClick={() => setQuick('all')} aria-label={`${labels[quick] ?? quick} 필터 해제`}>×</button>
       </span>
     )
   }
@@ -70,7 +70,7 @@ export default function PmangFilterBar({
     pills.push(
       <span key={`artist:${artist}`} className="pill">
         {artist}
-        <button onClick={() => toggleArtist(artist)}>×</button>
+        <button onClick={() => toggleArtist(artist)} aria-label={`${artist} 아티스트 필터 해제`}>×</button>
       </span>
     )
   })
@@ -79,7 +79,7 @@ export default function PmangFilterBar({
     pills.push(
       <span key="search" className="pill">
         검색 <b>"{search}"</b>
-        <button onClick={() => setSearch('')}>×</button>
+        <button onClick={() => setSearch('')} aria-label="검색어 필터 해제">×</button>
       </span>
     )
   }

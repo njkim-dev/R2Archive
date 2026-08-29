@@ -43,7 +43,7 @@ export default function GroupsMobileList({ groups }) {
                 </div>
               )}
               <div className="grp-mob-stat">
-                <span className="lbl">랭킹곡</span>
+                <span className="lbl">기록곡</span>
                 <span className="val mono">{g.ranked_song_count || 0}</span>
               </div>
             </div>

@@ -9,7 +9,7 @@ export default function UserPin() {
       <span className="user-pin-medal">🏆</span>
       <div className="user-pin-main">
         <div className="user-pin-name">{pinnedUser.nickname}</div>
-        <div className="user-pin-sub">기록 {pinnedUser.record_count}건</div>
+        <div className="user-pin-sub">성과 {pinnedUser.record_count}건</div>
       </div>
       <button className="user-pin-close" onClick={unpinUser} aria-label="사용자 핀 해제">×</button>
     </div>

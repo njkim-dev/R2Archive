@@ -227,26 +227,40 @@ def _fetch_songs_for_category(cur, category_id: int, *, include_removed_korea_na
             JOIN category_song_ids c ON c.song_id = xpd.song_id
             GROUP BY xpd.song_id
         ),
-        visible_korea_names AS (
-            SELECT l.xyx_song_id, MIN(ks.name) AS korea_name
+        visible_korea_songs AS (
+            SELECT l.xyx_song_id, ks.id AS kr_song_id, ks.name
             FROM song_server_links l
             JOIN songs ks ON ks.id = l.kr_song_id
             WHERE l.confidence = 100
               AND (COALESCE(ks.is_removed, FALSE) IS FALSE OR %s)
-            GROUP BY l.xyx_song_id
-            HAVING COUNT(DISTINCT ks.name) = 1
+        ),
+        visible_korea_names AS (
+            SELECT xyx_song_id, MIN(name) AS korea_name
+            FROM visible_korea_songs
+            GROUP BY xyx_song_id
+            HAVING COUNT(DISTINCT name) = 1
+        ),
+        combined_aliases AS (
+            SELECT song_id AS xyx_song_id, alias
+            FROM xyx_song_aliases
+            UNION ALL
+            SELECT vks.xyx_song_id, sa.alias
+            FROM visible_korea_songs vks
+            JOIN song_aliases sa ON sa.song_id = vks.kr_song_id
         )
         SELECT s.id, s.name, vkn.korea_name, s.artist, s.level, s.bpm, s.combo,
                COALESCE(s.real_time, s.time) AS time,
                s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image,
                COALESCE(pc.play_count, 0) AS play_count,
                p.avg_level, COALESCE(p.vote_count, 0) AS vote_count,
+               COALESCE(array_agg(DISTINCT ca.alias) FILTER (WHERE ca.alias IS NOT NULL), ARRAY[]::text[]) AS aliases,
                c.added_at
         FROM category_song_ids c
         JOIN xyx_songs s ON s.id = c.song_id
         LEFT JOIN visible_korea_names vkn ON vkn.xyx_song_id = s.id
         LEFT JOIN play_counts pc ON pc.name = s.name AND pc.artist = s.artist
         LEFT JOIN perceived p ON p.song_id = s.id
+        LEFT JOIN combined_aliases ca ON ca.xyx_song_id = s.id
         GROUP BY s.id, s.name, vkn.korea_name, s.artist, s.level, s.bpm, s.combo,
                  s.time, s.real_time, s.change_bpm, s.youtube_url, s.stat,
                  s.file_order, s.image, pc.play_count, p.avg_level, p.vote_count, c.added_at
@@ -284,8 +298,8 @@ def _fetch_songs_for_category(cur, category_id: int, *, include_removed_korea_na
             "is_change": bool(r[8]),
             "user_level_avg": round(r[14], 2) if r[14] is not None else None,
             "user_level_votes": int(r[15] or 0),
-            "aliases": [r[2]] if r[2] else [],
-            "added_at": r[16].isoformat() if r[16] else None,
+            "aliases": [a for a in [r[2], *(r[16] or [])] if a],
+            "added_at": r[17].isoformat() if r[17] else None,
         }
         for r in rows
     ]

@@ -1,6 +1,16 @@
 import { create } from 'zustand'
-import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates } from '../api/client'
+import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates, getSongs, getMeta } from '../api/client'
 import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
+
+const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
+
+function readShowOriginalBpm() {
+  try {
+    return localStorage.getItem(SHOW_ORIGINAL_BPM_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 const useStore = create((set, get) => ({
   // user: { id, nickname, default_visibility, onboarded, provider } | null
@@ -8,34 +18,35 @@ const useStore = create((set, get) => ({
   authLoaded: false,
   // 관리자 여부 — /auth/me에는 포함하지 않고 별도 /auth/admin-status로 분리 조회.
   isAdmin: false,
+  adminLoaded: false,
   refreshUser: async () => {
     try {
       const { user } = await getAuthMe()
       if (user?.provider) {
         try { localStorage.setItem('r2b_last_provider', user.provider) } catch {}
       }
-      set({ user: user || null, authLoaded: true })
+      set({ user: user || null, authLoaded: true, adminLoaded: !user })
       if (user) {
         get().refreshFlags()
         get().refreshPmangFavorites()
         // 관리자 상태는 별도 호출. 실패해도(비로그인/네트워크) false로 폴백.
         getAdminStatus().then(d => {
           const isAdmin = !!d.is_admin
-          set({ isAdmin })
+          set({ isAdmin, adminLoaded: true })
           if (isAdmin) get().refreshPmangYoutubeCandidates()
           else set({ pmangYoutubeCandidates: [] })
-        }).catch(() => set({ isAdmin: false, pmangYoutubeCandidates: [] }))
+        }).catch(() => set({ isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] }))
       } else {
-        set({ favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, pmangYoutubeCandidates: [] })
+        set({ favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] })
       }
     } catch {
-      set({ user: null, authLoaded: true, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, pmangYoutubeCandidates: [] })
+      set({ user: null, authLoaded: true, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] })
     }
   },
   setUser: (user) => set({ user }),
   logout: async () => {
     try { await logoutApi() } catch {}
-    set({ user: null, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, pmangYoutubeCandidates: [] })
+    set({ user: null, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] })
   },
 
   favorites: new Set(),   // Set<song_id>
@@ -134,9 +145,35 @@ const useStore = create((set, get) => ({
   meta: null,
   loading: true,
   error: null,
+  loadCatalog: async () => {
+    set({ loading: true, error: null })
+    try {
+      const [songs, meta] = await Promise.all([getSongs(), getMeta()])
+      set({
+        songs,
+        meta,
+        levelMin: meta.level_min,
+        levelMax: meta.level_max,
+        bpmMin: meta.bpm_min,
+        bpmMax: meta.bpm_max,
+        loading: false,
+        error: null,
+      })
+      return true
+    } catch (err) {
+      const detail = err?.response?.data?.detail
+      set({
+        loading: false,
+        error: typeof detail === 'string' ? detail : '곡 목록을 불러오지 못했습니다.',
+      })
+      return false
+    }
+  },
 
   search: '',
   searchMode: 'both',   // 'both' | 'name' | 'artist'
+  excludeSearch: false,
+  showOriginalBpm: readShowOriginalBpm(),
   levelMin: 7,
   levelMax: 12,
   bpmMin: null,
@@ -188,6 +225,7 @@ const useStore = create((set, get) => ({
     return {
       search: typeof saved.search === 'string' ? saved.search : s.search,
       searchMode: ['both', 'name', 'artist'].includes(saved.searchMode) ? saved.searchMode : s.searchMode,
+      excludeSearch: !!saved.excludeSearch && typeof saved.search === 'string' && !!saved.search.trim(),
       levelMin: numberOr(saved.levelMin, s.levelMin),
       levelMax: numberOr(saved.levelMax, s.levelMax),
       bpmMin: numberOr(saved.bpmMin, s.bpmMin),
@@ -205,10 +243,19 @@ const useStore = create((set, get) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
 
-  setSearch: (search) => set({ search }),
+  setSearch: (search) => set({ search, ...(!search.trim() && { excludeSearch: false }) }),
   setSearchMode: (searchMode) => set({ searchMode }),
-  setLevelMin: (v) => set({ levelMin: v }),
-  setLevelMax: (v) => set({ levelMax: v }),
+  setExcludeSearch: (excludeSearch) => set({ excludeSearch: !!excludeSearch }),
+  setShowOriginalBpm: (showOriginalBpm) => {
+    const next = !!showOriginalBpm
+    try {
+      if (next) localStorage.setItem(SHOW_ORIGINAL_BPM_KEY, '1')
+      else localStorage.removeItem(SHOW_ORIGINAL_BPM_KEY)
+    } catch {}
+    set({ showOriginalBpm: next })
+  },
+  setLevelMin: (v) => set({ levelMin: v, category: null }),
+  setLevelMax: (v) => set({ levelMax: v, category: null }),
   setBpmMin: (v) => set({ bpmMin: v }),
   setBpmMax: (v) => set({ bpmMax: v }),
 
@@ -249,13 +296,13 @@ const useStore = create((set, get) => ({
   setSortDirect: (sort) => set({ sort }),
 
   clearAllFilters: () => set(s => ({
-    search: '', levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
+    search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
     category: 'sun', quick: 'all', artists: new Set(),
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),
   clearAllFiltersMobile: () => set(s => ({
-    search: '', levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
+    search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
     category: null, quick: 'all', artists: new Set(),
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,

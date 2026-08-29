@@ -7,9 +7,9 @@
 
 노출 정책:
   - visibility='public'    : 닉네임/점수 공개
-  - visibility='anonymous' : 점수 공개, 닉네임은 '익명'으로 마스킹 (단, 본인이 보면 본인 닉)
+  - visibility='group'     : 같은 그룹원에게만 점수/닉네임 공개
   - visibility='private'   : 본인에게만
-  - 사용자 검색·사용자별 기록은 'public'만 매칭 (anonymous를 사람과 연결하면 익명성 위배)
+  - 사용자 검색·사용자별 기록은 공개 범위와 검색 허용 정책을 함께 적용
 """
 from __future__ import annotations
 
@@ -25,8 +25,7 @@ router = APIRouter(prefix="/api/rankings", tags=["rankings"])
 
 
 class RankingTop(BaseModel):
-    # user_id는 visibility='public'일 때만 노출. anonymous에서 user_id를 드러내면
-    # 같은 사용자의 public/anonymous 기록을 교차 참조해 비익명화될 수 있음.
+    # user_id는 viewer가 식별할 수 있는 기록(public/group)에서만 노출한다.
     # 핀(/api/rankings/users/{id}/records)에서 본인 searchable 정책으로 한 번 더 가드된다.
     user_id: Optional[int] = None
     nickname: str
@@ -34,7 +33,7 @@ class RankingTop(BaseModel):
     score: Optional[int] = None
     combo: Optional[int] = None
     is_mine: bool = False
-    visibility: str  # "public" | "anonymous"
+    visibility: str  # "public" | "group"
 
 
 class SongRanking(BaseModel):
@@ -61,10 +60,6 @@ class UserRecord(BaseModel):
 
 
 def _mask_nickname(nickname: str, visibility: str, owner_uid: Optional[int], viewer_uid: Optional[int]) -> str:
-    if visibility == "anonymous":
-        if owner_uid is not None and viewer_uid is not None and int(owner_uid) == int(viewer_uid):
-            return nickname or "익명"
-        return "익명"
     return nickname or ""
 
 
@@ -96,7 +91,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                     FROM records r
                     LEFT JOIN users u ON u.id = r.user_id
                     WHERE r.judgment_percent IS NOT NULL
-                      AND r.visibility IN ('public', 'anonymous')
+                      AND r.visibility = 'public'
                       -- manual 기록도 youtube_url이 있으면 (검증된 영상 인증) 랭킹에 합류
                       AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                     ORDER BY r.song_id,
@@ -139,7 +134,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                                 JOIN users u ON u.id = r.user_id
                                 JOIN group_members gm ON gm.user_id = r.user_id AND gm.group_id = %s
                                 WHERE r.judgment_percent IS NOT NULL
-                                  AND r.visibility IN ('public', 'anonymous')
+                                  AND r.visibility IN ('public', 'group')
                                   AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                                 ORDER BY r.song_id, r.user_id,
                                          r.judgment_percent DESC NULLS LAST, r.created_at ASC
@@ -176,7 +171,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                             JOIN users u ON u.id = r.user_id
                             JOIN my_group_users mgu ON mgu.user_id = r.user_id
                             WHERE r.judgment_percent IS NOT NULL
-                              AND r.visibility IN ('public', 'anonymous')
+                              AND r.visibility IN ('public', 'group')
                               AND NOT r.is_manual
                             ORDER BY r.song_id, r.user_id,
                                      r.judgment_percent DESC NULLS LAST, r.created_at ASC
@@ -202,7 +197,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
         is_mine = (viewer_uid is not None and owner_uid is not None and int(owner_uid) == int(viewer_uid))
         vis = visibility or "public"
         group_map[sid] = RankingTop(
-            user_id=int(owner_uid) if (owner_uid is not None and vis == "public") else None,
+            user_id=int(owner_uid) if (owner_uid is not None and vis in ("public", "group")) else None,
             nickname=_mask_nickname(nickname or "", vis, owner_uid, viewer_uid),
             judgment_percent=float(jp),
             score=score,
@@ -240,7 +235,7 @@ def search_users(request: Request, q: str = ""):
     매칭 정책 (users.searchable × records.visibility):
       - 본인        : 모든 visibility 기록 카운트
       - searchable in ('public','group') AND viewer가 동일 그룹 멤버
-                    : 모든 visibility 기록 카운트 (그룹 내 신뢰 컨텍스트)
+                    : visibility='public'/'group' 기록 카운트
       - searchable='public' AND 비-그룹  : visibility='public' 기록만 카운트
       - searchable='group'  AND 비-그룹  : 매칭 없음
       - searchable='private'             : 본인 외 매칭 없음
@@ -269,7 +264,8 @@ def search_users(request: Request, q: str = ""):
                           SELECT 1 FROM group_members me
                           JOIN group_members them ON them.group_id = me.group_id
                           WHERE me.user_id = %s AND them.user_id = u.id
-                        ))
+                        )
+                        AND r.visibility IN ('public', 'group'))
                     OR (u.searchable = 'public' AND r.visibility = 'public')
                   )
                 GROUP BY u.id, u.nickname
@@ -296,7 +292,7 @@ def lookup_user_by_nickname(request: Request, nickname: str = ""):
     with get_conn() as conn:
         with conn.cursor() as cur:
             # search_users와 동일한 매칭 정책: 동일 그룹 + searchable in ('public','group')이면
-            # visibility 무관하게 lookup 가능. 그 외엔 visibility='public' 기록 보유자만.
+            # public/group 기록으로 lookup 가능. 그 외엔 visibility='public' 기록 보유자만.
             cur.execute(
                 """
                 SELECT u.id, u.nickname, u.searchable
@@ -314,7 +310,8 @@ def lookup_user_by_nickname(request: Request, nickname: str = ""):
                                 SELECT 1 FROM group_members me
                                 JOIN group_members them ON them.group_id = me.group_id
                                 WHERE me.user_id = %s AND them.user_id = u.id
-                              ))
+                              )
+                              AND r.visibility IN ('public', 'group'))
                           OR (u.searchable = 'public' AND r.visibility = 'public')
                         )
                   )
@@ -353,9 +350,8 @@ def get_user_records(request: Request, user_id: int):
 
     노출 정책:
       - 본인 조회: visibility 무관 전부.
-      - viewer가 target과 동일 그룹 멤버: visibility 무관 전부 (그룹 내부 신뢰 컨텍스트.
-        target이 searchable='public'/'group'으로 그룹 멤버에게의 식별을 이미 허용했고,
-        searchable='private'은 위쪽 가드에서 이미 차단됨. 'anonymous'·'private' 기록도 노출).
+      - viewer가 target과 동일 그룹 멤버: visibility='public'/'group' 기록.
+        searchable='private'은 위쪽 가드에서 이미 차단됨.
       - 그 외 타인: visibility='public'만.
     """
     viewer_uid = get_current_user_id(request)
@@ -388,8 +384,10 @@ def get_user_records(request: Request, user_id: int):
                 if target_searchable == "group" and not shares_group:
                     raise HTTPException(status_code=403, detail="해당 사용자의 기록은 그룹 멤버에게만 공개됩니다")
 
-    if is_self or shares_group:
-        visibility_clause = "r.visibility IN ('public', 'anonymous', 'private')"
+    if is_self:
+        visibility_clause = "r.visibility IN ('public', 'group', 'private')"
+    elif shares_group:
+        visibility_clause = "r.visibility IN ('public', 'group')"
     else:
         visibility_clause = "r.visibility = 'public'"
 

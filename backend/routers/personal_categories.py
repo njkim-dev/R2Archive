@@ -233,20 +233,28 @@ def _fetch_songs_for_category(cur, category_id: int) -> list[dict]:
             WHERE song_id IN (SELECT song_id FROM category_song_ids)
             GROUP BY song_id
         )
-        SELECT s.id, s.name, s.artist, s.level, s.bpm, s.combo,
+        SELECT s.id, s.name, s.artist, s.level, s.bpm,
+               COALESCE(s.real_combo, s.combo) AS combo,
+               (s.real_combo IS NOT NULL AND s.real_combo > s.combo) AS combo_warning,
                COALESCE(s.real_time, s.time) AS time,
                s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image,
                COALESCE(pc.play_count, 0) AS play_count,
                p.avg_level, COALESCE(p.votes, 0) AS votes,
-               COALESCE(array_agg(sa.alias) FILTER (WHERE sa.alias IS NOT NULL), ARRAY[]::text[]) AS aliases,
+               COALESCE(array_agg(DISTINCT sa.alias) FILTER (
+                   WHERE NULLIF(TRIM(sa.alias), '') IS NOT NULL
+               ), ARRAY[]::text[]) AS aliases,
+               COALESCE(array_agg(DISTINCT aa.alias) FILTER (
+                   WHERE NULLIF(TRIM(aa.alias), '') IS NOT NULL
+               ), ARRAY[]::text[]) AS artist_aliases,
                c.added_at
         FROM category_song_ids c
         JOIN songs s ON s.id = c.song_id
         LEFT JOIN play_counts pc ON pc.name = s.name AND pc.artist = s.artist
         LEFT JOIN perceived p ON p.song_id = s.id
         LEFT JOIN song_aliases sa ON sa.song_id = s.id
+        LEFT JOIN artist_aliases aa ON aa.server = 'kr' AND aa.artist = s.artist
         WHERE COALESCE(s.is_removed, FALSE) IS FALSE
-        GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.time, s.real_time,
+        GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.real_combo, s.time, s.real_time,
                  s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image,
                  pc.play_count, p.avg_level, p.votes, c.added_at
         ORDER BY c.added_at DESC, s.file_order DESC NULLS LAST
@@ -262,17 +270,19 @@ def _fetch_songs_for_category(cur, category_id: int) -> list[dict]:
             "level": float(r[3] or 0),
             "bpm": float(r[4] or 0),
             "combo": int(r[5] or 0),
-            "time": r[6] or "",
-            "youtube_url": r[8] or "",
-            "is_new": bool(r[9]),
-            "file_order": int(r[10] or 0),
-            "image": r[11] or None,
-            "play_count": int(r[12] or 0),
-            "is_change": bool(r[7]),
-            "user_level_avg": round(r[13], 2) if r[13] is not None else None,
-            "user_level_votes": int(r[14] or 0),
-            "aliases": list(r[15]) if r[15] else [],
-            "added_at": r[16].isoformat() if r[16] else None,
+            "combo_warning": bool(r[6]),
+            "time": r[7] or "",
+            "youtube_url": r[9] or "",
+            "is_new": bool(r[10]),
+            "file_order": int(r[11] or 0),
+            "image": r[12] or None,
+            "play_count": int(r[13] or 0),
+            "is_change": bool(r[8]),
+            "user_level_avg": round(r[14], 2) if r[14] is not None else None,
+            "user_level_votes": int(r[15] or 0),
+            "aliases": list(r[16]) if r[16] else [],
+            "artist_aliases": list(r[17]) if r[17] else [],
+            "added_at": r[18].isoformat() if r[18] else None,
         }
         for r in rows
     ]

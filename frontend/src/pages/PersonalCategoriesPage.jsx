@@ -40,7 +40,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>}
+        {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>}
         {!xyxMode && (
           <NavLink
             to="/groups"
@@ -55,6 +55,7 @@ function PageNav({ user }) {
         </NavLink>
         {!xyxMode && <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>}
         {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
+        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
         {!xyxMode && <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>}
       </div>
     </div>

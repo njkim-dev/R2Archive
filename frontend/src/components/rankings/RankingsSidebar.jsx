@@ -67,7 +67,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
             <span>곡 목록</span>
           </NavLink>
           <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>음악 랭킹</span>
+            <span>개인 성과</span>
           </NavLink>
           <NavLink
             to="/groups"
@@ -117,7 +117,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
                 onClick={() => handleQuick('mine')}
                 title={disabled ? '로그인 후 이용 가능' : undefined}
               >
-                <span>{pinnedUser ? `★ ${pinnedUser.nickname}의 기록` : '★ 내 기록 목록'}</span>
+                <span>{pinnedUser ? `★ ${pinnedUser.nickname}의 성과` : '★ 내 성과 목록'}</span>
                 <span className="tag">{disabled ? '—' : mineSongCount.toLocaleString()}</span>
               </button>
             )
@@ -127,7 +127,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
             className={quick === 'ranked' ? 'active' : ''}
             onClick={() => handleQuick('ranked')}
           >
-            <span>🏆 전체 유저 랭킹 목록</span>
+            <span>🏆 전체 유저 성과 목록</span>
             <span className="tag">{rankedSongCount.toLocaleString()}</span>
           </button>
 
@@ -139,9 +139,9 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
                 key={key}
                 className={quick === key ? 'active' : ''}
                 onClick={() => handleQuick(key)}
-                title={`${g.name} 그룹 멤버들의 랭킹`}
+                title={`${g.name} 그룹 멤버들의 성과`}
               >
-                <span>👥 {g.name} 그룹 랭킹 목록</span>
+                <span>👥 {g.name} 그룹 성과 목록</span>
                 <span className="tag">{count.toLocaleString()}</span>
               </button>
             )

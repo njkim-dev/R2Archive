@@ -5,7 +5,7 @@ import { matchSong } from '../../utils/helpers'
 
 const BUG_TYPES = [
   { v: 'data',    label: '데이터 오류',         desc: 'BPM·콤보·시간이 실제와 다를 때',   icon: '📊' },
-  { v: 'ranking', label: '랭킹/기록 문제',      desc: '잘못된 성과 등록·삭제 요청',       icon: '🏁' },
+  { v: 'record_issue', label: '기록 문제',          desc: '잘못된 성과 등록·삭제 요청',       icon: '🏁' },
   { v: 'comment', label: '부적절 댓글/게시물',  desc: '신고하고 싶은 콘텐츠',             icon: '🗯' },
   { v: 'ui',      label: '화면/동작 이상',      desc: 'UI가 깨지거나 버튼이 안 눌릴 때',  icon: '🖥' },
   { v: 'login',   label: '로그인/계정',         desc: '소셜 로그인·세션 관련',            icon: '🔑' },
@@ -14,7 +14,7 @@ const BUG_TYPES = [
 
 const FEATURE_TYPES = [
   { v: 'search',    label: '검색·필터',     desc: '새로운 정렬·필터 옵션',  icon: '🔍' },
-  { v: 'ranking',   label: '랭킹·통계',     desc: '순위 표시 방식 개선',    icon: '🏆' },
+  { v: 'record_stats',   label: '기록·통계',     desc: '기록 표시 방식 개선',    icon: '🏆' },
   { v: 'community', label: '커뮤니티',      desc: '게시판·댓글 기능',       icon: '💬' },
   { v: 'record',    label: '성과 등록',     desc: '기록 입력·인증 방식',    icon: '🎯' },
   { v: 'ux',        label: 'UX·디자인',     desc: '사용성 개선 제안',       icon: '🎨' },
@@ -152,7 +152,7 @@ export default function FeedbackComposeSheet({ open, tab, onClose, onSubmitted }
                 ref={songInputRef}
                 type="text"
                 className="fb-input"
-                placeholder="곡명·아티스트 검색…"
+                placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
                 value={songQuery}
                 onChange={e => { setSongQuery(e.target.value); setPickedSong(null); setShowSuggest(true) }}
                 onFocus={() => setShowSuggest(true)}

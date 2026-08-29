@@ -94,7 +94,7 @@ export default function RankingsPage() {
           .catch(e => {
             const status = e?.response?.status
             if (status === 403 || status === 404) {
-              alert(`${pinNick || '해당 사용자'}님의 기록은 비공개되어 있어요`)
+              alert(`${pinNick || '해당 사용자'}님의 성과는 비공개되어 있어요`)
             }
           })
         consumed = true
@@ -171,7 +171,7 @@ export default function RankingsPage() {
     else if (typeof quick === 'string' && quick.startsWith('group:')) {
       out = out.filter(r => r.groupTop != null)
     }
-    // '랭킹있음' — 모바일 칩에서 다른 필터(카테고리/내기록 등)와 동시 적용 가능하도록 독립 적용.
+    // '성과있음'은 모바일 칩에서 다른 필터와 동시에 적용된다.
     // quick==='ranked'는 PC 사이드바 레거시 경로.
     if (flagRanked || quick === 'ranked') out = out.filter(r => r.top != null)
 
@@ -275,7 +275,7 @@ function InvalidUrlsModal({ invalid, onClose, onProceed }) {
           margin: '14px 0 18px', fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.55,
           fontStyle: 'italic',
         }}>
-          URL 없이 점수만 저장하면 해당 곡들은 랭킹에 반영되지 않고 본인 기록으로만 남습니다.
+          URL 없이 점수만 저장하면 해당 곡들은 전체 성과에는 반영되지 않고 본인 성과로만 남습니다.
         </p>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--fg)' }}>
           어떻게 하시겠습니까?

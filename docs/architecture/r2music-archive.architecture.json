@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "R2Music Archive 런타임 아키텍처",
+    "subtitle": "한국 · 중국 카탈로그를 제공하는 NAS 단일 컨테이너 구성",
+    "output": "r2music-archive.html",
+    "viewBox": [1160, 760]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "이용자",
+      "sublabel": "Desktop / Mobile",
+      "pos": [40, 310],
+      "size": [120, 64]
+    },
+    {
+      "id": "spa",
+      "type": "frontend",
+      "label": "React SPA",
+      "sublabel": "music / xyx host mode",
+      "tag": "Vite + Zustand",
+      "pos": [220, 305],
+      "size": [170, 74]
+    },
+    {
+      "id": "caddy",
+      "type": "cloud",
+      "label": "Caddy Edge",
+      "sublabel": "SPA · /api · /static",
+      "tag": ":3000 → :3004",
+      "pos": [470, 305],
+      "size": [160, 74]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API",
+      "sublabel": "KR · XYX · PMANG routers",
+      "tag": "uvicorn :8000",
+      "pos": [710, 305],
+      "size": [170, 74]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "catalog · users · records",
+      "tag": "pool 2–10",
+      "pos": [950, 305],
+      "size": [160, 74]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "인증 · 보호",
+      "sublabel": "JWT cookie · slowapi",
+      "tag": "CSP + rate limit",
+      "pos": [710, 105],
+      "size": [170, 74]
+    },
+    {
+      "id": "oauth",
+      "type": "external",
+      "label": "OAuth 제공자",
+      "sublabel": "Kakao · Naver · Google",
+      "pos": [950, 105],
+      "size": [160, 74]
+    },
+    {
+      "id": "ocr",
+      "type": "backend",
+      "label": "스크린샷 OCR",
+      "sublabel": "Pillow + Tesseract",
+      "tag": "2 concurrent",
+      "pos": [710, 505],
+      "size": [170, 74]
+    },
+    {
+      "id": "media",
+      "type": "database",
+      "label": "NAS 파일 볼륨",
+      "sublabel": "artwork · screenshots",
+      "tag": "RO images / RW records",
+      "pos": [950, 505],
+      "size": [160, 74]
+    },
+    {
+      "id": "youtube",
+      "type": "external",
+      "label": "YouTube",
+      "sublabel": "play links · oEmbed",
+      "pos": [220, 505],
+      "size": [170, 74]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "NAS Docker container · r2music-archive",
+      "wraps": ["caddy", "api", "auth", "ocr"]
+    },
+    {
+      "kind": "security-group",
+      "label": "Same-origin API + session boundary",
+      "wraps": ["auth", "api"]
+    }
+  ],
+  "connections": [
+    {
+      "from": "users",
+      "to": "spa",
+      "label": "browse",
+      "variant": "emphasis"
+    },
+    {
+      "from": "spa",
+      "to": "caddy",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "from": "caddy",
+      "to": "api",
+      "label": "/api proxy",
+      "variant": "emphasis"
+    },
+    {
+      "from": "api",
+      "to": "postgres",
+      "label": "SQL",
+      "variant": "emphasis"
+    },
+    {
+      "from": "api",
+      "to": "auth",
+      "label": "session / policy",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "route": "orthogonal-v",
+      "labelDx": -64
+    },
+    {
+      "from": "auth",
+      "to": "oauth",
+      "label": "OAuth 2.0",
+      "variant": "security"
+    },
+    {
+      "from": "api",
+      "to": "ocr",
+      "label": "OCR job",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "orthogonal-v",
+      "labelDx": -42
+    },
+    {
+      "from": "api",
+      "to": "media",
+      "label": "/static + uploads",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "route": "orthogonal-v",
+      "via": [[900, 445], [910, 542]],
+      "labelAt": [925, 462]
+    },
+    {
+      "from": "spa",
+      "to": "youtube",
+      "label": "play / link out",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "orthogonal-v",
+      "labelDx": 58
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Traffic & Mode",
+      "items": [
+        "music.r2archive.com and xyx.r2archive.com share one React build",
+        "Hostname selects KR or XYX API paths; Caddy keeps API same-origin",
+        "HTML is no-cache; hashed assets are immutable"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Application",
+      "items": [
+        "FastAPI exposes catalog, records, rankings, groups, categories and analytics",
+        "KR, XYX and PMANG routers share auth and database infrastructure",
+        "Screenshot score parsing runs through a bounded Tesseract worker path"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Security",
+      "items": [
+        "HttpOnly JWT session cookie is shared across r2archive.com subdomains",
+        "Kakao, Naver and Google callbacks terminate at FastAPI",
+        "Caddy applies CSP/security headers; slowapi limits sensitive endpoints"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Data & Media",
+      "items": [
+        "PostgreSQL runs outside this Compose service and is reached through an env-configured pool",
+        "KR, XYX and PMANG artwork mounts are read-only",
+        "Record screenshots use a writable persistent NAS mount"
+      ]
+    }
+  ]
+}

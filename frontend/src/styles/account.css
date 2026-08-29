@@ -26,7 +26,6 @@
 }
 .user-logout:hover { background: var(--surface-2); color: var(--fg); }
 
-/* ============ "내 기록 등록" 버튼 (TopBar) ============ */
 .reg-btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px;
   background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 500;
@@ -35,4 +34,3 @@
   margin-right: 6px;
 }
 .reg-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
-

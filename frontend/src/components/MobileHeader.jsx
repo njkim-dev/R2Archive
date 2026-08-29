@@ -3,6 +3,7 @@ import useStore from '../store/useStore'
 import MobilePageNav from './MobilePageNav'
 import { HelpButton } from './HelpTour'
 import ServerSwitcher from './ServerSwitcher'
+import { isXyxMode } from '../utils/serverMode'
 
 // PC 사이드바와 동일한 5각 별 SVG. 즐겨찾기(★)와 시각적으로 구분되게 SVG 사용.
 const StarIcon = (
@@ -33,7 +34,7 @@ export default function MobileHeader({ totalFiltered }) {
     toggleFlagNew, toggleFlagVariants, toggleFlagFavorite, toggleFlagMyPlayed,
     setFlagNew, setFlagVariants, setFlagFavorite, setFlagMyPlayed,
     meta, bpmMin, bpmMax,
-    openMobileSheet,
+    mobileSheetOpen, openMobileSheet,
     sort, user, isAdmin,
     openLogin, logout, openOnboarding, openMyPage,
   } = useStore()
@@ -101,8 +102,16 @@ export default function MobileHeader({ totalFiltered }) {
 
   return (
     <header className="mob-top">
+      <h1 className="sr-only">R2Music Archive</h1>
       <div className="mob-top-inner">
         <div className="mob-top-row">
+          <div className="mob-brand-tablet" aria-hidden="true">
+            <div className="brand-mark">R2</div>
+            <div>
+              <div className="brand-title">R2Music Archive</div>
+              <div className="brand-sub">{isXyxMode() ? 'XYX Catalog' : 'Music Catalog'}</div>
+            </div>
+          </div>
           <ServerSwitcher className="mob-server-switcher" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HelpButton />
@@ -113,13 +122,14 @@ export default function MobileHeader({ totalFiltered }) {
                   className="mob-icon-btn"
                   onClick={openMyPage}
                   title="마이페이지"
+                  aria-label="마이페이지"
                   style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
                 >
                   <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--accent, #ff6b9d)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
                     {((user.nickname || '?')[0] || '?').toUpperCase()}
                   </div>
                 </button>
-                <button className="mob-icon-btn" onClick={logout} title="로그아웃">
+                <button className="mob-icon-btn" onClick={logout} title="로그아웃" aria-label="로그아웃">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                     <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -135,7 +145,7 @@ export default function MobileHeader({ totalFiltered }) {
                 로그인
               </button>
             )}
-            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="필터">
+            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
               </svg>
@@ -152,7 +162,8 @@ export default function MobileHeader({ totalFiltered }) {
           </svg>
           <input
             type="search"
-            placeholder="곡명 · 아티스트 검색"
+            placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
+            aria-label="곡명과 아티스트 검색"
             value={search}
             onChange={e => setSearch(e.target.value)}
             autoComplete="off"
@@ -166,7 +177,7 @@ export default function MobileHeader({ totalFiltered }) {
           )}
         </label>
 
-        <div className="mob-chips">
+        <div className="mob-chips" role="group" aria-label="곡 필터">
           {CHIPS.filter(c => (!c.needLogin || user) && (!c.adminOnly || isAdmin)).map(({ key, label, icon, range, flag }) => {
             let isOn
             if (flag) {
@@ -184,6 +195,7 @@ export default function MobileHeader({ totalFiltered }) {
                 key={key}
                 className={`mob-chip${isOn ? ' on' : ''}`}
                 onClick={() => handleChip(key)}
+                aria-pressed={isOn}
               >
                 {icon && <span className="mob-chip-icon" style={key === 'new' ? { color: 'var(--new)' } : {}}>{icon}</span>}
                 {label}

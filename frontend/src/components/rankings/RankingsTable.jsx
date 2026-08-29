@@ -13,7 +13,7 @@ const HEADERS_NORMAL = [
   { label: '난이도', key: 'level', cls: 'num' },
   { label: 'BPM', key: 'bpm', cls: 'num' },
   { label: '콤보', key: 'combo', cls: 'num' },
-  { label: '랭킹 판정', key: 'rankScore', cls: 'num' },
+  { label: '성과 판정', key: 'rankScore', cls: 'num' },
   { label: '그룹 판정', key: 'groupScore', cls: 'num' },
   { label: '내 판정', key: 'myScore', cls: 'num' },
 ]
@@ -109,7 +109,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
   const isMyTop = top?.is_mine
   const isMineManual = !!mine?.is_manual
 
-  const rankerLabel = pinnedUser ? `${pinnedUser.nickname}의 기록` : '내 기록'
+  const rankerLabel = pinnedUser ? `${pinnedUser.nickname}의 성과` : '내 성과'
   const additional = top && totalRecords > 1 ? `+${totalRecords - 1}` : ''
 
   const editJudgment = editMode ? (dirtyValue?.judgment ?? '') : ''
@@ -169,10 +169,10 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
                   className="ranker"
                   onClick={e => {
                     e.stopPropagation()
-                    if (top.visibility === 'public' && !top.is_mine) onRankerClick(top, song.id)
+                    if ((top.visibility === 'public' || top.visibility === 'group') && !top.is_mine) onRankerClick(top, song.id)
                   }}
-                  title={top.visibility === 'public' && !top.is_mine ? `${top.nickname}의 기록 보기` : undefined}
-                  style={{ cursor: top.visibility === 'public' && !top.is_mine ? 'pointer' : 'default' }}
+                  title={(top.visibility === 'public' || top.visibility === 'group') && !top.is_mine ? `${top.nickname}의 성과 보기` : undefined}
+                  style={{ cursor: (top.visibility === 'public' || top.visibility === 'group') && !top.is_mine ? 'pointer' : 'default' }}
                 >
                   <span className="ranker-medal">🥇</span>
                   <span className="ranker-name">{top.nickname}</span>
@@ -195,10 +195,10 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
                   className="ranker"
                   onClick={e => {
                     e.stopPropagation()
-                    if (groupTop.visibility === 'public' && !groupTop.is_mine) onRankerClick(groupTop, song.id)
+                    if ((groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine) onRankerClick(groupTop, song.id)
                   }}
-                  title={groupTop.visibility === 'public' && !groupTop.is_mine ? `${groupTop.nickname}의 기록 보기` : undefined}
-                  style={{ cursor: groupTop.visibility === 'public' && !groupTop.is_mine ? 'pointer' : 'default' }}
+                  title={(groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine ? `${groupTop.nickname}의 성과 보기` : undefined}
+                  style={{ cursor: (groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine ? 'pointer' : 'default' }}
                 >
                   <span className="ranker-medal">🏅</span>
                   <span className="ranker-name">{groupTop.nickname}</span>
@@ -312,9 +312,9 @@ export default function RankingsTable({ rows, hasGroups }) {
     } catch (e) {
       const status = e?.response?.status
       if (status === 403 || status === 404) {
-        alert(`${top.nickname}님의 기록은 비공개되어 있어요`)
+        alert(`${top.nickname}님의 성과는 비공개되어 있어요`)
       } else {
-        alert('사용자 기록을 가져오지 못했어요')
+        alert('사용자 성과를 가져오지 못했어요')
       }
     }
   }, [pinUser])
@@ -384,9 +384,9 @@ function EmptyState() {
   if (search.trim()) {
     icon = '🔍'; title = '검색 결과가 없어요'; sub = '다른 검색어로 시도해보세요'
   } else if (quick === 'mine') {
-    icon = '🎮'; title = '기록한 곡이 없어요'; sub = user ? '곡 상세 화면에서 첫 성과를 등록해보세요' : '로그인 후 이용 가능해요'
+    icon = '🎮'; title = '등록한 성과가 없어요'; sub = user ? '곡 상세 화면에서 첫 성과를 등록해보세요' : '로그인 후 이용 가능해요'
   } else if (quick === 'ranked' || flagRanked) {
-    icon = '🏆'; title = '랭킹 데이터가 있는 곡이 없어요'; sub = ''
+    icon = '🏆'; title = '성과 데이터가 있는 곡이 없어요'; sub = ''
   }
   return (
     <div className="rk-empty">

@@ -16,8 +16,7 @@ const PAGE_HELP = {
         body: '왼쪽 메뉴나 모바일 상단 메뉴로 주요 기능을 오갈 수 있어요.',
         bullets: [
           '곡 목록: 현재 서비스 중인 전체 음악의 검색, 필터, 카탈로그 제공',
-          '음악 랭킹: 곡별 최고 기록, 내 기록, 그룹 기록 비교',
-          '그룹: 그룹을 생성하여 그룹원들끼리 성과 및 랭킹 공유',
+          '그룹: 그룹을 생성하여 그룹원들끼리 성과와 기록을 공유',
           '카테고리: 좋아하는 노래를 카테고리에 저장 가능, 카테고리 상호 공유 가능',
           '과거 피망곡: 피망 서비스 시절 곡 검색 가능',
           '피드백: 버그 및 기능 제안',
@@ -41,31 +40,6 @@ const PAGE_HELP = {
       },
     ],
   },
-  rankings: {
-    title: '음악 랭킹 도움말',
-    steps: [
-      {
-        title: '랭킹 검색',
-        body: '곡명 기준 또는 사용자 기준으로 검색해서 판정 기록을 찾을 수 있어요.',
-        target: '.search, .mob-search',
-      },
-      {
-        title: '랭킹 필터',
-        body: '채널, 난이도, 내 기록, 그룹 랭킹 필터를 이용해 보고 싶은 기록만 모을 수 있어요.',
-        target: '.side, .mob-chips',
-      },
-      {
-        title: '랭킹 비교',
-        body: '곡별 최고 기록, 내 기록, 그룹 기록을 한 화면에서 비교해요. 모바일에서는 카드 형태로 표시됩니다.',
-        target: '.rk-table, .mob-list-wrap',
-      },
-      {
-        title: '내 기록 관리',
-        body: '로그인 후에는 내 기록을 등록하거나 수정할 수 있고, 저장 전 변경 내용은 이탈 시 확인을 받아요.',
-        target: '.edit-toggle, .reg-btn',
-      },
-    ],
-  },
   groups: {
     title: '그룹 도움말',
     steps: [
@@ -76,7 +50,7 @@ const PAGE_HELP = {
       },
       {
         title: '내 그룹 목록',
-        body: '가입한 그룹은 카드로 표시되고, 카드를 클릭하면 그룹 상세와 멤버 랭킹을 볼 수 있어요.',
+        body: '가입한 그룹은 카드로 표시되고, 카드를 클릭하면 그룹 상세와 멤버 기록을 볼 수 있어요.',
         target: '.grp-grid, .grp-mob-list',
       },
       {
@@ -96,12 +70,12 @@ const PAGE_HELP = {
       },
       {
         title: '탭 전환',
-        body: '랭킹, 멤버, 가입 신청, 관리 탭을 전환하면서 그룹 운영에 필요한 기능을 볼 수 있어요.',
+        body: '리더보드, 멤버, 가입 신청, 관리 탭을 전환하면서 그룹 운영에 필요한 기능을 볼 수 있어요.',
         target: '.gd-tabs',
       },
       {
-        title: '그룹 랭킹',
-        body: '그룹 멤버들의 판정 기록을 기준으로 순위를 비교하고, 랭킹 화면으로도 이동할 수 있어요.',
+        title: '그룹 리더보드',
+        body: '그룹 멤버들의 판정 기록을 기준으로 순위를 비교할 수 있어요.',
         target: '.gd-lb, .gd-lb-mob',
       },
     ],
@@ -181,7 +155,7 @@ const PAGE_HELP = {
       },
       {
         title: '채널과 빠른 필터',
-        body: '별, 달, 해 채널과 즐겨찾기 등의 필터로 목록을 정리할 수 있어요.',
+        body: '별, 달, 해 채널과 즐겨찾기, 음악 없음 같은 필터로 목록을 정리할 수 있어요.',
         target: '.side, .mob-chips',
       },
       {
@@ -249,7 +223,6 @@ export function HelpButton({ className = '' }) {
 
 function getHelpKey(pathname) {
   if (pathname === '/') return 'songs'
-  if (pathname.startsWith('/rankings')) return 'rankings'
   if (pathname === '/groups') return 'groups'
   if (pathname.startsWith('/groups/')) return 'groupDetail'
   if (pathname === '/personal-categories') return 'personalCategories'

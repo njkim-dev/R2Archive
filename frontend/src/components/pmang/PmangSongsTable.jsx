@@ -23,6 +23,17 @@ const COMPACT_HEADERS = [
   { label: '난이도', key: 'level', cls: 'num' },
 ]
 
+function openRowFromKeyboard(e, song, onClick) {
+  if (e.target !== e.currentTarget) return
+  if (e.key !== 'Enter' && e.key !== ' ') return
+  e.preventDefault()
+  onClick?.(song)
+}
+
+function rowAriaLabel(song) {
+  return `${song.name}, ${song.artist}, 난이도 ${(song.level / 2).toFixed(1)}. Enter 또는 Space로 상세 열기`
+}
+
 function YoutubeLinkIcon({ song }) {
   if (!song.youtube_url) return null
   return (
@@ -43,23 +54,31 @@ function YoutubeLinkIcon({ song }) {
 
 function TableHeader({ sort, onSort, headers = HEADERS, colTemplate = COL_TEMPLATE }) {
   return (
-    <div className="tbl-header" style={{ gridTemplateColumns: colTemplate }}>
-      {headers.map(({ label, key, cls }, i) => (
-        <div
-          key={i}
-          className={`th ${cls}${sort.key === key ? ' sorted' : ''}`}
-          onClick={() => key && onSort(key)}
-          style={key ? { cursor: 'pointer' } : {}}
-        >
-          {label}
-          {key && sort.key === key && (
-            <span className="arrow">{sort.dir === 'asc' ? '▲' : '▼'}</span>
-          )}
-          {key && sort.key !== key && (
-            <span style={{ color: 'var(--fg-4)', fontSize: 9, opacity: 0.5 }}>⇅</span>
-          )}
-        </div>
-      ))}
+    <div className="tbl-header" style={{ gridTemplateColumns: colTemplate }} role="row">
+      {headers.map(({ label, key, cls }, i) => {
+        const content = (
+          <>
+            {label}
+            {key && sort.key === key && <span className="arrow" aria-hidden="true">{sort.dir === 'asc' ? '▲' : '▼'}</span>}
+            {key && sort.key !== key && <span style={{ color: 'var(--fg-4)', fontSize: 9, opacity: 0.5 }} aria-hidden="true">⇅</span>}
+          </>
+        )
+        if (!key) return <div key={i} className={`th ${cls}`} role="columnheader" aria-label={label || '즐겨찾기'}>{content}</div>
+        const direction = sort.key === key ? (sort.dir === 'asc' ? '오름차순' : '내림차순') : '정렬되지 않음'
+        return (
+          <button
+            type="button"
+            key={i}
+            className={`th ${cls}${sort.key === key ? ' sorted' : ''}`}
+            role="columnheader"
+            aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+            aria-label={`${label} 기준 정렬, 현재 ${direction}`}
+            onClick={() => onSort(key)}
+          >
+            {content}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -82,9 +101,13 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
         data-song-id={song.id}
         data-bpm-tier={bpmTier}
         style={{ ...style, gridTemplateColumns: colTemplate }}
+        role="row"
+        tabIndex={0}
+        aria-label={rowAriaLabel(song)}
         onClick={() => onClick?.(song)}
+        onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
       >
-        <div className="td">
+        <div className="td" role="cell">
           <div className="title-cell">
             <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
               {song.image && (
@@ -110,11 +133,11 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
           </div>
         </div>
 
-        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
           {song.artist}
         </div>
 
-        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }}>
+        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }} role="cell">
           <span className="level-val">
             <span className="int">{lvInt}</span>
             <span className="dec">{lvDec}</span>
@@ -130,22 +153,27 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
       data-song-id={song.id}
       data-bpm-tier={bpmTier}
       style={{ ...style, gridTemplateColumns: COL_TEMPLATE }}
+      role="row"
+      tabIndex={0}
+      aria-label={rowAriaLabel(song)}
       onClick={() => onClick?.(song)}
+      onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
     >
-      <div className="td">
+      <div className="td" role="cell">
         <div className="idx-cell">
           <button
             className={`fav-btn${isFav ? ' on' : ''}`}
             title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+            aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
             onClick={e => { e.stopPropagation(); if (canFav) onToggleFav(song.id) }}
             disabled={!canFav}
           >{isFav ? '★' : '☆'}</button>
         </div>
       </div>
 
-      <div className="td num" style={{ color: 'var(--fg-3)' }}>{song.game_index}</div>
+      <div className="td num" style={{ color: 'var(--fg-3)' }} role="cell">{song.game_index}</div>
 
-      <div className="td">
+      <div className="td" role="cell">
         <div className="title-cell">
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
             {song.image && (
@@ -180,32 +208,32 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
         </div>
       </div>
 
-      <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
         {song.artist}
       </div>
 
-      <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }}>
+      <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }} role="cell">
         <span className="level-val">
           <span className="int">{lvInt}</span>
           <span className="dec">{lvDec}</span>
         </span>
       </div>
 
-      <div className="td num bpm-cell">
+      <div className="td num bpm-cell" role="cell">
         <span className="bpm-num">{song.bpm_display || fmtBpm(song.bpm || 0)}</span>
         <div className="bpm-wave">
           {bpmWaveBars(song.bpm || 1).map((style, i) => <div key={i} className="bar" style={style} />)}
         </div>
       </div>
 
-      <div className="td num">
+      <div className="td num" role="cell">
         <span className="combo-num">{song.combo ? fmt(song.combo) : '—'}</span>
         <div className="combo-bar">
           <div style={{ width: `${comboPct}%` }} />
         </div>
       </div>
 
-      <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }}>
+      <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">
         {song.favorite_count ? fmt(song.favorite_count) : '—'}
       </div>
     </div>
@@ -225,7 +253,16 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, active =
   }
 
   return (
-    <div className={`mob-card${active ? ' is-catalog-active' : ''}`} data-song-id={song.id} style={style} onClick={() => onClick?.(song)}>
+    <div
+      className={`mob-card${active ? ' is-catalog-active' : ''}`}
+      data-song-id={song.id}
+      style={style}
+      role="group"
+      tabIndex={0}
+      aria-label={rowAriaLabel(song)}
+      onClick={() => onClick?.(song)}
+      onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
+    >
       {(hasMusic || canFav) && (
         <div className="mob-card-actions">
           {hasMusic && (
@@ -449,7 +486,7 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
   }
 
   return (
-    <div className={`table-wrap${compact ? ' compact' : ''}`}>
+    <div className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="과거 피망곡 목록" aria-rowcount={items.length + 1}>
       <TableHeader
         sort={sort}
         onSort={onSort}
@@ -457,7 +494,7 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
         colTemplate={compact ? COMPACT_COL_TEMPLATE : COL_TEMPLATE}
       />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
-      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }}>
+      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
         {items.length === 0 ? (
           <SearchEmptyState search={search} />
         ) : (

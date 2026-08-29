@@ -8,7 +8,7 @@ let _rateLimitAlertCooldown = 0
 api.interceptors.response.use(
   r => r,
   err => {
-    if (err.response?.status === 429) {
+    if (err.response?.status === 429 && !err.config?.skipRateLimitAlert) {
       const now = Date.now()
       if (now - _rateLimitAlertCooldown > 3000) {
         _rateLimitAlertCooldown = now
@@ -38,6 +38,31 @@ export const getComments = (id) =>
 export const addComment = (id, body) =>
   api.post(apiPath(`/songs/${id}/comments`, `/xyx/songs/${id}/comments`), body).then(r => r.data)
 
+export const getRecords = (id) =>
+  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${id}/records`).then(r => r.data)
+export const addRecord = (id, body) =>
+  isXyxMode() ? Promise.reject(new Error('XYX records are not enabled yet')) : api.post(`/songs/${id}/records`, body).then(r => r.data)
+export const getRanking = (id) =>
+  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${id}/ranking`).then(r => r.data)
+export const getMyRecordsForSong = (id) =>
+  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${id}/records/me`).then(r => r.data)
+export const parseScreenshot = (file) => {
+  const fd = new FormData()
+  fd.append('image', file)
+  return api.post('/parse-screenshot', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+export const getMyScreenshotFilenames = () =>
+  api.get('/users/me/screenshot-filenames').then(r => r.data)
+export const uploadRecordScreenshot = (recordId, file) => {
+  const fd = new FormData()
+  fd.append('image', file)
+  return api.post(`/records/${recordId}/screenshot`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+
 export const getPerceivedStats = (id, anonId) =>
   api.get(apiPath(`/songs/${id}/perceived/stats`, `/xyx/songs/${id}/perceived/stats`), {
     // 로그인 사용자는 anonId를 빈 문자열로 넘김 → 쿼리스트링 자체를 생략해
@@ -54,39 +79,11 @@ export const deletePerceived = (id, body) =>
 export const submitFeedback = (id, body) =>
   isXyxMode() ? Promise.reject(new Error('XYX feedback is not enabled yet')) : api.post(`/songs/${id}/feedback`, body).then(r => r.data)
 
-export const getRecords = (id) =>
-  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${id}/records`).then(r => r.data)
-export const addRecord = (id, body) =>
-  isXyxMode() ? Promise.reject(new Error('XYX records are not enabled yet')) : api.post(`/songs/${id}/records`, body).then(r => r.data)
 // 본 게임 플레이 영상 — achievements 테이블 (records와 분리됨)
 export const getPlayVideos = (id) =>
   api.get(apiPath(`/songs/${id}/play-videos`, `/xyx/songs/${id}/play-videos`)).then(r => r.data)
 export const addPlayVideo = (id, body) =>
   api.post(apiPath(`/songs/${id}/play-videos`, `/xyx/songs/${id}/play-videos`), body).then(r => r.data)
-export const getRanking = (id) =>
-  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${id}/ranking`).then(r => r.data)
-export const getMyRecordsForSong = (id) =>
-  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${id}/records/me`).then(r => r.data)
-export const parseScreenshot = (file) => {
-  const fd = new FormData()
-  fd.append('image', file)
-  return api.post('/parse-screenshot', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 15000,
-  }).then(r => r.data)
-}
-
-export const getMyScreenshotFilenames = () =>
-  api.get('/users/me/screenshot-filenames').then(r => r.data)
-
-export const uploadRecordScreenshot = (recordId, file) => {
-  const fd = new FormData()
-  fd.append('image', file)
-  return api.post(`/records/${recordId}/screenshot`, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 20000,
-  }).then(r => r.data)
-}
 
 export const getAuthMe = () => api.get('/auth/me').then(r => r.data)
 // 관리자 여부는 /auth/me에서 빼고 별도 호출로 분리 — 정보 노출 최소화.
@@ -97,6 +94,46 @@ export const getYoutubeCandidates = (status = 'pending') =>
   api.get('/admin/youtube-candidates', { params: { status } }).then(r => r.data)
 export const getPmangYoutubeCandidates = (status = 'pending') =>
   api.get('/admin/pmang-youtube-candidates', { params: { status } }).then(r => r.data)
+export const trackPageview = async (body) => {
+  const config = { skipRateLimitAlert: true }
+  try {
+    let response = await api.post('/analytics/pageview', body, config)
+    if (response.data?.bootstrap) {
+      response = await api.post('/analytics/pageview', body, config)
+    }
+    return response.data
+  } catch {
+    return null
+  }
+}
+function currentDevice() {
+  if (typeof window === 'undefined') return 'unknown'
+  if (window.matchMedia?.('(max-width: 767px)').matches) return 'mobile'
+  if (window.matchMedia?.('(max-width: 1100px)').matches) return 'tablet'
+  return 'desktop'
+}
+export const trackSongCatalogView = async (body) => {
+  if (!body?.song_id) return null
+  const config = { skipRateLimitAlert: true }
+  const payload = {
+    path: typeof window === 'undefined' ? '/' : window.location.pathname,
+    title: typeof document === 'undefined' ? null : document.title,
+    referrer: typeof document === 'undefined' ? null : document.referrer || null,
+    device: currentDevice(),
+    ...body,
+  }
+  try {
+    let response = await api.post('/analytics/catalog-view', payload, config)
+    if (response.data?.bootstrap) {
+      response = await api.post('/analytics/catalog-view', payload, config)
+    }
+    return response.data
+  } catch {
+    return null
+  }
+}
+export const getAnalyticsSummary = (days = 30) =>
+  api.get('/admin/analytics/summary', { params: { days } }).then(r => r.data)
 export const patchMe = (body) => api.patch('/users/me', body).then(r => r.data)
 export const checkNickname = (q) =>
   api.get('/users/check-nickname', { params: { q } }).then(r => r.data)
@@ -135,6 +172,8 @@ export const lookupGroupByCode = (code) =>
 // ---------- Feedback ----------
 export const listFeedback = (params = {}) =>
   api.get('/feedback', { params }).then(r => r.data)
+export const listSongFeedback = (params = {}) =>
+  api.get('/admin/song-feedback', { params }).then(r => r.data)
 export const createFeedback = (body) =>
   api.post('/feedback', body).then(r => r.data)
 export const voteFeedback = (id) =>
@@ -166,6 +205,18 @@ export const getPublicPersonalCategories = () => api.get(apiPath('/personal-cate
 export const getMySubscribedPersonalCategories = () => api.get(apiPath('/me/personal-category-subscriptions', '/me/xyx-category-subscriptions')).then(r => r.data)
 export const getSongPersonalCategories = (songId) =>
   api.get(apiPath(`/songs/${songId}/personal-categories`, `/xyx/songs/${songId}/categories`)).then(r => r.data)
+export const getRecommendedPracticeSections = (songId) =>
+  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${songId}/practice-sections/recommended`).then(r => r.data)
+export const getMyPracticeSections = (songId) =>
+  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${songId}/practice-sections/mine`).then(r => r.data)
+export const getPracticeSections = (songId) =>
+  isXyxMode() ? Promise.resolve([]) : api.get(`/songs/${songId}/practice-sections`).then(r => r.data)
+export const addPracticeSection = (songId, body) =>
+  isXyxMode() ? Promise.reject(new Error('Practice sections are only available on KR server')) : api.post(`/songs/${songId}/practice-sections`, body).then(r => r.data)
+export const recommendPracticeSection = (songId, sectionId) =>
+  isXyxMode() ? Promise.reject(new Error('Practice sections are only available on KR server')) : api.post(`/songs/${songId}/practice-sections/${sectionId}/recommend`).then(r => r.data)
+export const deletePracticeSection = (songId, sectionId) =>
+  isXyxMode() ? Promise.reject(new Error('Practice sections are only available on KR server')) : api.delete(`/songs/${songId}/practice-sections/${sectionId}`).then(r => r.data)
 export const createPersonalCategory = (body) => api.post(apiPath('/personal-categories', '/xyx-categories'), body).then(r => r.data)
 export const patchPersonalCategory = (categoryId, body) =>
   api.patch(apiPath(`/personal-categories/${categoryId}`, `/xyx-categories/${categoryId}`), body).then(r => r.data)

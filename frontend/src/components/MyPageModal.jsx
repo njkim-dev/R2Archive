@@ -49,7 +49,7 @@ export default function MyPageModal() {
   }
 
   const handleDeleteRecord = async (recordId) => {
-    if (!confirm('이 기록을 삭제할까요? (스크린샷도 함께 삭제됩니다)')) return
+    if (!confirm('이 성과를 삭제할까요? (스크린샷도 함께 삭제됩니다)')) return
     try {
       await deleteMyRecord(recordId)
       setRecords(prev => prev.filter(r => r.id !== recordId))
@@ -85,7 +85,7 @@ export default function MyPageModal() {
 
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--bd-2, #2a2a2a)', marginBottom: 12 }}>
           <TabButton active={tab === 'records'} onClick={() => setTab('records')}>
-            내 기록 {records && <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>· {records.length}</span>}
+            내 성과 {records && <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>· {records.length}</span>}
           </TabButton>
           <TabButton active={tab === 'comments'} onClick={() => setTab('comments')}>
             내 댓글 {comments && <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>· {comments.length}</span>}
@@ -164,7 +164,7 @@ function RecordsTab({ records, filter, setFilter, totalCount, onSongClick, onDel
       </div>
 
       {records.length === 0 ? (
-        <EmptyState text={totalCount === 0 ? '아직 등록한 기록이 없어요' : '필터에 맞는 기록이 없어요'} />
+        <EmptyState text={totalCount === 0 ? '아직 등록한 성과가 없어요' : '필터에 맞는 성과가 없어요'} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {records.map(r => (
@@ -194,7 +194,7 @@ function RecordRow({ record, onSongClick, onDelete }) {
 
         <button
           onClick={() => onDelete(record.id)}
-          title="기록 삭제"
+          title="성과 삭제"
           style={{ padding: '3px 10px', fontSize: 11, background: 'transparent', border: '1px solid var(--bd-2, #2a2a2a)', borderRadius: 4, color: 'var(--fg-4)', cursor: 'pointer' }}
           onMouseEnter={e => { e.currentTarget.style.color = '#ff6b6b'; e.currentTarget.style.borderColor = '#ff6b6b' }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-4)'; e.currentTarget.style.borderColor = 'var(--bd-2, #2a2a2a)' }}

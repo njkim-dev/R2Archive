@@ -3,8 +3,8 @@ import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
 import ServerSwitcher from '../ServerSwitcher'
 
-export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearchChange }) {
-  const { user, openLogin, logout, openMyPage } = useStore()
+export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearchChange, searchPlaceholder = '제목 · 내용 검색' }) {
+  const { user, openLogin, logout, openMyPage, isAdmin } = useStore()
 
   return (
     <header className="mob-top">
@@ -49,7 +49,7 @@ export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearc
           </svg>
           <input
             type="search"
-            placeholder="제목 · 내용 검색"
+            placeholder={searchPlaceholder}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
             autoComplete="off"
@@ -70,6 +70,11 @@ export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearc
           <button className={tab === 'feature' ? 'on' : ''} onClick={() => onTabChange('feature')}>
             ✨ 기능 개선
           </button>
+          {isAdmin && (
+            <button className={tab === 'song_feedback' ? 'on' : ''} onClick={() => onTabChange('song_feedback')}>
+              음악별 피드백
+            </button>
+          )}
         </div>
       </div>
     </header>

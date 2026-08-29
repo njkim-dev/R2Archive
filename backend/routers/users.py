@@ -1,23 +1,24 @@
 from pathlib import Path
 from typing import Optional
 
+import asyncio
+import httpx
 import psycopg2
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-import asyncio
-import httpx
 
 from auth import fetch_user, require_user_id
 from database import get_conn
 from models import ManualRecordsBulk
-from rate_limit import limiter
+from rate_limit import limiter, user_key
 from routers.records import _extract_video_id
 from routers.songs import ensure_active_song
 
 _SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent.parent / "record_screenshots"
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
 
 # SQL injection 방지를 위해, f-string에는 정해진 값만 들어가도록 강제.
 _USER_FIELD_SQL = {
@@ -31,7 +32,7 @@ _USER_FIELD_SQL = {
 class MeUpdate(BaseModel):
     nickname: Optional[str] = Field(default=None, min_length=1, max_length=30)
     default_visibility: Optional[str] = Field(
-        default=None, pattern=r"^(public|anonymous|private)$"
+        default=None, pattern=r"^(public|group|private)$"
     )
     show_screenshot: Optional[bool] = None
     searchable: Optional[str] = Field(
@@ -138,11 +139,15 @@ def get_my_flags(request: Request):
                 (uid,),
             )
             favorites = [r[0] for r in cur.fetchall()]
+            # played는 사용자가 실제로 클릭한 song_id (채널별 분리 유지) — 카테고리 필터 OFF일 때 사용,
+            # 같은 곡이 별/달/해에 중복 표시되는 것을 막는다.
             cur.execute(
                 "SELECT song_id FROM user_plays WHERE user_id = %s",
                 (uid,),
             )
             played = [r[0] for r in cur.fetchall()]
+            # played_all은 동일 (name, artist) 곡의 모든 채널 인스턴스 포함 — 카테고리 필터 ON일 때 사용,
+            # 다른 채널에서 들었어도 현재 채널에서 "내가 플레이한 곡"으로 노출되게 한다.
             cur.execute(
                 """
                 SELECT DISTINCT s2.id
@@ -271,38 +276,22 @@ def get_my_comments(request: Request):
 
 
 async def _verify_youtube_url(url: str) -> tuple[bool, str | None]:
-    """oEmbed로 URL 유효성 + 제목 조회. (valid, title) 반환. 401/404/timeout은 모두 invalid."""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            r = await client.get(
+            response = await client.get(
                 "https://www.youtube.com/oembed",
                 params={"url": url, "format": "json"},
             )
-        if r.status_code != 200:
+        if response.status_code != 200:
             return False, None
-        data = r.json()
-        title = data.get("title")
-        return True, (title.strip()[:200] if isinstance(title, str) else None)
+        title = response.json().get("title")
+        return True, title.strip()[:200] if isinstance(title, str) else None
     except Exception:
         return False, None
 
 
 @router.put("/me/records/manual")
 async def save_manual_records(request: Request, body: ManualRecordsBulk):
-    """랭킹 페이지 편집 모드의 일괄 저장.
-
-    동작:
-      - judgment_percent + youtube_url 둘 다 있는 entry: manual row + URL → 랭킹 합류
-      - judgment_percent만 있는 entry: manual row (자가신고, 랭킹 미반영)
-      - 둘 다 없는 entry: 기존 manual row 삭제
-      - youtube_url만 있는 entry: 무시 (URL 단독 등록 막음)
-
-    URL 검증:
-      1) 정규식으로 형식 확인
-      2) oEmbed 병렬 호출로 실제 영상 존재 확인
-      - 하나라도 실패 시 트랜잭션 진행 안 하고 422 + invalid 배열 응답.
-        invalid에는 song_id/song_title/artist/url 포함 → 프론트에서 안내 모달.
-    """
     uid = require_user_id(request)
     user_row = fetch_user(uid)
     if not user_row:
@@ -314,18 +303,15 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
 
     invalid_song_ids: list[int] = []
     invalid_url_map: dict[int, str] = {}
-    to_verify: list[tuple] = []
-
+    to_verify: list[tuple[int, int, str]] = []
     normalized_urls: dict[int, str] = {}
 
     for i, entry in enumerate(body.entries):
         raw_url = (entry.youtube_url or "").strip()
-        if not raw_url:
+        if not raw_url or entry.judgment_percent is None:
             continue
-        if entry.judgment_percent is None:
-            continue
-        vid = _extract_video_id(raw_url)
-        if not vid:
+        video_id = _extract_video_id(raw_url)
+        if not video_id:
             invalid_song_ids.append(entry.song_id)
             invalid_url_map[entry.song_id] = raw_url
             continue
@@ -333,20 +319,19 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
         to_verify.append((i, entry.song_id, raw_url))
 
     titles: dict[int, str | None] = {}
-
     if to_verify:
-        async def _check(item):
+        async def check(item):
             idx, sid, url = item
             ok, title = await _verify_youtube_url(url)
             return idx, sid, url, ok, title
 
-        results = await asyncio.gather(*[_check(it) for it in to_verify], return_exceptions=False)
+        results = await asyncio.gather(*[check(item) for item in to_verify])
         for idx, sid, url, ok, title in results:
-            if not ok:
+            if ok:
+                titles[idx] = title
+            else:
                 invalid_song_ids.append(sid)
                 invalid_url_map[sid] = url
-            else:
-                titles[idx] = title
 
     if invalid_song_ids:
         with get_conn() as conn:
@@ -355,7 +340,7 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
                     "SELECT id, name, artist FROM songs WHERE id = ANY(%s)",
                     (list(set(invalid_song_ids)),),
                 )
-                song_info = {r[0]: {"song_title": r[1], "artist": r[2]} for r in cur.fetchall()}
+                song_info = {row[0]: {"song_title": row[1], "artist": row[2]} for row in cur.fetchall()}
         invalid_payload = []
         for sid in invalid_song_ids:
             info = song_info.get(sid, {"song_title": "", "artist": ""})
@@ -377,9 +362,9 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
     with get_conn() as conn:
         with conn.cursor() as cur:
             for i, entry in enumerate(body.entries):
-                jp = entry.judgment_percent
-                yt_url = normalized_urls.get(i)
-                yt_title = titles.get(i)
+                judgment_percent = entry.judgment_percent
+                youtube_url = normalized_urls.get(i)
+                youtube_title = titles.get(i)
 
                 cur.execute(
                     "SELECT id FROM records "
@@ -387,19 +372,15 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
                     "ORDER BY created_at DESC",
                     (uid, entry.song_id),
                 )
-                existing_ids = [r[0] for r in cur.fetchall()]
+                existing_ids = [row[0] for row in cur.fetchall()]
 
-                if jp is None:
+                if judgment_percent is None:
                     if existing_ids:
-                        cur.execute(
-                            "DELETE FROM records WHERE id = ANY(%s)",
-                            (existing_ids,),
-                        )
+                        cur.execute("DELETE FROM records WHERE id = ANY(%s)", (existing_ids,))
                         deleted += len(existing_ids)
                     continue
 
                 ensure_active_song(cur, entry.song_id)
-
                 if existing_ids:
                     keep_id = existing_ids[0]
                     cur.execute(
@@ -410,14 +391,11 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
                             created_at = NOW()
                         WHERE id = %s
                         """,
-                        (jp, visibility, nickname, yt_url, yt_title, keep_id),
+                        (judgment_percent, visibility, nickname, youtube_url, youtube_title, keep_id),
                     )
                     updated += 1
                     if len(existing_ids) > 1:
-                        cur.execute(
-                            "DELETE FROM records WHERE id = ANY(%s)",
-                            (existing_ids[1:],),
-                        )
+                        cur.execute("DELETE FROM records WHERE id = ANY(%s)", (existing_ids[1:],))
                 else:
                     cur.execute(
                         """
@@ -426,7 +404,7 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
                              visibility, is_manual, youtube_url, youtube_title)
                         VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s)
                         """,
-                        (entry.song_id, uid, nickname, jp, visibility, yt_url, yt_title),
+                        (entry.song_id, uid, nickname, judgment_percent, visibility, youtube_url, youtube_title),
                     )
                     inserted += 1
         conn.commit()

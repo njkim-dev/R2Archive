@@ -22,7 +22,7 @@ def ensure_active_song(cur, song_id: int) -> None:
 
 def get_active_song_combo(cur, song_id: int) -> int | None:
     cur.execute(
-        f"SELECT combo FROM songs WHERE id = %s AND {ACTIVE_SONG_SQL}",
+        f"SELECT COALESCE(real_combo, combo) FROM songs WHERE id = %s AND {ACTIVE_SONG_SQL}",
         (song_id,),
     )
     row = cur.fetchone()
@@ -123,8 +123,7 @@ def get_songs():
             cur.execute(
                 "SELECT s.name, s.artist, COUNT(*) FROM play_logs pl "
                 "JOIN songs s ON s.id = pl.song_id "
-                "WHERE pl.played_at >= NOW() - INTERVAL '30 days' "
-                f"AND {ACTIVE_SONG_ALIAS_SQL} "
+                f"WHERE {ACTIVE_SONG_ALIAS_SQL} "
                 "GROUP BY s.name, s.artist"
             )
             play_counts: dict[tuple, int] = {(r[0], r[1]): r[2] for r in cur.fetchall()}
@@ -142,30 +141,60 @@ def get_songs():
             favorite_counts: dict[int, int] = {r[0]: r[1] for r in cur.fetchall()}
 
             cur.execute(
-                "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.combo, "
+                "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.real_bpm, "
+                "COALESCE(s.real_combo, s.combo) AS combo, "
+                "(s.real_combo IS NOT NULL AND s.real_combo > s.combo) AS combo_warning, "
                 "COALESCE(s.real_time, s.time) AS time, "
                 "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image, "
-                "COALESCE(array_agg(sa.alias) FILTER (WHERE sa.alias IS NOT NULL), ARRAY[]::text[]) AS aliases "
+                "COALESCE(xyx_match.xyx_name, '') AS xyx_name, "
+                "COALESCE(song_aliases.aliases, ARRAY[]::text[]) AS aliases, "
+                "COALESCE(artist_aliases.aliases, ARRAY[]::text[]) AS artist_aliases, "
+                "smgm.group_id AS same_music_group_id "
                 "FROM songs s "
-                "LEFT JOIN song_aliases sa ON s.id = sa.song_id "
+                "LEFT JOIN LATERAL ("
+                "  SELECT array_agg(DISTINCT sa.alias) FILTER ("
+                "    WHERE NULLIF(TRIM(sa.alias), '') IS NOT NULL"
+                "  ) AS aliases "
+                "  FROM song_aliases sa "
+                "  WHERE sa.song_id = s.id"
+                ") song_aliases ON TRUE "
+                "LEFT JOIN LATERAL ("
+                "  SELECT array_agg(DISTINCT aa.alias) FILTER ("
+                "    WHERE NULLIF(TRIM(aa.alias), '') IS NOT NULL"
+                "  ) AS aliases "
+                "  FROM artist_aliases aa "
+                "  WHERE aa.server = 'kr' "
+                "    AND aa.artist = s.artist"
+                ") artist_aliases ON TRUE "
+                "LEFT JOIN LATERAL ("
+                "  SELECT MIN(x.name) AS xyx_name "
+                "  FROM song_server_links l "
+                "  JOIN xyx_songs x ON x.id = l.xyx_song_id "
+                "  WHERE l.kr_song_id = s.id "
+                "    AND l.confidence = 100 "
+                "    AND COALESCE(x.is_removed, FALSE) IS FALSE"
+                ") xyx_match ON TRUE "
+                "LEFT JOIN same_music_group_members smgm "
+                "  ON smgm.server = 'kr' AND smgm.song_id = s.id "
                 f"WHERE {ACTIVE_SONG_ALIAS_SQL} "
-                "GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.time, s.real_time, "
-                "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image "
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST"
             )
             rows = cur.fetchall()
 
     songs = []
     for row in rows:
-        sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, file_order, image, aliases = row
+        sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, file_order, image, xyx_name, aliases, artist_aliases, same_music_group_id = row
         p_avg, p_votes = perceived.get(sid, (None, 0))
         songs.append(SongListItem(
             id=sid,
             name=name or "",
+            xyx_name=xyx_name or "",
             artist=artist or "",
             level=float(level or 0),
             bpm=float(bpm or 0),
+            real_bpm=float(real_bpm) if real_bpm is not None else None,
             combo=int(combo or 0),
+            combo_warning=bool(combo_warning),
             time=time_ or "",
             youtube_url=yt_url or "",
             is_new=bool(stat),
@@ -177,6 +206,8 @@ def get_songs():
             user_level_avg=round(p_avg, 2) if p_avg is not None else None,
             user_level_votes=int(p_votes),
             aliases=list(aliases) if aliases else [],
+            artist_aliases=list(artist_aliases) if artist_aliases else [],
+            same_music_group_id=int(same_music_group_id) if same_music_group_id is not None else None,
         ))
     return songs
 
@@ -190,8 +221,7 @@ def get_removed_songs(request: Request):
             cur.execute(
                 "SELECT s.name, s.artist, COUNT(*) FROM play_logs pl "
                 "JOIN songs s ON s.id = pl.song_id "
-                "WHERE pl.played_at >= NOW() - INTERVAL '30 days' "
-                f"AND {REMOVED_SONG_ALIAS_SQL} "
+                f"WHERE {REMOVED_SONG_ALIAS_SQL} "
                 "GROUP BY s.name, s.artist"
             )
             play_counts: dict[tuple, int] = {(r[0], r[1]): r[2] for r in cur.fetchall()}
@@ -209,30 +239,59 @@ def get_removed_songs(request: Request):
             favorite_counts: dict[int, int] = {r[0]: r[1] for r in cur.fetchall()}
 
             cur.execute(
-                "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.combo, "
+                "SELECT s.id, s.name, s.artist, s.level, s.bpm, s.real_bpm, "
+                "COALESCE(s.real_combo, s.combo) AS combo, "
+                "(s.real_combo IS NOT NULL AND s.real_combo > s.combo) AS combo_warning, "
                 "COALESCE(s.real_time, s.time) AS time, "
                 "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image, "
-                "COALESCE(array_agg(sa.alias) FILTER (WHERE sa.alias IS NOT NULL), ARRAY[]::text[]) AS aliases "
+                "COALESCE(xyx_match.xyx_name, '') AS xyx_name, "
+                "COALESCE(song_aliases.aliases, ARRAY[]::text[]) AS aliases, "
+                "COALESCE(artist_aliases.aliases, ARRAY[]::text[]) AS artist_aliases, "
+                "smgm.group_id AS same_music_group_id "
                 "FROM songs s "
-                "LEFT JOIN song_aliases sa ON s.id = sa.song_id "
+                "LEFT JOIN LATERAL ("
+                "  SELECT array_agg(DISTINCT sa.alias) FILTER ("
+                "    WHERE NULLIF(TRIM(sa.alias), '') IS NOT NULL"
+                "  ) AS aliases "
+                "  FROM song_aliases sa "
+                "  WHERE sa.song_id = s.id"
+                ") song_aliases ON TRUE "
+                "LEFT JOIN LATERAL ("
+                "  SELECT array_agg(DISTINCT aa.alias) FILTER ("
+                "    WHERE NULLIF(TRIM(aa.alias), '') IS NOT NULL"
+                "  ) AS aliases "
+                "  FROM artist_aliases aa "
+                "  WHERE aa.server = 'kr' "
+                "    AND aa.artist = s.artist"
+                ") artist_aliases ON TRUE "
+                "LEFT JOIN LATERAL ("
+                "  SELECT MIN(x.name) AS xyx_name "
+                "  FROM song_server_links l "
+                "  JOIN xyx_songs x ON x.id = l.xyx_song_id "
+                "  WHERE l.kr_song_id = s.id "
+                "    AND l.confidence = 100"
+                ") xyx_match ON TRUE "
+                "LEFT JOIN same_music_group_members smgm "
+                "  ON smgm.server = 'kr' AND smgm.song_id = s.id "
                 f"WHERE {REMOVED_SONG_ALIAS_SQL} "
-                "GROUP BY s.id, s.name, s.artist, s.level, s.bpm, s.combo, s.time, s.real_time, "
-                "s.change_bpm, s.youtube_url, s.stat, s.file_order, s.image "
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST"
             )
             rows = cur.fetchall()
 
     songs = []
     for row in rows:
-        sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, file_order, image, aliases = row
+        sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, file_order, image, xyx_name, aliases, artist_aliases, same_music_group_id = row
         p_avg, p_votes = perceived.get(sid, (None, 0))
         songs.append(SongListItem(
             id=sid,
             name=name or "",
+            xyx_name=xyx_name or "",
             artist=artist or "",
             level=float(level or 0),
             bpm=float(bpm or 0),
+            real_bpm=float(real_bpm) if real_bpm is not None else None,
             combo=int(combo or 0),
+            combo_warning=bool(combo_warning),
             time=time_ or "",
             youtube_url=yt_url or "",
             is_new=bool(stat),
@@ -244,6 +303,8 @@ def get_removed_songs(request: Request):
             user_level_avg=round(p_avg, 2) if p_avg is not None else None,
             user_level_votes=int(p_votes),
             aliases=list(aliases) if aliases else [],
+            artist_aliases=list(artist_aliases) if artist_aliases else [],
+            same_music_group_id=int(same_music_group_id) if same_music_group_id is not None else None,
         ))
     return songs
 
@@ -254,7 +315,9 @@ def get_song(request: Request, song_id: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, name, artist, level, bpm, combo, "
+                "SELECT id, name, artist, level, bpm, real_bpm, "
+                "COALESCE(real_combo, combo) AS combo, "
+                "(real_combo IS NOT NULL AND real_combo > combo) AS combo_warning, "
                 "COALESCE(real_time, time) AS time, "
                 "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index "
                 "FROM songs WHERE id = %s",
@@ -263,7 +326,7 @@ def get_song(request: Request, song_id: int):
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="곡을 찾을 수 없습니다")
-            if row[11]:
+            if row[13]:
                 require_admin(request)
             viewer_is_admin = _is_admin(cur, request)
 
@@ -303,7 +366,7 @@ def get_song(request: Request, song_id: int):
                   x.id
                 LIMIT 1
                 """,
-                (song_id, viewer_is_admin, row[3], row[12]),
+                (song_id, viewer_is_admin, row[3], row[14]),
             )
             counterpart_row = cur.fetchone()
             if counterpart_row:
@@ -315,7 +378,8 @@ def get_song(request: Request, song_id: int):
                     is_removed=bool(counterpart_row[3]),
                 )
 
-    sid, name, artist, level, bpm, combo, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index = row
+    sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index = row
+    xyx_name = counterpart.name if counterpart and counterpart.server == "xyx" else ""
     base_bpm = float(bpm or 0)
     timeline = _parse_bpm_timeline(change_bpm or "")
     if timeline:
@@ -329,10 +393,13 @@ def get_song(request: Request, song_id: int):
     return SongDetail(
         id=sid,
         name=name or "",
+        xyx_name=xyx_name or "",
         artist=artist or "",
         level=float(level or 0),
         bpm=float(bpm or 0),
+        real_bpm=float(real_bpm) if real_bpm is not None else None,
         combo=int(combo or 0),
+        combo_warning=bool(combo_warning),
         time=time_ or "",
         youtube_url=yt_url or "",
         is_new=bool(stat),

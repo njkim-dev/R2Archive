@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FolderPlus, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
@@ -79,7 +80,7 @@ export default function PersonalCategoryPicker({
         {!iconOnly && <span>{busy ? '불러오는 중...' : children}</span>}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="pcat-picker-backdrop" onClick={e => e.stopPropagation()}>
           <div className="pcat-picker" onClick={e => e.stopPropagation()}>
             <div className="pcat-picker-head">
@@ -109,13 +110,15 @@ export default function PersonalCategoryPicker({
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {toast && (
+      {toast && createPortal(
         <div className="pcat-toast" role="status" aria-live="polite">
           {toast}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

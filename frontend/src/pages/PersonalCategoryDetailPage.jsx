@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Globe2, Lock, SlidersHorizontal, Users } from 'lucide-react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import { getPersonalCategoryByCode } from '../api/client'
@@ -33,7 +33,7 @@ function PageNav({ user }) {
       <div className="side-label"><span>페이지</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>음악 랭킹</span></NavLink>}
+        {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>}
         {!xyxMode && (
           <NavLink
             to="/groups"
@@ -48,6 +48,7 @@ function PageNav({ user }) {
         </NavLink>
         {!xyxMode && <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>}
         {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
+        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
         {!xyxMode && <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>}
       </div>
     </div>
@@ -264,6 +265,8 @@ function PersonalCategoryMobileFilterSheet({
   const [draftLevelMax, setDraftLevelMax] = useState(filters.levelMax)
   const [draftBpmMin, setDraftBpmMin] = useState(filters.bpmMin)
   const [draftBpmMax, setDraftBpmMax] = useState(filters.bpmMax)
+  const sheetRef = useRef(null)
+  const previousFocusRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
@@ -272,6 +275,52 @@ function PersonalCategoryMobileFilterSheet({
     setDraftBpmMin(filters.bpmMin)
     setDraftBpmMax(filters.bpmMax)
   }, [open, filters.levelMin, filters.levelMax, filters.bpmMin, filters.bpmMax])
+
+  useEffect(() => {
+    if (!open) return undefined
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const backgroundElements = [...(sheetRef.current?.parentElement?.children || [])]
+      .filter(element => !element.classList.contains('mob-backdrop') && !element.classList.contains('mob-sheet'))
+      .map(element => ({ element, ariaHidden: element.getAttribute('aria-hidden'), inert: element.inert }))
+    backgroundElements.forEach(({ element }) => {
+      element.inert = true
+      element.setAttribute('aria-hidden', 'true')
+    })
+    const frame = requestAnimationFrame(() => {
+      sheetRef.current?.querySelector('button:not([disabled]), input:not([disabled])')?.focus()
+    })
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !sheetRef.current) return
+      const focusable = [...sheetRef.current.querySelectorAll('button:not([disabled]), input:not([disabled])')]
+        .filter(element => element.getClientRects().length > 0)
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKeyDown)
+      backgroundElements.forEach(({ element, ariaHidden, inert }) => {
+        element.inert = inert
+        if (ariaHidden == null) element.removeAttribute('aria-hidden')
+        else element.setAttribute('aria-hidden', ariaHidden)
+      })
+      requestAnimationFrame(() => previousFocusRef.current?.focus?.())
+    }
+  }, [open, onClose])
 
   const normalizeDraft = () => ({
     levelMin: Math.min(draftLevelMin, draftLevelMax),
@@ -312,14 +361,19 @@ function PersonalCategoryMobileFilterSheet({
     onClose()
   }
 
+  if (!open) return null
+
   return (
     <>
-      <div className={`mob-backdrop${open ? ' open' : ''}`} onClick={onClose} />
-    <section className={`mob-sheet${open ? ' open' : ''}`} role="dialog" aria-label="음악 카테고리 필터">
+      <div className="mob-backdrop open" onClick={onClose} aria-hidden="true" />
+      <section ref={sheetRef} className="mob-sheet open" role="dialog" aria-modal="true" aria-labelledby="personal-category-mobile-filter-title" tabIndex={-1}>
         <div className="mob-sheet-handle" />
         <div className="mob-sheet-head">
-          <div className="mob-sheet-title">필터</div>
-          <button className="mob-sheet-reset" onClick={reset}>초기화</button>
+          <h2 className="mob-sheet-title" id="personal-category-mobile-filter-title">필터</h2>
+          <div className="mob-sheet-actions">
+            <button className="mob-sheet-reset" onClick={reset}>초기화</button>
+            <button className="mob-sheet-close" onClick={onClose} aria-label="필터 닫기">×</button>
+          </div>
         </div>
 
         <div className="mob-sheet-group">
@@ -334,6 +388,7 @@ function PersonalCategoryMobileFilterSheet({
               min={levelBounds[0]}
               max={levelBounds[1]}
               step="0.5"
+              aria-label="난이도 최솟값"
               value={draftLevelMin}
               onChange={e => setDraftLevelMin(+e.target.value)}
             />
@@ -344,6 +399,7 @@ function PersonalCategoryMobileFilterSheet({
               min={levelBounds[0]}
               max={levelBounds[1]}
               step="0.5"
+              aria-label="난이도 최댓값"
               value={draftLevelMax}
               onChange={e => setDraftLevelMax(+e.target.value)}
             />
@@ -362,6 +418,7 @@ function PersonalCategoryMobileFilterSheet({
               min={bpmBounds[0]}
               max={bpmBounds[1]}
               step="1"
+              aria-label="BPM 최솟값"
               value={draftBpmMin}
               onChange={e => setDraftBpmMin(+e.target.value)}
             />
@@ -372,6 +429,7 @@ function PersonalCategoryMobileFilterSheet({
               min={bpmBounds[0]}
               max={bpmBounds[1]}
               step="1"
+              aria-label="BPM 최댓값"
               value={draftBpmMax}
               onChange={e => setDraftBpmMax(+e.target.value)}
             />
