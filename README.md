@@ -1,20 +1,18 @@
-# R2Music Archive
+# R2Archive
 
-리듬 게임 **알투비트(R2Beat)** 의 비공식 음악 아카이브.
-곡 목록을 빠르게 탐색하고, 곡별 체감 난이도를 함께 쌓아가는 팬 프로젝트입니다.
+알투비트 곡 정보를 한곳에서 찾아보기 위해 만든 개인 프로젝트입니다.
+한국 서버 곡을 중심으로 과거 피망 곡과 중국 XYX 서버 곡도 함께 정리하고 있습니다.
 
-🔗 **Live**: https://music.r2archive.com
+## 서비스 주소
 
-## 주요 기능
+- 한국 서버: https://music.r2archive.com
+- 중국 서버: https://xyx.r2archive.com
 
-- **곡 카탈로그** — 난이도(별/달/해), BPM, 아티스트, 변속 여부 등으로 즉시 필터링
-- **체감 난이도 투표** — 0.5 단위로 곡별 체감 레벨을 매기고 의견을 남길 수 있음
-- **성과 기록 / 랭킹** — 스크린샷을 등록하여 본인 성과 랭킹에 표출 가능
-- **공개 범위 선택** — 기록은 공개 / 익명 / 비공개 중 선택
-- **소셜 로그인** — 카카오 / 네이버 / Google OAuth (개인정보는 저장하지 않음)
+곡명이나 아티스트로 검색할 수 있으며, 난이도와 BPM 등으로 목록을 필터링할 수 있습니다.
+곡을 선택하면 BPM, 콤보, 다른 난이도 및 다른 서버의 동일한 곡 정보를 확인할 수 있습니다.
 
-## 기술 스택
+## 사용 기술
 
-- **Backend**: FastAPI + PostgreSQL/PostGIS, JWT 세션 쿠키, slowapi rate limiter
-- **Frontend**: React + Vite, Zustand, react-window, Fuse.js
-- **배포**: OCI 컨테이너 + Caddy + Uvicorn + PostgreSQL/PostGIS
+- Frontend: React, Vite, Zustand
+- Backend: FastAPI, PostgreSQL/PostGIS
+- Web: Caddy, Uvicorn
