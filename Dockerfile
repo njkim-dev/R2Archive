@@ -35,7 +35,9 @@ RUN pip install poetry
 COPY backend/pyproject.toml backend/poetry.lock* ./backend/
 RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78.1.1" && \
     cd backend && poetry config virtualenvs.create false && \
-    poetry install --only main --no-interaction
+    poetry install --only main --no-interaction && \
+    python -m pip install --no-cache-dir --upgrade "msgpack>=1.2.1" "setuptools>=78.1.1" && \
+    python -c "from importlib.metadata import version; assert tuple(map(int, version('msgpack').split('.'))) >= (1, 2, 1); assert tuple(map(int, version('setuptools').split('.'))) >= (78, 1, 1)"
 
 # 백엔드 소스
 COPY backend/ ./backend/
