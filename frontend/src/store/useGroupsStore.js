@@ -11,7 +11,7 @@ const useGroupsStore = create((set, get) => ({
   myGroups: [],
   loaded: false,
 
-  detail: null,           // GET /api/groups/:id 응답
+  detail: null,
   detailLoading: false,
   leaderboard: [],
   feed: [],

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
 import UserChip from '../components/UserChip'
 import { listFeedback, listSongFeedback, createFeedback, voteFeedback } from '../api/client'
@@ -9,6 +8,7 @@ import FeedbackMobileHeader from '../components/feedback/FeedbackMobileHeader'
 import FeedbackComposeSheet from '../components/feedback/FeedbackComposeSheet'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
+import PageNavigation from '../components/PageNavigation'
 
 const BUG_TYPES = [
   { v: 'data',    label: '데이터 오류',         desc: 'BPM·콤보·시간이 실제와 다를 때',   icon: '📊' },
@@ -65,42 +65,6 @@ function fmtRel(at) {
   return `${dt.getFullYear()}.${String(dt.getMonth() + 1).padStart(2, '0')}.${String(dt.getDate()).padStart(2, '0')}`
 }
 
-function SidebarBrand() {
-  return <ServerSwitcher />
-}
-
-function PageNav() {
-  const { user, openLogin, isAdmin } = useStore()
-  return (
-    <div className="side-section" style={{ marginTop: 0 }}>
-      <div className="side-label"><span>페이지</span></div>
-      <div className="page-nav">
-        <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>
-        <NavLink
-          to="/groups"
-          className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-          onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-        >
-          <span>그룹</span>
-        </NavLink>
-        <NavLink
-          to="/personal-categories"
-          className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-          onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-        >
-          <span>음악 카테고리</span>
-        </NavLink>
-        <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
-        {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
-        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
-        <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>
-      </div>
-    </div>
-  )
-}
-
-// ---------- Type radio grid ----------
 function TypeGrid({ options, value, onChange }) {
   return (
     <div className="fb-type-grid">
@@ -123,7 +87,6 @@ function TypeGrid({ options, value, onChange }) {
   )
 }
 
-// ---------- Compose card ----------
 function ComposeCard({ tab, onSubmitted }) {
   const { user, openLogin, songs } = useStore()
   const [type, setType] = useState(null)
@@ -137,13 +100,11 @@ function ComposeCard({ tab, onSubmitted }) {
   const songInputRef = useRef(null)
   const suggestRef = useRef(null)
 
-  // 탭 전환 시 상태 초기화
   useEffect(() => {
     setType(null); setTitle(''); setBody(''); setSeverity('med')
     setSongQuery(''); setPickedSong(null); setShowSuggest(false)
   }, [tab])
 
-  // 외부 클릭 → suggest 닫기
   useEffect(() => {
     const onClick = (e) => {
       if (songInputRef.current?.contains(e.target)) return
@@ -157,7 +118,6 @@ function ComposeCard({ tab, onSubmitted }) {
   const suggestions = useMemo(() => {
     const q = songQuery.trim()
     if (!q) return []
-    // 메인 페이지와 동일 매칭 정책 (공백 무시 + name + artist + aliases)
     return songs.filter(s => matchSong(s, q)).slice(0, 6)
   }, [songQuery, songs])
 
@@ -233,7 +193,6 @@ function ComposeCard({ tab, onSubmitted }) {
               onChange={e => { setSongQuery(e.target.value); setPickedSong(null); setShowSuggest(true) }}
               onFocus={() => setShowSuggest(true)}
               onKeyDown={e => {
-                // 곡이 선택된 상태에서 Backspace/Delete → 한 글자씩 지우지 말고 선택 자체를 취소.
                 if ((e.key === 'Backspace' || e.key === 'Delete') && pickedSong) {
                   e.preventDefault()
                   setPickedSong(null)
@@ -288,7 +247,6 @@ function ComposeCard({ tab, onSubmitted }) {
         />
       </div>
 
-      {/* 어떤 조건이 통과/미통과인지 표시 — 사용자가 비활성 사유를 즉시 확인할 수 있게 */}
       <div className="fb-validity">
         <span className={type ? 'ok' : 'no'}>{type ? '✓' : '○'} 유형 선택 {type ? `(${type})` : ''}</span>
         <span className={title.trim().length > 0 ? 'ok' : 'no'}>
@@ -309,7 +267,7 @@ function ComposeCard({ tab, onSubmitted }) {
         >
           초기화
         </button>
-        {/* native disabled 대신 aria-disabled — title 툴팁/이벤트가 안정적으로 동작 */}
+        {/* 비활성 상태에서도 사유 툴팁을 표시한다. */}
         <button
           type="button"
           className="fb-btn primary"
@@ -331,7 +289,6 @@ function ComposeCard({ tab, onSubmitted }) {
   )
 }
 
-// ---------- Item ----------
 function FeedbackItem({ item, onVote }) {
   const [t, ico] = TYPE_LABEL[item.type] || ['기타', '❓']
   const isBug = item.tab === 'bug'
@@ -343,7 +300,6 @@ function FeedbackItem({ item, onVote }) {
         onClick={() => onVote(item)}
         title={item.voted ? '좋아요 취소' : '좋아요'}
       >
-        {/* voted 상태면 채워진 하트, 아니면 윤곽선 하트 */}
         <svg
           width="15" height="15" viewBox="0 0 24 24"
           fill={item.voted ? 'currentColor' : 'none'}
@@ -413,7 +369,6 @@ function SongFeedbackItem({ item }) {
   )
 }
 
-// ---------- Page ----------
 export default function FeedbackPage() {
   const isMobile = useMobile()
   const { user, openLogin, isAdmin } = useStore()
@@ -456,7 +411,6 @@ export default function FeedbackPage() {
 
   useEffect(() => { fetchList() /* eslint-disable-line */ }, [tab, statusFilter, isAdmin])
 
-  // 검색은 디바운스
   useEffect(() => {
     const t = setTimeout(fetchList, 300)
     return () => clearTimeout(t)
@@ -553,8 +507,8 @@ export default function FeedbackPage() {
   return (
     <div className="app">
       <aside className="side">
-        <SidebarBrand />
-        <PageNav />
+        <ServerSwitcher />
+        <PageNavigation />
       </aside>
       <main className="main">
         <div className="topbar">

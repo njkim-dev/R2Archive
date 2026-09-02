@@ -16,7 +16,6 @@ function displayBpm(song) {
   return song.bpm_display || fmtBpm(song.bpm || 0)
 }
 
-// 본 records와 동일한 검증: youtu.be/<id> 또는 youtube.com/watch?v=<id>, 11자 video id.
 const isValidYtUrl = (u) =>
   /^https:\/\/youtu\.be\/[A-Za-z0-9_-]{11}(?:[/?#&].*)?$/.test(u) ||
   /^https:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:.*&)?v=[A-Za-z0-9_-]{11}(?:[&#].*)?$/.test(u)
@@ -28,7 +27,6 @@ function PmangRecordsTab({ song }) {
   const [url, setUrl] = useState('')
   const [ytTitle, setYtTitle] = useState(null)
   const [ytLoading, setYtLoading] = useState(false)
-  // 로그인 상태면 회원 닉네임을 자동 사용 — 입력 필드는 숨김.
   const [nick, setNick] = useState(user?.nickname || '')
   const [memo, setMemo] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -36,7 +34,6 @@ function PmangRecordsTab({ song }) {
 
   useEffect(() => { getPmangRecords(song.id).then(setRecords).catch(() => setRecords([])) }, [song.id])
 
-  // user 변경 시 nick state 동기화.
   useEffect(() => { setNick(user?.nickname || '') }, [user?.id, user?.nickname])
 
   const fetchYtTitle = async (rawUrl) => {
@@ -59,7 +56,7 @@ function PmangRecordsTab({ song }) {
   }
 
   const handleSubmit = async () => {
-    // 로그인 사용자는 회원 닉네임 자동 사용. submit 시점에 직접 user.nickname을 읽어 race 우회.
+    // 제출 시점의 회원 닉네임을 읽어 상태 동기화 지연을 피한다.
     const effectiveNickname = (user?.nickname || nick || '').trim()
     if (!effectiveNickname || !url.trim()) return
     setSubmitting(true)

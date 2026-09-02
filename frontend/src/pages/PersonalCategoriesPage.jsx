@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Copy, ExternalLink, FolderPlus, Globe2, Lock, Users } from 'lucide-react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
 import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
 import UserChip from '../components/UserChip'
@@ -8,7 +8,7 @@ import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
-import { isXyxMode } from '../utils/serverMode'
+import PageNavigation from '../components/PageNavigation'
 
 function fmtDate(value) {
   if (!value) return '-'
@@ -26,40 +26,6 @@ function roleLabel(category) {
   if (category.my_role === 'viewer') return '구독'
   if (category.my_role === 'admin') return '관리자'
   return '공개'
-}
-
-function SidebarBrand() {
-  return <ServerSwitcher />
-}
-
-function PageNav({ user }) {
-  const { openLogin, isAdmin } = useStore()
-  const xyxMode = isXyxMode()
-  return (
-    <div className="side-section" style={{ marginTop: 0 }}>
-      <div className="side-label"><span>페이지</span></div>
-      <div className="page-nav">
-        <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>}
-        {!xyxMode && (
-          <NavLink
-            to="/groups"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>그룹</span>
-          </NavLink>
-        )}
-        <NavLink to="/personal-categories" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-          <span>음악 카테고리</span>
-        </NavLink>
-        {!xyxMode && <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>}
-        {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
-        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
-        {!xyxMode && <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>}
-      </div>
-    </div>
-  )
 }
 
 function CreateCategoryModal({ open, onClose }) {
@@ -343,8 +309,8 @@ export default function PersonalCategoriesPage() {
   return (
     <div className="app">
       <aside className="side">
-        <SidebarBrand />
-        <PageNav user={user} />
+        <ServerSwitcher />
+        <PageNavigation />
 
         <div className="side-section">
           <div className="side-label"><span>액션</span></div>

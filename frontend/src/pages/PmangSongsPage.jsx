@@ -254,9 +254,8 @@ export default function PmangSongsPage() {
   const [bpmMin, setBpmMin] = useState(null)
   const [bpmMax, setBpmMax] = useState(null)
   const [category, setCategoryState] = useState('sun')
-  const [quick, setQuick] = useState('all')  // 'all' | 'popular' | 'favorite' | 'no_music' | 'youtube_candidates'
+  const [quick, setQuick] = useState('all')
   const [artists, setArtists] = useState(() => new Set())
-  // 기본 정렬: game_index DESC — 최신 곡(높은 index)이 위로.
   const [sort, setSortState] = useState({ key: 'game_index', dir: 'desc' })
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
@@ -325,7 +324,7 @@ export default function PmangSongsPage() {
     if ((quick === 'youtube_candidates' || quick === 'popular') && !isAdmin) setQuick('all')
   }, [quick, isAdmin])
 
-  // 카탈로그 해시 진입 — `#pmang-song=<id>`로 끝나면 해당 곡 모달을 연다.
+  // 피망곡 상세 링크로 진입하면 해당 카탈로그를 연다.
   useEffect(() => {
     if (!songs.length) return
     const openFromHash = () => {
@@ -440,8 +439,6 @@ export default function PmangSongsPage() {
     }
   }, [search, category, quick, isAdmin, pmangYoutubeCandidates, songs, searchMode, levelBounds, bpmMin, bpmMax, artists, pmangFavorites, filtered.exact, filtered.fuzzy])
 
-  // 컬럼 헤더 클릭: 이미 같은 키면 방향 토글, 다른 키면 초기 방향 부여.
-  // 본 SongsTable의 setSort와 동일 — 숫자성 컬럼(game_index/level)은 'desc'로, 텍스트(name/artist)는 'asc'로 시작.
   const handleSort = (key) => {
     setSortState(prev => prev.key === key
       ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
@@ -527,7 +524,7 @@ export default function PmangSongsPage() {
                     aria-pressed={isOn}
                     onClick={() => {
                       if (c.key === 'all') {
-                        if (category) setCategory(category) // 같은 키 클릭 → 토글 OFF (PC와 동일)
+                        if (category) setCategory(category)
                       } else if (category !== c.key) {
                         setCategory(c.key)
                       }

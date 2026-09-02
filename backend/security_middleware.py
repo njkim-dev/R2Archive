@@ -56,7 +56,7 @@ def _has_session_cookie(raw_cookie: str) -> bool:
 
 
 class BrowserCSRFMiddleware:
-    """Reject cookie-authenticated state changes from untrusted web origins."""
+    """신뢰하지 않는 웹 출처의 쿠키 인증 변경 요청을 차단한다."""
 
     def __init__(self, app):
         self.app = app

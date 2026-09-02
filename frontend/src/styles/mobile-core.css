@@ -1,16 +1,11 @@
-/* ============================================================
-   Mobile Layout
-   ============================================================ */
 :root { --safe-top: env(safe-area-inset-top, 0px); --safe-bot: env(safe-area-inset-bottom, 0px); }
 
-  /* ── App shell ── */
   .app-mobile {
     display: flex; flex-direction: column;
     height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg);
     overscroll-behavior: contain; -webkit-tap-highlight-color: transparent;
   }
 
-  /* ── Top bar ── */
   .mob-top {
     position: sticky; top: 0; z-index: 20;
     padding-top: var(--safe-top);
@@ -61,7 +56,6 @@
     border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
   }
 
-  /* ── Search ── */
   .mob-search {
     display: flex; align-items: center; gap: 8px; padding: 9px 12px;
     background: var(--surface-1); border: 1px solid var(--line-soft); border-radius: 12px;
@@ -78,7 +72,6 @@
   }
   .mob-search-clear:active { background: var(--surface-2); }
 
-  /* ── Chips ── */
   .mob-chips {
     display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity;
     margin: 0 -14px; padding: 4px 14px 10px;
@@ -96,7 +89,6 @@
   .mob-chip.on { background: var(--cat-accent-dim); border-color: var(--cat-accent); color: var(--cat-accent); }
   .mob-chip-icon { font-size: 13px; line-height: 1; }
 
-  /* ── Meta / sort row ── */
   .mob-meta {
     padding: 8px 14px 4px; display: flex; align-items: center; justify-content: space-between;
     font-size: 11.5px; color: var(--fg-4); flex-shrink: 0;
@@ -108,12 +100,10 @@
   }
   .mob-sort-btn:active { color: var(--fg); }
 
-  /* ── List wrap ── */
   .mob-list-wrap {
     flex: 1; display: flex; flex-direction: column; overflow: hidden;
   }
 
-  /* ── Card ── */
   .mob-card {
     position: relative;
     display: flex; align-items: center; gap: 12px;
@@ -169,14 +159,12 @@
   }
   .mob-music-btn:active { background: var(--surface-2); transform: scale(0.9); }
 
-  /* ── Empty state ── */
   .mob-empty {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     color: var(--fg-4); font-size: 13px; gap: 12px; padding: 40px 20px;
   }
   .mob-empty-icon { font-size: 40px; opacity: 0.5; }
 
-  /* ── Bottom sheet (filter) ── */
   .mob-backdrop {
     position: fixed; inset: 0; z-index: 50; background: oklch(0 0 0 / 0.55);
     backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
@@ -256,7 +244,6 @@
   }
   .mob-sheet-apply:active { transform: scale(0.98); }
 
-  /* ── Fullscreen detail ── */
   .mob-detail {
     position: fixed; inset: 0; z-index: 60; background: var(--bg);
     transform: translateX(100%); transition: transform .3s cubic-bezier(0.32,0.72,0,1);
@@ -283,7 +270,6 @@
   }
   .mob-detail-top.scrolled .mob-detail-top-title { opacity: 1; }
 
-  /* Hero */
   .mob-hero { padding: 20px 20px 24px; }
   .mob-hero-art {
     width: 100%; aspect-ratio: 2/1; max-height: 180px; border-radius: 14px;
@@ -313,7 +299,6 @@
   .mob-h-tag-accent { background: var(--accent-dim); color: var(--accent); }
   .mob-h-tag-new { background: oklch(0.72 0.18 25 / 0.18); color: var(--new); }
 
-  /* Actions */
   .mob-actions { display: flex; gap: 8px; padding: 0 20px 20px; flex-wrap: wrap; }
   .mob-act-btn {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -412,7 +397,6 @@
     font-family: "JetBrains Mono", monospace;
   }
 
-  /* Stats */
   .mob-stats {
     display: grid; grid-template-columns: repeat(4,1fr); gap: 1px;
     background: var(--line-soft); margin: 0 14px 24px; border-radius: 14px;
@@ -440,7 +424,6 @@
     line-height: 1.45;
   }
 
-  /* Tabs */
   .mob-tabs {
     display: flex;
     border-bottom: 1px solid var(--line-soft);
@@ -459,7 +442,6 @@
   .mob-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
   .mob-tab-body { padding: 0 0 20px; }
 
-  /* Sections */
   .mob-section { padding: 20px 20px 0; }
   .mob-section-title {
     font-size: 13px; font-weight: 700; color: var(--fg-2);
@@ -468,7 +450,6 @@
   }
   .mob-section-aside { font-size: 10.5px; color: var(--fg-4); font-weight: 500; font-family: "JetBrains Mono", monospace; }
 
-  /* BPM 텍스트 목록 */
   .mob-bpm-list {
     display: flex; flex-direction: column; gap: 0;
     background: var(--surface-1); border-radius: 12px; overflow: hidden;
@@ -484,10 +465,8 @@
   .mob-bpm-val { font-size: 15px; font-weight: 700; color: var(--fg); flex: 1; }
   .mob-bpm-delta { font-size: 11px; font-weight: 600; }
 
-  /* BPM graph inside mobile: let it scale */
   .mob-section .bpm-graph { height: 110px; }
 
-  /* Meta grid */
   .mob-meta-grid { display: flex; flex-direction: column; gap: 1px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line-soft); }
   .mob-meta-row {
     display: flex; align-items: center; justify-content: space-between;

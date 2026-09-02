@@ -5,14 +5,13 @@ import { HelpButton } from './HelpTour'
 import ServerSwitcher from './ServerSwitcher'
 import { isXyxMode } from '../utils/serverMode'
 
-// PC 사이드바와 동일한 5각 별 SVG. 즐겨찾기(★)와 시각적으로 구분되게 SVG 사용.
+// 카테고리 별과 즐겨찾기 기호를 구분한다.
 const StarIcon = (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
     <path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L1 9.5l7.1-.6L12 2z"/>
   </svg>
 )
 
-// flag: true인 칩은 다른 칩과 독립적으로 토글된다 (single-select 그룹에서 빠짐).
 const CHIPS = [
   { key: 'all',       label: '전체',       icon: '♩' },
   { key: 'star',      label: '별',         icon: StarIcon, range: '1.5–3.5', cat: true },
@@ -39,8 +38,7 @@ export default function MobileHeader({ totalFiltered }) {
     openLogin, logout, openOnboarding, openMyPage,
   } = useStore()
 
-  // PC 사이드바에서 quick='new'/'variants'/'favorite'/'my_played'가 설정된 채로 모바일로 넘어왔을 때도
-  // 해당 칩이 활성으로 보이도록 quick과 flag를 OR로 합쳐 표시.
+  // 이전 빠른 필터 상태도 독립 칩에 반영한다.
   const isNewOn = flagNew || quick === 'new'
   const isVarOn = flagVariants || quick === 'variants'
   const isFavOn = flagFavorite || quick === 'favorite'
@@ -58,7 +56,6 @@ export default function MobileHeader({ totalFiltered }) {
     return bpmMin !== meta?.bpm_min || bpmMax !== meta?.bpm_max
   }, [bpmMin, bpmMax, meta])
 
-  // 독립 flag 토글 헬퍼: 현재 ON이면 flag와 레거시 quick 둘 다 정리, OFF면 flag만 켠다.
   const toggleIndependent = (isOn, flagVal, setFlag, toggleFlag, quickKey) => {
     if (isOn) {
       if (flagVal) setFlag(false)
@@ -69,14 +66,12 @@ export default function MobileHeader({ totalFiltered }) {
   }
 
   const handleChip = (chip) => {
-    // 독립 flag 칩들: 다른 필터와 자유 조합 가능.
     if (chip === 'new')      return toggleIndependent(isNewOn,     flagNew,      setFlagNew,      toggleFlagNew,      'new')
     if (chip === 'variant')  return toggleIndependent(isVarOn,     flagVariants, setFlagVariants, toggleFlagVariants, 'variants')
     if (chip === 'popular')  return setQuick(isPopularOn ? 'all' : 'popular')
     if (chip === 'favorite') return toggleIndependent(isFavOn,     flagFavorite, setFlagFavorite, toggleFlagFavorite, 'favorite')
     if (chip === 'my_played') return toggleIndependent(isMyPlayedOn, flagMyPlayed, setFlagMyPlayed, toggleFlagMyPlayed, 'my_played')
 
-    // 이하 single-select 카테고리 그룹.
     if (chip === activeChip) return
     if (chip === 'all') {
       if (category) setCategory(category)
@@ -84,8 +79,7 @@ export default function MobileHeader({ totalFiltered }) {
       return
     }
     if (chip === 'star' || chip === 'moon' || chip === 'sun') {
-      setCategory(chip)   // 레벨 범위 자동 리셋 포함
-      // flag들은 모두 보존 — 카테고리와 독립.
+      setCategory(chip)
       return
     }
   }

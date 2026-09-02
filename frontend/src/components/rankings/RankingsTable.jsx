@@ -28,7 +28,7 @@ const HEADERS_EDIT = [
   { label: 'YouTube URL', key: null, cls: '' },
 ]
 
-// YouTube URL 형식 검증 (정규식만, 실제 영상 존재는 백엔드 oEmbed가 검증)
+// 영상 존재 여부는 저장할 때 서버가 검증한다.
 const YOUTUBE_URL_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}|youtu\.be\/[A-Za-z0-9_-]{11})/
 
 function judgeColor(jp) {
@@ -77,7 +77,6 @@ function TableHeader({ sort, onSort, editMode }) {
   )
 }
 
-// Excel-like 키보드 이동: Enter → 같은 컬럼 아래 행, Shift+Enter → 같은 컬럼 위 행
 function moveCellOnEnter(e, colName) {
   if (e.key !== 'Enter') return
   e.preventDefault()
@@ -253,7 +252,6 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
             onClick={e => e.stopPropagation()}
             onKeyDown={e => moveCellOnEnter(e, 'url')}
             onBlur={e => {
-              // 형식만 빠르게 검증 — 실제 영상 존재는 저장 시 백엔드 oEmbed로 확인
               const url = e.currentTarget.value.trim()
               if (url && !YOUTUBE_URL_RE.test(url)) {
                 e.currentTarget.classList.add('invalid')
@@ -268,9 +266,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
   )
 }
 
-// 모듈 스코프의 안정적인 row 함수.
-// react-window는 children 함수의 reference가 바뀌면 새 컴포넌트 타입으로 보고
-// 모든 가상 행을 unmount/remount → input focus가 유실됨. 외부 정의로 reference 고정.
+// 행 함수를 고정해 가상 목록 갱신 때 입력 포커스가 사라지지 않게 한다.
 function VirtualRow({ index, style, data }) {
   const {
     rows, onRowClick, onRankerClick, currentUserId, pinnedUser,
@@ -319,7 +315,6 @@ export default function RankingsTable({ rows, hasGroups }) {
     }
   }, [pinUser])
 
-  // 편집 셀의 input value: dirty 우선, 없으면 기존 manual 값. { judgment, url } 객체 형태.
   const getDirtyValue = useCallback((songId) => {
     const fromDirty = dirty.get(songId) || {}
     const fromManual = myManualBySong.get(songId)
@@ -333,8 +328,7 @@ export default function RankingsTable({ rows, hasGroups }) {
     }
   }, [dirty, myManualBySong])
 
-  // FixedSizeList의 itemData로 모든 가변 의존성을 모음. children(VirtualRow) 자체는
-  // 모듈 스코프 고정 reference이므로, dirty 변화가 가상 행 unmount를 유발하지 않음.
+  // 가변 값은 itemData로 전달해 행 함수의 참조를 유지한다.
   const itemData = useMemo(() => ({
     rows,
     onRowClick: handleRowClick,

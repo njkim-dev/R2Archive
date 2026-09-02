@@ -92,8 +92,7 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
   const handleSubmitOne = async ({ score, selectedSong, youtube_url, memo, memo_public, register_as_play_video }) => {
     const currentShot = shots[idx]
     try {
-      // visibility는 가입 시 설정한 user.default_visibility를 따름
-      // routers/records.py add_record() -> user.default_visibility로 fallback
+      // 공개 범위는 사용자의 기본 설정을 따른다.
       const created = await addRecord(selectedSong.id, {
         nickname: user.nickname,
         judgment_percent: parseFloat(score),
@@ -102,15 +101,13 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
         memo_public: !!memo_public,
         register_as_play_video: !!register_as_play_video,
       })
-      // 스크린샷 파일을 서버에 업로드해 기록에 첨부 (프로필에서 show_screenshot 해제 시에도 저장, API 응답에서 노출 제어)
-      // routers/records.py upload_record_screenshot()
+      // 공개 설정은 파일 저장이 아니라 API 노출만 제어한다.
       if (created?.id && currentShot?.file) {
         try {
           await uploadRecordScreenshot(created.id, currentShot.file)
-          // 동일 파일명 재업로드 방지용 set 갱신
           setUsedNames(prev => new Set(prev).add(currentShot.file.name))
         } catch (uploadErr) {
-          // 기록 자체는 이미 등록됨. 스크린샷만 실패한 경우 등록은 성공 처리.
+          // 스크린샷 업로드 실패는 기록 등록과 별도로 처리한다.
           console.warn('screenshot upload failed', uploadErr)
         }
       }
@@ -274,8 +271,8 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
   const [memoPublic, setMemoPublic] = useState(false)
   const [registerAsPlayVideo, setRegisterAsPlayVideo] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })   // object-position in px
-  const [imgDim, setImgDim] = useState(null)             // { w, h } natural
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [imgDim, setImgDim] = useState(null)
   const [dragging, setDragging] = useState(false)
   const previewRef = useRef(null)
   const dragStartRef = useRef(null)
@@ -346,7 +343,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
     setMemoPublic(false)
   }, [shot.id])  // eslint-disable-line
 
-  // 사용자가 이미 수동 입력했다면 OCR 결과로 덮어쓰지 않음.
+  // 수동 입력값은 OCR 결과로 덮어쓰지 않는다.
   useEffect(() => {
     if (shot.parsedScore && !score) {
       setScore(shot.parsedScore)
@@ -537,8 +534,7 @@ function SongSearch({ query, setQuery, results, selected, onSelect, onClear }) {
 
   useEffect(() => { setHiIdx(-1) }, [query])
 
-  // 드롭다운을 position:fixed로 렌더링하면 모달 경계를 벗어나 표시 가능.
-  // 입력창의 실제 스크린 좌표를 매번 읽어 갱신 (스크롤/리사이즈에도 대응).
+  // 모달 밖으로 펼쳐지는 드롭다운 위치를 화면 좌표에 맞춘다.
   useEffect(() => {
     if (!open) { setDropStyle(null); return }
     const update = () => {
@@ -552,7 +548,7 @@ function SongSearch({ query, setQuery, results, selected, onSelect, onClear }) {
         top: r.bottom + gap,
         left: r.left,
         width: r.width,
-        maxHeight: Math.max(160, bottomRoom),  // 브라우저 창 높이까지 유동적
+        maxHeight: Math.max(160, bottomRoom),
       })
     }
     update()

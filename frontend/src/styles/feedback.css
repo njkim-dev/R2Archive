@@ -1,4 +1,3 @@
-/* ========= Feedback Page ========= */
 .fb-page-body { flex: 1; overflow: auto; padding: 24px 28px 60px; max-width: 880px; width: 100%; }
 
 .fb-tabs {
@@ -209,7 +208,6 @@ p.fb-body {
 .fb-empty-icon { font-size: 48px; margin-bottom: 10px; }
 .fb-empty h3 { margin: 0 0 6px; color: var(--fg); font-size: 15px; font-weight: 600; }
 .fb-empty p { margin: 0; font-size: 12.5px; }
-/* ============ Onboarding modal ============ */
 .onboarding-modal {
   width: min(460px, 92vw); max-width: 100%;
   background: var(--surface-0); border: 1px solid var(--line);

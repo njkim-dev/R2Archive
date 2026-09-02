@@ -1,4 +1,3 @@
-/* ========= Modal Backdrop ========= */
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 50; background: oklch(0 0 0 / 0.55);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
@@ -9,7 +8,6 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-/* ========= Song Detail Modal ========= */
 .modal {
   width: min(920px, 100%); background: var(--surface-0); border: 1px solid var(--line);
   border-radius: 16px; overflow: hidden; box-shadow: 0 30px 80px oklch(0 0 0 / 0.5);
@@ -344,7 +342,6 @@
   white-space: nowrap;
 }
 
-/* BPM Graph */
 .bpm-timeline-section { margin-bottom: 22px; }
 .bpm-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .bpm-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
@@ -393,7 +390,6 @@
 }
 .bpm-tooltip.show { opacity: 1; transform: translateY(0); }
 
-/* Perceived Level */
 .perceived {
   margin-top: 22px; padding: 18px 20px; background: var(--surface-1); border-radius: 12px;
   border: 1px solid var(--line-soft);
@@ -425,7 +421,6 @@
 .perceived-step.is-official { border-color: var(--accent); color: var(--accent); }
 .perceived-step.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 
-/* Comments */
 .comment-form {
   display: flex; gap: 10px; align-items: flex-start; padding: 14px;
   background: var(--surface-1); border-radius: 10px; border: 1px solid var(--line-soft); margin-bottom: 16px;
@@ -455,7 +450,6 @@
   font-family: "JetBrains Mono", monospace; font-weight: 600; letter-spacing: 0.02em;
 }
 
-/* Records / Leaderboard */
 .record-form {
   padding: 20px; background: var(--surface-1); border-radius: 12px;
   border: 1px solid var(--line-soft); margin-bottom: 18px;
@@ -479,14 +473,12 @@
 .lb-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--fg-2); }
 .lb-date { color: var(--fg-4); font-size: 11px; text-align: right; font-family: "JetBrains Mono", monospace; white-space: nowrap; }
 
-/* Record empty state */
 .record-empty {
   padding: 32px 20px; text-align: center; color: var(--fg-3); font-size: 13px;
   background: var(--surface-1); border-radius: 10px; border: 1px dashed var(--line-soft);
 }
 .record-empty .big { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.5; }
 
-/* ========= More Menu ========= */
 .more-wrap { position: relative; }
 .difficulty-wrap { position: relative; }
 .difficulty-menu {
@@ -574,7 +566,6 @@
 .more-menu button:hover { background: var(--surface-1); color: var(--fg); }
 .more-menu .ico { width: 14px; color: var(--fg-3); }
 
-/* ========= Feedback Modal ========= */
 .fb-types { display: flex; flex-direction: column; gap: 6px; }
 .fb-type {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;
@@ -585,7 +576,6 @@
 .fb-type input { accent-color: var(--accent); margin: 0; }
 .fb-type:has(input:checked) { background: var(--accent-dim); border-color: var(--accent); color: var(--fg); }
 
-/* ========= Login Modal ========= */
 .login-modal {
   width: min(420px, 100%); padding: 32px 28px 28px; background: var(--surface-0);
   border: 1px solid var(--line); border-radius: 16px; text-align: center;

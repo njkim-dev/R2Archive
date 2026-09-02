@@ -34,14 +34,12 @@ export default function FeedbackComposeSheet({ open, tab, onClose, onSubmitted }
   const songInputRef = useRef(null)
   const suggestRef = useRef(null)
 
-  // 열림 시 + 탭 변경 시 초기화.
   useEffect(() => {
     if (!open) return
     setType(null); setTitle(''); setBody(''); setSeverity('med')
     setSongQuery(''); setPickedSong(null); setShowSuggest(false)
   }, [open, tab])
 
-  // 외부 클릭 → suggest 닫기
   useEffect(() => {
     if (!open) return
     const onClick = (e) => {

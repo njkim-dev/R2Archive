@@ -1,8 +1,9 @@
 """랭킹 페이지용 집계 API.
 
-세 엔드포인트:
+네 엔드포인트:
   - GET /api/rankings/songs                   곡별 1위 + 추가 기록 수
   - GET /api/rankings/users?q=                닉네임으로 사용자 검색
+  - GET /api/rankings/users/lookup?nickname=  닉네임 딥링크 조회
   - GET /api/rankings/users/{user_id}/records 특정 사용자의 곡별 베스트
 
 노출 정책:
@@ -25,23 +26,21 @@ router = APIRouter(prefix="/api/rankings", tags=["rankings"])
 
 
 class RankingTop(BaseModel):
-    # user_id는 viewer가 식별할 수 있는 기록(public/group)에서만 노출한다.
-    # 핀(/api/rankings/users/{id}/records)에서 본인 searchable 정책으로 한 번 더 가드된다.
+    # user_id는 조회자가 식별할 수 있는 기록에서만 노출한다.
     user_id: Optional[int] = None
     nickname: str
     judgment_percent: float
     score: Optional[int] = None
     combo: Optional[int] = None
     is_mine: bool = False
-    visibility: str  # "public" | "group"
+    visibility: str
 
 
 class SongRanking(BaseModel):
     song_id: int
     top: RankingTop
     total_records: int
-    # 그룹 1위: 로그인 사용자가 그룹에 가입돼 있을 때만 채워짐.
-    # group_id 쿼리가 있으면 해당 그룹 한정, 없으면 가입한 모든 그룹 멤버들 합집합 중 1위.
+    # 그룹 1위는 선택한 그룹 또는 가입한 전체 그룹을 기준으로 계산한다.
     group_top: Optional[RankingTop] = None
 
 
@@ -291,8 +290,7 @@ def lookup_user_by_nickname(request: Request, nickname: str = ""):
     viewer_uid = get_current_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # search_users와 동일한 매칭 정책: 동일 그룹 + searchable in ('public','group')이면
-            # public/group 기록으로 lookup 가능. 그 외엔 visibility='public' 기록 보유자만.
+            # 사용자 검색과 같은 공개 범위 정책을 적용한다.
             cur.execute(
                 """
                 SELECT u.id, u.nickname, u.searchable
@@ -357,7 +355,7 @@ def get_user_records(request: Request, user_id: int):
     viewer_uid = get_current_user_id(request)
     is_self = viewer_uid is not None and int(viewer_uid) == int(user_id)
 
-    # searchable 가드 + shares_group 계산. 본인 조회는 항상 통과.
+    # 본인은 검색 허용 설정과 관계없이 조회할 수 있다.
     shares_group = False
     if not is_self:
         with get_conn() as conn:
@@ -369,7 +367,7 @@ def get_user_records(request: Request, user_id: int):
                 target_searchable = row[0]
                 if target_searchable == "private":
                     raise HTTPException(status_code=403, detail="해당 사용자의 기록은 비공개입니다")
-                # shared group 체크 — searchable='group' 게이트 + 그룹 컨텍스트 노출 둘 다에 사용.
+                # 같은 그룹 여부는 검색 허용과 기록 공개 범위에 함께 사용한다.
                 if viewer_uid is not None:
                     cur.execute(
                         """

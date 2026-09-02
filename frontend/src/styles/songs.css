@@ -1,4 +1,3 @@
-/* Auth */
 .login-btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px;
   background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 500;
@@ -90,7 +89,6 @@
   font-weight: 700;
 }
 
-/* Active Filters */
 .active-filters {
   display: flex; align-items: center; gap: 8px; padding: 10px 28px;
   border-bottom: 1px solid var(--line-soft); background: var(--surface-0);
@@ -107,7 +105,6 @@
 .clear-all { margin-left: auto; color: var(--fg-3); font-size: 12px; }
 .clear-all:hover { color: var(--fg); }
 
-/* ========= Table (virtual scroll) ========= */
 .table-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 .table-wrap.compact .tbl-header,
 .table-wrap.compact .tbl-body {
@@ -260,7 +257,6 @@
 .td.dim { color: var(--fg-4); }
 .td.center { text-align: center; }
 
-/* Index / new tag cell */
 .idx-cell { display: flex; align-items: center; gap: 6px; }
 .idx { font-family: "JetBrains Mono", monospace; color: var(--fg-4); font-size: 11px; font-variant-numeric: tabular-nums; }
 .tbl-row:hover .idx { display: none; }
@@ -317,7 +313,6 @@
   border: 1px solid oklch(0.72 0.18 25 / 0.35);
 }
 
-/* Title cell */
 .title-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .title-thumb { width: 80px; height: 40px; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
 .title-main { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -339,7 +334,6 @@
 }
 .song-youtube-icon:hover { background: var(--surface-2); color: var(--fg); }
 
-/* 곡명 복사 버튼 — row hover 시에만 표시. 복사 직후 1.2s 동안 체크 아이콘 + .copied 상태 유지. */
 .copy-name-btn {
   width: 22px; height: 22px; border-radius: 50%;
   display: grid; place-items: center;
@@ -364,14 +358,11 @@
   font-size: 10px; font-weight: 700; line-height: 1.4; flex-shrink: 0;
 }
 
-/* 아티스트 셀 기본 색 (인라인 스타일 대체) */
 .artist-cell { color: var(--fg-2); }
 .korea-name-cell { color: var(--fg-2); }
 .muted-dash { color: var(--fg-4); }
 
-/* BPM 티어별 곡명·아티스트·BPM 색상 (PC 전용).
-   220+ 빨강 / 200+ 주황 / 120- 초록. 그 외는 기본 흰색 유지.
-   hover 룰을 아래에 두어 :hover 시 곡명이 --accent로 덮이는 기존 동작은 유지. */
+/* BPM 구간 색상보다 행 hover 색상을 우선한다. */
 .tbl-row[data-bpm-tier="hot"]  .title-main,
 .tbl-row[data-bpm-tier="hot"]  .artist-cell,
 .tbl-row[data-bpm-tier="hot"]  .bpm-num   { color: oklch(0.72 0.20 25); }
@@ -391,7 +382,6 @@
 .tbl-row.is-catalog-active:hover .title-main,
 .tbl-row.is-catalog-active[data-bpm-tier] .title-main { color: var(--cat-accent); }
 
-/* Level cell */
 .level-val {
   font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums;
   font-weight: 500; display: inline-flex; align-items: baseline; gap: 1px;
@@ -408,11 +398,9 @@
   height: 2px; border-radius: 2px; background: var(--lv-bar, var(--line)); opacity: 0.55;
 }
 
-/* User level */
 .user-lv { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--fg); font-weight: 500; }
 .user-lv-empty { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--fg-4); }
 
-/* BPM cell */
 .bpm-cell {
   display: flex; flex-direction: column; align-items: flex-end;
   justify-content: center; gap: 3px; height: 100%;
@@ -439,16 +427,13 @@
   }
 }
 
-/* Combo cell */
 .combo-num { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; color: var(--fg-2); }
 .combo-bar { height: 3px; border-radius: 2px; background: var(--surface-2); margin-top: 3px; overflow: hidden; max-width: 70px; margin-left: auto; }
 .combo-bar > div { height: 100%; background: linear-gradient(90deg, var(--cat-accent-2), var(--cat-accent)); border-radius: 2px; }
 
-/* Variant */
 .variant { color: var(--fg-4); font-size: 15px; text-align: center; }
 .variant.has { color: var(--accent); }
 
-/* Status bar */
 .statusbar {
   border-top: 1px solid var(--line-soft); background: var(--surface-0);
   padding: 8px 28px; display: flex; align-items: center; gap: 20px; font-size: 11.5px; color: var(--fg-3);

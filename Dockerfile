@@ -1,4 +1,3 @@
-# ── Stage 1: Frontend build ───────────────────────────────────────────────
 FROM node:22-slim AS frontend-builder
 
 WORKDIR /app/frontend
@@ -15,7 +14,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 
-# Export locked backend requirements without carrying Poetry into the runtime image.
+# Poetry 없이 실행 이미지에 고정된 백엔드 의존성을 전달한다.
 FROM python:3.12-slim AS backend-requirements
 
 WORKDIR /build/backend
@@ -27,14 +26,12 @@ COPY backend/pyproject.toml backend/poetry.lock ./
 RUN poetry export --only main --format requirements.txt --without-hashes --output /requirements.txt
 
 
-# ── Stage 2: Backend + Caddy ──────────────────────────────────────────────
 FROM python:3.12-slim
 
 WORKDIR /app
 ENV OMP_THREAD_LIMIT=1
 ENV API_UPSTREAM=localhost:8000
 
-# Caddy + Tesseract OCR
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y curl debian-keyring debian-archive-keyring apt-transport-https tesseract-ocr && \
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg && \
@@ -42,7 +39,7 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get update && apt-get install -y caddy && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install only application dependencies, then remove packaging tools from runtime.
+# 애플리케이션 의존성만 설치하고 패키징 도구는 실행 이미지에서 제거한다.
 COPY --from=backend-requirements /requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78.1.1" && \
     python -m pip install --no-cache-dir --requirement /tmp/requirements.txt && \
@@ -50,18 +47,14 @@ RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78
     python -m pip uninstall --yes pip setuptools && \
     rm -f /tmp/requirements.txt
 
-# 백엔드 소스
 COPY backend/ ./backend/
 
-# 프론트엔드 빌드 결과물 → Caddy 서빙 디렉토리
 COPY --from=frontend-builder /app/frontend/dist /srv
 
-# Caddyfile
 COPY Caddyfile /etc/caddy/Caddyfile
 RUN chown root:caddy /etc/caddy/Caddyfile && chmod 0640 /etc/caddy/Caddyfile
 
-# Match the owning NAS account so the only writable bind mount
-# (record_screenshots) remains usable without running the service as root.
+# root 권한 없이 record_screenshots를 쓰도록 NAS 소유 계정의 UID와 GID를 맞춘다.
 RUN useradd --uid 1026 --gid 100 --home-dir /app --no-create-home app \
     && usermod --append --groups caddy app \
     && chown -R app:users /app

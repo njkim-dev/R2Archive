@@ -21,7 +21,7 @@ from database import get_conn
 
 SESSION_COOKIE = "r2b_session"
 SESSION_SECRET = os.environ["SESSION_SECRET"]
-SESSION_TTL_SEC = 60 * 60 * 24 * 30      # 30일
+SESSION_TTL_SEC = 60 * 60 * 24 * 30
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"
 COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", "").strip()
 

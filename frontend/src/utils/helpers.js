@@ -8,8 +8,7 @@ export function getAnonId() {
 }
 
 
-// song_id, session_id UNIQUE로 서버에서 중복 재생 카운트를 제거
-// routers/songs.py log_play()
+// 서버는 곡과 세션 조합으로 중복 재생을 제거한다.
 export function getSessionId() {
   let id = sessionStorage.getItem('r2b_session_id')
   if (!id) {
@@ -67,7 +66,6 @@ export function bpmWaveBars(bpm, count = 14) {
 
 export const fmt = n => (n ?? 0).toLocaleString()
 
-// BPM 표시: 정수면 정수 그대로, 소수점이 있으면 .1자리. 예: 276 → "276", 138.5 → "138.5"
 export const fmtBpm = bpm => {
   const n = Number(bpm)
   if (!Number.isFinite(n)) return String(bpm ?? '')
@@ -82,7 +80,7 @@ export function timeToSec(t) {
 
 import Fuse from 'fuse.js'
 
-const _fuseCache = new Map()   // key: `${mode}` → { songs, fuse }
+const _fuseCache = new Map()
 const SEARCH_NORMALIZE_RE = /[^\p{L}\p{N}]+/gu
 
 export function normalizeSearchText(value) {
@@ -123,8 +121,7 @@ function getFuse(songs, mode = 'both') {
   return fuse
 }
 
-// 전체 유저 플레이 곡: 채널만 다른 동일 곡(name+artist 동일) 중 최고 난이도 1개만 남김.
-// play_count는 name+artist 기준 집계라 채널별 행이 모두 같은 카운트로 통과해 중복 노출되는 문제 회피.
+// 재생 수가 공유되는 동일 곡은 최고 난이도 행만 남긴다.
 export function dedupeByNameArtistMaxLevel(songs) {
   const map = new Map()
   for (const s of songs) {
@@ -150,7 +147,6 @@ function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick,
   if (quick === 'favorite' && !(favorites && favorites.has(s.id))) return false
   if (quick === 'my_played' && !(played && played.has(s.id))) return false
   if (quick === 'no_music' && s.youtube_url) return false
-  // 모바일 칩 독립 플래그 — 다른 필터와 AND로 결합.
   if (flagNew && !s.is_new) return false
   if (flagVariants && !s.is_change) return false
   if (flagFavorite && !(favorites && favorites.has(s.id))) return false
@@ -158,8 +154,7 @@ function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick,
   return true
 }
 
-// 단순 매칭 헬퍼 — filterSongs의 exact 매칭과 동일 정책 (공백 무시 + 곡명/연결 서버 곡명/아티스트/aliases 부분일치).
-// 랭킹/피드백 같이 단순 검색이 필요한 곳에서 재사용.
+// 곡명, 연결 서버 곡명, 아티스트와 별칭을 같은 규칙으로 검색한다.
 export function matchSong(song, query) {
   const terms = getSearchTerms(query)
   if (!terms.length) return false
@@ -253,7 +248,6 @@ export function filterSongs(songs, filters) {
 
 export function sortSongs(songs, sort) {
   const { key, dir } = sort
-  // 기본 정렬: 신곡(stat) 우선, 같은 그룹 내에서는 file_order 내림차순 (최신곡순)
   if (!key) {
     return [...songs].sort((a, b) => {
       if (a.is_new !== b.is_new) return a.is_new ? -1 : 1

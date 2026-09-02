@@ -69,7 +69,6 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
     try {
       const r = await saveDirty()
       if (r.ok === false && r.invalidUrls) {
-        // 422: 잘못된 URL이 포함됨 → 모달은 store가 띄움
         return
       }
       if (r.ok === false && r.urlOnlyWithoutJudgment?.length) {
@@ -105,7 +104,6 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
-  // 사용자가 핀되면 팝오버 닫기
   useEffect(() => { if (pinnedUser) setUserListOpen(false) }, [pinnedUser])
 
   useEffect(() => {
@@ -170,8 +168,6 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
           onChange={e => setSearch(e.target.value)}
           onFocus={() => setUserListOpen(true)}
         />
-        {/* 검색어가 있을 때만 popover 노출 — 빈 상태에서 '닉네임을 입력하세요' 박스가
-            모드 드롭다운을 가로막던 문제 해결 */}
         {searchMode === 'user' && userListOpen && search.trim() && (
           <div className="user-search-popover">
             <UserSearchList />

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { NavLink } from 'react-router-dom'
 import useStore from '../../store/useStore'
 import { filterPmangSongs } from '../../utils/pmang'
 import ServerSwitcher from '../ServerSwitcher'
+import PageNavigation from '../PageNavigation'
 
 const CATEGORIES = [
   {
@@ -32,7 +32,7 @@ export default function PmangSidebar({
   pmangYoutubeCandidates = [],
   onNavigate = () => {},
 }) {
-  const { user, openLogin, isAdmin } = useStore()
+  const { user, isAdmin } = useStore()
 
   const hist = useMemo(() => {
     const lo = levelBounds[0]
@@ -92,47 +92,7 @@ export default function PmangSidebar({
       </div>
       <ServerSwitcher />
 
-      <div className="side-section">
-        <div className="side-label"><span>페이지</span></div>
-        <div className="page-nav">
-          <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>곡 목록</span>
-          </NavLink>
-          <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
-            <span>개인 성과</span>
-          </NavLink>
-          <NavLink
-            to="/groups"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { onNavigate(); if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>그룹</span>
-          </NavLink>
-          <NavLink
-            to="/personal-categories"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { onNavigate(); if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>음악 카테고리</span>
-          </NavLink>
-          <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>과거 피망곡</span>
-          </NavLink>
-          {isAdmin && (
-            <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-              <span>미출시곡</span>
-            </NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
-              <span>접속 통계</span>
-            </NavLink>
-          )}
-          <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={onNavigate}>
-            <span>피드백</span>
-          </NavLink>
-        </div>
-      </div>
+      <PageNavigation onNavigate={onNavigate} />
 
       <div className="side-section">
         <div className="side-label"><span>빠른 필터</span></div>

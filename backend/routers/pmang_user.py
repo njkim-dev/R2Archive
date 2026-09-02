@@ -23,7 +23,7 @@ class PmangCommentResponse(BaseModel):
     id: int
     nickname: str
     content: str
-    created_at: str  # ISO
+    created_at: str
 
 
 class PmangRecordCreate(BaseModel):

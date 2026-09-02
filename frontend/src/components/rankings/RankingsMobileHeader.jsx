@@ -5,14 +5,13 @@ import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
 import ServerSwitcher from '../ServerSwitcher'
 
-// PC 사이드바와 동일한 5각 별 SVG. '내성과' 칩(★)과 시각적으로 구분되게 SVG 사용.
+// 카테고리 별과 내 성과 기호를 구분한다.
 const StarIcon = (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
     <path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L1 9.5l7.1-.6L12 2z"/>
   </svg>
 )
 
-// flag: true인 칩은 다른 칩과 독립적으로 토글된다 (single-select 그룹에서 빠짐).
 const CHIPS = [
   { key: 'all',    label: '전체',     icon: '♩' },
   { key: 'star',   label: '별',       icon: StarIcon, range: '1.5–3.5', cat: true },
@@ -34,8 +33,7 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
 
   const hasFilterBadge = !(levelMin === 1 && levelMax === 12)
 
-  // PC 사이드바에서 quick='ranked'가 설정된 채로 모바일로 넘어왔을 때도
-  // 성과있음 칩이 활성으로 보이도록 quick과 flag를 OR로 합쳐 표시.
+  // 이전 빠른 필터 상태도 독립 칩에 반영한다.
   const isRankedOn = flagRanked || quick === 'ranked'
 
   const activeChip = useMemo(() => {
@@ -47,7 +45,6 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
   }, [category, quick])
 
   const handleChip = (chip) => {
-    // 성과있음: 다른 필터와 독립 토글. flag와 quick(레거시) 둘 다 정리해 cross-device 일관성 유지.
     if (chip === 'ranked') {
       if (isRankedOn) {
         if (flagRanked) setFlagRanked(false)
@@ -60,17 +57,15 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
 
     if (chip === activeChip) return
     if (chip === 'all') {
-      if (category) setCategory(category)   // 토글 해제
+      if (category) setCategory(category)
       setQuick('all')
       return
     }
     if (chip === 'star' || chip === 'moon' || chip === 'sun') {
       setCategory(chip)
-      // 카테고리와 mine은 상호 배타. 단, 성과있음 flag는 보존.
       if (quick === 'mine') setQuick('all')
       return
     }
-    // mine: 카테고리 해제 후 quick 설정 (단, 성과있음 flag는 보존)
     if (chip === 'mine' && !user && !pinnedUser) { openLogin(); return }
     if (category) setCategory(category)
     setQuick(chip)

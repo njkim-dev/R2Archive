@@ -243,7 +243,7 @@ function findTarget(selectorText) {
       const rect = el.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) return el
     } catch {
-      // Ignore invalid or temporarily unavailable selectors.
+      // 잘못되었거나 아직 표시되지 않은 선택자는 건너뛴다.
     }
   }
   return null

@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import UserPin from './UserPin'
 import ServerSwitcher from '../ServerSwitcher'
+import PageNavigation from '../PageNavigation'
 
 const GROUPS_INITIAL_LIMIT = 5
 
@@ -29,15 +29,13 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
     category, setCategory,
     pinnedUser,
   } = useRankingsStore()
-  const { user, openLogin, isAdmin } = useStore()
+  const { user, openLogin } = useStore()
 
   const [showAllGroups, setShowAllGroups] = useState(false)
   const visibleGroups = showAllGroups ? myGroups : myGroups.slice(0, GROUPS_INITIAL_LIMIT)
   const hiddenCount = Math.max(0, myGroups.length - GROUPS_INITIAL_LIMIT)
 
-  // 빠른 필터 클릭 핸들러.
-  // 그룹 필터 클릭 시 activeGroupId도 함께 변경 (그룹 1위 컬럼 데이터를 그 그룹 기준으로 fetch).
-  // 비-그룹 필터 클릭 시 activeGroupId를 null로 되돌려 union 데이터로 복귀.
+  // 그룹 필터는 그룹 1위 집계 범위도 함께 바꾼다.
   const handleQuick = (key) => {
     if ((key === 'mine') && !user && !pinnedUser) {
       openLogin()
@@ -60,42 +58,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
     <aside className="side">
       <ServerSwitcher />
 
-      <div className="side-section">
-        <div className="side-label"><span>페이지</span></div>
-        <div className="page-nav">
-          <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>곡 목록</span>
-          </NavLink>
-          <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>개인 성과</span>
-          </NavLink>
-          <NavLink
-            to="/groups"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>그룹</span>
-          </NavLink>
-          <NavLink
-            to="/personal-categories"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>음악 카테고리</span>
-          </NavLink>
-          <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>과거 피망곡</span>
-          </NavLink>
-          {isAdmin && (
-            <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-              <span>미출시곡</span>
-            </NavLink>
-          )}
-          <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>피드백</span>
-          </NavLink>
-        </div>
-      </div>
+      <PageNavigation />
 
       <UserPin />
 

@@ -1,6 +1,3 @@
-/* ============================================================
-   Mobile: Groups + GroupDetail + Feedback
-   ============================================================ */
 .mob-pnav {
   display: flex; gap: 6px; overflow-x: auto;
   margin: 0 -14px; padding: 0 14px 8px;
@@ -34,7 +31,6 @@
 
 @media (max-width: 767px) {
 
-  /* ---------- Shared: action row + buttons ---------- */
   .mob-action-row {
     display: flex; gap: 8px; align-items: center;
     padding-bottom: 8px;
@@ -55,9 +51,6 @@
     background: var(--accent-dim); color: var(--accent); flex-shrink: 0;
   }
 
-  /* ============================================================
-     GroupsPage (목록)
-     ============================================================ */
   .grp-mob-body {
     flex: 1; overflow-y: auto; padding: 12px 14px 40px;
     -webkit-overflow-scrolling: touch;
@@ -107,7 +100,6 @@
   .grp-mob-stat .val { font-size: 14px; color: var(--fg-2); font-weight: 600; }
   .grp-mob-stat .val.hot { color: var(--accent); }
 
-  /* 그룹 모달(Create/Join)을 모바일에선 풀스크린화 */
   .grp-modal {
     position: fixed !important; inset: 0 !important;
     max-width: 100% !important; max-height: 100% !important;
@@ -118,9 +110,6 @@
   }
   .grp-modal-body { flex: 1; overflow-y: auto; }
 
-  /* ============================================================
-     GroupDetailPage
-     ============================================================ */
   .gd-mob-top {
     background:
       linear-gradient(135deg, oklch(0.30 0.18 var(--group-h, 280) / 0.18), oklch(0.155 0.012 270 / 0.92) 70%),
@@ -172,7 +161,6 @@
   .gd-mob-body .gd-tabs::-webkit-scrollbar { display: none; }
   .gd-mob-body .gd-tab { flex-shrink: 0; white-space: nowrap; font-size: 13px; padding: 6px 12px; }
 
-  /* 메뉴 시트 */
   .gd-mob-menu {
     display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px;
   }
@@ -185,7 +173,6 @@
   .gd-mob-menu button:active { color: var(--fg); }
   .gd-mob-menu button:last-child { border-bottom: none; }
 
-  /* 리더보드 모바일 카드 */
   .gd-lb-mob {
     display: flex; flex-direction: column; gap: 8px; padding-top: 4px;
   }
@@ -216,7 +203,6 @@
   .gd-lb-mob-stats b { color: var(--fg-2); }
   .gd-lb-mob-stats .dim { margin-left: auto; color: var(--fg-4); }
 
-  /* Members / Manage 행을 모바일에선 세로 스택으로 */
   .gd-mob-body .gd-member-row,
   .gd-mob-body .gd-app-row {
     flex-wrap: wrap;
@@ -235,23 +221,17 @@
     flex: 1; min-width: 0; padding: 8px 10px; font-size: 12px;
   }
 
-  /* Feed mobile padding */
   .gd-mob-body .gd-feed-item { padding: 10px 0; }
 
-  /* gd-myrank 모바일에선 컴팩트 */
   .gd-mob-body .gd-myrank-grid {
     grid-template-columns: repeat(4, 1fr); gap: 8px;
   }
 
-  /* gd-blocked (비로그인/에러) wrapper가 mobile에서도 작동하도록 */
   .app-mobile .gd-blocked {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 12px; padding: 60px 24px; text-align: center;
   }
 
-  /* ============================================================
-     FeedbackPage
-     ============================================================ */
   .fb-mob-tabs {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 4px;
     background: var(--surface-1); border-radius: 8px; padding: 3px;
@@ -308,7 +288,6 @@
     font-size: 10.5px;
   }
 
-  /* ----- Compose Sheet (fullscreen) ----- */
   .fb-mob-sheet {
     position: fixed; inset: 0; z-index: 70;
     background: var(--bg);

@@ -2,8 +2,6 @@ import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
 import { isXyxMode } from '../utils/serverMode'
 
-// 모바일 페이지 간 네비게이션 칩 행. 사이드바를 대체.
-// 현재 페이지는 NavLink가 active 클래스 자동 부여.
 const PAGES = [
   { to: '/',            label: '곡',       end: true },
   { to: '/rankings',    label: '성과', krOnly: true },

@@ -27,7 +27,6 @@ _SONG_FEEDBACK_TYPES = {"bpm", "combo", "time", "record_delete", "comment_delete
 class FeedbackCreate(BaseModel):
     tab: str = Field(pattern=r"^(bug|feature)$")
     type: str = Field(min_length=1, max_length=20)
-    # 최소 길이는 1자만 — strip 후 빈 값은 라우터에서 422로 차단.
     title: str = Field(min_length=1, max_length=120)
     body: str = Field(min_length=1, max_length=2000)
     severity: Optional[str] = Field(default="med", pattern=r"^(low|med|high)$")

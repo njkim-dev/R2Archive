@@ -64,8 +64,7 @@ export default function SongsPage() {
   }, [quick, isAdmin, setQuick])
 
   const filtered = useMemo(() => {
-    // 카테고리 필터 ON일 때만 cross-channel 확장된 playedAll 사용 — 동일 곡을 채널 내에서 노출.
-    // OFF면 채널별 분리된 played를 그대로 사용해 중복 표시를 피한다.
+    // 카테고리 안에서는 다른 난이도에서 재생한 동일 곡도 포함한다.
     const playedForFilter = category ? playedAll : played
     const { exact, fuzzy } = filterSongs(songs, {
       search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,

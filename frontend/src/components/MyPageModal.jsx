@@ -14,7 +14,7 @@ export default function MyPageModal() {
   const [records, setRecords] = useState(null)
   const [comments, setComments] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState('all')  // all / screenshot / youtube
+  const [filter, setFilter] = useState('all')
 
   useEffect(() => {
     if (!myPageOpen || !user) return

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
 import { getAnalyticsSummary } from '../api/client'
 import { useMobile } from '../hooks/useMobile'
-import { isXyxMode } from '../utils/serverMode'
 import ServerSwitcher from '../components/ServerSwitcher'
 import MobilePageNav from '../components/MobilePageNav'
+import PageNavigation from '../components/PageNavigation'
 
 const nf = new Intl.NumberFormat('ko-KR')
 
@@ -13,39 +12,11 @@ function fmt(n) {
   return nf.format(Number(n || 0))
 }
 
-function PageNav() {
-  const xyxMode = isXyxMode()
-  const { user, openLogin, isAdmin } = useStore()
+function AnalyticsSidebar() {
   return (
     <aside className="side">
       <ServerSwitcher />
-      <div className="side-section">
-        <div className="side-label"><span>페이지</span></div>
-        <div className="page-nav">
-          <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-          {!xyxMode && <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>}
-          {!xyxMode && (
-            <NavLink
-              to="/groups"
-              className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-              onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-            >
-              <span>그룹</span>
-            </NavLink>
-          )}
-          <NavLink
-            to="/personal-categories"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>음악 카테고리</span>
-          </NavLink>
-          {!xyxMode && <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>}
-          {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
-          {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
-          {!xyxMode && <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>피드백</span></NavLink>}
-        </div>
-      </div>
+      <PageNavigation />
     </aside>
   )
 }
@@ -197,7 +168,7 @@ export default function AnalyticsPage() {
   if (blocked) {
     return (
       <div className={isMobile ? 'app-mobile' : 'app'}>
-        {isMobile ? <MobilePageNav /> : <PageNav />}
+        {isMobile ? <MobilePageNav /> : <AnalyticsSidebar />}
         <main className="main ana-main">
           <div className="grp-empty pcat-empty-list">
             <div className="grp-empty-icon">!</div>
@@ -220,7 +191,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="app">
-      <PageNav />
+      <AnalyticsSidebar />
       <AnalyticsContent data={data} days={days} setDays={setDays} loading={loading} />
     </div>
   )

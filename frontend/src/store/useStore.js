@@ -13,10 +13,9 @@ function readShowOriginalBpm() {
 }
 
 const useStore = create((set, get) => ({
-  // user: { id, nickname, default_visibility, onboarded, provider } | null
   user: null,
   authLoaded: false,
-  // 관리자 여부 — /auth/me에는 포함하지 않고 별도 /auth/admin-status로 분리 조회.
+  // 관리자 여부는 별도 API로 조회해 일반 세션 응답에서 숨긴다.
   isAdmin: false,
   adminLoaded: false,
   refreshUser: async () => {
@@ -29,7 +28,6 @@ const useStore = create((set, get) => ({
       if (user) {
         get().refreshFlags()
         get().refreshPmangFavorites()
-        // 관리자 상태는 별도 호출. 실패해도(비로그인/네트워크) false로 폴백.
         getAdminStatus().then(d => {
           const isAdmin = !!d.is_admin
           set({ isAdmin, adminLoaded: true })
@@ -49,9 +47,10 @@ const useStore = create((set, get) => ({
     set({ user: null, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] })
   },
 
-  favorites: new Set(),   // Set<song_id>
-  played: new Set(),      // 실제 플레이한 song_id (채널별 분리)
-  playedAll: new Set(),   // 동일 곡의 모든 채널 인스턴스 포함 (카테고리 필터 ON일 때 사용)
+  favorites: new Set(),
+  played: new Set(),
+  // 카테고리 필터에서는 동일 곡의 다른 난이도도 재생한 곡으로 취급한다.
+  playedAll: new Set(),
   refreshFlags: async () => {
     try {
       const data = await getMyFlags()
@@ -82,7 +81,7 @@ const useStore = create((set, get) => ({
     }
   },
 
-  // 과거 피망곡 즐겨찾기 — pmang_songs.id 공간이 본 게임과 별도라 별도 Set으로 관리.
+  // 피망곡은 별도 ID 공간을 사용한다.
   pmangFavorites: new Set(),
   refreshPmangFavorites: async () => {
     try {
@@ -123,8 +122,7 @@ const useStore = create((set, get) => ({
     if (!s.user) return {}
     if (s.played.has(songId)) return {}
     const next = new Set(s.played); next.add(songId)
-    // playedAll에도 동일 (name, artist) 곡의 모든 채널 인스턴스 추가 — 카테고리 필터 ON 상태에서
-    // 다른 채널로 전환했을 때 즉시 "내가 플레이한 곡"으로 노출되도록.
+    // 다른 난이도로 전환해도 재생한 곡으로 바로 표시한다.
     const song = s.songs.find(x => x.id === songId)
     const nextAll = new Set(s.playedAll || s.played)
     nextAll.add(songId)
@@ -171,17 +169,16 @@ const useStore = create((set, get) => ({
   },
 
   search: '',
-  searchMode: 'both',   // 'both' | 'name' | 'artist'
+  searchMode: 'both',
   excludeSearch: false,
   showOriginalBpm: readShowOriginalBpm(),
   levelMin: 7,
   levelMax: 12,
   bpmMin: null,
   bpmMax: null,
-  category: 'sun',     // null | 'star' | 'moon' | 'sun'
-  quick: 'all',         // all | new | played | variants | popular
-  // 모바일 칩에서 신곡/변속곡/즐겨찾기/내플레이를 다른 필터와 동시 선택 가능하게 하기 위한 독립 플래그.
-  // helpers.passesFilters에서 quick과 AND로 적용된다.
+  category: 'sun',
+  quick: 'all',
+  // 모바일 빠른 필터는 서로 조합할 수 있다.
   flagNew: false,
   flagVariants: false,
   flagFavorite: false,
@@ -193,11 +190,11 @@ const useStore = create((set, get) => ({
   openMobileSheet: () => set({ mobileSheetOpen: true }),
   closeMobileSheet: () => set({ mobileSheetOpen: false }),
 
-  modalSong: null,      // song detail object from GET /songs/:id
+  modalSong: null,
   modalOpen: false,
   modalReturnUrl: null,
 
-  feedbackSong: null,   // { id, name, artist }
+  feedbackSong: null,
   feedbackOpen: false,
 
   loginOpen: false,

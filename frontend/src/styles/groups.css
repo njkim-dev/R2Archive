@@ -1,5 +1,4 @@
 
-/* ========= Groups Page ========= */
 .grp-select {
   width: 100%; padding: 7px 10px; background: var(--surface-1); color: var(--fg);
   border: 1px solid var(--line-soft); border-radius: 8px; font-size: 12.5px; outline: none;
@@ -55,7 +54,6 @@
 .grp-empty h3 { margin: 0 0 6px; font-size: 16px; color: var(--fg); font-weight: 600; }
 .grp-empty p { margin: 0 0 18px; font-size: 13px; line-height: 1.6; }
 
-/* mini list (sidebar) */
 .grp-mini-list { display: flex; flex-direction: column; gap: 2px; max-height: 340px; overflow-y: auto; }
 .grp-mini-item {
   display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 6px;
@@ -70,7 +68,6 @@
 .grp-mini-ct { font-size: 10.5px; color: var(--fg-4); }
 .grp-mini-own { font-size: 9px; background: var(--gold); color: oklch(0.18 0.06 80); padding: 1px 4px; border-radius: 3px; font-weight: 700; }
 
-/* buttons */
 .grp-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
@@ -87,7 +84,6 @@
 .grp-btn.danger { background: oklch(0.70 0.20 25 / 0.18); color: oklch(0.70 0.20 25); border-color: oklch(0.70 0.20 25 / 0.4); }
 .grp-btn.danger:hover { background: oklch(0.70 0.20 25 / 0.28); }
 
-/* modals */
 .grp-modal {
   width: min(560px, 100%); background: var(--surface-0); border: 1px solid var(--line);
   border-radius: 16px; box-shadow: 0 30px 80px oklch(0 0 0 / 0.5);
@@ -158,7 +154,6 @@
   letter-spacing: 0.08em; text-align: center;
 }
 
-/* tabs */
 .grp-tabs { display: flex; gap: 4px; padding: 6px 24px 0; border-bottom: 1px solid var(--line-soft); }
 .grp-tab {
   padding: 10px 14px; font-size: 13px; color: var(--fg-3); border: none; background: none;
@@ -171,7 +166,6 @@
   background: oklch(0.82 0.15 85); color: oklch(0.18 0.04 80); padding: 1px 6px; border-radius: 999px;
 }
 
-/* member rows */
 .grp-member-row {
   display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center;
   padding: 10px 12px; border-radius: 10px; background: var(--surface-1);
@@ -194,7 +188,6 @@
 .grp-member-actions button:hover { background: var(--bg); color: var(--fg); }
 .grp-member-actions button.danger:hover { color: oklch(0.70 0.20 25); border-color: oklch(0.70 0.20 25 / 0.4); }
 
-/* applications */
 .grp-app-row {
   display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: flex-start;
   padding: 12px 14px; border-radius: 10px; background: var(--surface-1);
@@ -228,7 +221,6 @@
 .grp-danger-zone.safe h4 { color: var(--fg-3); }
 .grp-danger-zone p { margin: 0 0 10px; font-size: 12px; color: var(--fg-3); line-height: 1.5; }
 
-/* ========= Group Detail Page ========= */
 .gd-blocked {
   margin: 80px auto; max-width: 480px; text-align: center; padding: 48px 28px;
   background: var(--surface-1); border: 1px dashed var(--line); border-radius: 16px; color: var(--fg-3);
@@ -278,7 +270,6 @@
 .gd-btn.danger:hover:not(:disabled) { background: oklch(0.70 0.20 25 / 0.28); }
 .gd-btn.sm { padding: 6px 11px; font-size: 12px; border-radius: 7px; }
 
-/* Hero */
 .gd-hero {
   margin: 24px 0 18px; padding: 32px 32px 28px; border-radius: 18px;
   background: linear-gradient(135deg,
@@ -330,7 +321,6 @@
   color: var(--fg); font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
 }
 
-/* Tabs */
 .gd-tabs {
   display: flex; gap: 24px; border-bottom: 1px solid var(--line-soft); margin-bottom: 18px;
   position: sticky; top: 49px; background: var(--bg); z-index: 4;
@@ -356,7 +346,6 @@
   background: var(--surface-1); border: 1px dashed var(--line); border-radius: 12px;
 }
 
-/* My-rank summary */
 .gd-myrank {
   margin-bottom: 18px; padding: 16px 20px; border-radius: 12px;
   background: linear-gradient(180deg, var(--accent-dim), var(--surface-0));
@@ -372,7 +361,6 @@
 .gd-myrank-grid .lbl { font-size: 10.5px; color: var(--fg-4); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
 .gd-myrank-grid .val { font-size: 18px; font-weight: 600; }
 
-/* Leaderboard table */
 .gd-lb {
   width: 100%; border-collapse: collapse; background: var(--surface-0);
   border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden;
@@ -430,7 +418,6 @@
 .gd-bar-track { width: 80px; height: 5px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
 .gd-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; }
 
-/* Feed */
 .gd-feed {
   background: var(--surface-0); border: 1px solid var(--line-soft);
   border-radius: 12px; overflow: hidden;
@@ -455,7 +442,7 @@
   text-decoration: none;
 }
 .gd-feed-icon-btn:hover { background: var(--bg); color: var(--fg); border-color: var(--line-soft); }
-.gd-feed-icon-btn.yt:hover { color: oklch(0.65 0.22 25); }   /* YouTube 빨강 */
+.gd-feed-icon-btn.yt:hover { color: oklch(0.65 0.22 25); }
 .gd-feed-item:hover { background: var(--surface-1); }
 .gd-feed-ic {
   width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
@@ -478,7 +465,6 @@
   font-size: 10.5px; color: var(--fg-4); font-family: "JetBrains Mono", monospace; white-space: nowrap;
 }
 
-/* Distribution */
 .gd-dist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .gd-dist-card {
   background: var(--surface-0); border: 1px solid var(--line-soft); border-radius: 12px;
@@ -509,7 +495,6 @@
   background: linear-gradient(90deg, var(--accent), oklch(0.65 0.20 var(--accent-h)));
 }
 
-/* Members tab */
 .gd-member-list { display: flex; flex-direction: column; gap: 4px; }
 .gd-member-row {
   display: grid; grid-template-columns: 34px 1fr auto auto; gap: 12px; align-items: center;
@@ -543,7 +528,6 @@
   color: oklch(0.70 0.20 25); border-color: oklch(0.70 0.20 25 / 0.4);
 }
 
-/* Manage (applications) */
 .gd-app-list { display: flex; flex-direction: column; gap: 8px; }
 .gd-app-row {
   display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: flex-start;
@@ -565,7 +549,6 @@
 .gd-app-actions button.no { background: var(--surface-2); color: var(--fg-3); border: 1px solid var(--line-soft); }
 .gd-app-actions button.no:hover { color: oklch(0.70 0.20 25); border-color: oklch(0.70 0.20 25 / 0.4); }
 
-/* Settings */
 .gd-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .gd-set-card {
   background: var(--surface-0); border: 1px solid var(--line-soft); border-radius: 12px;

@@ -75,7 +75,6 @@ def check_nickname(request: Request, q: str = ""):
 def update_me(request: Request, body: MeUpdate):
     uid = require_user_id(request)
 
-    # nickname만 사전 검증/전처리가 필요 — 나머지는 Pydantic 검증으로 충분.
     updates: list[tuple[str, object]] = []
     if body.nickname is not None:
         nick = body.nickname.strip()
@@ -139,15 +138,13 @@ def get_my_flags(request: Request):
                 (uid,),
             )
             favorites = [r[0] for r in cur.fetchall()]
-            # played는 사용자가 실제로 클릭한 song_id (채널별 분리 유지) — 카테고리 필터 OFF일 때 사용,
-            # 같은 곡이 별/달/해에 중복 표시되는 것을 막는다.
+            # 카테고리 밖에서는 실제로 재생한 행만 반환한다.
             cur.execute(
                 "SELECT song_id FROM user_plays WHERE user_id = %s",
                 (uid,),
             )
             played = [r[0] for r in cur.fetchall()]
-            # played_all은 동일 (name, artist) 곡의 모든 채널 인스턴스 포함 — 카테고리 필터 ON일 때 사용,
-            # 다른 채널에서 들었어도 현재 채널에서 "내가 플레이한 곡"으로 노출되게 한다.
+            # 카테고리 안에서는 다른 난이도의 동일 곡도 재생한 곡으로 취급한다.
             cur.execute(
                 """
                 SELECT DISTINCT s2.id

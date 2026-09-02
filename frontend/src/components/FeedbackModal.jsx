@@ -28,7 +28,6 @@ export default function FeedbackModal() {
       setDone(true)
       setTimeout(() => { closeFeedback(); setDone(false); setBody(''); setType('bpm') }, 900)
     } catch (_) {
-      // interceptor가 429 alert 처리.
     } finally {
       setSubmitting(false)
     }

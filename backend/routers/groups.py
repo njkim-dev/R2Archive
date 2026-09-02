@@ -4,6 +4,7 @@
   GET    /api/me/groups                              내가 가입한 그룹 + 내 역할
   POST   /api/groups                                 그룹 생성 (생성자가 owner)
   POST   /api/groups/join                            가입 코드로 가입 / 신청
+  GET    /api/groups/by-code/{code}                  가입 코드 조회
   GET    /api/groups/{gid}                           그룹 상세 (멤버 + 신청 + 내 역할)
   PATCH  /api/groups/{gid}                           이름/설명/auto_accept 변경 (owner)
   DELETE /api/groups/{gid}                           그룹 삭제 (owner)
@@ -15,6 +16,9 @@
   DELETE /api/groups/{gid}/members/{mid}              추방 (owner는 모두, manager는 member만)
   POST   /api/groups/{gid}/transfer-owner             owner 양도 (owner → 다른 멤버)
   POST   /api/groups/{gid}/leave                      탈퇴 (owner는 양도 후에만)
+  GET    /api/groups/{gid}/leaderboard                그룹 멤버별 성과 집계
+  GET    /api/groups/{gid}/feed                       그룹 활동 피드
+  GET    /api/groups/{gid}/song-firsts                곡별 그룹 1위 분포
 
 권한 모델:
   owner   : 모든 권한 (단, 양도 후에만 탈퇴 가능)
@@ -97,8 +101,6 @@ def _ensure_member_or_admin(cur, gid: int, uid: int) -> dict:
     raise HTTPException(status_code=403, detail="그룹 멤버가 아닙니다")
 
 
-# ---------- Pydantic 모델 ----------
-
 class GroupCreate(BaseModel):
     name: str = Field(min_length=2, max_length=40)
     description: str = Field(default="", max_length=240)
@@ -124,8 +126,6 @@ class RolePatch(BaseModel):
 class TransferOwner(BaseModel):
     to_user_id: int = Field(ge=1)
 
-
-# ---------- 조회 ----------
 
 @router.get("/me/groups")
 def list_my_groups(request: Request):
@@ -293,8 +293,6 @@ def get_group_detail(request: Request, gid: int):
     }
 
 
-# ---------- 생성/가입 ----------
-
 @router.post("/groups", status_code=201)
 def create_group(request: Request, body: GroupCreate):
     uid = require_user_id(request)
@@ -423,7 +421,6 @@ def join_group(request: Request, body: GroupJoin):
                 conn.commit()
                 return {"status": "joined", "group_id": gid, "group_name": gname}
 
-            # 신청 큐
             try:
                 cur.execute(
                     "INSERT INTO group_applications (group_id, user_id, bio) "
@@ -436,8 +433,6 @@ def join_group(request: Request, body: GroupJoin):
             conn.commit()
             return {"status": "applied", "group_id": gid, "group_name": gname}
 
-
-# ---------- 그룹 메타 변경 ----------
 
 @router.patch("/groups/{gid}")
 def patch_group(request: Request, gid: int, body: GroupPatch):
@@ -507,8 +502,6 @@ def revoke_code(request: Request, gid: int):
     return {"ok": True}
 
 
-# ---------- 신청 처리 ----------
-
 @router.post("/groups/{gid}/applications/{aid}/accept")
 def accept_application(request: Request, gid: int, aid: int):
     uid = require_user_id(request)
@@ -557,8 +550,6 @@ def reject_application(request: Request, gid: int, aid: int):
         conn.commit()
     return {"ok": True}
 
-
-# ---------- 멤버 관리 ----------
 
 @router.patch("/groups/{gid}/members/{mid}/role")
 def change_role(request: Request, gid: int, mid: int, body: RolePatch):
@@ -659,8 +650,6 @@ def leave_group(request: Request, gid: int):
             cur.execute("DELETE FROM group_members WHERE id = %s", (me["id"],))
         conn.commit()
 
-
-# ---------- 집계 엔드포인트 (그룹 상세 페이지 전용) ----------
 
 @router.get("/groups/{gid}/leaderboard")
 def get_group_leaderboard(request: Request, gid: int):
@@ -819,8 +808,7 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
         owner_searchable = r[12]
         is_mine = (owner_uid is not None and int(owner_uid) == int(uid))
 
-        # 그룹 피드는 멤버끼리만 보이므로 viewer-owner 동일 그룹은 항상 True.
-        # 권한: 본인 / show_screenshot 켬 / searchable이 'public' 또는 'group'
+        # 그룹 피드에서는 본인, 공개 기록과 같은 그룹에 허용된 기록만 노출한다.
         can_view = (
             is_mine
             or owner_show

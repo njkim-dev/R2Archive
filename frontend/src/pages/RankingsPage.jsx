@@ -51,7 +51,7 @@ export default function RankingsPage() {
   const navigate = useNavigate()
   const { nickname: nickParam } = useParams()
 
-  // 딥링크 /rankings/<닉네임>: lookup으로 user_id를 받아 핀하고, 권한 없거나 없는 사용자는 /rankings로 정리.
+  // 닉네임 딥링크는 조회 가능한 사용자만 고정한다.
   useEffect(() => {
     if (!nickParam) return
     let cancelled = false
@@ -76,8 +76,7 @@ export default function RankingsPage() {
     return () => { cancelled = true }
   }, [nickParam, setSearch, setSearchMode, pinUser, navigate])
 
-  // 그룹 페이지에서 넘어올 때 ?pinUser=<id>&pinNick=<nick>&group=<gid> 쿼리 처리.
-  // 핀 적용 후 URL은 정리해서 새로고침/뒤로가기로 다시 적용되지 않게 함.
+  // 그룹에서 전달된 사용자 핀은 한 번 적용한 뒤 URL에서 제거한다.
   useEffect(() => {
     if (!location.search) return
     const p = new URLSearchParams(location.search)
@@ -116,7 +115,7 @@ export default function RankingsPage() {
     }
   }, [user, fetchMyRecords, fetchMyGroups])
 
-  // 미저장 변경분이 있을 때 브라우저 새로고침/탭 닫기/Alt+F4 차단.
+  // 미저장 편집이 있으면 페이지 이탈을 확인한다.
   useEffect(() => {
     if (!editMode || dirty.size === 0) return
     const handler = (e) => {
@@ -128,8 +127,7 @@ export default function RankingsPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [editMode, dirty])
 
-  // 라우트 이탈 차단: 페이지 내부 nav 링크 클릭 등.
-  // react-router v6에서는 useBlocker 미공식이라 클릭 캡처로 처리.
+  // react-router v6의 내부 이동은 클릭 캡처로 확인한다.
   useEffect(() => {
     if (!editMode || dirty.size === 0) return
     const handler = (e) => {
@@ -171,8 +169,6 @@ export default function RankingsPage() {
     else if (typeof quick === 'string' && quick.startsWith('group:')) {
       out = out.filter(r => r.groupTop != null)
     }
-    // '성과있음'은 모바일 칩에서 다른 필터와 동시에 적용된다.
-    // quick==='ranked'는 PC 사이드바 레거시 경로.
     if (flagRanked || quick === 'ranked') out = out.filter(r => r.top != null)
 
     if (searchMode === 'song' && search.trim()) {

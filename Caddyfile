@@ -56,7 +56,6 @@ handle_path /static/pmang_image/* {
 	file_server
 }
 
-# API 요청은 FastAPI로 프록시
 @api path /api/*
 handle @api {
 	reverse_proxy {$API_UPSTREAM} {
@@ -74,7 +73,6 @@ handle /assets/* {
 	file_server
 }
 
-# React SPA
 handle {
 	root * /srv
 	header Cache-Control "no-cache"

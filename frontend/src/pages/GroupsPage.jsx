@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
 import useGroupsStore from '../store/useGroupsStore'
 import { lookupGroupByCode } from '../api/client'
@@ -9,6 +9,7 @@ import GroupsMobileHeader from '../components/groups/GroupsMobileHeader'
 import GroupsMobileList from '../components/groups/GroupsMobileList'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
+import PageNavigation from '../components/PageNavigation'
 
 const PENDING_JOIN_KEY = 'r2b_pending_join_code'
 
@@ -90,7 +91,6 @@ function JoinGroupModal({ open, onClose, initialCode = '' }) {
 
   useEffect(() => {
     if (open) {
-      // 초대 링크로 들어온 경우 코드 자동 입력. 사용자가 직접 열면 빈 값.
       const v = (initialCode || '').toUpperCase().replace(/[^A-Z0-9-]/g, '')
       setCode(v.length === 9 ? v : '')
       setBio('')
@@ -156,43 +156,6 @@ function JoinGroupModal({ open, onClose, initialCode = '' }) {
   )
 }
 
-function SidebarBrand() {
-  return <ServerSwitcher />
-}
-
-function PageNav({ user }) {
-  const { openLogin, isAdmin } = useStore()
-  return (
-    <div className="side-section" style={{ marginTop: 0 }}>
-      <div className="side-label"><span>페이지</span></div>
-      <div className="page-nav">
-        <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>곡 목록</span></NavLink>
-        <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>개인 성과</span></NavLink>
-        <NavLink
-          to="/groups"
-          className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-          onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-        >
-          <span>그룹</span>
-        </NavLink>
-        <NavLink
-          to="/personal-categories"
-          className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-          onClick={(e) => { if (!user) { e.preventDefault(); openLogin() } }}
-        >
-          <span>음악 카테고리</span>
-        </NavLink>
-        <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>과거 피망곡</span></NavLink>
-        {isAdmin && <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>미출시곡</span></NavLink>}
-        {isAdmin && <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}><span>접속 통계</span></NavLink>}
-        <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-          <span>피드백</span>
-        </NavLink>
-      </div>
-    </div>
-  )
-}
-
 export default function GroupsPage() {
   const isMobile = useMobile()
   const { user, openLogin, isAdmin } = useStore()
@@ -203,7 +166,6 @@ export default function GroupsPage() {
   const [joinOpen, setJoinOpen] = useState(false)
   const [joinInitialCode, setJoinInitialCode] = useState('')
 
-  // 코드로 그룹 lookup → 이미 멤버면 detail로, 아니면 가입 모달 오픈.
   const consumeJoinCode = useCallback(async (code) => {
     try {
       const data = await lookupGroupByCode(code)
@@ -221,8 +183,7 @@ export default function GroupsPage() {
     }
   }, [navigate])
 
-  // /groups?code=XXXX-XXXX 진입 처리.
-  // 로그인된 상태면 lookup 후 분기, 비로그인이면 OAuth 라운드트립 대비 sessionStorage 보관.
+  // 가입 코드는 OAuth 왕복 동안 sessionStorage에 보관한다.
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const code = params.get('code')
@@ -235,7 +196,6 @@ export default function GroupsPage() {
     }
   }, [location.search, user, navigate, consumeJoinCode])
 
-  // OAuth 후 돌아왔을 때 보류된 코드가 있으면 lookup 후 분기.
   useEffect(() => {
     if (!user) return
     let pending = null
@@ -272,8 +232,8 @@ export default function GroupsPage() {
     return (
       <div className="app">
         <aside className="side">
-          <SidebarBrand />
-          <PageNav user={null} />
+          <ServerSwitcher />
+          <PageNavigation />
         </aside>
         <main className="main">
           <div className="grp-empty">
@@ -322,8 +282,8 @@ export default function GroupsPage() {
   return (
     <div className="app">
       <aside className="side">
-        <SidebarBrand />
-        <PageNav user={user} />
+        <ServerSwitcher />
+        <PageNavigation />
 
         <div className="side-section">
           <div className="side-label"><span>액션</span></div>

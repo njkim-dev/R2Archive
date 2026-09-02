@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from 'react'
-import { NavLink } from 'react-router-dom'
 import useStore from '../store/useStore'
 import { filterSongs, dedupeByNameArtistMaxLevel } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
 import ServerSwitcher from './ServerSwitcher'
+import PageNavigation from './PageNavigation'
 
 const CATEGORIES = [
   {
@@ -23,7 +23,7 @@ const CATEGORIES = [
 export default function Sidebar({ songs, filtered, loading = false, error = null }) {
   const xyxMode = isXyxMode()
   const {
-    meta, user, openLogin,
+    meta, user,
     category, setCategory,
     quick, setQuick,
     levelMin, levelMax, setLevelMin, setLevelMax,
@@ -55,7 +55,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       category, quick: 'all', artists,
       favorites, played: playedSet,
     }).exact
-    // 카테고리 필터 ON일 때만 cross-channel 확장된 playedAll 사용 (SongsPage 필터와 동일 정책).
     return {
       all:      base.length,
       new:      base.filter(s => s.is_new).length,
@@ -89,55 +88,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       </div>
       <ServerSwitcher />
 
-      <div className="side-section">
-        <div className="side-label"><span>페이지</span></div>
-        <div className="page-nav">
-          <NavLink to="/" end className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-            <span>곡 목록</span>
-          </NavLink>
-          {!xyxMode && (
-            <NavLink to="/rankings" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-              <span>개인 성과</span>
-            </NavLink>
-          )}
-          {!xyxMode && (
-            <NavLink
-              to="/groups"
-              className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-              onClick={(e) => { closeModal(); if (!user) { e.preventDefault(); openLogin() } }}
-            >
-              <span>그룹</span>
-            </NavLink>
-          )}
-          <NavLink
-            to="/personal-categories"
-            className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}
-            onClick={(e) => { closeModal(); if (!user) { e.preventDefault(); openLogin() } }}
-          >
-            <span>음악 카테고리</span>
-          </NavLink>
-          {!xyxMode && (
-            <NavLink to="/pmang-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-              <span>과거 피망곡</span>
-            </NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to="/removed-songs" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`}>
-              <span>미출시곡</span>
-            </NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to="/analytics" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={closeModal}>
-              <span>접속 통계</span>
-            </NavLink>
-          )}
-          {!xyxMode && (
-            <NavLink to="/feedback" className={({ isActive }) => `page-nav-item${isActive ? ' active' : ''}`} onClick={closeModal}>
-              <span>피드백</span>
-            </NavLink>
-          )}
-        </div>
-      </div>
+      <PageNavigation onNavigate={closeModal} />
 
       <div className="side-section">
         <div className="side-label"><span>빠른 필터</span></div>

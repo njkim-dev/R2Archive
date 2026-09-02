@@ -16,17 +16,13 @@ export default function OnboardingModal() {
   const [showScreenshot, setShowScreenshot] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-  const [nickStatus, setNickStatus] = useState(null)   // null | 'checking' | 'ok' | 'taken' | 'invalid'
+  const [nickStatus, setNickStatus] = useState(null)
   const debRef = useRef(null)
 
-  // 모달이 열리면 서버에서 최신 사용자 정보를 다시 가져옴.
-  // 다른 PC에서 변경했거나 DB를 직접 수정한 경우에도 최신 값이 반영되도록.
   useEffect(() => {
     if (onboardingOpen) refreshUser()
   }, [onboardingOpen, refreshUser])
 
-  // user 객체가 갱신되면 폼 필드를 그 값으로 채움.
-  // 초기 오픈 시엔 캐시된 값으로 잠깐 보였다가 refresh 완료 후 최신 값으로 업데이트됨.
   useEffect(() => {
     if (onboardingOpen) {
       setNickname(user?.nickname || '')
@@ -79,7 +75,6 @@ export default function OnboardingModal() {
         nickname: nick,
         default_visibility: visibility,
         searchable,
-        // 공개 기록이 아닐 땐 스크린샷 공유는 무조건 false로 저장.
         show_screenshot: visibility === 'public' && showScreenshot,
       })
       setUser(updated)
@@ -189,7 +184,6 @@ export default function OnboardingModal() {
         </div>
 
         <div className="onb-field">
-          {/* 스크린샷 공유는 공개 기록일 때만 의미가 있음. */}
           <label className={`onb-checkbox${visibility === 'public' ? '' : ' disabled'}`}>
             <input
               type="checkbox"

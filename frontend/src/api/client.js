@@ -65,8 +65,7 @@ export const uploadRecordScreenshot = (recordId, file) => {
 
 export const getPerceivedStats = (id, anonId) =>
   api.get(apiPath(`/songs/${id}/perceived/stats`, `/xyx/songs/${id}/perceived/stats`), {
-    // 로그인 사용자는 anonId를 빈 문자열로 넘김 → 쿼리스트링 자체를 생략해
-    // Caddy/브라우저 히스토리에 anon_id가 남지 않도록 한다.
+    // 로그인 사용자의 익명 ID는 URL에 노출하지 않는다.
     params: anonId ? { anon_id: anonId } : {},
   }).then(r => r.data)
 export const submitPerceived = (id, body) =>
@@ -79,15 +78,14 @@ export const deletePerceived = (id, body) =>
 export const submitFeedback = (id, body) =>
   isXyxMode() ? Promise.reject(new Error('XYX feedback is not enabled yet')) : api.post(`/songs/${id}/feedback`, body).then(r => r.data)
 
-// 본 게임 플레이 영상 — achievements 테이블 (records와 분리됨)
+// 성과 영상은 일반 기록과 별도로 관리한다.
 export const getPlayVideos = (id) =>
   api.get(apiPath(`/songs/${id}/play-videos`, `/xyx/songs/${id}/play-videos`)).then(r => r.data)
 export const addPlayVideo = (id, body) =>
   api.post(apiPath(`/songs/${id}/play-videos`, `/xyx/songs/${id}/play-videos`), body).then(r => r.data)
 
 export const getAuthMe = () => api.get('/auth/me').then(r => r.data)
-// 관리자 여부는 /auth/me에서 빼고 별도 호출로 분리 — 정보 노출 최소화.
-// 비로그인 시 401이라 try/catch로 false 폴백.
+// 관리자 여부는 일반 세션 응답과 분리한다.
 export const getAdminStatus = () => api.get('/auth/admin-status').then(r => r.data).catch(() => ({ is_admin: false }))
 export const logoutApi = () => api.post('/auth/logout').then(r => r.data)
 export const getYoutubeCandidates = (status = 'pending') =>
@@ -161,7 +159,6 @@ export const lookupRankingUser = (nickname) =>
 export const getUserRankingRecords = (userId) =>
   api.get(`/rankings/users/${userId}/records`).then(r => r.data)
 
-// ---------- Groups ----------
 export const getMyGroups = () => api.get('/me/groups').then(r => r.data)
 export const getGroupDetail = (gid) => api.get(`/groups/${gid}`).then(r => r.data)
 export const createGroup = (body) => api.post('/groups', body).then(r => r.data)
@@ -169,7 +166,6 @@ export const joinGroup = (body) => api.post('/groups/join', body).then(r => r.da
 export const lookupGroupByCode = (code) =>
   api.get(`/groups/by-code/${encodeURIComponent(code)}`).then(r => r.data)
 
-// ---------- Feedback ----------
 export const listFeedback = (params = {}) =>
   api.get('/feedback', { params }).then(r => r.data)
 export const listSongFeedback = (params = {}) =>
@@ -198,7 +194,6 @@ export const getGroupFeed = (gid, limit = 80) =>
   api.get(`/groups/${gid}/feed`, { params: { limit } }).then(r => r.data)
 export const getGroupSongFirsts = (gid) => api.get(`/groups/${gid}/song-firsts`).then(r => r.data)
 
-// ---------- Personal Categories ----------
 export const getMyPersonalCategories = () => api.get(apiPath('/me/personal-categories', '/me/xyx-categories')).then(r => r.data)
 export const getEditablePersonalCategories = () => api.get(apiPath('/me/personal-categories/editable', '/me/xyx-categories/editable')).then(r => r.data)
 export const getPublicPersonalCategories = () => api.get(apiPath('/personal-categories/public', '/xyx-categories/public')).then(r => r.data)

@@ -311,8 +311,7 @@ def _finish_login(provider: str, provider_uid: str, request: Request) -> Redirec
     except Exception:
         logger.exception("[oauth:%s] 유저 업서트 실패 (uid=%s)", provider, provider_uid)
         return _fail_redirect("db_upsert", request)
-    # 닉네임 설정 여부는 /api/auth/me 결과에 따라 프론트가 판단.
-    # src/App.jsx — refreshUser() 후 user.onboarded -> false 면 닉네임 설정 자동 오픈
+    # 온보딩 여부는 프론트가 user.onboarded로 판단한다.
     resp = RedirectResponse(f"{_read_return_origin(request)}/?auth=ok", status_code=302)
     issue_session_cookie(resp, user_id, persistent=persistent, request=request)
     _clear_state_cookie(resp, request)

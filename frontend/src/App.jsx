@@ -88,7 +88,7 @@ export default function App() {
     }
   }, [])  // eslint-disable-line
 
-  // 곡 상세 모달은 #song=<id> 해시로 표현. 어느 페이지에서든 해시가 있으면 모달이 열림.
+  // 곡 상세 해시는 현재 페이지와 무관하게 모달을 연다.
   useEffect(() => {
     const openFromHash = () => {
       const match = location.hash.match(/^#song=(\d+)$/)
@@ -99,7 +99,7 @@ export default function App() {
       if (!song) { alert('존재하지 않는 곡입니다. URL을 확인해주세요.'); return }
       const { modalOpen, modalSong, closeModal } = useStore.getState()
       if (modalOpen && modalSong?.id === id) return
-      // 이미 열려있는 모달을 다른 곡으로 전환하려면 닫고 다시 열어야 SongModal의 useEffect가 다시 발동.
+      // 열린 모달의 곡을 바꿀 때 상세 조회를 다시 시작한다.
       if (modalOpen) {
         closeModal()
         setTimeout(() => openSongFromHash(song), 150)

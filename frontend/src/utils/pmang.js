@@ -1,10 +1,8 @@
-// 과거 피망곡 전용 필터/정렬/퍼지서치 — utils/helpers.js의 filterSongs와 동일 정책.
-// pmang_songs는 aliases/bpm/play_count 컬럼이 없고, level은 게임 표기의 2배(정수)이므로
-// 화면값(level/2) 기준으로 필터를 적용한다.
+// 피망 난이도는 저장값의 절반을 화면값으로 사용한다.
 
 import Fuse from 'fuse.js'
 
-const _fuseCache = new Map()  // key: `${mode}` → { songs, fuse }
+const _fuseCache = new Map()
 const SEARCH_NORMALIZE_RE = /[^\p{L}\p{N}]+/gu
 
 function normalizeSearchText(value) {

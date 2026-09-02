@@ -230,7 +230,6 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
     nickname = (body.nickname or "").strip()
     current_uid = get_current_user_id(request)
 
-    # 로그인 유저가 닉네임을 Null로 보낸 경우 프로필 닉네임으로 대체
     user_row = fetch_user(current_uid) if current_uid is not None else None
     if not nickname and user_row and user_row.get("nickname"):
         nickname = user_row["nickname"]
@@ -257,7 +256,6 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 if song_combo is not None and body.combo > song_combo:
                     raise HTTPException(status_code=422, detail="콤보가 곡의 최대값을 초과합니다")
 
-            # register_as_play_video=True 는 youtube_url이 있을 때만 의미가 있음.
             else:
                 ensure_active_song(cur, song_id)
 
@@ -355,8 +353,7 @@ async def upload_record_screenshot(
         )
 
     try:
-        # Persist decoded pixels, not the original byte stream. This strips
-        # metadata and appended/polyglot payloads and normalizes the extension.
+        # 재인코딩해 메타데이터와 이미지 뒤에 붙은 페이로드를 제거한다.
         with Image.open(BytesIO(content)) as decoded:
             decoded.load()
             if decoded.mode not in {"RGB", "RGBA", "L"}:
@@ -378,7 +375,6 @@ async def upload_record_screenshot(
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # 기존 파일 교체 시 이전 파일 삭제
             cur.execute("SELECT screenshot_path FROM records WHERE id = %s", (record_id,))
             prev = cur.fetchone()
             prev_path = prev[0] if prev else None
@@ -419,9 +415,8 @@ def get_record_screenshot(request: Request, record_id: int):
     if not is_mine:
         allowed = False
         if owner_show:
-            allowed = True   # 소유자가 명시적 공개
+            allowed = True
         elif owner_searchable == "group" and current_uid is not None and owner_uid is not None:
-            # 동일 그룹 공유 여부 확인
             with get_conn() as conn2:
                 with conn2.cursor() as cur2:
                     cur2.execute(
