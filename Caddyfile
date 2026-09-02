@@ -37,19 +37,22 @@ handle @blocked_paths {
 # 정적 이미지는 Caddy가 직접 제공하고 브라우저에 일주일 동안 보관한다.
 handle_path /static/rnr_image/* {
 	root * /app/rnr_image
-	header Cache-Control "public, max-age=604800"
+	@existingKr file
+	header @existingKr Cache-Control "public, max-age=604800"
 	file_server
 }
 
 handle_path /static/xyx/rnr_image/* {
 	root * /app/xyx/rnr_image
-	header Cache-Control "public, max-age=604800"
+	@existingXyx file
+	header @existingXyx Cache-Control "public, max-age=604800"
 	file_server
 }
 
 handle_path /static/pmang_image/* {
 	root * /app/pmang_image
-	header Cache-Control "public, max-age=604800"
+	@existingPmang file
+	header @existingPmang Cache-Control "public, max-age=604800"
 	file_server
 }
 

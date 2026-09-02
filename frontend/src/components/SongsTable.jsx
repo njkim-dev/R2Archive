@@ -10,7 +10,6 @@ import { isXyxMode } from '../utils/serverMode'
 import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 
 const COMBO_WARNING_TEXT = '공방에서 해당 노래 올콤하면 튕기는 버그가 있으니 주의하세요.'
-const loadedArtworkPaths = new Set()
 
 function openRowFromKeyboard(e, song, onClick) {
   if (e.target !== e.currentTarget) return
@@ -26,24 +25,29 @@ function rowAriaLabel(song) {
 function ArtworkThumbnail({ image }) {
   const optimizedSrc = artworkThumbnailUrl(image)
   const originalSrc = staticUrl(image)
+  const [src, setSrc] = useState(optimizedSrc)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setSrc(optimizedSrc)
+    setFailed(false)
+  }, [optimizedSrc])
+
+  if (failed) return null
 
   return (
     <img
-      key={optimizedSrc}
-      src={optimizedSrc}
+      src={src}
       alt=""
       decoding="async"
       draggable={false}
       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-      onLoad={() => loadedArtworkPaths.add(String(image))}
-      onError={e => {
-        const el = e.currentTarget
-        if (optimizedSrc !== originalSrc && el.dataset.originalTried !== 'true') {
-          el.dataset.originalTried = 'true'
-          el.src = originalSrc
-          return
+      onError={() => {
+        if (src !== originalSrc) {
+          setSrc(originalSrc)
+        } else {
+          setFailed(true)
         }
-        el.style.display = 'none'
       }}
     />
   )
@@ -75,7 +79,7 @@ function useElementWidth() {
   return [ref, width]
 }
 
-function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount, suppressArtwork = false, active = false }) {
+function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelete, onDeleteSong, showFavoriteCount, active = false }) {
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const hasMusic = !!song.youtube_url
 
@@ -132,7 +136,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, canDelet
         </div>
       )}
       <div className="mob-art" style={{ background: artworkBg(song.id) }}>
-        {song.image && !suppressArtwork
+        {song.image
           ? <ArtworkThumbnail image={song.image} />
           : <span style={{ fontFamily: '"JetBrains Mono",monospace', fontWeight: 700, fontSize: 13, color: 'oklch(0.98 0.01 270 / 0.9)' }}>
               {(song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'}
@@ -348,7 +352,6 @@ function SongRow({
   hiddenColumns,
   colTemplate,
   compact,
-  suppressArtwork,
   active = false,
 }) {
   const [copied, setCopied] = useState(false)
@@ -389,7 +392,7 @@ function SongRow({
         <div className="td" role="cell">
           <div className="title-cell">
             <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
-              {song.image && !suppressArtwork
+              {song.image
                 ? <ArtworkThumbnail image={song.image} />
                 : null
               }
@@ -467,7 +470,7 @@ function SongRow({
       <div className="td" role="cell">
         <div className="title-cell">
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
-            {song.image && !suppressArtwork
+            {song.image
               ? <ArtworkThumbnail image={song.image} />
               : null
             }
@@ -696,10 +699,6 @@ export default function SongsTable({
   const listRef = useRef(null)
   const listHeightRef = useRef(0)
   const scrollOffsetRef = useRef(0)
-  const scrollSampleRef = useRef({ offset: 0, time: 0 })
-  const fastScrollTimerRef = useRef(null)
-  const fastScrollingRef = useRef(false)
-  const [fastScrolling, setFastScrolling] = useState(false)
   const savedOffsetRef = useRef(0)
   const prevSearchRef = useRef(search)
   const restoredScrollRef = useRef(false)
@@ -735,26 +734,7 @@ export default function SongsTable({
   const handleScroll = useCallback(({ scrollOffset, scrollUpdateWasRequested }) => {
     scrollOffsetRef.current = scrollOffset
     setCurrentListScrollOffset(scrollOffset)
-
-    if (scrollUpdateWasRequested) return
-    const now = performance.now()
-    const previous = scrollSampleRef.current
-    const elapsed = previous.time ? Math.max(1, now - previous.time) : Infinity
-    const velocity = Math.abs(scrollOffset - previous.offset) / elapsed
-    scrollSampleRef.current = { offset: scrollOffset, time: now }
-
-    if (velocity >= 1.2 && !fastScrollingRef.current) {
-      fastScrollingRef.current = true
-      setFastScrolling(true)
-    }
-    clearTimeout(fastScrollTimerRef.current)
-    fastScrollTimerRef.current = setTimeout(() => {
-      fastScrollingRef.current = false
-      setFastScrolling(false)
-    }, 120)
   }, [])
-
-  useEffect(() => () => clearTimeout(fastScrollTimerRef.current), [])
 
   useEffect(() => {
     const isTypingTarget = (target) => {
@@ -844,7 +824,6 @@ export default function SongsTable({
     }
     const isFav = favorites?.has(item.id)
     const active = activeSongId === item.id
-    const suppressArtwork = !!(fastScrolling && item.image && !loadedArtworkPaths.has(String(item.image)))
     if (isMobile) {
       return (
         <MobileCard
@@ -857,7 +836,6 @@ export default function SongsTable({
           canDelete={tableMode === 'personalCategory' && canDeleteSongs}
           onDeleteSong={onDeleteSong}
           showFavoriteCount={showFavoriteCount}
-          suppressArtwork={suppressArtwork}
           active={active}
         />
       )
@@ -882,11 +860,10 @@ export default function SongsTable({
         hiddenColumns={hiddenColumns}
         colTemplate={colTemplate}
         compact={compact}
-        suppressArtwork={suppressArtwork}
         active={active}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, hiddenColumns, colTemplate, compact, activeSongId, fastScrolling])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, hiddenColumns, colTemplate, compact, activeSongId])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
