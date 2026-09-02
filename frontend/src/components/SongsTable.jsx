@@ -33,7 +33,6 @@ function ArtworkThumbnail({ image }) {
     <img
       src={imageSrc}
       alt=""
-      decoding="async"
       draggable={false}
       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
       onError={e => { e.currentTarget.style.display = 'none' }}
@@ -878,7 +877,6 @@ export default function SongsTable({
                       width={width}
                       itemCount={items.length}
                       itemSize={rowHeight}
-                      overscanCount={20}
                       onScroll={handleScroll}
                     >
                       {Row}
@@ -911,7 +909,6 @@ export default function SongsTable({
                   width={width}
                   itemCount={items.length}
                   itemSize={rowHeight}
-                  overscanCount={20}
                   style={{ overflowX: 'hidden' }}
                   onScroll={handleScroll}
                 >
