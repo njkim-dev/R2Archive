@@ -3,7 +3,7 @@ import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { Trash2 } from 'lucide-react'
 import useStore from '../store/useStore'
-import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg, artworkThumbnailUrl, staticUrl } from '../utils/helpers'
+import { levelBarColor, bpmWaveBars, fmt, fmtBpm, artworkBg, staticUrl } from '../utils/helpers'
 import { logPlay } from '../api/client'
 import PersonalCategoryPicker from './PersonalCategoryPicker'
 import { isXyxMode } from '../utils/serverMode'
@@ -23,32 +23,14 @@ function rowAriaLabel(song) {
 }
 
 function ArtworkThumbnail({ image }) {
-  const optimizedSrc = artworkThumbnailUrl(image)
-  const originalSrc = staticUrl(image)
-  const [src, setSrc] = useState(optimizedSrc)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    setSrc(optimizedSrc)
-    setFailed(false)
-  }, [optimizedSrc])
-
-  if (failed) return null
-
   return (
     <img
-      src={src}
+      src={staticUrl(image)}
       alt=""
       decoding="async"
       draggable={false}
       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
-      onError={() => {
-        if (src !== originalSrc) {
-          setSrc(originalSrc)
-        } else {
-          setFailed(true)
-        }
-      }}
+      onError={e => { e.currentTarget.style.display = 'none' }}
     />
   )
 }
