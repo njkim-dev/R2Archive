@@ -10,6 +10,7 @@ import { isXyxMode } from '../utils/serverMode'
 import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 
 const COMBO_WARNING_TEXT = '공방에서 해당 노래 올콤하면 튕기는 버그가 있으니 주의하세요.'
+const XYX_ARTWORK_CACHE_VERSION = '20260902'
 
 function openRowFromKeyboard(e, song, onClick) {
   if (e.target !== e.currentTarget) return
@@ -23,9 +24,14 @@ function rowAriaLabel(song) {
 }
 
 function ArtworkThumbnail({ image }) {
+  const source = staticUrl(image)
+  const imageSrc = String(image).replace(/^\/+/, '').startsWith('xyx/')
+    ? `${source}?v=${XYX_ARTWORK_CACHE_VERSION}`
+    : source
+
   return (
     <img
-      src={staticUrl(image)}
+      src={imageSrc}
       alt=""
       decoding="async"
       draggable={false}
