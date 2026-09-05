@@ -202,10 +202,10 @@ const useStore = create((set, get) => ({
   mobileSheetOpen: false,
   openMobileSheet: () => set({ mobileSheetOpen: true }),
   closeMobileSheet: () => set({ mobileSheetOpen: false }),
-  applyDetailedFilters: (filters) => set(s => {
+  applyDetailedFilters: (filters, { close = true } = {}) => set(s => {
     const next = normalizeDetailedFilters(filters, s.meta)
     next.quick = allowedQuickFilter(next.quick, { xyxMode: isXyxMode(), isAdmin: s.isAdmin, user: s.user })
-    return { ...next, mobileSheetOpen: false }
+    return { ...next, mobileSheetOpen: close ? false : s.mobileSheetOpen }
   }),
 
   modalSong: null,

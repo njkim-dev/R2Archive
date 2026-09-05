@@ -63,6 +63,10 @@ function FilterDialog({ songs, isMobile }) {
   }, [])
 
   useEffect(() => {
+    useStore.getState().applyDetailedFilters(draft, { close: false })
+  }, [draft])
+
+  useEffect(() => {
     const previousFocus = document.activeElement
     const previousOverflow = document.body.style.overflow
     const background = [...document.body.children]
