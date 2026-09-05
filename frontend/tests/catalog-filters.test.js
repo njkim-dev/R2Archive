@@ -15,7 +15,20 @@ const songs = [
   song(7, 'SEED9', { name: 'Song 6', level: 5.5 }),
 ]
 const ids = result => [...result.exact, ...result.fuzzy].map(item => item.id)
-const filters = overrides => ({ ...defaultDetailedFilters(meta), search: '', favorites: new Set([1, 5]), played: new Set([5]), ...overrides })
+const filters = overrides => ({ ...defaultDetailedFilters(meta), category: null, search: '', favorites: new Set([1, 5]), played: new Set([5]), ...overrides })
+
+test('reset selects the sun channel and persists it for both servers', () => {
+  const reset = defaultDetailedFilters(meta)
+  assert.equal(defaultDetailedFilters().category, 'sun')
+  assert.equal(reset.category, 'sun')
+  assert.deepEqual(ids(filterSongs(songs, filters(reset))), [1, 2, 3, 4, 5, 6])
+  for (const server of ['kr', 'xyx']) {
+    const storage = { getItem: key => key === detailedFilterStorageKey(server) ? serializeDetailedFilters(reset) : null }
+    assert.equal(readDetailedFilters(server, storage).category, 'sun')
+    storage.getItem = () => serializeDetailedFilters({ ...reset, category: null })
+    assert.equal(readDetailedFilters(server, storage).category, null)
+  }
+})
 
 test('AI filtering uses only the four specified artists', () => {
   assert.deepEqual(ids(filterSongs(songs, filters({ aiMode: 'only' }))), [1, 2, 3, 4])

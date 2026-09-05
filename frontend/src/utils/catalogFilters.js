@@ -20,7 +20,7 @@ const validSortKeys = [null, 'file_order', 'name', 'korea_name', 'artist', 'leve
 
 export function defaultDetailedFilters(meta = null) {
   return {
-    category: null, quick: 'all', artists: new Set(),
+    category: 'sun', quick: 'all', artists: new Set(),
     levelMin: meta?.level_min ?? null, levelMax: meta?.level_max ?? null,
     bpmMin: meta?.bpm_min ?? null, bpmMax: meta?.bpm_max ?? null,
     aiMode: 'show', listenOnly: false,
