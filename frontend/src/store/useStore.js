@@ -3,10 +3,19 @@ import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFa
 import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
 
 const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
+const SHOW_MY_PERCEIVED_KEY = 'r2b_show_my_perceived'
 
 function readShowOriginalBpm() {
   try {
     return localStorage.getItem(SHOW_ORIGINAL_BPM_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function readShowMyPerceived() {
+  try {
+    return localStorage.getItem(SHOW_MY_PERCEIVED_KEY) === '1'
   } catch {
     return false
   }
@@ -172,6 +181,8 @@ const useStore = create((set, get) => ({
   searchMode: 'both',
   excludeSearch: false,
   showOriginalBpm: readShowOriginalBpm(),
+  showMyPerceived: readShowMyPerceived(),
+  perceivedRevision: 0,
   levelMin: 7,
   levelMax: 12,
   bpmMin: null,
@@ -201,6 +212,7 @@ const useStore = create((set, get) => ({
 
   setSongs: (songs) => set({ songs }),
   updateSongPerceived: (songId, avg, votes) => set(s => ({
+    perceivedRevision: s.perceivedRevision + 1,
     songs: s.songs.map(x => x.id === songId
       ? { ...x, user_level_avg: avg, user_level_votes: votes }
       : x),
@@ -250,6 +262,14 @@ const useStore = create((set, get) => ({
       else localStorage.removeItem(SHOW_ORIGINAL_BPM_KEY)
     } catch {}
     set({ showOriginalBpm: next })
+  },
+  setShowMyPerceived: (showMyPerceived) => {
+    const next = !!showMyPerceived
+    try {
+      if (next) localStorage.setItem(SHOW_MY_PERCEIVED_KEY, '1')
+      else localStorage.removeItem(SHOW_MY_PERCEIVED_KEY)
+    } catch {}
+    set({ showMyPerceived: next })
   },
   setLevelMin: (v) => set({ levelMin: v, category: null }),
   setLevelMax: (v) => set({ levelMax: v, category: null }),

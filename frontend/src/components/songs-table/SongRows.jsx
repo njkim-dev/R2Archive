@@ -175,6 +175,7 @@ export function SongRow({
   showPlayCount,
   showFavoriteCount,
   showOriginalBpmColumn,
+  userLevel = song.user_level_avg,
   hiddenColumns,
   colTemplate,
   compact,
@@ -371,8 +372,8 @@ export function SongRow({
 
       {showColumn('userLevel') && (
         <div className="td num" role="cell">
-          {song.user_level_avg != null
-            ? <span className="user-lv">{song.user_level_avg.toFixed(1)}</span>
+          {userLevel != null
+            ? <span className="user-lv">{userLevel.toFixed(1)}</span>
             : <span className="user-lv-empty">—</span>
           }
         </div>

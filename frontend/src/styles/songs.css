@@ -131,6 +131,7 @@
 .tbl-header div.th { cursor: default; }
 .tbl-header .th.sorted { color: var(--fg-2); }
 .tbl-header .th.num { justify-content: flex-end; text-align: right; }
+.tbl-header .th-my-perceived { padding-right: 4px; padding-left: 4px; letter-spacing: 0; }
 .tbl-header .th .arrow { font-size: 9px; color: var(--accent); }
 
 .tbl-body { flex: 1; padding: 0 28px 40px; overflow: hidden; }

@@ -63,6 +63,7 @@ export const uploadRecordScreenshot = (recordId, file) => {
   }).then(r => r.data)
 }
 
+export const getMyPerceivedLevels = () => api.get('/songs/perceived/mine').then(r => r.data)
 export const getPerceivedStats = (id, anonId) =>
   api.get(apiPath(`/songs/${id}/perceived/stats`, `/xyx/songs/${id}/perceived/stats`), {
     // 로그인 사용자의 익명 ID는 URL에 노출하지 않는다.

@@ -9,8 +9,8 @@ IP 등 사용자 개인정보를 수집하지 않고, 비회원 투표 참여를
   - 마이그레이션: 로그인 사용자가 첫 POST/PUT/DELETE 시점에 body.anon_id로
     과거 익명 투표 행이 있으면 user_id 행으로 자동 승계.
 """
-from fastapi import APIRouter, HTTPException, Request
-from auth import get_current_user_id
+from fastapi import APIRouter, HTTPException, Request, Response
+from auth import get_current_user_id, require_user_id
 from database import get_conn
 from models import PerceivedCreate, PerceivedUpdate, PerceivedDelete, PerceivedStats
 from rate_limit import limiter, ip_song_key
@@ -24,6 +24,20 @@ _BINS = 24  # 0.5 ~ 12.0, step 0.5
 
 def _level_to_bin(level: float) -> int:
     return max(0, min(_BINS - 1, round((level - 0.5) * 2)))
+
+
+@router.get("/perceived/mine", response_model=dict[int, float])
+def get_my_perceived_levels(request: Request, response: Response):
+    uid = require_user_id(request)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT song_id, level FROM perceived_difficulty WHERE user_id = %s",
+                (uid,),
+            )
+            return {song_id: float(level) for song_id, level in cur.fetchall()}
 
 
 @router.get("/{song_id}/perceived/stats", response_model=PerceivedStats)

@@ -35,8 +35,8 @@ function useElementWidth() {
   return [ref, width]
 }
 
-export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false }) {
-  const { search, setSearch, searchMode, setSearchMode, excludeSearch, setExcludeSearch, showOriginalBpm, setShowOriginalBpm, meta, sort, openLogin, user, logout, openOnboarding, openMyPage, modalOpen } = useStore()
+export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false, showMyPerceivedToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
+  const { search, setSearch, searchMode, setSearchMode, excludeSearch, setExcludeSearch, showOriginalBpm, setShowOriginalBpm, showMyPerceived, setShowMyPerceived, meta, sort, openLogin, user, logout, openOnboarding, openMyPage, modalOpen } = useStore()
   const inputRef = useRef(null)
   const [modeOpen, setModeOpen] = useState(false)
   const modeRef = useRef(null)
@@ -72,7 +72,7 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
 
   const sortLabels = {
     level: '난이도', name: '곡명', korea_name: '한국 곡명', artist: '아티스트', bpm: 'BPM', real_bpm: '원 BPM',
-    combo: '콤보', time: '시간', play_count: '재생', userLevel: '유저 난이도',
+    combo: '콤보', time: '시간', play_count: '재생', userLevel: showMyPerceivedToggle && user && showMyPerceived ? '내 체감 난이도' : '유저 난이도',
     file_order: '최신곡순', favorite_count: '즐겨찾기',
   }
   const hideRecord = topbarWidth > 0 && topbarWidth < 1240
@@ -146,15 +146,39 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
             />
             <span>입력한 검색어만 제외하기</span>
           </label>
-          {showOriginalBpmToggle && (
-            <label className="search-original-bpm">
-              <input
-                type="checkbox"
-                checked={showOriginalBpm}
-                onChange={e => setShowOriginalBpm(e.target.checked)}
-              />
-              <span>음악 원 BPM 표시</span>
-            </label>
+          {(showOriginalBpmToggle || showMyPerceivedToggle) && (
+            <div className="search-display-options">
+              {showOriginalBpmToggle && (
+                <label className="search-original-bpm">
+                  <input
+                    type="checkbox"
+                    checked={showOriginalBpm}
+                    onChange={e => setShowOriginalBpm(e.target.checked)}
+                  />
+                  <span>음악 원 BPM 표시</span>
+                </label>
+              )}
+              {showMyPerceivedToggle && (
+                <label className={`search-my-perceived${user ? '' : ' disabled'}`} title={user ? undefined : '로그인 후 사용할 수 있습니다.'}>
+                  <input
+                    type="checkbox"
+                    checked={!!user && showMyPerceived}
+                    disabled={!user}
+                    onChange={e => setShowMyPerceived(e.target.checked)}
+                  />
+                  <span>내 체감 난이도로 표시</span>
+                </label>
+              )}
+            </div>
+          )}
+          {myPerceivedStatus === 'loading' && (
+            <span className="search-personal-status" role="status">내 체감 난이도 불러오는 중…</span>
+          )}
+          {myPerceivedStatus === 'error' && (
+            <span className="search-personal-status" role="alert">
+              내 체감 난이도를 불러오지 못했습니다.
+              <button type="button" onClick={onRetryMyPerceived}>재시도</button>
+            </span>
           )}
         </div>
       </div>

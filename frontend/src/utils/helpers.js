@@ -246,7 +246,7 @@ export function filterSongs(songs, filters) {
   return { exact, fuzzy }
 }
 
-export function sortSongs(songs, sort) {
+export function sortSongs(songs, sort, myPerceivedLevels = null) {
   const { key, dir } = sort
   if (!key) {
     return [...songs].sort((a, b) => {
@@ -260,10 +260,11 @@ export function sortSongs(songs, sort) {
     if (key === 'time') { va = timeToSec(a.time); vb = timeToSec(b.time) }
     else if (key === 'name' || key === 'korea_name' || key === 'artist') { va = (a[key] || '').toLowerCase(); vb = (b[key] || '').toLowerCase() }
     else if (key === 'userLevel') {
-      va = a.user_level_avg; vb = b.user_level_avg
-      if (va === null && vb === null) return 0
-      if (va === null) return 1
-      if (vb === null) return -1
+      va = myPerceivedLevels ? myPerceivedLevels[a.id] : a.user_level_avg
+      vb = myPerceivedLevels ? myPerceivedLevels[b.id] : b.user_level_avg
+      if (va == null && vb == null) return 0
+      if (va == null) return 1
+      if (vb == null) return -1
     }
     else { va = a[key] ?? 0; vb = b[key] ?? 0 }
     if (va < vb) return -1 * d

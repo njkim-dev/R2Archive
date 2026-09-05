@@ -58,6 +58,7 @@ export default function SongsTable({
   onDeleteSong,
   categorySuggestion = null,
   catalogOpen = false,
+  myPerceivedLevels = null,
 }) {
   const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm } = useStore()
   const canFav = !!user
@@ -89,6 +90,9 @@ export default function SongsTable({
     return hidden
   }, [columnWidth, unfilteredHeaders, compact, showKoreaName])
   const headers = unfilteredHeaders.filter(header => !hiddenColumns.has(columnKey(header)))
+    .map(header => header.key === 'userLevel' && myPerceivedLevels
+      ? { ...header, label: '내 체감 난이도', cls: 'num th-my-perceived' }
+      : header)
   const colTemplate = templateFromHeaders(headers, columnWidth, compact)
   const listRef = useRef(null)
   const listHeightRef = useRef(0)
@@ -251,13 +255,14 @@ export default function SongsTable({
         showPlayCount={showPlayCount}
         showFavoriteCount={showFavoriteCount}
         showOriginalBpmColumn={showOriginalBpmColumn}
+        userLevel={myPerceivedLevels ? (myPerceivedLevels[item.id] ?? null) : item.user_level_avg}
         hiddenColumns={hiddenColumns}
         colTemplate={colTemplate}
         compact={compact}
         active={active}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, hiddenColumns, colTemplate, compact, activeSongId])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, compact, activeSongId])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length

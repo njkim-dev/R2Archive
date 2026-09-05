@@ -8,6 +8,7 @@ import SongsTable from '../components/SongsTable'
 import MobileHeader from '../components/MobileHeader'
 import FilterSheet from '../components/FilterSheet'
 import { useMobile } from '../hooks/useMobile'
+import { useMyPerceivedLevels } from '../hooks/useMyPerceivedLevels'
 import { isXyxMode } from '../utils/serverMode'
 
 function distinctSongCount(items) {
@@ -55,9 +56,10 @@ export default function SongsPage() {
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll,
     meta, setCategory, setQuick, isAdmin, modalOpen,
-    loading, error, loadCatalog,
+    loading, error, loadCatalog, showMyPerceived,
   } = useStore()
   const effectiveExcludeSearch = !isMobile && excludeSearch
+  const myPerceived = useMyPerceivedLevels(!isMobile && !isXyxMode() && showMyPerceived)
 
   useEffect(() => {
     if (quick === 'popular' && !isAdmin) setQuick('all')
@@ -72,8 +74,8 @@ export default function SongsPage() {
       artists, favorites, played: playedForFilter,
     })
     const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
-    return { exact: sortSongs(exact, effectiveSort), fuzzy: sortSongs(fuzzy, effectiveSort) }
-  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
+    return { exact: sortSongs(exact, effectiveSort, myPerceived.levels), fuzzy: sortSongs(fuzzy, effectiveSort, myPerceived.levels) }
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
@@ -127,7 +129,16 @@ export default function SongsPage() {
     <div className={`app song-list-layout${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
       <Sidebar songs={songs} filtered={filtered.exact} loading={loading} error={error} />
       <main className="main">
-        <TopBar filteredCount={totalFiltered} totalCount={songs.length} loading={loading} error={error} showOriginalBpmToggle />
+        <TopBar
+          filteredCount={totalFiltered}
+          totalCount={songs.length}
+          loading={loading}
+          error={error}
+          showOriginalBpmToggle
+          showMyPerceivedToggle={!isXyxMode()}
+          myPerceivedStatus={myPerceived.status}
+          onRetryMyPerceived={myPerceived.retry}
+        />
         {!loading && !error && <FilterBar />}
         {loading
           ? <CatalogLoadingState />
@@ -138,6 +149,7 @@ export default function SongsPage() {
                 fuzzy={filtered.fuzzy}
                 categorySuggestion={categorySuggestion}
                 catalogOpen={catalogPanelOpen}
+                myPerceivedLevels={myPerceived.levels}
               />
         }
       </main>
