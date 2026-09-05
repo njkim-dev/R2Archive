@@ -7,7 +7,7 @@ import TopBar from '../components/TopBar'
 import FilterBar from '../components/FilterBar'
 import SongsTable from '../components/SongsTable'
 import MobileHeader from '../components/MobileHeader'
-import FilterSheet from '../components/FilterSheet'
+import DetailedFilters from '../components/DetailedFilters'
 import { useMobile } from '../hooks/useMobile'
 import { isXyxMode } from '../utils/serverMode'
 
@@ -25,7 +25,7 @@ export default function RemovedSongsPage() {
     authLoaded, user, isAdmin, openLogin,
     search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
-    artists, sort, favorites, played, playedAll, meta, setCategory, setCategoryDirect,
+    artists, sort, favorites, played, playedAll, meta, setCategory, setCategoryDirect, aiMode, listenOnly,
     openModal, modalOpen,
   } = useStore()
   const effectiveExcludeSearch = !isMobile && excludeSearch
@@ -69,10 +69,10 @@ export default function RemovedSongsPage() {
     const { exact, fuzzy } = filterSongs(songs, {
       search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
-      artists, favorites, played: playedForFilter,
+      artists, favorites, played: playedForFilter, aiMode, listenOnly,
     })
     return { exact: sortSongs(exact, sort), fuzzy: sortSongs(fuzzy, sort) }
-  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll])
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, aiMode, listenOnly])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
@@ -93,12 +93,13 @@ export default function RemovedSongsPage() {
       artists,
       favorites,
       played,
+      aiMode, listenOnly,
     })
     const currentDistinct = distinctSongCount([...filtered.exact, ...filtered.fuzzy])
     const expandedDistinct = distinctSongCount([...result.exact, ...result.fuzzy])
     if (expandedDistinct <= currentDistinct) return null
     return { onApply: () => setCategory(category) }
-  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly])
 
   const stateMessage = !authLoaded || loading
     ? '불러오는 중...'
@@ -123,7 +124,7 @@ export default function RemovedSongsPage() {
         ) : (
           <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} />
         )}
-        <FilterSheet />
+        <DetailedFilters songs={songs} isMobile />
       </div>
     )
   }
@@ -146,6 +147,7 @@ export default function RemovedSongsPage() {
           <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} categorySuggestion={categorySuggestion} catalogOpen={catalogPanelOpen} />
         )}
       </main>
+      <DetailedFilters songs={songs} />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import MobilePageNav from './MobilePageNav'
 import { HelpButton } from './HelpTour'
 import ServerSwitcher from './ServerSwitcher'
 import { isXyxMode } from '../utils/serverMode'
+import { detailedFilterCount } from '../utils/catalogFilters'
 
 // 카테고리 별과 즐겨찾기 기호를 구분한다.
 const StarIcon = (
@@ -22,6 +23,8 @@ const CHIPS = [
   { key: 'popular',   label: '인기순',     icon: '★', flag: true, adminOnly: true },
   { key: 'favorite',  label: '즐겨찾기',   icon: '★', flag: true, needLogin: true },
   { key: 'my_played', label: '내 플레이',  icon: '♪', flag: true, needLogin: true },
+  { key: 'played', label: '전체 유저 플레이 곡', flag: true, krOnly: true },
+  { key: 'no_music', label: '음악 없음', flag: true, adminOnly: true },
 ]
 
 export default function MobileHeader({ totalFiltered }) {
@@ -29,21 +32,11 @@ export default function MobileHeader({ totalFiltered }) {
     search, setSearch,
     category, setCategory,
     quick, setQuick,
-    flagNew, flagVariants, flagFavorite, flagMyPlayed,
-    toggleFlagNew, toggleFlagVariants, toggleFlagFavorite, toggleFlagMyPlayed,
-    setFlagNew, setFlagVariants, setFlagFavorite, setFlagMyPlayed,
-    meta, bpmMin, bpmMax,
+    meta, bpmMin, bpmMax, levelMin, levelMax, artists, aiMode, listenOnly,
     mobileSheetOpen, openMobileSheet,
     sort, user, isAdmin,
     openLogin, logout, openOnboarding, openMyPage,
   } = useStore()
-
-  // 이전 빠른 필터 상태도 독립 칩에 반영한다.
-  const isNewOn = flagNew || quick === 'new'
-  const isVarOn = flagVariants || quick === 'variants'
-  const isFavOn = flagFavorite || quick === 'favorite'
-  const isMyPlayedOn = flagMyPlayed || quick === 'my_played'
-  const isPopularOn = quick === 'popular'
 
   const activeChip = useMemo(() => {
     if (category === 'star') return 'star'
@@ -53,26 +46,14 @@ export default function MobileHeader({ totalFiltered }) {
   }, [category])
 
   const hasBadge = useMemo(() => {
-    return bpmMin !== meta?.bpm_min || bpmMax !== meta?.bpm_max
-  }, [bpmMin, bpmMax, meta])
-
-  const toggleIndependent = (isOn, flagVal, setFlag, toggleFlag, quickKey) => {
-    if (isOn) {
-      if (flagVal) setFlag(false)
-      if (quick === quickKey) setQuick('all')
-    } else {
-      toggleFlag()
-    }
-  }
+    return detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly }, meta) > 0
+  }, [category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, meta])
 
   const handleChip = (chip) => {
-    if (chip === 'new')      return toggleIndependent(isNewOn,     flagNew,      setFlagNew,      toggleFlagNew,      'new')
-    if (chip === 'variant')  return toggleIndependent(isVarOn,     flagVariants, setFlagVariants, toggleFlagVariants, 'variants')
-    if (chip === 'popular')  return setQuick(isPopularOn ? 'all' : 'popular')
-    if (chip === 'favorite') return toggleIndependent(isFavOn,     flagFavorite, setFlagFavorite, toggleFlagFavorite, 'favorite')
-    if (chip === 'my_played') return toggleIndependent(isMyPlayedOn, flagMyPlayed, setFlagMyPlayed, toggleFlagMyPlayed, 'my_played')
-
-    if (chip === activeChip) return
+    if (CHIPS.some(item => item.key === chip && item.flag)) {
+      const key = chip === 'variant' ? 'variants' : chip
+      return setQuick(quick === key ? 'all' : key)
+    }
     if (chip === 'all') {
       if (category) setCategory(category)
       setQuick('all')
@@ -139,7 +120,7 @@ export default function MobileHeader({ totalFiltered }) {
                 로그인
               </button>
             )}
-            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
+            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="상세 필터" title="상세 필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
               </svg>
@@ -172,17 +153,12 @@ export default function MobileHeader({ totalFiltered }) {
         </label>
 
         <div className="mob-chips" role="group" aria-label="곡 필터">
-          {CHIPS.filter(c => (!c.needLogin || user) && (!c.adminOnly || isAdmin)).map(({ key, label, icon, range, flag }) => {
+          {CHIPS.filter(c => (!c.needLogin || user) && (!c.adminOnly || isAdmin) && (!c.krOnly || !isXyxMode())).map(({ key, label, icon, range, flag }) => {
             let isOn
             if (flag) {
-              isOn = key === 'new' ? isNewOn
-                : key === 'variant' ? isVarOn
-                : key === 'favorite' ? isFavOn
-                : key === 'my_played' ? isMyPlayedOn
-                : key === 'popular' ? isPopularOn
-                : false
+              isOn = quick === (key === 'variant' ? 'variants' : key)
             } else {
-              isOn = activeChip === key
+              isOn = activeChip === key && (key !== 'all' || quick === 'all')
             }
             return (
               <button

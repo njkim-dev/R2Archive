@@ -9,10 +9,18 @@ export default function FilterBar() {
     category, setCategory,
     quick, setQuick,
     artists, toggleArtist,
+    aiMode, setAiMode, listenOnly, setListenOnly,
     clearAllFilters,
   } = useStore()
 
   const pills = []
+
+  if (aiMode !== 'show') {
+    pills.push(<span key="ai" className="pill">{aiMode === 'hide' ? 'AI 음원 제외' : 'AI 음원만'}<button onClick={() => setAiMode('show')} aria-label="AI 음원 필터 해제">×</button></span>)
+  }
+  if (listenOnly) {
+    pills.push(<span key="listen" className="pill">음악 듣기 제공<button onClick={() => setListenOnly(false)} aria-label="음악 듣기 제공 필터 해제">×</button></span>)
+  }
 
   if (category) {
     const labels = { star: '별(1.5~3.5)', moon: '달(4~6.5)', sun: '해(7~12)' }

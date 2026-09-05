@@ -136,6 +136,8 @@ export function saveCurrentListState(state, pathname = window.location.pathname)
     flagFavorite: !!state.flagFavorite,
     flagMyPlayed: !!state.flagMyPlayed,
     artists: Array.from(state.artists || []),
+    aiMode: state.aiMode || 'show',
+    listenOnly: !!state.listenOnly,
     sort: state.sort || { key: null, dir: 'desc' },
     scrollOffset: currentListScrollOffset,
     savedAt: Date.now(),

@@ -1,3 +1,5 @@
+import { isAiSong } from './catalogFilters.js'
+
 export function getAnonId() {
   let id = localStorage.getItem('r2b_anon_id')
   if (!id) {
@@ -132,7 +134,7 @@ export function dedupeByNameArtistMaxLevel(songs) {
   return [...map.values()]
 }
 
-function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick, artists, favorites, played, flagNew, flagVariants, flagFavorite, flagMyPlayed }) {
+function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick, artists, favorites, played, flagNew, flagVariants, flagFavorite, flagMyPlayed, aiMode, listenOnly }) {
   if (levelMin != null && s.level < levelMin) return false
   if (levelMax != null && s.level > levelMax) return false
   if (category === 'star' && (s.level < 1.5 || s.level > 3.5)) return false
@@ -141,6 +143,9 @@ function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick,
   if (bpmMin != null && s.bpm < bpmMin) return false
   if (bpmMax != null && s.bpm > bpmMax) return false
   if (artists.size && !artists.has(s.artist)) return false
+  if (aiMode === 'hide' && isAiSong(s)) return false
+  if (aiMode === 'only' && !isAiSong(s)) return false
+  if (listenOnly && !s.youtube_url?.trim()) return false
   if (quick === 'new' && !s.is_new) return false
   if (quick === 'played' && !s.play_count) return false
   if (quick === 'variants' && !s.is_change) return false

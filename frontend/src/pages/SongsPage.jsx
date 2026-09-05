@@ -6,7 +6,8 @@ import TopBar from '../components/TopBar'
 import FilterBar from '../components/FilterBar'
 import SongsTable from '../components/SongsTable'
 import MobileHeader from '../components/MobileHeader'
-import FilterSheet from '../components/FilterSheet'
+import DetailedFilters from '../components/DetailedFilters'
+import { allowedQuickFilter } from '../utils/catalogFilters'
 import { useMobile } from '../hooks/useMobile'
 import { useMyPerceivedLevels } from '../hooks/useMyPerceivedLevels'
 import { isXyxMode } from '../utils/serverMode'
@@ -54,16 +55,19 @@ export default function SongsPage() {
   const {
     songs, search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
-    artists, sort, favorites, played, playedAll,
+    artists, sort, favorites, played, playedAll, aiMode, listenOnly,
     meta, setCategory, setQuick, isAdmin, modalOpen,
     loading, error, loadCatalog, showMyPerceived,
+    authLoaded, adminLoaded, user,
   } = useStore()
   const effectiveExcludeSearch = !isMobile && excludeSearch
   const myPerceived = useMyPerceivedLevels(!isMobile && !isXyxMode() && showMyPerceived)
 
   useEffect(() => {
-    if (quick === 'popular' && !isAdmin) setQuick('all')
-  }, [quick, isAdmin, setQuick])
+    if (!authLoaded || !adminLoaded) return
+    const allowed = allowedQuickFilter(quick, { xyxMode: isXyxMode(), isAdmin, user })
+    if (allowed !== quick) setQuick(allowed)
+  }, [quick, isAdmin, user, authLoaded, adminLoaded, setQuick])
 
   const filtered = useMemo(() => {
     // 카테고리 안에서는 다른 난이도에서 재생한 동일 곡도 포함한다.
@@ -71,11 +75,11 @@ export default function SongsPage() {
     const { exact, fuzzy } = filterSongs(songs, {
       search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
-      artists, favorites, played: playedForFilter,
+      artists, favorites, played: playedForFilter, aiMode, listenOnly,
     })
     const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
     return { exact: sortSongs(exact, effectiveSort, myPerceived.levels), fuzzy: sortSongs(fuzzy, effectiveSort, myPerceived.levels) }
-  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels])
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
@@ -99,6 +103,7 @@ export default function SongsPage() {
       artists,
       favorites,
       played,
+      aiMode, listenOnly,
     })
     const currentDistinct = distinctSongCount([...filtered.exact, ...filtered.fuzzy])
     const expandedDistinct = distinctSongCount([...result.exact, ...result.fuzzy])
@@ -106,7 +111,7 @@ export default function SongsPage() {
     return {
       onApply: () => setCategory(category),
     }
-  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly])
 
   if (isMobile) {
     return (
@@ -118,7 +123,7 @@ export default function SongsPage() {
             ? <CatalogErrorState message={error} onRetry={loadCatalog} isMobile />
             : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} />
         }
-        <FilterSheet />
+        <DetailedFilters songs={songs} isMobile />
       </div>
     )
   }
@@ -153,6 +158,7 @@ export default function SongsPage() {
               />
         }
       </main>
+      <DetailedFilters songs={songs} />
     </div>
   )
 }

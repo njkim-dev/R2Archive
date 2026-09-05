@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react'
 import useStore from '../store/useStore'
 import { filterSongs, dedupeByNameArtistMaxLevel } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
+import { SlidersHorizontal } from 'lucide-react'
+import { detailedFilterCount, visibleQuickFilters } from '../utils/catalogFilters'
 import ServerSwitcher from './ServerSwitcher'
 import PageNavigation from './PageNavigation'
 
@@ -28,9 +30,9 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     quick, setQuick,
     levelMin, levelMax, setLevelMin, setLevelMax,
     bpmMin, bpmMax, setBpmMin, setBpmMax,
-    artists, toggleArtist, clearArtists,
+    artists, aiMode, listenOnly,
     favorites, played, playedAll,
-    isAdmin, closeModal,
+    isAdmin, closeModal, mobileSheetOpen, openMobileSheet,
   } = useStore()
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       search: '', searchMode: 'both',
       levelMin, levelMax, bpmMin, bpmMax,
       category, quick: 'all', artists,
+      aiMode, listenOnly,
       favorites, played: playedSet,
     }).exact
     return {
@@ -65,7 +68,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       my_played: user ? base.filter(s => playedSet.has(s.id)).length : 0,
       no_music: base.filter(s => !s.youtube_url).length,
     }
-  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, user, favorites, played, playedAll])
+  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, aiMode, listenOnly, user, favorites, played, playedAll])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
@@ -74,8 +77,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     if (bpmMin > bpmMax) { setBpmMin(bpmMax); setBpmMax(bpmMin) }
   }
 
-  const topArtists = meta?.top_artists ?? []
-  const selectedCount = artists.size
+  const detailCount = detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly }, meta)
 
   return (
     <aside className="side">
@@ -91,20 +93,16 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       <PageNavigation onNavigate={closeModal} />
 
       <div className="side-section">
+        <button type="button" className="detailed-filter-trigger" onClick={openMobileSheet} aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
+          <SlidersHorizontal size={16} aria-hidden="true" />상세 필터
+          {detailCount > 0 && <span className="filter-count">{detailCount}</span>}
+        </button>
+      </div>
+      <div className="side-section">
         <div className="side-label"><span>빠른 필터</span></div>
         <div className="nav" role="group" aria-label="빠른 필터">
-          {[
-            { key: 'all',      label: '전체 곡',              count: filteredCounts.all },
-            { key: 'new',      label: '신곡',                 count: filteredCounts.new },
-            { key: 'variants', label: '변속곡',               count: filteredCounts.variants },
-            { key: 'popular',  label: '인기순',               count: filteredCounts.popular, adminOnly: true },
-            { key: 'favorite', label: '★ 내 즐겨찾기',         count: filteredCounts.favorite, needLogin: true },
-            { key: 'my_played', label: '내가 플레이한 곡',      count: filteredCounts.my_played, needLogin: true },
-            { key: 'played',   label: '전체 유저 플레이 곡',    count: filteredCounts.played },
-            { key: 'no_music', label: '음악 없음', count: filteredCounts.no_music, adminOnly: true },
-          ].map(({ key, label, count, needLogin, adminOnly }) => {
-            if (xyxMode && key === 'played') return null
-            if (adminOnly && !isAdmin) return null
+          {visibleQuickFilters({ xyxMode, isAdmin }).map(({ key, label, needLogin }) => {
+            const count = filteredCounts[key]
             const disabled = needLogin && !user
             return (
               <button
@@ -199,28 +197,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
         </div>
       )}
 
-      <div className="side-section">
-        <div className="side-label">
-          <span>아티스트</span>
-          {selectedCount > 0 && (
-            <button className="ct side-clear-selection" onClick={clearArtists}>
-              {selectedCount}개 선택 해제
-            </button>
-          )}
-        </div>
-        <div className="chips" role="group" aria-label="아티스트 필터">
-          {topArtists.map(a => (
-            <button
-              key={a}
-              className={`chip${artists.has(a) ? ' on' : ''}`}
-              onClick={() => toggleArtist(a)}
-              aria-pressed={artists.has(a)}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-      </div>
     </aside>
   )
 }

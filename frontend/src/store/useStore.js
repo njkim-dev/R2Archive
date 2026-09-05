@@ -1,9 +1,12 @@
 import { create } from 'zustand'
 import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates, getSongs, getMeta } from '../api/client'
 import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
+import { SERVER_MODE, isXyxMode } from '../utils/serverMode'
+import { allowedQuickFilter, detailedFilterStorageKey, normalizeDetailedFilters, readDetailedFilters, serializeDetailedFilters } from '../utils/catalogFilters'
 
 const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
 const SHOW_MY_PERCEIVED_KEY = 'r2b_show_my_perceived'
+const savedDetailedFilters = readDetailedFilters(SERVER_MODE)
 
 function readShowOriginalBpm() {
   try {
@@ -159,10 +162,7 @@ const useStore = create((set, get) => ({
       set({
         songs,
         meta,
-        levelMin: meta.level_min,
-        levelMax: meta.level_max,
-        bpmMin: meta.bpm_min,
-        bpmMax: meta.bpm_max,
+        ...normalizeDetailedFilters(get(), meta),
         loading: false,
         error: null,
       })
@@ -183,23 +183,30 @@ const useStore = create((set, get) => ({
   showOriginalBpm: readShowOriginalBpm(),
   showMyPerceived: readShowMyPerceived(),
   perceivedRevision: 0,
-  levelMin: 7,
-  levelMax: 12,
+  levelMin: null,
+  levelMax: null,
   bpmMin: null,
   bpmMax: null,
   category: 'sun',
   quick: 'all',
-  // 모바일 빠른 필터는 서로 조합할 수 있다.
   flagNew: false,
   flagVariants: false,
   flagFavorite: false,
   flagMyPlayed: false,
   artists: new Set(),
   sort: { key: null, dir: 'desc' },
+  aiMode: 'show',
+  listenOnly: false,
+  ...savedDetailedFilters,
 
   mobileSheetOpen: false,
   openMobileSheet: () => set({ mobileSheetOpen: true }),
   closeMobileSheet: () => set({ mobileSheetOpen: false }),
+  applyDetailedFilters: (filters) => set(s => {
+    const next = normalizeDetailedFilters(filters, s.meta)
+    next.quick = allowedQuickFilter(next.quick, { xyxMode: isXyxMode(), isAdmin: s.isAdmin, user: s.user })
+    return { ...next, mobileSheetOpen: false }
+  }),
 
   modalSong: null,
   modalOpen: false,
@@ -218,35 +225,17 @@ const useStore = create((set, get) => ({
       : x),
   })),
   setMeta: (meta) => set({ meta }),
-  initFromMeta: (meta) => set({
+  initFromMeta: (meta) => set(s => ({
     meta,
-    levelMin: meta.level_min,
-    levelMax: meta.level_max,
-    bpmMin: meta.bpm_min,
-    bpmMax: meta.bpm_max,
-  }),
+    ...normalizeDetailedFilters(s, meta),
+  })),
   restoreListState: (saved) => set(s => {
     if (!saved || typeof saved !== 'object') return {}
-    const numberOr = (value, fallback) =>
-      value === null || value === undefined || value === ''
-        ? fallback
-        : (Number.isFinite(Number(value)) ? Number(value) : fallback)
     return {
+      ...normalizeDetailedFilters({ ...s, ...saved }, s.meta),
       search: typeof saved.search === 'string' ? saved.search : s.search,
       searchMode: ['both', 'name', 'artist'].includes(saved.searchMode) ? saved.searchMode : s.searchMode,
       excludeSearch: !!saved.excludeSearch && typeof saved.search === 'string' && !!saved.search.trim(),
-      levelMin: numberOr(saved.levelMin, s.levelMin),
-      levelMax: numberOr(saved.levelMax, s.levelMax),
-      bpmMin: numberOr(saved.bpmMin, s.bpmMin),
-      bpmMax: numberOr(saved.bpmMax, s.bpmMax),
-      category: saved.category === 'star' || saved.category === 'moon' || saved.category === 'sun' ? saved.category : null,
-      quick: saved.quick || s.quick,
-      flagNew: !!saved.flagNew,
-      flagVariants: !!saved.flagVariants,
-      flagFavorite: !!saved.flagFavorite,
-      flagMyPlayed: !!saved.flagMyPlayed,
-      artists: new Set(Array.isArray(saved.artists) ? saved.artists : []),
-      sort: saved.sort && typeof saved.sort === 'object' ? saved.sort : s.sort,
     }
   }),
   setLoading: (loading) => set({ loading }),
@@ -287,7 +276,9 @@ const useStore = create((set, get) => ({
     levelMax: s.meta?.level_max,
   })),
 
-  setQuick: (quick) => set({ quick }),
+  setQuick: (quick) => set({ quick, flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false }),
+  setAiMode: (aiMode) => set({ aiMode: ['show', 'hide', 'only'].includes(aiMode) ? aiMode : 'show' }),
+  setListenOnly: (listenOnly) => set({ listenOnly: !!listenOnly }),
   toggleFlagNew: () => set(s => ({ flagNew: !s.flagNew })),
   toggleFlagVariants: () => set(s => ({ flagVariants: !s.flagVariants })),
   toggleFlagFavorite: () => set(s => ({ flagFavorite: !s.flagFavorite })),
@@ -316,12 +307,14 @@ const useStore = create((set, get) => ({
     search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
     category: 'sun', quick: 'all', artists: new Set(),
+    aiMode: 'show', listenOnly: false,
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),
   clearAllFiltersMobile: () => set(s => ({
     search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
     category: null, quick: 'all', artists: new Set(),
+    aiMode: 'show', listenOnly: false,
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),
 
@@ -353,5 +346,15 @@ const useStore = create((set, get) => ({
   openMyPage: () => set({ myPageOpen: true }),
   closeMyPage: () => set({ myPageOpen: false }),
 }))
+
+let lastSavedFilters = serializeDetailedFilters(useStore.getState())
+useStore.subscribe(state => {
+  const serialized = serializeDetailedFilters(state)
+  if (serialized === lastSavedFilters) return
+  try {
+    localStorage.setItem(detailedFilterStorageKey(SERVER_MODE), serialized)
+    lastSavedFilters = serialized
+  } catch {}
+})
 
 export default useStore
