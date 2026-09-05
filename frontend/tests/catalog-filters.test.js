@@ -85,6 +85,18 @@ test('artist counts and ordering include only titles in the selected channel', (
   assert.deepEqual(buildArtistCatalog(filterSongs([song(1, 'Sun Only')], { category: 'star', artists: new Set() }).exact), [])
 })
 
+test('artist catalog applies all AI modes within the selected channel', () => {
+  const catalog = (aiMode, category = 'sun') => buildArtistCatalog(filterSongs(songs, { category, aiMode, artists: new Set() }).exact)
+  assert.deepEqual(catalog('hide'), [{ artist: 'MAZO', count: 1 }, { artist: 'SEED9', count: 1 }])
+  assert.deepEqual(catalog('only'), [
+    { artist: '33_Lacky', count: 1 }, { artist: 'High Note', count: 1 },
+    { artist: 'SWING_ART', count: 1 }, { artist: 'VALOFE', count: 1 },
+  ])
+  assert.equal(catalog('show').length, 6)
+  assert.deepEqual(catalog('only', 'moon'), [])
+  assert.deepEqual(catalog('hide', 'moon'), [{ artist: 'SEED9', count: 1 }])
+})
+
 test('ranges normalize safely when closing, including blank and reversed inputs', () => {
   const result = normalizeDetailedFilters({ levelMin: '9', levelMax: '4', bpmMin: '500', bpmMax: '20' }, meta)
   assert.deepEqual([result.levelMin, result.levelMax, result.bpmMin, result.bpmMax], [4, 9, 60, 400])

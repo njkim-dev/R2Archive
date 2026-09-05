@@ -99,9 +99,9 @@ function FilterDialog({ songs, isMobile }) {
 
   const options = visibleQuickFilters({ xyxMode, isAdmin })
   const catalog = useMemo(() => {
-    const { exact } = filterSongs(songs, { category: draft.category, artists: new Set() })
+    const { exact } = filterSongs(songs, { category: draft.category, aiMode: draft.aiMode, artists: new Set() })
     return buildArtistCatalog(exact)
-  }, [songs, draft.category])
+  }, [songs, draft.category, draft.aiMode])
   const artists = useMemo(() => {
     const term = artistSearch.trim().normalize('NFKC').toLowerCase()
     return catalog.filter(item => item.artist.normalize('NFKC').toLowerCase().includes(term))
