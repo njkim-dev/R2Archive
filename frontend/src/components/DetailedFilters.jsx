@@ -174,7 +174,7 @@ function FilterDialog({ songs, isMobile }) {
               </div></section>
             </div>
             <section className="detailed-artists">
-              <div className="detailed-artist-heading"><h3>아티스트 <span>{draft.artists.size ? `${draft.artists.size}명 선택` : `${catalog.length}명`}</span></h3>
+              <div className="detailed-artist-heading"><h3>아티스트 <span>{draft.artists.size ? `${draft.artists.size}개 선택` : `${catalog.length}개`}</span></h3>
                 <button type="button" onClick={() => update('artists', new Set())} disabled={!draft.artists.size}>선택 해제</button>
               </div>
               <label className="detailed-artist-search"><Search size={16} aria-hidden="true" /><input type="search" value={artistSearch} onChange={event => setArtistSearch(event.target.value)} placeholder="아티스트 검색" aria-label="아티스트 검색" /></label>
