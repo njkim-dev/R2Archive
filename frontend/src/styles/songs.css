@@ -314,6 +314,10 @@
 }
 
 .title-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tbl-row-compact .td:has(.title-cell) { container-type: inline-size; }
+@container (max-width: 200px) {
+  .tbl-row-compact .title-thumb { display: none; }
+}
 .title-thumb { width: 80px; height: 40px; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
 .title-main { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .combo-warning-tag {

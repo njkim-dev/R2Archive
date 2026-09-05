@@ -251,16 +251,16 @@ export function SongRow({
           </div>
         )}
 
-        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
+        {showColumn('artist') && <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
           {song.artist}
-        </div>
+        </div>}
 
-        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
+        {showColumn('level') && <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
           <span className="level-val">
             <span className="int">{lvInt}</span>
             <span className="dec">{lvDec}</span>
           </span>
-        </div>
+        </div>}
       </div>
     )
   }
@@ -277,7 +277,7 @@ export function SongRow({
       onClick={() => onClick(song)}
       onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
     >
-      <div className="td" role="cell">
+      {showColumn('file_order') && <div className="td" role="cell">
         <div className="idx-cell">
           {song.is_new && <span className="new-tag">NEW</span>}
           <button
@@ -288,7 +288,7 @@ export function SongRow({
             disabled={!canFav}
           >{isFav ? '★' : '☆'}</button>
         </div>
-      </div>
+      </div>}
 
       <div className="td" role="cell">
         <div className="title-cell">
@@ -431,11 +431,11 @@ export function SongRow({
         </div>
       ) : null}
 
-      <div className="td center" role="cell">
+      {showColumn('variant') && <div className="td center" role="cell">
         <span className={`variant${song.is_change ? ' has' : ''}`}>
           {song.is_change ? '✓' : '×'}
         </span>
-      </div>
+      </div>}
     </div>
   )
 }

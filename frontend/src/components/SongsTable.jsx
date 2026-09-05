@@ -7,14 +7,13 @@ import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListS
 import { MobileCard, SongRow, useElementWidth } from './songs-table/SongRows'
 import {
   CATALOG_FULL_TABLE_MIN_WIDTH,
-  COMPACT_COL_TEMPLATE,
   COMPACT_HEADERS,
   DEFAULT_HEADERS,
   DEFAULT_HEADERS_WITH_REAL_BPM,
-  LINKED_COMPACT_COL_TEMPLATE,
   TableHeader,
   XYX_CATEGORY_HEADERS,
   compactLinkedHeaders,
+  columnKey,
   favoriteCountHeaders,
   hideColumnsForWidth,
   personalCategoryHeaders,
@@ -66,16 +65,8 @@ export default function SongsTable({
   const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
   const showPlayCount = !showFavoriteCount && tableMode !== 'personalCategory'
   const [tableRef, tableWidth] = useElementWidth()
-  const compact = catalogOpen && tableWidth < CATALOG_FULL_TABLE_MIN_WIDTH
+  const compact = catalogOpen && tableWidth < CATALOG_FULL_TABLE_MIN_WIDTH + (showKoreaName ? 140 : 0)
   const showOriginalBpmColumn = !compact && tableMode !== 'personalCategory' && showOriginalBpm
-  const hiddenColumns = useMemo(
-    () => {
-      const hidden = !compact ? hideColumnsForWidth(tableWidth, showOriginalBpmColumn) : new Set()
-      if (showKoreaName) hidden.add('userLevel')
-      return hidden
-    },
-    [compact, showKoreaName, tableWidth, showOriginalBpmColumn]
-  )
   const baseHeaders = compact
     ? (showKoreaName
       ? compactLinkedHeaders('한국 곡명', 'korea_name')
@@ -90,12 +81,15 @@ export default function SongsTable({
     : tableMode === 'personalCategory'
     ? personalCategoryHeaders(baseHeaders)
     : (showFavoriteCount && !showKoreaName ? favoriteCountHeaders(baseHeaders) : baseHeaders)
-  const headers = !compact
-    ? unfilteredHeaders.filter(header => !hiddenColumns.has(header.key))
-    : unfilteredHeaders
-  const colTemplate = compact
-    ? (showKoreaName ? LINKED_COMPACT_COL_TEMPLATE : COMPACT_COL_TEMPLATE)
-    : templateFromHeaders(headers)
+  // 목록의 좌우 여백과 세로 스크롤바를 제외한 너비로 컬럼을 계산한다.
+  const columnWidth = Math.max(0, tableWidth - (compact ? 40 : 56) - 10)
+  const hiddenColumns = useMemo(() => {
+    const hidden = hideColumnsForWidth(columnWidth, unfilteredHeaders, compact)
+    if (showKoreaName) hidden.add('userLevel')
+    return hidden
+  }, [columnWidth, unfilteredHeaders, compact, showKoreaName])
+  const headers = unfilteredHeaders.filter(header => !hiddenColumns.has(columnKey(header)))
+  const colTemplate = templateFromHeaders(headers, columnWidth, compact)
   const listRef = useRef(null)
   const listHeightRef = useRef(0)
   const scrollOffsetRef = useRef(0)

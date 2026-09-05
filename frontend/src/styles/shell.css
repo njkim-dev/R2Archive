@@ -24,6 +24,11 @@
   max-width: calc(var(--song-list-max-width) + var(--catalog-panel-width));
 }
 
+@media (max-width: 1100px) {
+  .app.song-list-layout.catalog-panel-open { grid-template-columns: 0 minmax(0, 1fr); }
+  .app.song-list-layout.catalog-panel-open > .side { visibility: hidden; padding: 0; border: 0; }
+}
+
 .side {
   background: var(--surface-0);
   border-right: 1px solid var(--line-soft);

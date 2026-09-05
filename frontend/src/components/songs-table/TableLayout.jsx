@@ -1,6 +1,6 @@
 export const COL_TEMPLATE = '56px 2fr 1fr 76px 100px 110px 110px 68px 80px 56px'
 export const COMPACT_COL_TEMPLATE = 'minmax(0, 1.45fr) minmax(110px, 0.9fr) 76px'
-export const CATALOG_FULL_TABLE_MIN_WIDTH = 1400
+export const CATALOG_FULL_TABLE_MIN_WIDTH = 620
 export const LINKED_COMPACT_COL_TEMPLATE = 'minmax(0, 1.25fr) minmax(0, 1fr) minmax(100px, 0.8fr) 76px'
 export const XYX_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
 export const XYX_CATEGORY_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
@@ -85,38 +85,55 @@ export const personalCategoryHeaders = (headers) => headers.map(header =>
     : header
 )
 
-export function hideColumnsForWidth(width, showOriginalBpmColumn) {
-  const hidden = new Set()
+export function columnKey(header) {
+  return header.key ?? (header.label === '변속' ? 'variant' : 'actions')
+}
+
+function minimumColumnWidth(header, width, compact) {
+  const key = columnKey(header)
+  if (key === 'name') return compact ? 220 : 360
+  if (key === 'korea_name') return compact ? Math.min(140, width * 0.3) : 140
+  if (key === 'artist') return 120
+  if (key === 'game_index') return 72
+  if (key === 'level') return 76
+  if (key === 'userLevel' || key === 'bpm' || key === 'real_bpm') return 100
+  if (key === 'combo') return 110
+  if (key === 'time') return 68
+  if (key === 'play_count' || key === 'favorite_count') return 80
+  return 56
+}
+
+export function hideColumnsForWidth(width, headers, compact = false) {
+  const hidden = new Set(compact ? ['artist'] : [])
   if (!width) return hidden
-  if (width < 1180) {
-    hidden.add('play_count')
-    hidden.add('favorite_count')
+  let required = headers.filter(header => !hidden.has(columnKey(header)))
+    .reduce((sum, header) => sum + minimumColumnWidth(header, width, compact), 0)
+  const priority = [
+    'play_count', 'favorite_count', 'userLevel', 'time', 'combo', 'real_bpm', 'artist',
+    'file_order', 'game_index', 'variant',
+    ...(compact ? ['level'] : []),
+  ]
+  for (const key of priority) {
+    if (required <= width) break
+    const header = headers.find(item => columnKey(item) === key)
+    if (!header || hidden.has(key)) continue
+    hidden.add(key)
+    required -= minimumColumnWidth(header, width, compact)
   }
-  if (width < 1080) hidden.add('userLevel')
-  if (width < 980) hidden.add('time')
-  if (width < 900) hidden.add('combo')
-  if (showOriginalBpmColumn && width < 820) hidden.add('real_bpm')
-  if (width < 740) hidden.add('artist')
   return hidden
 }
 
-function columnWidthForHeader(header) {
-  if (header.key === 'file_order') return '56px'
-  if (header.key === 'name') return 'minmax(240px, 2fr)'
-  if (header.key === 'korea_name') return 'minmax(140px, 1.1fr)'
-  if (header.key === 'artist') return 'minmax(120px, 1fr)'
-  if (header.key === 'level') return '76px'
-  if (header.key === 'userLevel') return '100px'
-  if (header.key === 'bpm') return '100px'
-  if (header.key === 'real_bpm') return '100px'
-  if (header.key === 'combo') return '110px'
-  if (header.key === 'time') return '68px'
-  if (header.key === 'play_count' || header.key === 'favorite_count') return '80px'
-  return '56px'
-}
-
-export function templateFromHeaders(headers) {
-  return headers.map(columnWidthForHeader).join(' ')
+export function templateFromHeaders(headers, width = Infinity, compact = false) {
+  const otherWidth = headers
+    .filter(header => header.key !== 'name')
+    .reduce((sum, header) => sum + minimumColumnWidth(header, width, compact), 0)
+  return headers.map(header => {
+    const minimum = minimumColumnWidth(header, width, compact)
+    if (header.key === 'name') return `minmax(${Math.max(0, Math.min(minimum, width - otherWidth))}px, 2fr)`
+    if (header.key === 'korea_name') return `minmax(${minimum}px, 1.1fr)`
+    if (header.key === 'artist') return `minmax(${minimum}px, 1fr)`
+    return `${minimum}px`
+  }).join(' ')
 }
 
 export function TableHeader({ sort, onSort, headers = DEFAULT_HEADERS, colTemplate = COL_TEMPLATE }) {

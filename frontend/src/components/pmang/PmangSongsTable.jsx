@@ -3,11 +3,10 @@ import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../../store/useStore'
 import { useElementWidth } from '../songs-table/SongRows'
-import { CATALOG_FULL_TABLE_MIN_WIDTH } from '../songs-table/TableLayout'
+import { CATALOG_FULL_TABLE_MIN_WIDTH, columnKey, hideColumnsForWidth, templateFromHeaders } from '../songs-table/TableLayout'
 import { levelBarColor, artworkBg, bpmWaveBars, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 
 const COL_TEMPLATE = '56px 72px 2fr 1fr 96px 100px 110px 90px'
-const COMPACT_COL_TEMPLATE = 'minmax(0, 1.45fr) minmax(110px, 0.9fr) 76px'
 
 const HEADERS = [
   { label: '',         key: null,         cls: '' },
@@ -85,7 +84,8 @@ function TableHeader({ sort, onSort, headers = HEADERS, colTemplate = COL_TEMPLA
   )
 }
 
-function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = false, colTemplate = COL_TEMPLATE, active = false }) {
+function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = false, colTemplate = COL_TEMPLATE, hiddenColumns, active = false }) {
+  const showColumn = (key) => !hiddenColumns?.has(key)
   const displayLv = song.level / 2
   const lvInt = Math.floor(displayLv)
   const lvDec = displayLv % 1 === 0 ? '.0' : '.5'
@@ -135,16 +135,16 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
           </div>
         </div>
 
-        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
+        {showColumn('artist') && <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
           {song.artist}
-        </div>
+        </div>}
 
-        <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }} role="cell">
+        {showColumn('level') && <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }} role="cell">
           <span className="level-val">
             <span className="int">{lvInt}</span>
             <span className="dec">{lvDec}</span>
           </span>
-        </div>
+        </div>}
       </div>
     )
   }
@@ -154,7 +154,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
       className={`tbl-row${active ? ' is-catalog-active' : ''}`}
       data-song-id={song.id}
       data-bpm-tier={bpmTier}
-      style={{ ...style, gridTemplateColumns: COL_TEMPLATE }}
+      style={{ ...style, gridTemplateColumns: colTemplate }}
       role="row"
       tabIndex={0}
       aria-label={rowAriaLabel(song)}
@@ -173,7 +173,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
         </div>
       </div>
 
-      <div className="td num" style={{ color: 'var(--fg-3)' }} role="cell">{song.game_index}</div>
+      {showColumn('game_index') && <div className="td num" style={{ color: 'var(--fg-3)' }} role="cell">{song.game_index}</div>}
 
       <div className="td" role="cell">
         <div className="title-cell">
@@ -210,9 +210,9 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
         </div>
       </div>
 
-      <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
+      {showColumn('artist') && <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
         {song.artist}
-      </div>
+      </div>}
 
       <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(displayLv) }} role="cell">
         <span className="level-val">
@@ -228,16 +228,16 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
         </div>
       </div>
 
-      <div className="td num" role="cell">
+      {showColumn('combo') && <div className="td num" role="cell">
         <span className="combo-num">{song.combo ? fmt(song.combo) : '—'}</span>
         <div className="combo-bar">
           <div style={{ width: `${comboPct}%` }} />
         </div>
-      </div>
+      </div>}
 
-      <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">
+      {showColumn('favorite_count') && <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">
         {song.favorite_count ? fmt(song.favorite_count) : '—'}
-      </div>
+      </div>}
     </div>
   )
 }
@@ -359,6 +359,11 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
   const { user, pmangFavorites, togglePmangFavorite } = useStore()
   const [tableRef, tableWidth] = useElementWidth()
   const compact = catalogOpen && tableWidth < CATALOG_FULL_TABLE_MIN_WIDTH
+  const columnWidth = Math.max(0, tableWidth - (compact ? 40 : 56) - 10)
+  const baseHeaders = compact ? COMPACT_HEADERS : HEADERS
+  const hiddenColumns = useMemo(() => hideColumnsForWidth(columnWidth, baseHeaders, compact), [columnWidth, baseHeaders, compact])
+  const headers = baseHeaders.filter(header => !hiddenColumns.has(columnKey(header)))
+  const colTemplate = templateFromHeaders(headers, columnWidth, compact)
   const canFav = !!user
   const listRef = useRef(null)
 
@@ -448,11 +453,12 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
         canFav={canFav}
         onToggleFav={togglePmangFavorite}
         compact={compact}
-        colTemplate={compact ? COMPACT_COL_TEMPLATE : COL_TEMPLATE}
+        colTemplate={colTemplate}
+        hiddenColumns={hiddenColumns}
         active={active}
       />
     )
-  }, [items, onRowClick, pmangFavorites, canFav, togglePmangFavorite, isMobile, compact, activeSongId])
+  }, [items, onRowClick, pmangFavorites, canFav, togglePmangFavorite, isMobile, compact, colTemplate, hiddenColumns, activeSongId])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -494,8 +500,8 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
       <TableHeader
         sort={sort}
         onSort={onSort}
-        headers={compact ? COMPACT_HEADERS : HEADERS}
-        colTemplate={compact ? COMPACT_COL_TEMPLATE : COL_TEMPLATE}
+        headers={headers}
+        colTemplate={colTemplate}
       />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
