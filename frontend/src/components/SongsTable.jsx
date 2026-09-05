@@ -6,6 +6,7 @@ import { isXyxMode } from '../utils/serverMode'
 import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 import { MobileCard, SongRow, useElementWidth } from './songs-table/SongRows'
 import {
+  CATALOG_FULL_TABLE_MIN_WIDTH,
   COMPACT_COL_TEMPLATE,
   COMPACT_HEADERS,
   DEFAULT_HEADERS,
@@ -57,7 +58,7 @@ export default function SongsTable({
   canDeleteSongs = false,
   onDeleteSong,
   categorySuggestion = null,
-  compact = false,
+  catalogOpen = false,
 }) {
   const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm } = useStore()
   const canFav = !!user
@@ -65,6 +66,7 @@ export default function SongsTable({
   const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
   const showPlayCount = !showFavoriteCount && tableMode !== 'personalCategory'
   const [tableRef, tableWidth] = useElementWidth()
+  const compact = catalogOpen && tableWidth < CATALOG_FULL_TABLE_MIN_WIDTH
   const showOriginalBpmColumn = !compact && tableMode !== 'personalCategory' && showOriginalBpm
   const hiddenColumns = useMemo(
     () => {

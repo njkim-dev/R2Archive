@@ -24,6 +24,10 @@
   -webkit-backdrop-filter: none;
   pointer-events: none;
 }
+body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
+  right: max(0px, calc((100% - var(--song-list-max-width) - var(--catalog-panel-width)) / 2));
+}
+
 .song-catalog-panel {
   width: var(--catalog-panel-width);
   height: 100vh;

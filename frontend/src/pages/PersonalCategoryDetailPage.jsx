@@ -750,7 +750,7 @@ export default function PersonalCategoryDetailPage() {
   const catalogPanelOpen = modalOpen && !isMobile
 
   return (
-    <div className={`app${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={levelCategory || undefined}>
+    <div className={`app song-list-layout${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={levelCategory || undefined}>
       <aside className="side">
         <ServerSwitcher />
         <PageNavigation />
@@ -823,7 +823,7 @@ export default function PersonalCategoryDetailPage() {
                     tableMode="personalCategory"
                     canDeleteSongs={category.can_edit}
                     onDeleteSong={handleDeleteSong}
-                    compact={catalogPanelOpen}
+                    catalogOpen={catalogPanelOpen}
                   />
                 </div>
               )

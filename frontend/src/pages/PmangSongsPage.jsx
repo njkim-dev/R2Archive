@@ -607,7 +607,7 @@ export default function PmangSongsPage() {
   }
 
   return (
-    <div className={`app${modalSong ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
+    <div className={`app song-list-layout${modalSong ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
       <PmangSidebar
         songs={songs}
         filtered={filtered.exact}
@@ -754,7 +754,7 @@ export default function PmangSongsPage() {
                 onSort={handleSort}
                 onRowClick={openPmangCatalog}
                 categorySuggestion={categorySuggestion}
-                compact={!!modalSong}
+                catalogOpen={!!modalSong}
                 activeSongId={modalSong?.id ?? null}
               />
         }

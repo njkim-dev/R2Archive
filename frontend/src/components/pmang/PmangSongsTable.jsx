@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useEffect } from 'react'
 import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../../store/useStore'
+import { useElementWidth } from '../songs-table/SongRows'
+import { CATALOG_FULL_TABLE_MIN_WIDTH } from '../songs-table/TableLayout'
 import { levelBarColor, artworkBg, bpmWaveBars, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
 
 const COL_TEMPLATE = '56px 72px 2fr 1fr 96px 100px 110px 90px'
@@ -353,8 +355,10 @@ function SearchFilterHint({ suggestion, empty = false }) {
   )
 }
 
-export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null, compact = false, activeSongId = null }) {
+export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, onRowClick, isMobile = false, categorySuggestion = null, catalogOpen = false, activeSongId = null }) {
   const { user, pmangFavorites, togglePmangFavorite } = useStore()
+  const [tableRef, tableWidth] = useElementWidth()
+  const compact = catalogOpen && tableWidth < CATALOG_FULL_TABLE_MIN_WIDTH
   const canFav = !!user
   const listRef = useRef(null)
 
@@ -486,7 +490,7 @@ export default function PmangSongsTable({ exact, fuzzy, search, sort, onSort, on
   }
 
   return (
-    <div className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="과거 피망곡 목록" aria-rowcount={items.length + 1}>
+    <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="과거 피망곡 목록" aria-rowcount={items.length + 1}>
       <TableHeader
         sort={sort}
         onSort={onSort}

@@ -1,4 +1,5 @@
 :root {
+  --song-list-max-width: 1800px;
   --catalog-panel-width: clamp(560px, 44vw, 720px);
 }
 
@@ -11,6 +12,16 @@
 
 .app.catalog-panel-open {
   padding-right: var(--catalog-panel-width);
+}
+
+.app.song-list-layout {
+  width: 100%;
+  max-width: var(--song-list-max-width);
+  margin-inline: auto;
+}
+
+.app.song-list-layout.catalog-panel-open {
+  max-width: calc(var(--song-list-max-width) + var(--catalog-panel-width));
 }
 
 .side {

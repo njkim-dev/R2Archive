@@ -124,7 +124,7 @@ export default function SongsPage() {
   const catalogPanelOpen = modalOpen && !isMobile
 
   return (
-    <div className={`app${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
+    <div className={`app song-list-layout${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={category || undefined}>
       <Sidebar songs={songs} filtered={filtered.exact} loading={loading} error={error} />
       <main className="main">
         <TopBar filteredCount={totalFiltered} totalCount={songs.length} loading={loading} error={error} showOriginalBpmToggle />
@@ -137,7 +137,7 @@ export default function SongsPage() {
                 exact={filtered.exact}
                 fuzzy={filtered.fuzzy}
                 categorySuggestion={categorySuggestion}
-                compact={catalogPanelOpen}
+                catalogOpen={catalogPanelOpen}
               />
         }
       </main>
