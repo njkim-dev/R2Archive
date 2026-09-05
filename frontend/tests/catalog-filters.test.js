@@ -63,6 +63,28 @@ test('all artist names are listed by distinct song-name count without a top-N ca
   assert.equal(many.length, 3000)
 })
 
+test('artist counts and ordering include only titles in the selected channel', () => {
+  const channelSongs = [
+    song(1, 'Shared', { name: 'Shared Song', level: 3.5 }),
+    song(2, 'Shared', { name: 'Shared Song', level: 4 }),
+    song(3, 'Shared', { name: 'Shared Song', level: 6.5 }),
+    song(4, 'Shared', { name: 'Second Song', level: 7 }),
+    song(5, 'Shared', { name: 'Third Song', level: 8 }),
+    song(6, 'Star Only', { level: 1.5 }),
+    song(7, 'Moon Only', { level: 5 }),
+    song(8, 'Sun Only', { level: 12 }),
+  ]
+  const catalog = category => buildArtistCatalog(filterSongs(channelSongs, { category, artists: new Set() }).exact)
+  assert.deepEqual(catalog('star'), [{ artist: 'Shared', count: 1 }, { artist: 'Star Only', count: 1 }])
+  assert.deepEqual(catalog('moon'), [{ artist: 'Moon Only', count: 1 }, { artist: 'Shared', count: 1 }])
+  assert.deepEqual(catalog('sun'), [{ artist: 'Shared', count: 2 }, { artist: 'Sun Only', count: 1 }])
+  assert.deepEqual(catalog(null), [
+    { artist: 'Shared', count: 3 }, { artist: 'Moon Only', count: 1 },
+    { artist: 'Star Only', count: 1 }, { artist: 'Sun Only', count: 1 },
+  ])
+  assert.deepEqual(buildArtistCatalog(filterSongs([song(1, 'Sun Only')], { category: 'star', artists: new Set() }).exact), [])
+})
+
 test('ranges normalize safely when closing, including blank and reversed inputs', () => {
   const result = normalizeDetailedFilters({ levelMin: '9', levelMax: '4', bpmMin: '500', bpmMax: '20' }, meta)
   assert.deepEqual([result.levelMin, result.levelMax, result.bpmMin, result.bpmMax], [4, 9, 60, 400])

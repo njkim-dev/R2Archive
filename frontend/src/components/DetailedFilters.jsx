@@ -94,12 +94,15 @@ function FilterDialog({ songs, isMobile }) {
   }, [close])
 
   const options = visibleQuickFilters({ xyxMode, isAdmin })
-  const catalog = useMemo(() => buildArtistCatalog(songs), [songs])
+  const catalog = useMemo(() => {
+    const { exact } = filterSongs(songs, { category: draft.category, artists: new Set() })
+    return buildArtistCatalog(exact)
+  }, [songs, draft.category])
   const artists = useMemo(() => {
     const term = artistSearch.trim().normalize('NFKC').toLowerCase()
     return catalog.filter(item => item.artist.normalize('NFKC').toLowerCase().includes(term))
   }, [catalog, artistSearch])
-  useEffect(() => { artistListRef.current?.scrollTo(0) }, [artistSearch])
+  useEffect(() => { artistListRef.current?.scrollTo(0) }, [artists])
 
   const update = useCallback((key, value) => setDraft(current => ({ ...current, [key]: value })), [])
   const toggleArtist = useCallback(artist => setDraft(current => {
