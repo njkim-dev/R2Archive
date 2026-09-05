@@ -6,10 +6,10 @@ import { allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, detaile
 const meta = { level_min: 1.5, level_max: 12, bpm_min: 60, bpm_max: 400 }
 const song = (id, artist, extra = {}) => ({ id, name: `Song ${id}`, artist, level: 8, bpm: 160, youtube_url: 'https://youtu.be/test', ...extra })
 const songs = [
-  song(1, 'VALOFE', { is_new: true }),
-  song(2, 'High Note'),
-  song(3, 'SWING_ART', { is_change: true }),
-  song(4, '33_Lacky', { youtube_url: '' }),
+  song(1, 'VALOFE', { is_new: true, is_ai: true }),
+  song(2, 'High Note', { is_ai: true }),
+  song(3, 'SWING_ART', { is_change: true, is_ai: true }),
+  song(4, '33_Lacky', { youtube_url: '', is_ai: true }),
   song(5, 'MAZO', { is_new: true, play_count: 20 }),
   song(6, 'SEED9', { is_change: true }),
   song(7, 'SEED9', { name: 'Song 6', level: 5.5 }),
@@ -30,12 +30,13 @@ test('reset selects the sun channel and persists it for both servers', () => {
   }
 })
 
-test('AI filtering uses only the four specified artists', () => {
+test('AI filtering uses the API flag rather than artist names', () => {
   assert.deepEqual(ids(filterSongs(songs, filters({ aiMode: 'only' }))), [1, 2, 3, 4])
   assert.deepEqual(ids(filterSongs(songs, filters({ aiMode: 'hide' }))), [5, 6, 7])
   assert.equal(ids(filterSongs(songs, filters({ aiMode: 'show' }))).length, 7)
-  assert.equal(isAiSong({ artist: ' valofe ' }), true)
-  assert.equal(isAiSong({ artist: 'High Note feat. MAZO' }), false)
+  assert.equal(isAiSong({ artist: 'New Artist', is_ai: true }), true)
+  assert.equal(isAiSong({ artist: 'VALOFE', is_ai: false }), false)
+  assert.equal(isAiSong({ artist: 'VALOFE' }), false)
   assert.equal(isAiSong({ artist: 'VALOFE Remix' }), false)
   assert.equal(isAiSong({ artist: null }), false)
 })

@@ -110,8 +110,6 @@ export function buildArtistCatalog(songs) {
     .sort((a, b) => b.count - a.count || a.artist.localeCompare(b.artist, 'ko'))
 }
 
-const AI_ARTISTS = new Set(['valofe', 'high note', 'swing_art', '33_lacky'])
-
 export function isAiSong(song) {
-  return AI_ARTISTS.has(String(song.artist ?? '').trim().normalize('NFKC').toLowerCase())
+  return song.is_ai === true
 }

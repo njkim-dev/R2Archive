@@ -3,6 +3,7 @@ from pathlib import Path
 
 from auth import get_current_user_id, require_admin, require_user_id
 from database import get_conn
+from ai_artists import is_ai_artist, load_ai_artists
 from models import BpmPoint, MetaResponse, PlayLogCreate, SongDetail, SongListItem, SongServerCounterpart
 from rate_limit import limiter
 
@@ -86,6 +87,7 @@ def _rows_to_song_items(
     perceived: dict[int, tuple],
     favorite_counts: dict[int, int],
     *,
+    ai_artists: set[str],
     removed: bool = False,
 ) -> list[SongListItem]:
     songs = []
@@ -116,6 +118,7 @@ def _rows_to_song_items(
                 name=name or "",
                 korea_name=korea_name or "",
                 artist=artist or "",
+                is_ai=is_ai_artist(artist, ai_artists),
                 level=float(level or 0),
                 bpm=float(bpm or 0),
                 real_bpm=float(real_bpm) if real_bpm is not None else None,
@@ -142,6 +145,7 @@ def _fetch_song_items(removed: bool = False, request: Request | None = None) -> 
     where_sql = REMOVED_ALIAS_SQL if removed else ACTIVE_ALIAS_SQL
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ai_artists = load_ai_artists(cur)
             include_removed_korea_names = removed or (request is not None and _is_admin(cur, request))
             cur.execute(
                 "SELECT s.name, s.artist, COUNT(*) "
@@ -226,7 +230,7 @@ def _fetch_song_items(removed: bool = False, request: Request | None = None) -> 
                 "FROM xyx_user_favorites GROUP BY song_id"
             )
             favorite_counts = {r[0]: r[1] for r in cur.fetchall()}
-    return _rows_to_song_items(rows, play_counts, perceived, favorite_counts, removed=removed)
+    return _rows_to_song_items(rows, play_counts, perceived, favorite_counts, ai_artists=ai_artists, removed=removed)
 
 
 @router.get("/xyx/meta", response_model=MetaResponse)

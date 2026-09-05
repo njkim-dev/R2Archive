@@ -23,6 +23,7 @@ class SongListItem(BaseModel):
     korea_name: str = ""
     xyx_name: str = ""
     artist: str
+    is_ai: bool = False
     level: float
     bpm: float
     real_bpm: Optional[float] = None

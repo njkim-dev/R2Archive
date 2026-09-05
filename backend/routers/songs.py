@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from auth import get_current_user_id, require_admin
 from database import get_conn
+from ai_artists import is_ai_artist, load_ai_artists
 from models import SongListItem, SongDetail, MetaResponse, BpmPoint, PlayLogCreate, SongServerCounterpart
 from rate_limit import limiter
 
@@ -119,6 +120,7 @@ def get_songs():
     """전체 곡 목록 — 클라이언트 사이드 필터링용."""
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ai_artists = load_ai_artists(cur)
             # 최근 30일 재생수 — name+artist 기준 집계 (동일 곡 다중 ID 대응)
             cur.execute(
                 "SELECT s.name, s.artist, COUNT(*) FROM play_logs pl "
@@ -190,6 +192,7 @@ def get_songs():
             name=name or "",
             xyx_name=xyx_name or "",
             artist=artist or "",
+            is_ai=is_ai_artist(artist, ai_artists),
             level=float(level or 0),
             bpm=float(bpm or 0),
             real_bpm=float(real_bpm) if real_bpm is not None else None,
@@ -218,6 +221,7 @@ def get_removed_songs(request: Request):
     require_admin(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
+            ai_artists = load_ai_artists(cur)
             cur.execute(
                 "SELECT s.name, s.artist, COUNT(*) FROM play_logs pl "
                 "JOIN songs s ON s.id = pl.song_id "
@@ -287,6 +291,7 @@ def get_removed_songs(request: Request):
             name=name or "",
             xyx_name=xyx_name or "",
             artist=artist or "",
+            is_ai=is_ai_artist(artist, ai_artists),
             level=float(level or 0),
             bpm=float(bpm or 0),
             real_bpm=float(real_bpm) if real_bpm is not None else None,
