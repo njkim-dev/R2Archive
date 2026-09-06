@@ -290,6 +290,8 @@
   align-items: center;
   gap: 8px;
 }
+.group-shared-title .song-youtube-icon { pointer-events: auto; }
+.group-shared-index { display: flex; align-items: center; }
 .tbl-row-grouped:focus-visible { position: relative; z-index: 2; }
 
 .idx-cell { display: flex; align-items: center; gap: 6px; }

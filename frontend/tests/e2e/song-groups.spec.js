@@ -11,8 +11,9 @@ const songs = [song(1, 8), song(4, 7, 'Separate Song'), song(2, 2), song(3, 5),
   song(5, 7, 'Shared Song', 'Other Artist'), song(6, 8, 'Shared Song_EX')]
 const merged = page => page.locator('.tbl-song-group').filter({ has: page.locator('[data-song-id="1"]') })
 
-async function mockCatalog(page, data = songs) {
+async function mockCatalog(page, data = songs, { holdPlays = false } = {}) {
   const pending = []
+  const pendingPlays = []
   const writes = []
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -29,6 +30,7 @@ async function mockCatalog(page, data = songs) {
     if (!path.startsWith('/api/')) return route.continue()
     if (path === '/api/songs/perceived/mine') { pending.push(route); return }
     if (route.request().method() !== 'GET') writes.push({ path, body: route.request().postDataJSON() })
+    if (holdPlays && path.endsWith('/play')) { pendingPlays.push(route); return }
     let json = []
     const detail = path.match(/^\/api\/songs\/(\d+)$/)
     if (path === '/api/songs') json = data
@@ -43,7 +45,7 @@ async function mockCatalog(page, data = songs) {
   })
   await page.goto('/')
   await expect(merged(page)).toBeVisible()
-  return { pending, writes, errors }
+  return { pending, pendingPlays, writes, errors }
 }
 
 test('all-channel rows merge only shared values and retain filter/sort behavior', async ({ page }, testInfo) => {
@@ -52,6 +54,7 @@ test('all-channel rows merge only shared values and retain filter/sort behavior'
   await expect(group.locator('.tbl-row')).toHaveCount(3)
   await expect(group.locator('.title-main')).toHaveText(['Shared Song'])
   await expect(group.locator('.title-thumb img')).toHaveCount(1)
+  await expect(group.locator('.new-tag, .song-youtube-icon')).toHaveCount(0)
   await expect.poll(() => group.locator('img').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true)
   await expect(group.locator('[data-column="artist"] .group-shared-value')).toHaveText(await page.locator('.th').filter({ hasText: /^아티스트/ }).count() ? ['Test Artist'] : [])
   const plays = group.locator('[data-column="play_count"] .group-shared-value')
@@ -169,4 +172,69 @@ test('mobile cards are unchanged when the channel is all', async ({ page }, test
   await expect(page.locator('.mob-card')).toHaveCount(songs.length)
   await expect(page.locator('.mob-card-name', { hasText: /^Shared Song$/ })).toHaveCount(4)
   await page.screenshot({ path: testInfo.outputPath('mobile-list.png') })
+})
+
+test('NEW and listening are shared while favorites still target individual charts', async ({ page }, testInfo) => {
+  const sharedUrl = 'https://www.youtube.com/watch?v=bbbbbbbbbbb'
+  const data = songs.map(song => song.id === 1
+    ? { ...song, is_new: true, youtube_url: 'https://www.youtube.com/watch?v=aaaaaaaaaaa' }
+    : song.id === 3 ? { ...song, youtube_url: sharedUrl } : song)
+  await page.addInitScript(() => {
+    window.__openedMusic = []
+    window.open = (...args) => { window.__openedMusic.push(args); return null }
+  })
+  const { pendingPlays, writes, errors } = await mockCatalog(page, data, { holdPlays: true })
+  const group = merged(page)
+  const indexCells = group.locator('[data-column="file_order"]')
+  if (await indexCells.count()) {
+    await expect(indexCells).toHaveCount(3)
+    await expect(indexCells.first()).toHaveAttribute('aria-rowspan', '3')
+    await expect(indexCells.locator('.new-tag')).toHaveText(['NEW'])
+    await expect(indexCells.locator('.fav-btn')).toHaveCount(0)
+    expect(await indexCells.evaluateAll(cells => cells.map(cell => getComputedStyle(cell).borderBottomWidth))).toEqual(['0px', '0px', '0px'])
+    const badge = await group.locator('.new-tag').boundingBox()
+    const thumb = await group.locator('.title-thumb').boundingBox()
+    expect(Math.abs(badge.y + badge.height / 2 - thumb.y - thumb.height / 2)).toBeLessThan(1)
+  }
+  const listen = group.getByRole('button', { name: 'YouTube에서 듣기' })
+  await expect(listen).toHaveCount(1)
+  await expect(listen).toBeVisible()
+  const layout = await watchLayout(page, ['.topbar', '.table-wrap', '.tbl-header', '.tbl-song-group', '.group-shared-title'])
+  await listen.click()
+  await expect.poll(() => pendingPlays.length).toBe(1)
+  await expect.poll(() => page.evaluate(() => window.__openedMusic)).toEqual([[sharedUrl, '_blank', 'noopener,noreferrer']])
+  expect(writes.filter(write => write.path.endsWith('/play')).map(write => write.path)).toEqual(['/api/songs/3/play'])
+  await expect(page).not.toHaveURL(/#song=/)
+  await layout.expectStable()
+  await pendingPlays.shift().fulfill({ json: { ok: true } })
+  await layout.expectStable()
+  await listen.focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => pendingPlays.length).toBe(1)
+  await expect.poll(() => page.evaluate(() => window.__openedMusic.length)).toBe(2)
+  await expect(page).not.toHaveURL(/#song=/)
+  await pendingPlays.shift().fulfill({ json: { ok: true } })
+  await layout.expectStable()
+
+  if (await indexCells.count()) {
+    const row = group.locator('[data-song-id="1"]')
+    await row.hover()
+    const fav = row.locator('[data-column="name"] .fav-btn')
+    await fav.click()
+    await expect(fav).toHaveClass(/on/)
+    expect(writes.some(write => /favorites\/1$/.test(write.path))).toBe(true)
+    await expect(group.locator('[data-song-id="3"] .fav-btn')).not.toHaveClass(/on/)
+    await layout.expectStable()
+  }
+  await page.screenshot({ path: testInfo.outputPath('shared-new-and-listen.png') })
+  await layout.stop()
+  await group.locator('[data-song-id="1"] .level-cell').click()
+  await expect(page).toHaveURL(/#song=1$/)
+  await expect(group.getByRole('button', { name: 'YouTube에서 듣기' })).toHaveCount(1)
+  await expect(group.getByRole('button', { name: 'YouTube에서 듣기' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.getByRole('spinbutton', { name: '난이도 최댓값' }).fill('2')
+  await expect(page.locator('.tbl-row')).toHaveCount(1)
+  await expect(page.locator('.tbl-song-group, .new-tag, .song-youtube-icon')).toHaveCount(0)
+  expect(errors).toEqual([])
 })

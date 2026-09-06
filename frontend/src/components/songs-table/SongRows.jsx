@@ -49,6 +49,26 @@ function SharedSongValue({ songs, index, className = '', children }) {
   )
 }
 
+function SongListenButton({ song }) {
+  if (!song?.youtube_url) return null
+  return (
+    <button
+      type="button"
+      className="song-youtube-icon"
+      title="YouTube에서 듣기"
+      aria-label="YouTube에서 듣기"
+      onClick={e => {
+        e.stopPropagation()
+        if (!song.youtube_candidate) {
+          logPlay(song.id)
+          useStore.getState().markPlayed(song.id)
+        }
+        window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
+      }}
+    >♪</button>
+  )
+}
+
 export function useElementWidth() {
   const ref = useRef(null)
   const [width, setWidth] = useState(0)
@@ -207,8 +227,8 @@ export function SongRow({
       : undefined
   const showColumn = (key) => !hiddenColumns?.has(key)
   const groupActionsWidth = groupSongs ? Math.max(...groupSongs.map(member =>
-    (member.combo_warning ? 44 : 0) + (member.youtube_url ? 26 : 0) +
-    (compact ? 0 : 34 + (isAdmin ? 30 : 0))
+    (member.combo_warning ? 44 : 0) +
+    (compact ? 0 : 34 + (isAdmin ? 30 : 0) + (showColumn('file_order') ? 30 : 0))
   )) : 0
   const rowStyle = { ...style, gridTemplateColumns: colTemplate, ...(groupSongs && { '--group-actions-width': `${groupActionsWidth}px` }) }
   const sharedValue = (value, className = '') => groupSongs
@@ -220,8 +240,18 @@ export function SongRow({
         {groupSongs.some(member => member.image) && <ArtworkThumbnail image={groupSongs.find(member => member.image).image} />}
       </div>
       <span className="title-main" title={`${song.name} - ${song.artist}`}>{song.name}</span>
+      <SongListenButton song={groupSongs.find(member => member.youtube_url)} />
     </>,
     'group-shared-title'
+  )
+  const favoriteButton = (
+    <button
+      className={`fav-btn${isFav ? ' on' : ''}`}
+      title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+      aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
+      onClick={e => { e.stopPropagation(); if (canFav) onToggleFav(song.id) }}
+      disabled={!canFav}
+    >{isFav ? '★' : '☆'}</button>
   )
 
   const handleCopyName = (e) => {
@@ -260,22 +290,7 @@ export function SongRow({
               <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
             )}
             {!groupSongs && <span className="title-main">{song.name}</span>}
-            {song.youtube_url && (
-              <button
-                type="button"
-                className="song-youtube-icon"
-                title="YouTube에서 듣기"
-                aria-label="YouTube에서 듣기"
-                onClick={e => {
-                  e.stopPropagation()
-                  if (!song.youtube_candidate) {
-                    logPlay(song.id)
-                    useStore.getState().markPlayed(song.id)
-                  }
-                  window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
-                }}
-              >♪</button>
-            )}
+            {!groupSongs && <SongListenButton song={song} />}
           </div>
         </div>
 
@@ -311,17 +326,22 @@ export function SongRow({
       onClick={() => onClick(song)}
       onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
     >
-      {showColumn('file_order') && <div className="td" role="cell">
-        <div className="idx-cell">
-          {song.is_new && <span className="new-tag">NEW</span>}
-          <button
-            className={`fav-btn${isFav ? ' on' : ''}`}
-            title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
-            aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
-            onClick={e => { e.stopPropagation(); if (canFav) onToggleFav(song.id) }}
-            disabled={!canFav}
-          >{isFav ? '★' : '☆'}</button>
-        </div>
+      {showColumn('file_order') && <div
+        className={`td${groupSongs ? ' group-shared-cell' : ''}`}
+        role="cell"
+        data-column="file_order"
+        aria-rowspan={groupSongs && groupIndex === 0 ? groupSongs.length : undefined}
+        aria-hidden={groupSongs && groupIndex > 0 ? true : undefined}
+      >
+        {groupSongs ? sharedValue(
+          groupSongs.some(member => member.is_new) && <span className="new-tag">NEW</span>,
+          'group-shared-index'
+        ) : (
+          <div className="idx-cell">
+            {song.is_new && <span className="new-tag">NEW</span>}
+            {favoriteButton}
+          </div>
+        )}
       </div>}
 
       <div className={`td${groupSongs ? ' group-name-cell' : ''}`} role="cell" data-column="name">
@@ -346,22 +366,8 @@ export function SongRow({
               {song.candidate_score != null && ` · ${Number(song.candidate_score).toFixed(2)}`}
             </span>
           )}
-          {song.youtube_url && (
-            <button
-              type="button"
-              className="song-youtube-icon"
-              title="YouTube에서 듣기"
-              aria-label="YouTube에서 듣기"
-              onClick={e => {
-                e.stopPropagation()
-                if (!song.youtube_candidate) {
-                  logPlay(song.id)
-                  useStore.getState().markPlayed(song.id)
-                }
-                window.open(song.youtube_url, '_blank', 'noopener,noreferrer')
-              }}
-            >♪</button>
-          )}
+          {!groupSongs && <SongListenButton song={song} />}
+          {groupSongs && showColumn('file_order') && favoriteButton}
           {isAdmin && (
             <button
               className={`copy-name-btn${copied ? ' copied' : ''}`}
