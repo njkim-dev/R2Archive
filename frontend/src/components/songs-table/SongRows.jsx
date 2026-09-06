@@ -4,6 +4,7 @@ import useStore from '../../store/useStore'
 import { artworkBg, bpmWaveBars, fmt, fmtBpm, levelBarColor, staticUrl } from '../../utils/helpers'
 import { logPlay } from '../../api/client'
 import PersonalCategoryPicker from '../PersonalCategoryPicker'
+import { SONG_ROW_HEIGHT } from './songGroups'
 
 const COMBO_WARNING_TEXT = '공방에서 해당 노래 올콤하면 튕기는 버그가 있으니 주의하세요.'
 const XYX_ARTWORK_CACHE_VERSION = '20260902'
@@ -33,6 +34,18 @@ function ArtworkThumbnail({ image }) {
       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
       onError={e => { e.currentTarget.style.display = 'none' }}
     />
+  )
+}
+
+function SharedSongValue({ songs, index, className = '', children }) {
+  if (index !== 0) return null
+  return (
+    <div
+      className={`group-shared-value ${className}`}
+      style={{ height: songs.length * SONG_ROW_HEIGHT }}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -180,6 +193,8 @@ export function SongRow({
   colTemplate,
   compact,
   active = false,
+  groupSongs = null,
+  groupIndex = 0,
 }) {
   const [copied, setCopied] = useState(false)
   const lvInt = Math.floor(song.level)
@@ -191,6 +206,23 @@ export function SongRow({
       : song.bpm < 120 ? 'cool'
       : undefined
   const showColumn = (key) => !hiddenColumns?.has(key)
+  const groupActionsWidth = groupSongs ? Math.max(...groupSongs.map(member =>
+    (member.combo_warning ? 44 : 0) + (member.youtube_url ? 26 : 0) +
+    (compact ? 0 : 34 + (isAdmin ? 30 : 0))
+  )) : 0
+  const rowStyle = { ...style, gridTemplateColumns: colTemplate, ...(groupSongs && { '--group-actions-width': `${groupActionsWidth}px` }) }
+  const sharedValue = (value, className = '') => groupSongs
+    ? <SharedSongValue songs={groupSongs} index={groupIndex} className={className}>{value}</SharedSongValue>
+    : value
+  const sharedTitle = groupSongs && sharedValue(
+    <>
+      <div className="title-thumb" style={{ background: artworkBg(groupSongs[0].id) }}>
+        {groupSongs.some(member => member.image) && <ArtworkThumbnail image={groupSongs.find(member => member.image).image} />}
+      </div>
+      <span className="title-main" title={`${song.name} - ${song.artist}`}>{song.name}</span>
+    </>,
+    'group-shared-title'
+  )
 
   const handleCopyName = (e) => {
     e.stopPropagation()
@@ -205,28 +237,29 @@ export function SongRow({
   if (compact) {
     return (
       <div
-        className={`tbl-row tbl-row-compact${active ? ' is-catalog-active' : ''}`}
+        className={`tbl-row tbl-row-compact${groupSongs ? ' tbl-row-grouped' : ''}${active ? ' is-catalog-active' : ''}`}
         data-song-id={song.id}
         data-bpm-tier={bpmTier}
-        style={{ ...style, gridTemplateColumns: colTemplate }}
+        style={rowStyle}
         role="row"
         tabIndex={0}
         aria-label={rowAriaLabel(song)}
         onClick={() => onClick(song)}
         onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
       >
-        <div className="td" role="cell">
+        <div className={`td${groupSongs ? ' group-name-cell' : ''}`} role="cell" data-column="name">
           <div className="title-cell">
-            <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
+            {sharedTitle}
+            {!groupSongs && <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
               {song.image
                 ? <ArtworkThumbnail image={song.image} />
                 : null
               }
-            </div>
+            </div>}
             {song.combo_warning && (
               <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
             )}
-            <span className="title-main">{song.name}</span>
+            {!groupSongs && <span className="title-main">{song.name}</span>}
             {song.youtube_url && (
               <button
                 type="button"
@@ -252,8 +285,8 @@ export function SongRow({
           </div>
         )}
 
-        {showColumn('artist') && <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
-          {song.artist}
+        {showColumn('artist') && <div className={`td artist-cell${groupSongs ? ' group-shared-cell' : ''}`} role="cell" data-column="artist" aria-rowspan={groupSongs && groupIndex === 0 ? groupSongs.length : undefined} aria-hidden={groupSongs && groupIndex > 0 ? true : undefined}>
+          {sharedValue(song.artist)}
         </div>}
 
         {showColumn('level') && <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
@@ -268,10 +301,10 @@ export function SongRow({
 
   return (
     <div
-      className={`tbl-row${active ? ' is-catalog-active' : ''}`}
+      className={`tbl-row${groupSongs ? ' tbl-row-grouped' : ''}${active ? ' is-catalog-active' : ''}`}
       data-song-id={song.id}
       data-bpm-tier={bpmTier}
-      style={{ ...style, gridTemplateColumns: colTemplate }}
+      style={rowStyle}
       role="row"
       tabIndex={0}
       aria-label={rowAriaLabel(song)}
@@ -291,18 +324,19 @@ export function SongRow({
         </div>
       </div>}
 
-      <div className="td" role="cell">
+      <div className={`td${groupSongs ? ' group-name-cell' : ''}`} role="cell" data-column="name">
         <div className="title-cell">
-          <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
+          {sharedTitle}
+          {!groupSongs && <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
             {song.image
               ? <ArtworkThumbnail image={song.image} />
               : null
             }
-          </div>
+          </div>}
           {song.combo_warning && (
             <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
           )}
-          <span className="title-main">{song.name}</span>
+          {!groupSongs && <span className="title-main">{song.name}</span>}
           {song.youtube_candidate && (
             <span
               className="candidate-pill"
@@ -358,8 +392,8 @@ export function SongRow({
       )}
 
       {showColumn('artist') && (
-        <div className="td artist-cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} role="cell">
-          {song.artist}
+        <div className={`td artist-cell${groupSongs ? ' group-shared-cell' : ''}`} role="cell" data-column="artist" aria-rowspan={groupSongs && groupIndex === 0 ? groupSongs.length : undefined} aria-hidden={groupSongs && groupIndex > 0 ? true : undefined}>
+          {sharedValue(song.artist)}
         </div>
       )}
 
@@ -423,8 +457,8 @@ export function SongRow({
           </button>
         </div>
       ) : showPlayCount && showColumn('play_count') ? (
-        <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">
-          {song.play_count ? fmt(song.play_count) : '—'}
+        <div className={`td num${groupSongs ? ' group-shared-cell' : ''}`} style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell" data-column="play_count" aria-rowspan={groupSongs && groupIndex === 0 ? groupSongs.length : undefined} aria-hidden={groupSongs && groupIndex > 0 ? true : undefined}>
+          {sharedValue(song.play_count ? fmt(song.play_count) : '—')}
         </div>
       ) : showFavoriteCount && showColumn('favorite_count') ? (
         <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">

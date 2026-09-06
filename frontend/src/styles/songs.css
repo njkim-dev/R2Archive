@@ -258,6 +258,40 @@
 .td.dim { color: var(--fg-4); }
 .td.center { text-align: center; }
 
+.tbl-song-group { border-bottom: 1px solid var(--line); }
+.tbl-row-grouped { border-bottom: 0; }
+.tbl-row-grouped > .td {
+  height: 44px;
+  align-content: center;
+  border-bottom: 1px solid var(--line-soft);
+}
+.tbl-row-grouped > .group-name-cell,
+.tbl-row-grouped > .group-shared-cell {
+  position: relative;
+  overflow: visible;
+  border-bottom: 0;
+}
+.group-name-cell > .title-cell { justify-content: flex-end; }
+.group-shared-value {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  align-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 합쳐진 셀 위에서도 포인터는 해당 높이의 난이도 행에 전달한다. */
+  pointer-events: none;
+}
+.group-shared-title {
+  right: calc(10px + var(--group-actions-width));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tbl-row-grouped:focus-visible { position: relative; z-index: 2; }
+
 .idx-cell { display: flex; align-items: center; gap: 6px; }
 .idx { font-family: "JetBrains Mono", monospace; color: var(--fg-4); font-size: 11px; font-variant-numeric: tabular-nums; }
 .tbl-row:hover .idx { display: none; }

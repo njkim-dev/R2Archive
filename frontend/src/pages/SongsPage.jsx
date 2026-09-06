@@ -155,6 +155,7 @@ export default function SongsPage() {
                 categorySuggestion={categorySuggestion}
                 catalogOpen={catalogPanelOpen}
                 myPerceivedLevels={myPerceived.levels}
+                mergeDifficulties={category === null}
               />
         }
       </main>

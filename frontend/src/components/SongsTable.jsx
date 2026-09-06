@@ -1,10 +1,11 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react'
-import { FixedSizeList } from 'react-window'
+import { createContext, forwardRef, useContext, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react'
+import { FixedSizeList, VariableSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../store/useStore'
 import { isXyxMode } from '../utils/serverMode'
 import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
 import { MobileCard, SongRow, useElementWidth } from './songs-table/SongRows'
+import { groupSongDifficulties, songItemLayout, SONG_ROW_HEIGHT } from './songs-table/songGroups'
 import {
   CATALOG_FULL_TABLE_MIN_WIDTH,
   COMPACT_HEADERS,
@@ -23,6 +24,13 @@ import {
 } from './songs-table/TableLayout'
 
 const SEPARATOR = { __type: 'separator' }
+const GroupListHeight = createContext(0)
+
+// 모든 그룹의 높이를 알고 있으므로 추정치 때문에 스크롤 끝이 변하지 않도록 한다.
+const GroupListInner = forwardRef(function GroupListInner({ style, ...props }, ref) {
+  const height = useContext(GroupListHeight)
+  return <div {...props} ref={ref} style={{ ...style, height }} />
+})
 
 function SearchEmptyState({ search, isMobile }) {
   const hasSearch = !!search.trim()
@@ -59,6 +67,7 @@ export default function SongsTable({
   categorySuggestion = null,
   catalogOpen = false,
   myPerceivedLevels = null,
+  mergeDifficulties = false,
 }) {
   const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm } = useStore()
   const canFav = !!user
@@ -103,15 +112,27 @@ export default function SongsTable({
   const activeSongId = modalOpen ? modalSong?.id : null
   const scrolledActiveRef = useRef(null)
 
+  const grouped = mergeDifficulties && !isMobile && tableMode === 'default'
   const items = useMemo(() => {
-    if (!fuzzy.length) return exact
-    return [...exact, SEPARATOR, ...fuzzy]
-  }, [exact, fuzzy])
+    const exactItems = grouped ? groupSongDifficulties(exact).map(group => ({ ...group, key: `exact:${group.key}` })) : exact
+    const fuzzyItems = grouped ? groupSongDifficulties(fuzzy).map(group => ({ ...group, key: `fuzzy:${group.key}` })) : fuzzy
+    if (!fuzzyItems.length) return exactItems
+    return [...exactItems, SEPARATOR, ...fuzzyItems]
+  }, [exact, fuzzy, grouped])
   const hasMobileAltName = useMemo(
     () => isMobile && items.some(item => item !== SEPARATOR && item.korea_name),
     [isMobile, items]
   )
-  const rowHeight = isMobile ? (hasMobileAltName ? 92 : 80) : 44
+  const rowHeight = isMobile ? (hasMobileAltName ? 92 : 80) : SONG_ROW_HEIGHT
+  const layout = useMemo(() => songItemLayout(items, rowHeight, grouped), [items, rowHeight, grouped])
+  const itemSize = useCallback(index => Math.max(1, items[index]?.songs?.length || 0) * rowHeight, [items, rowHeight])
+  const itemKey = useCallback(index => items[index] === SEPARATOR ? 'separator' : grouped ? items[index].key : items[index].id, [items, grouped])
+
+  useLayoutEffect(() => {
+    if (grouped) listRef.current?.resetAfterIndex(0)
+    const offset = Math.min(scrollOffsetRef.current, Math.max(0, layout.totalHeight - listHeightRef.current))
+    listRef.current?.scrollTo(offset)
+  }, [grouped, layout])
 
   useEffect(() => {
     const prev = prevSearchRef.current
@@ -150,7 +171,7 @@ export default function SongsTable({
 
       e.preventDefault()
       const pageStep = Math.max(rowHeight, height - rowHeight)
-      const maxOffset = Math.max(0, items.length * rowHeight - height)
+      const maxOffset = Math.max(0, layout.totalHeight - height)
       const direction = e.key === 'PageDown' ? 1 : -1
       const nextOffset = Math.max(0, Math.min(maxOffset, scrollOffsetRef.current + direction * pageStep))
 
@@ -161,7 +182,7 @@ export default function SongsTable({
 
     window.addEventListener('keydown', handlePageKey)
     return () => window.removeEventListener('keydown', handlePageKey)
-  }, [items.length, rowHeight, modalOpen])
+  }, [items.length, rowHeight, modalOpen, layout.totalHeight])
 
   useEffect(() => {
     if (restoredScrollRef.current || !shouldRestoreListState() || items.length === 0) return
@@ -177,24 +198,23 @@ export default function SongsTable({
 
   useEffect(() => {
     if (!activeSongId || items.length === 0) return
-    const index = items.findIndex(item => item !== SEPARATOR && item.id === activeSongId)
-    if (index < 0) return
-    const key = `${activeSongId}:${index}:${isMobile ? 'm' : 'd'}`
+    const position = layout.positions.get(activeSongId)
+    if (!position) return
+    const key = `${activeSongId}:${position.offset}:${isMobile ? 'm' : 'd'}`
     if (scrolledActiveRef.current === key) return
     const selectedRow = document.querySelector(`[data-song-id="${activeSongId}"].is-catalog-active`)
-    if (selectedRow) {
+    const bounds = selectedRow?.getBoundingClientRect()
+    const viewport = selectedRow?.closest('.tbl-body')?.getBoundingClientRect()
+    if (bounds && (!viewport || (bounds.top >= viewport.top && bounds.bottom <= viewport.bottom))) {
       scrolledActiveRef.current = key
       return
     }
     scrolledActiveRef.current = key
     requestAnimationFrame(() => {
-      if (typeof listRef.current?.scrollToItem === 'function') {
-        listRef.current.scrollToItem(index, 'center')
-      } else {
-        listRef.current?.scrollTo(index * rowHeight)
-      }
+      const offset = position.offset - (listHeightRef.current - rowHeight) / 2
+      listRef.current?.scrollTo(Math.max(0, Math.min(offset, layout.totalHeight - listHeightRef.current)))
     })
-  }, [activeSongId, items, isMobile, rowHeight])
+  }, [activeSongId, layout, isMobile, rowHeight])
 
   const handleRowClick = useCallback((song) => {
     openModal(song)
@@ -238,13 +258,14 @@ export default function SongsTable({
         />
       )
     }
-    return (
+    const renderSong = (song, songIndex, songStyle, groupSongs) => (
       <SongRow
-        song={item}
-        index={index}
-        style={style}
+        key={song.id}
+        song={song}
+        index={songIndex}
+        style={songStyle}
         onClick={handleRowClick}
-        isFav={isFav}
+        isFav={favorites?.has(song.id)}
         canFav={canFav}
         onToggleFav={toggleFavorite}
         isAdmin={isAdmin}
@@ -255,14 +276,23 @@ export default function SongsTable({
         showPlayCount={showPlayCount}
         showFavoriteCount={showFavoriteCount}
         showOriginalBpmColumn={showOriginalBpmColumn}
-        userLevel={myPerceivedLevels ? (myPerceivedLevels[item.id] ?? null) : item.user_level_avg}
+        userLevel={myPerceivedLevels ? (myPerceivedLevels[song.id] ?? null) : song.user_level_avg}
         hiddenColumns={hiddenColumns}
         colTemplate={colTemplate}
         compact={compact}
-        active={active}
+        active={activeSongId === song.id}
+        groupSongs={groupSongs}
+        groupIndex={songIndex}
       />
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, compact, activeSongId])
+    if (!grouped) return renderSong(item, index, style)
+    const groupSongs = item.songs.length > 1 ? item.songs : null
+    return (
+      <div style={style} className={groupSongs ? 'tbl-song-group' : undefined} role="rowgroup" data-song-group={item.key}>
+        {item.songs.map((song, row) => renderSong(song, row, { height: rowHeight }, groupSongs))}
+      </div>
+    )
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, compact, activeSongId, grouped, rowHeight])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length
@@ -303,8 +333,9 @@ export default function SongsTable({
     )
   }
 
+  const DesktopList = grouped ? VariableSizeList : FixedSizeList
   return (
-    <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="곡 목록" aria-rowcount={items.length + 1}>
+    <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="곡 목록" aria-rowcount={exact.length + fuzzy.length + (fuzzy.length ? 1 : 0) + 1}>
       <TableHeader sort={sort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
@@ -315,17 +346,22 @@ export default function SongsTable({
             {({ height, width }) => {
               listHeightRef.current = height
               return (
-                <FixedSizeList
-                  ref={listRef}
-                  height={height}
-                  width={width}
-                  itemCount={items.length}
-                  itemSize={rowHeight}
-                  style={{ overflowX: 'hidden' }}
-                  onScroll={handleScroll}
-                >
-                  {Row}
-                </FixedSizeList>
+                <GroupListHeight.Provider value={layout.totalHeight}>
+                  <DesktopList
+                    className="song-list-scroll"
+                    ref={listRef}
+                    height={height}
+                    width={width}
+                    itemCount={items.length}
+                    itemSize={grouped ? itemSize : rowHeight}
+                    itemKey={itemKey}
+                    innerElementType={grouped ? GroupListInner : 'div'}
+                    style={{ overflowX: 'hidden' }}
+                    onScroll={handleScroll}
+                  >
+                    {Row}
+                  </DesktopList>
+                </GroupListHeight.Provider>
               )
             }}
           </AutoSizer>
