@@ -291,6 +291,7 @@ test('group virtualization supports PageDown, PageUp, bottom scrolling and regro
   ]).flat()
   await mockCatalog(page, large)
   const scroller = page.locator('.song-list-scroll')
+  await expect(scroller).toHaveCSS('overflow-anchor', 'none')
   const before = await scroller.evaluate(node => node.scrollTop)
   await page.keyboard.press('PageDown')
   await expect.poll(() => scroller.evaluate(node => node.scrollTop)).toBeGreaterThan(before)
