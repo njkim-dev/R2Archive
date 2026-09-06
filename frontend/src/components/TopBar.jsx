@@ -171,9 +171,6 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
               )}
             </div>
           )}
-          {myPerceivedStatus === 'loading' && (
-            <span className="search-personal-status" role="status">내 체감 난이도 불러오는 중…</span>
-          )}
           {myPerceivedStatus === 'error' && (
             <span className="search-personal-status" role="alert">
               내 체감 난이도를 불러오지 못했습니다.
