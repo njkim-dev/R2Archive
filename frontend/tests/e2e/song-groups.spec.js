@@ -300,11 +300,15 @@ test('group virtualization supports PageDown, PageUp, bottom scrolling and regro
   await scroller.evaluate(node => { node.scrollTop = node.scrollHeight })
   await expect(page.locator('[data-song-id="540"].tbl-row')).toBeVisible()
   expect(await page.locator('.tbl-row').count()).toBeLessThan(90)
-  const bottomOffset = await scroller.evaluate(node => node.scrollTop)
+  const scrollState = () => scroller.evaluate(node => ({
+    offset: node.scrollTop, height: node.clientHeight, extent: node.scrollHeight,
+  }))
+  const bottomState = await scrollState()
   await page.locator('[data-song-id="540"] .level-cell').click()
   await expect(page).toHaveURL(/#song=540$/)
+  const openedState = await scrollState()
   await page.keyboard.press('Escape')
-  await expect.poll(() => scroller.evaluate(node => node.scrollTop)).toBeCloseTo(bottomOffset, 0)
+  await expect.poll(scrollState, { message: `Scroll state while catalog was open: ${JSON.stringify(openedState)}` }).toEqual(bottomState)
   await page.getByRole('group', { name: '난이도 카테고리' }).getByRole('button', { name: /별/ }).click()
   await expect(page.locator('.tbl-song-group')).toHaveCount(0)
   expect(await page.locator('.tbl-row').count()).toBeGreaterThan(0)
