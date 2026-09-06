@@ -64,7 +64,7 @@ if base:
         raise RuntimeError('Web server did not become ready')
 
 host = 'music.r2archive.com'
-pages = {'/': '알투비트 음악 목록 | R2Archive', '/pmang-songs': '과거 피망 알투비트 음악 목록 | R2Archive'}
+pages = {'/': '알투비트 음악 아카이브 | R2Archive', '/pmang-songs': '과거 피망 알투비트 음악 목록 | R2Archive'}
 documents = []
 for path, title in pages.items():
     for query in ['', '?search=test']:

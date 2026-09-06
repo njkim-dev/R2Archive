@@ -5,7 +5,7 @@ export const PUBLIC_PAGES = [
   {
     path: '/',
     file: 'home.html',
-    title: '알투비트 음악 목록 | R2Archive',
+    title: '알투비트 음악 아카이브 | R2Archive',
     description: '한국·중국 서버의 알투비트 음악 정보를 확인하고 음악을 들을 수 있어요.',
   },
   {
