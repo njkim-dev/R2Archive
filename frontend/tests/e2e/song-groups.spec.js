@@ -85,6 +85,54 @@ test('all-channel rows merge only shared values and retain filter/sort behavior'
   await expect(page.locator('.title-main')).toHaveText(['Shared Song'])
 })
 
+test('play counts use a compact aligned column in grouped and ordinary rows', async ({ page }, testInfo) => {
+  const { errors } = await mockCatalog(page, songs.map(song => ({
+    ...song, play_count: song.id === 4 ? 9999 : song.id === 5 ? 0 : song.play_count,
+  })))
+  const header = page.getByRole('columnheader', { name: /^재생 기준/ })
+  const cells = page.locator('[data-column="play_count"]')
+  const checkColumn = async () => {
+    if (!await header.count()) {
+      await expect(cells).toHaveCount(0)
+      return
+    }
+    const headerBox = await header.boundingBox()
+    expect(headerBox.width).toBeCloseTo(60, 1)
+    const metrics = await cells.evaluateAll(nodes => nodes.map(node => {
+      const box = node.getBoundingClientRect()
+      const timeBox = node.previousElementSibling.getBoundingClientRect()
+      return {
+        x: box.x, width: box.width, timeWidth: timeBox.width,
+        gap: box.left - timeBox.right, align: getComputedStyle(node).textAlign,
+      }
+    }))
+    expect(metrics.length).toBeGreaterThan(0)
+    for (const metric of metrics) {
+      expect(metric.x).toBeCloseTo(headerBox.x, 1)
+      expect(metric.width).toBeCloseTo(60, 1)
+      expect(metric.timeWidth).toBeCloseTo(68, 1)
+      expect(metric.gap).toBeCloseTo(0, 1)
+      expect(metric.align).toBe('right')
+    }
+    await expect(page.locator('[data-song-id="4"] [data-column="play_count"]')).toHaveText('9,999')
+    await expect(page.locator('[data-song-id="5"] [data-column="play_count"]')).toHaveText('\u2014')
+  }
+  if (testInfo.project.use.viewport.width === 1920) await expect(header).toBeVisible()
+  await checkColumn()
+  await page.getByRole('group', { name: '난이도 카테고리' }).getByRole('button', { name: /해/ }).click()
+  await expect(page.locator('.tbl-song-group')).toHaveCount(0)
+  await checkColumn()
+  if (await header.count()) {
+    const layout = await watchLayout(page, ['.topbar', '.table-wrap', '.tbl-header'])
+    await header.click()
+    await checkColumn()
+    await layout.expectStable()
+    await layout.stop()
+  }
+  await page.screenshot({ path: testInfo.outputPath('compact-play-column.png') })
+  expect(errors).toEqual([])
+})
+
 test('each chart still opens its own catalog from a merged title or difficulty cell', async ({ page }, testInfo) => {
   const { errors } = await mockCatalog(page)
   const title = await merged(page).locator('.group-shared-title').boundingBox()

@@ -99,7 +99,8 @@ function minimumColumnWidth(header, width, compact) {
   if (key === 'userLevel' || key === 'bpm' || key === 'real_bpm') return 100
   if (key === 'combo') return 110
   if (key === 'time') return 68
-  if (key === 'play_count' || key === 'favorite_count') return 80
+  if (key === 'play_count') return 60
+  if (key === 'favorite_count') return 80
   return 56
 }
 
