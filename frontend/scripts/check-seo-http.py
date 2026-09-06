@@ -64,7 +64,7 @@ if base:
         raise RuntimeError('Web server did not become ready')
 
 host = 'music.r2archive.com'
-pages = {'/': '알투비트 음악 검색 | R2Archive', '/pmang-songs': '과거 피망 알투비트 음악 목록 | R2Archive'}
+pages = {'/': '알투비트 음악 목록 | R2Archive', '/pmang-songs': '과거 피망 알투비트 음악 목록 | R2Archive'}
 documents = []
 for path, title in pages.items():
     for query in ['', '?search=test']:
@@ -77,6 +77,8 @@ for path, title in pages.items():
         assert head.canonicals == [f'https://{host}{path}'], head.canonicals
         descriptions = [attrs['content'] for tag, attrs in head.tags if tag == 'meta' and attrs.get('name') == 'description']
         assert len(descriptions) == 1 and len(descriptions[0]) > 20
+        if path == '/':
+            assert descriptions == ['한국·중국 서버의 알투비트 음악 정보를 확인하고 음악을 들을 수 있어요.']
         verification = [attrs for tag, attrs in head.tags if tag == 'meta' and attrs.get('name') == 'google-site-verification']
         assert len(verification) == 1
         assert verification[0]['content'] == 'DXgPBP38iWVZ-p_7pOaEbltAqpG-r4G4Ss0mdyZVJBY'

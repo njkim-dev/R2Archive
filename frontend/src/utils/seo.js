@@ -5,8 +5,8 @@ export const PUBLIC_PAGES = [
   {
     path: '/',
     file: 'home.html',
-    title: '알투비트 음악 검색 | R2Archive',
-    description: '알투비트 음악과 아티스트를 검색하고 난이도, BPM, 콤보 정보와 음악 듣기 링크를 확인하세요.',
+    title: '알투비트 음악 목록 | R2Archive',
+    description: '한국·중국 서버의 알투비트 음악 정보를 확인하고 음악을 들을 수 있어요.',
   },
   {
     path: '/pmang-songs',
