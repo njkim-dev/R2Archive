@@ -8,6 +8,7 @@
     "test:e2e": "playwright test",
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node scripts/build-seo.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.5",
+    "parse5": "8.0.1",
     "vite": "^8.2.1"
   }
 }

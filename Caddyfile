@@ -28,8 +28,21 @@ request_body {
 	max_size 10MB
 }
 
+@discovery path /robots.txt /sitemap.xml
+handle @discovery {
+	@kr host music.r2archive.com
+	handle @kr {
+		root * /srv/seo/kr
+		header Cache-Control "public, max-age=3600"
+		file_server
+	}
+	handle {
+		respond 404
+	}
+}
+
 # 존재하지 않는 민감/운영 경로를 SPA 진입 문서로 위장해 반환하지 않는다.
-@blocked_paths path /.env /.git/* /.well-known/security.txt /robots.txt /server-status /nginx_status /metrics /docs /openapi.json /swagger /swagger/* /api/docs /api/openapi.json /api/swagger /api/swagger/*
+@blocked_paths path /.env /.git/* /.well-known/security.txt /seo /seo/* /server-status /nginx_status /metrics /docs /openapi.json /swagger /swagger/* /api/docs /api/openapi.json /api/swagger /api/swagger/*
 handle @blocked_paths {
 	respond 404
 }
@@ -76,6 +89,23 @@ handle /assets/* {
 handle {
 	root * /srv
 	header Cache-Control "no-cache"
-	try_files {path} {path}/ /index.html
-	file_server
+	@kr_home {
+		host music.r2archive.com
+		path / /index.html
+	}
+	@kr_pmang {
+		host music.r2archive.com
+		path /pmang-songs /pmang-songs/
+	}
+	@kr_nonpublic {
+		host music.r2archive.com
+		not path / /index.html /pmang-songs /pmang-songs/
+	}
+	header @kr_nonpublic X-Robots-Tag "noindex"
+	route {
+		rewrite @kr_home /seo/kr/home.html
+		rewrite @kr_pmang /seo/kr/pmang.html
+		try_files {path} {path}/ /index.html
+		file_server
+	}
 }

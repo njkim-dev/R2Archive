@@ -66,6 +66,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Test public SEO responses
+        run: |
+          docker run -d --rm --name r2archive-seo -p 127.0.0.1:8300:3000 --entrypoint caddy ghcr.io/njkim-dev/r2archive:${{ github.sha }} run --config /etc/caddy/Caddyfile
+          trap 'docker rm -f r2archive-seo' EXIT
+          python frontend/scripts/check-seo-http.py http://127.0.0.1:8300
+
       - name: Scan image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

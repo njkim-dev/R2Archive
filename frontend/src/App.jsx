@@ -13,6 +13,7 @@ import HelpTour from './components/HelpTour'
 import AnalyticsTracker from './components/AnalyticsTracker'
 import SongModal from './components/SongModal'
 import SongsPage from './pages/SongsPage'
+import PageMetadata from './components/PageMetadata'
 
 const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
 const PmangSongsPage = lazy(() => import('./pages/PmangSongsPage'))
@@ -130,6 +131,7 @@ export default function App() {
 
   return (
     <>
+      <PageMetadata />
       <SyncCatalogUrl />
       <CloseModalOnCataloglessRoutes />
       <AnalyticsTracker />
