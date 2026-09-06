@@ -414,7 +414,8 @@
 .tbl-row[data-bpm-tier="cool"] .artist-cell,
 .tbl-row[data-bpm-tier="cool"] .bpm-num   { color: oklch(0.78 0.14 150); }
 
-.tbl-row:hover .title-main { color: var(--accent); }
+.tbl-row:hover .title-main,
+.tbl-song-group:where(:has(> .tbl-row:hover:not([data-restored-focus="true"]))) .group-shared-title .title-main { color: var(--accent); }
 .tbl-row[data-restored-focus="true"]:hover .title-main { color: var(--fg); }
 .tbl-row[data-restored-focus="true"][data-bpm-tier="hot"]:hover .title-main { color: oklch(0.72 0.20 25); }
 .tbl-row[data-restored-focus="true"][data-bpm-tier="warm"]:hover .title-main { color: oklch(0.80 0.16 60); }

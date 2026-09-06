@@ -85,6 +85,41 @@ test('all-channel rows merge only shared values and retain filter/sort behavior'
   await expect(page.locator('.title-main')).toHaveText(['Shared Song'])
 })
 
+test('hovering any difficulty highlights the shared title without shifting rows', async ({ page }, testInfo) => {
+  const { errors } = await mockCatalog(page, songs.map(song => ({
+    ...song, bpm: [1, 2, 3].includes(song.id) ? 240 : song.bpm,
+  })))
+  const group = merged(page)
+  const title = group.locator('.title-main')
+  const otherTitle = page.locator('[data-song-id="5"] .title-main')
+  await page.mouse.move(0, 0)
+  const baseColor = await title.evaluate(node => getComputedStyle(node).color)
+  const otherColor = await otherTitle.evaluate(node => getComputedStyle(node).color)
+  const layout = await watchLayout(page, ['.topbar', '.table-wrap', '.tbl-header', '.tbl-song-group', '.group-shared-title'])
+  let hoverColor
+  for (const id of [2, 3, 1]) {
+    const cell = await group.locator(`[data-song-id="${id}"] [data-column="name"]`).boundingBox()
+    await page.mouse.move(cell.x + 90, cell.y + cell.height / 2)
+    await expect(group.locator('.tbl-row:hover')).toHaveAttribute('data-song-id', String(id))
+    if (!hoverColor) {
+      hoverColor = await title.evaluate(node => getComputedStyle(node).color)
+      expect(hoverColor).not.toBe(baseColor)
+    }
+    await expect(title).toHaveCSS('color', hoverColor)
+    await expect(otherTitle).toHaveCSS('color', otherColor)
+    await layout.expectStable()
+  }
+  await page.screenshot({ path: testInfo.outputPath('shared-title-hover.png') })
+  await page.locator('[data-song-id="5"] .level-cell').hover()
+  await expect(title).toHaveCSS('color', baseColor)
+  await expect(otherTitle).toHaveCSS('color', hoverColor)
+  await page.mouse.move(0, 0)
+  await expect(otherTitle).toHaveCSS('color', otherColor)
+  await layout.expectStable()
+  await layout.stop()
+  expect(errors).toEqual([])
+})
+
 test('play counts use a compact aligned column in grouped and ordinary rows', async ({ page }, testInfo) => {
   const { errors } = await mockCatalog(page, songs.map(song => ({
     ...song, play_count: song.id === 4 ? 9999 : song.id === 5 ? 0 : song.play_count,
