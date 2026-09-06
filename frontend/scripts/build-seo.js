@@ -15,6 +15,7 @@ for (const page of PUBLIC_PAGES) {
   head.childNodes = head.childNodes.filter(node => node.tagName !== 'title')
   const fragment = parseFragment(`
     <title>${escape(seo.title)}</title>
+    <meta name="google-site-verification" content="DXgPBP38iWVZ-p_7pOaEbltAqpG-r4G4Ss0mdyZVJBY">
     <meta data-page-seo name="description" content="${escape(seo.description)}">
     <meta data-page-seo name="robots" content="index, follow">
     <link data-page-seo rel="canonical" href="${escape(seo.canonical)}">

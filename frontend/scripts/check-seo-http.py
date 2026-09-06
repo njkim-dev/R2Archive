@@ -77,6 +77,10 @@ for path, title in pages.items():
         assert head.canonicals == [f'https://{host}{path}'], head.canonicals
         descriptions = [attrs['content'] for tag, attrs in head.tags if tag == 'meta' and attrs.get('name') == 'description']
         assert len(descriptions) == 1 and len(descriptions[0]) > 20
+        verification = [attrs for tag, attrs in head.tags if tag == 'meta' and attrs.get('name') == 'google-site-verification']
+        assert len(verification) == 1
+        assert verification[0]['content'] == 'DXgPBP38iWVZ-p_7pOaEbltAqpG-r4G4Ss0mdyZVJBY'
+        assert 'data-page-seo' not in verification[0]
         documents.append(head)
     assert get(host, path, 'Googlebot')[2] == get(host, path)[2]
 
@@ -106,6 +110,7 @@ status, _, html = get('xyx.r2archive.com', '/')
 xyx = Head(html)
 assert status == 200 and xyx.canonicals == []
 assert xyx.title == '알투비트 아카이브 — Music'
+assert not any(tag == 'meta' and attrs.get('name') == 'google-site-verification' for tag, attrs in xyx.tags)
 assert all(document.body == xyx.body for document in documents)
 assert get('xyx.r2archive.com', '/robots.txt')[0] == 404
 assert get('xyx.r2archive.com', '/sitemap.xml')[0] == 404
@@ -116,4 +121,4 @@ for tag, attrs in documents[0].tags:
         status, headers, _ = get(host, path)
         assert status == 200 and 'text/html' not in headers.get('Content-Type', '')
 
-print('PASS: initial metadata, canonical URLs, sitemap, robots, crawler parity, protected paths, shared body/assets and XYX isolation')
+print('PASS: initial metadata, Google verification, canonical URLs, sitemap, robots, crawler parity, protected paths, shared body/assets and XYX isolation')
