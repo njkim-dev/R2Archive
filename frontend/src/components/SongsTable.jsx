@@ -4,7 +4,7 @@ import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../store/useStore'
 import { isXyxMode } from '../utils/serverMode'
 import { readRestorableListState, setCurrentListScrollOffset, shouldRestoreListState } from '../utils/listState'
-import { MobileCard, SongRow, useElementWidth } from './songs-table/SongRows'
+import { MobileCard, SongGroupTitle, SongRow, useElementWidth } from './songs-table/SongRows'
 import { groupSongDifficulties, songItemLayout, SONG_ROW_HEIGHT } from './songs-table/songGroups'
 import {
   CATALOG_FULL_TABLE_MIN_WIDTH,
@@ -103,6 +103,7 @@ export default function SongsTable({
       ? { ...header, label: '내 체감 난이도', cls: 'num th-my-perceived' }
       : header)
   const colTemplate = templateFromHeaders(headers, columnWidth, compact)
+  const nameColumn = headers.findIndex(header => header.key === 'name') + 1
   const listRef = useRef(null)
   const listHeightRef = useRef(0)
   const scrollOffsetRef = useRef(0)
@@ -288,11 +289,21 @@ export default function SongsTable({
     if (!grouped) return renderSong(item, index, style)
     const groupSongs = item.songs.length > 1 ? item.songs : null
     return (
-      <div style={style} className={groupSongs ? 'tbl-song-group' : undefined} role="rowgroup" data-song-group={item.key}>
+      <div style={style} className={groupSongs ? `tbl-song-group${compact ? ' tbl-song-group-compact' : ''}` : undefined} role="rowgroup" data-song-group={item.key}>
         {item.songs.map((song, row) => renderSong(song, row, { height: rowHeight }, groupSongs))}
+        {groupSongs && (
+          <SongGroupTitle
+            songs={groupSongs}
+            colTemplate={colTemplate}
+            nameColumn={nameColumn}
+            compact={compact}
+            isAdmin={isAdmin}
+            active={activeSongId === groupSongs[0].id}
+          />
+        )}
       </div>
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, compact, activeSongId, grouped, rowHeight])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, nameColumn, compact, activeSongId, grouped, rowHeight])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length

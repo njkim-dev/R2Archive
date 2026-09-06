@@ -251,7 +251,8 @@
     inset 3px 0 0 var(--cat-accent),
     inset 0 0 0 1px oklch(0.72 0.14 var(--accent-h) / 0.24);
 }
-.tbl-row-compact .title-thumb { width: 64px; height: 32px; }
+.tbl-row-compact .title-thumb,
+.tbl-song-group-compact .title-thumb { width: 64px; height: 32px; }
 
 .td { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td.num { text-align: right; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; color: var(--fg-2); }
@@ -284,11 +285,24 @@
   /* 합쳐진 셀 위에서도 포인터는 해당 높이의 난이도 행에 전달한다. */
   pointer-events: none;
 }
+.group-title-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  /* 공통 음악 듣기는 어느 난이도 행에도 속하지 않는다. */
+  pointer-events: none;
+}
+.group-title-slot { position: relative; min-width: 0; }
+.tbl-song-group-compact .group-title-slot { container-type: inline-size; }
 .group-shared-title {
+  position: absolute;
+  inset: 0 10px;
   right: calc(10px + var(--group-actions-width));
   display: flex;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
 }
 .group-shared-title .song-youtube-icon { pointer-events: auto; }
 .group-shared-index { display: flex; align-items: center; }
@@ -303,9 +317,10 @@
   opacity: 0; pointer-events: none;
 }
 .tbl-row:hover .fav-btn,
+.fav-btn.group-fav-btn,
 .fav-btn:focus-visible,
 .fav-btn.on { opacity: 1; pointer-events: auto; }
-.tbl-row[data-restored-focus="true"]:hover .fav-btn:not(.on) {
+.tbl-row[data-restored-focus="true"]:hover .fav-btn:not(.on):not(.group-fav-btn) {
   opacity: 0;
   pointer-events: none;
 }
@@ -353,7 +368,8 @@
 .title-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tbl-row-compact .td:has(.title-cell) { container-type: inline-size; }
 @container (max-width: 200px) {
-  .tbl-row-compact .title-thumb { display: none; }
+  .tbl-row-compact .title-thumb,
+  .tbl-song-group-compact .title-thumb { display: none; }
 }
 .title-thumb { width: 80px; height: 40px; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
 .title-main { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -405,12 +421,15 @@
 
 /* BPM 구간 색상보다 행 hover 색상을 우선한다. */
 .tbl-row[data-bpm-tier="hot"]  .title-main,
+.group-shared-title[data-bpm-tier="hot"] .title-main,
 .tbl-row[data-bpm-tier="hot"]  .artist-cell,
 .tbl-row[data-bpm-tier="hot"]  .bpm-num   { color: oklch(0.72 0.20 25); }
 .tbl-row[data-bpm-tier="warm"] .title-main,
+.group-shared-title[data-bpm-tier="warm"] .title-main,
 .tbl-row[data-bpm-tier="warm"] .artist-cell,
 .tbl-row[data-bpm-tier="warm"] .bpm-num   { color: oklch(0.80 0.16 60); }
 .tbl-row[data-bpm-tier="cool"] .title-main,
+.group-shared-title[data-bpm-tier="cool"] .title-main,
 .tbl-row[data-bpm-tier="cool"] .artist-cell,
 .tbl-row[data-bpm-tier="cool"] .bpm-num   { color: oklch(0.78 0.14 150); }
 
@@ -421,6 +440,7 @@
 .tbl-row[data-restored-focus="true"][data-bpm-tier="warm"]:hover .title-main { color: oklch(0.80 0.16 60); }
 .tbl-row[data-restored-focus="true"][data-bpm-tier="cool"]:hover .title-main { color: oklch(0.78 0.14 150); }
 .tbl-row.is-catalog-active .title-main,
+.group-shared-title.is-catalog-active .title-main,
 .tbl-row.is-catalog-active:hover .title-main,
 .tbl-row.is-catalog-active[data-bpm-tier] .title-main { color: var(--cat-accent); }
 

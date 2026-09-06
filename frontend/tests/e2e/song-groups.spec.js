@@ -11,9 +11,10 @@ const songs = [song(1, 8), song(4, 7, 'Separate Song'), song(2, 2), song(3, 5),
   song(5, 7, 'Shared Song', 'Other Artist'), song(6, 8, 'Shared Song_EX')]
 const merged = page => page.locator('.tbl-song-group').filter({ has: page.locator('[data-song-id="1"]') })
 
-async function mockCatalog(page, data = songs, { holdPlays = false } = {}) {
+async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorites = false, isAdmin = false } = {}) {
   const pending = []
   const pendingPlays = []
+  const pendingFavorites = []
   const writes = []
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -29,15 +30,16 @@ async function mockCatalog(page, data = songs, { holdPlays = false } = {}) {
     const path = new URL(route.request().url()).pathname.replace('/api/xyx/', '/api/')
     if (!path.startsWith('/api/')) return route.continue()
     if (path === '/api/songs/perceived/mine') { pending.push(route); return }
-    if (route.request().method() !== 'GET') writes.push({ path, body: route.request().postDataJSON() })
+    if (route.request().method() !== 'GET') writes.push({ path, method: route.request().method(), body: route.request().postDataJSON() })
     if (holdPlays && path.endsWith('/play')) { pendingPlays.push(route); return }
+    if (holdFavorites && /\/(?:xyx-)?favorites\/\d+$/.test(path)) { pendingFavorites.push(route); return }
     let json = []
     const detail = path.match(/^\/api\/songs\/(\d+)$/)
     if (path === '/api/songs') json = data
     else if (detail) json = { ...data.find(song => song.id === +detail[1]), bpm_timeline: [], play_count_week: 0 }
     else if (path === '/api/meta') json = { total_count: data.length, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
     else if (path === '/api/auth/me') json = { user: { id: 1, nickname: 'Test', onboarded: true } }
-    else if (path.endsWith('/admin-status')) json = { is_admin: false }
+    else if (path.endsWith('/admin-status')) json = { is_admin: isAdmin }
     else if (path.includes('flags')) json = { favorites: [], played: [], played_all: [] }
     else if (path.endsWith('/perceived/stats')) json = { avg: null, total: 0, distribution: [], mine: null }
     else if (path.includes('/analytics/')) json = { ok: true }
@@ -45,8 +47,77 @@ async function mockCatalog(page, data = songs, { holdPlays = false } = {}) {
   })
   await page.goto('/')
   await expect(merged(page)).toBeVisible()
-  return { pending, pendingPlays, writes, errors }
+  return { pending, pendingPlays, pendingFavorites, writes, errors }
 }
+
+for (const isAdmin of [false, true]) {
+  test(`grouped favorites remain individually usable for ${isAdmin ? 'admins' : 'members'}`, async ({ page }) => {
+    const { pendingFavorites, writes, errors } = await mockCatalog(page, songs, { holdFavorites: true, isAdmin })
+    const group = merged(page)
+    const buttons = group.locator('.fav-btn')
+    await page.mouse.move(0, 0)
+    await expect(buttons).toHaveCount(3)
+    for (const button of await buttons.all()) await expect(button).toHaveCSS('opacity', '1')
+    const layout = await watchLayout(page, ['.table-wrap', '.tbl-header', '.tbl-song-group', '.group-shared-title'])
+    for (const id of [2, 3, 1]) {
+      const button = group.locator(`[data-song-id="${id}"] .fav-btn`)
+      for (const method of ['POST', 'DELETE']) {
+        await button.click()
+        await expect.poll(() => pendingFavorites.length).toBe(1)
+        expect(writes.at(-1).method).toBe(method)
+        expect(writes.at(-1).path).toMatch(new RegExp(`/favorites/${id}$|/xyx-favorites/${id}$`))
+        await expect(group.locator('.fav-btn.on')).toHaveCount(method === 'POST' ? 1 : 0)
+        await expect(page).not.toHaveURL(/#song=/)
+        await layout.expectStable()
+        await pendingFavorites.shift().fulfill({ json: { ok: true } })
+        await layout.expectStable()
+      }
+    }
+    await layout.stop()
+    await group.locator('[data-song-id="1"] .level-cell').click()
+    await expect(page).toHaveURL(/#song=1$/)
+    await expect(buttons).toHaveCount(3)
+    const compactLayout = await watchLayout(page, ['.table-wrap', '.tbl-header', '.tbl-song-group', '.group-shared-title'])
+    const button = group.locator('[data-song-id="3"] .fav-btn')
+    await expect(button).toBeVisible()
+    await button.focus()
+    await page.keyboard.press('Space')
+    await expect.poll(() => pendingFavorites.length).toBe(1)
+    await expect(button).toHaveClass(/on/)
+    await expect(page).toHaveURL(/#song=1$/)
+    await compactLayout.expectStable()
+    await pendingFavorites.shift().fulfill({ json: { ok: true } })
+    await compactLayout.expectStable()
+    await compactLayout.stop()
+    expect(errors).toEqual([])
+  })
+}
+
+test('shared listening hover does not activate a difficulty row', async ({ page }, testInfo) => {
+  await mockCatalog(page, songs.map(song => song.id === 1 ? { ...song, youtube_url: 'https://www.youtube.com/watch?v=aaaaaaaaaaa' } : song))
+  const group = merged(page)
+  const button = group.getByRole('button', { name: 'YouTube에서 듣기' })
+  const appearance = () => group.locator('.tbl-row').evaluateAll(rows => rows.map(row => ({
+    background: getComputedStyle(row).backgroundColor,
+    waves: [...row.querySelectorAll('.bpm-wave')].map(node => getComputedStyle(node).opacity),
+    numbers: [...row.querySelectorAll('.bpm-num')].map(node => getComputedStyle(node).opacity),
+    actions: [...row.querySelectorAll('.copy-name-btn, .pcat-row-btn')].map(node => getComputedStyle(node).opacity),
+  })))
+  await page.mouse.move(0, 0)
+  const before = await appearance()
+  const layout = await watchLayout(page, ['.table-wrap', '.tbl-header', '.tbl-song-group', '.group-shared-title'])
+  await button.hover()
+  await expect(group.locator('.tbl-row:hover')).toHaveCount(0)
+  await expect.poll(appearance).toEqual(before)
+  await layout.expectStable()
+  await page.screenshot({ path: testInfo.outputPath('shared-listening-hover.png') })
+  await page.mouse.move(0, 0)
+  await button.focus()
+  await expect(group.locator('.tbl-row:focus-visible')).toHaveCount(0)
+  await expect.poll(appearance).toEqual(before)
+  await layout.expectStable()
+  await layout.stop()
+})
 
 test('all-channel rows merge only shared values and retain filter/sort behavior', async ({ page }, testInfo) => {
   await mockCatalog(page)
