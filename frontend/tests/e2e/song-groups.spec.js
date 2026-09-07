@@ -57,11 +57,23 @@ for (const isAdmin of [false, true]) {
     const buttons = group.locator('.fav-btn')
     await page.mouse.move(0, 0)
     await expect(buttons).toHaveCount(3)
-    for (const button of await buttons.all()) await expect(button).toHaveCSS('opacity', '1')
+    const indexCells = group.locator('[data-column="file_order"]')
+    if (await indexCells.count()) {
+      await expect(indexCells.locator('.fav-btn')).toHaveCount(3)
+      await expect(group.locator('[data-column="name"] .fav-btn')).toHaveCount(0)
+      const ordinary = page.locator('[data-song-id="4"] [data-column="file_order"] .fav-btn')
+      const originalPosition = await ordinary.boundingBox()
+      for (const button of await buttons.all()) {
+        const position = await button.boundingBox()
+        expect(position.x).toBe(originalPosition.x)
+      }
+    }
     const layout = await watchLayout(page, ['.table-wrap', '.tbl-header', '.tbl-song-group', '.group-shared-title'])
     for (const id of [2, 3, 1]) {
       const button = group.locator(`[data-song-id="${id}"] .fav-btn`)
       for (const method of ['POST', 'DELETE']) {
+        await group.locator(`[data-song-id="${id}"]`).hover()
+        await expect(button).toHaveCSS('opacity', '1')
         await button.click()
         await expect.poll(() => pendingFavorites.length).toBe(1)
         expect(writes.at(-1).method).toBe(method)
@@ -348,9 +360,9 @@ test('NEW and listening are shared while favorites still target individual chart
   const indexCells = group.locator('[data-column="file_order"]')
   if (await indexCells.count()) {
     await expect(indexCells).toHaveCount(3)
-    await expect(indexCells.first()).toHaveAttribute('aria-rowspan', '3')
     await expect(indexCells.locator('.new-tag')).toHaveText(['NEW'])
-    await expect(indexCells.locator('.fav-btn')).toHaveCount(0)
+    await expect(indexCells.locator('.fav-btn')).toHaveCount(3)
+    for (const cell of await indexCells.all()) await expect(cell).not.toHaveAttribute('aria-hidden', 'true')
     expect(await indexCells.evaluateAll(cells => cells.map(cell => getComputedStyle(cell).borderBottomWidth))).toEqual(['0px', '0px', '0px'])
     const badge = await group.locator('.new-tag').boundingBox()
     const thumb = await group.locator('.title-thumb').boundingBox()
@@ -377,14 +389,20 @@ test('NEW and listening are shared while favorites still target individual chart
   await layout.expectStable()
 
   if (await indexCells.count()) {
-    const row = group.locator('[data-song-id="1"]')
-    await row.hover()
-    const fav = row.locator('[data-column="name"] .fav-btn')
-    await fav.click()
-    await expect(fav).toHaveClass(/on/)
-    expect(writes.some(write => /favorites\/1$/.test(write.path))).toBe(true)
-    await expect(group.locator('[data-song-id="3"] .fav-btn')).not.toHaveClass(/on/)
-    await layout.expectStable()
+    for (const id of [2, 3, 1]) {
+      const row = group.locator(`[data-song-id="${id}"]`)
+      await row.hover()
+      await expect(group.locator('.new-tag')).toBeHidden()
+      const fav = row.locator('[data-column="file_order"] .fav-btn')
+      await fav.click()
+      await expect(fav).toHaveClass(/on/)
+      expect(writes.some(write => write.path.endsWith(`/favorites/${id}`) || write.path.endsWith(`/xyx-favorites/${id}`))).toBe(true)
+      await fav.click()
+      await expect(fav).not.toHaveClass(/on/)
+      await layout.expectStable()
+    }
+    await page.mouse.move(0, 0)
+    await expect(group.locator('.new-tag')).toBeVisible()
   }
   await page.screenshot({ path: testInfo.outputPath('shared-new-and-listen.png') })
   await layout.stop()

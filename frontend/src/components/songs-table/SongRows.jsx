@@ -77,7 +77,7 @@ export function SongGroupTitle({ songs, colTemplate, nameColumn, compact, isAdmi
   const song = songs[0]
   const image = songs.find(member => member.image)?.image
   const actionsWidth = Math.max(...songs.map(member =>
-    (member.combo_warning ? 44 : 0) + 30 + (compact ? 0 : 34 + (isAdmin ? 30 : 0))
+    (member.combo_warning ? 44 : 0) + (nameColumn === 1 ? 30 : 0) + (compact ? 0 : 34 + (isAdmin ? 30 : 0))
   ))
   return (
     <div className="group-title-grid" style={{ gridTemplateColumns: colTemplate, '--group-actions-width': `${actionsWidth}px` }}>
@@ -254,7 +254,7 @@ export function SongRow({
   const favoriteButton = (
     <button
       type="button"
-      className={`fav-btn${groupSongs ? ' group-fav-btn' : ''}${isFav ? ' on' : ''}`}
+      className={`fav-btn${groupSongs && (compact || !showColumn('file_order')) ? ' group-fav-btn' : ''}${isFav ? ' on' : ''}`}
       title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
       aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
       aria-pressed={!!isFav}
@@ -339,13 +339,14 @@ export function SongRow({
         className={`td${groupSongs ? ' group-shared-cell' : ''}`}
         role="cell"
         data-column="file_order"
-        aria-rowspan={groupSongs && groupIndex === 0 ? groupSongs.length : undefined}
-        aria-hidden={groupSongs && groupIndex > 0 ? true : undefined}
       >
-        {groupSongs ? sharedValue(
+        {groupSongs ? <>
+          {sharedValue(
           groupSongs.some(member => member.is_new) && <span className="new-tag">NEW</span>,
           'group-shared-index'
-        ) : (
+          )}
+          <div className="idx-cell">{favoriteButton}</div>
+        </> : (
           <div className="idx-cell">
             {song.is_new && <span className="new-tag">NEW</span>}
             {favoriteButton}
@@ -375,7 +376,7 @@ export function SongRow({
             </span>
           )}
           {!groupSongs && <SongListenButton song={song} />}
-          {groupSongs && favoriteButton}
+          {groupSongs && !showColumn('file_order') && favoriteButton}
           {isAdmin && (
             <button
               className={`copy-name-btn${copied ? ' copied' : ''}`}

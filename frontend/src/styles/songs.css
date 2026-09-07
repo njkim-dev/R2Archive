@@ -308,6 +308,8 @@
 }
 .group-shared-title .song-youtube-icon { pointer-events: auto; }
 .group-shared-index { display: flex; align-items: center; }
+.tbl-song-group:has(> .tbl-row:hover) .group-shared-index,
+.tbl-song-group:has([data-column="file_order"] .fav-btn:is(.on, :focus-visible)) .group-shared-index { visibility: hidden; }
 .tbl-row-grouped:focus-visible { position: relative; z-index: 2; }
 
 .idx-cell { display: flex; align-items: center; gap: 6px; }
