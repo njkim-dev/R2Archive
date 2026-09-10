@@ -50,12 +50,6 @@ export function staticUrl(path) {
   return `${base}/static/${cleanPath}`
 }
 
-export function artworkThumbnailUrl(path) {
-  const sourcePath = String(path ?? '')
-  if (!/\.(?:bmp|png|jpe?g)$/i.test(sourcePath)) return staticUrl(sourcePath)
-  return staticUrl(sourcePath.replace(/\.(?:bmp|png|jpe?g)$/i, '.webp'))
-}
-
 export function bpmWaveBars(bpm, count = 14) {
   const dur = `${(60 / bpm).toFixed(3)}s`
   return Array.from({ length: count }, (_, i) => {
