@@ -32,6 +32,7 @@ WORKDIR /app
 ENV OMP_THREAD_LIMIT=1
 ENV API_UPSTREAM=localhost:8000
 
+ARG SECURITY_REFRESH=0
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y curl debian-keyring debian-archive-keyring apt-transport-https tesseract-ocr && \
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg && \
