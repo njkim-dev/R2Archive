@@ -9,6 +9,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
+import CategoryCollaborationToggles from '../components/CategoryCollaborationToggles'
 
 function fmtDate(value) {
   if (!value) return '-'
@@ -18,6 +19,12 @@ function fmtDate(value) {
 
 function categoryLink(category) {
   return `${window.location.origin}/personal-categories/${category.category_code}`
+}
+
+function mergeCategories(...groups) {
+  const categories = new Map()
+  groups.flat().forEach(category => categories.set(category.id, category))
+  return [...categories.values()].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
 function roleLabel(category) {
@@ -33,12 +40,16 @@ function CreateCategoryModal({ open, onClose }) {
   const { create } = usePersonalCategoriesStore()
   const [name, setName] = useState('')
   const [isPublic, setIsPublic] = useState(true)
+  const [allowContributions, setAllowContributions] = useState(false)
+  const [allowEdits, setAllowEdits] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (open) {
       setName('')
       setIsPublic(true)
+      setAllowContributions(false)
+      setAllowEdits(false)
       setBusy(false)
     }
   }, [open])
@@ -50,7 +61,12 @@ function CreateCategoryModal({ open, onClose }) {
     if (!trimmed || busy) return
     setBusy(true)
     try {
-      const category = await create({ name: trimmed, is_public: isPublic })
+      const category = await create({
+        name: trimmed,
+        is_public: isPublic,
+        allow_contributions: allowContributions,
+        allow_edits: allowEdits,
+      })
       onClose()
       alert(`'${category.name}' 카테고리를 만들었어요.\n카테고리 코드: ${category.category_code}`)
       navigate(`/personal-categories/${category.category_code}`)
@@ -87,6 +103,12 @@ function CreateCategoryModal({ open, onClose }) {
             </div>
             <div className={`grp-toggle${isPublic ? ' on' : ''}`} />
           </label>
+          <CategoryCollaborationToggles
+            allowContributions={allowContributions}
+            allowEdits={allowEdits}
+            onAllowContributions={setAllowContributions}
+            onAllowEdits={setAllowEdits}
+          />
         </div>
         <div className="grp-modal-foot">
           <button className="grp-btn ghost" onClick={onClose}>취소</button>
@@ -137,10 +159,11 @@ function CategoryCard({ category, onCopy, onOpen }) {
   )
 }
 
-function Tabs({ activeTab, setActiveTab, counts, user, isAdmin }) {
+function Tabs({ activeTab, setActiveTab, counts, user }) {
   const tabs = [
+    { key: 'all', label: '전체 카테고리', count: counts.all },
     { key: 'mine', label: '내 카테고리', count: counts.mine, needLogin: true },
-    { key: 'public', label: isAdmin ? '전체 카테고리' : '공개 카테고리', count: counts.public },
+    { key: 'public', label: '공개 카테고리', count: counts.public },
     { key: 'subscribed', label: '구독한 카테고리', count: counts.subscribed, needLogin: true },
   ]
   return (
@@ -178,43 +201,54 @@ export default function PersonalCategoriesPage() {
     clear,
   } = usePersonalCategoriesStore()
   const [createOpen, setCreateOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState(user ? 'mine' : 'public')
+  const [activeTab, setActiveTab] = useState('all')
 
   useEffect(() => {
     fetchDirectory(user).catch(() => {})
     if (!user) {
       clear()
-      setActiveTab('public')
+      setActiveTab('all')
     }
   }, [user, fetchDirectory, clear])
 
-  useEffect(() => {
-    if (user && activeTab === 'public') return
-    if (user && !activeTab) setActiveTab('mine')
-  }, [user, activeTab])
+  const publicOnlyCategories = useMemo(
+    () => publicCategories.filter(category => category.is_public),
+    [publicCategories],
+  )
+  const allCategories = useMemo(
+    () => mergeCategories(publicCategories, myCategories, subscribedCategories),
+    [publicCategories, myCategories, subscribedCategories],
+  )
 
   const counts = useMemo(() => ({
+    all: allCategories.length,
     mine: myCategories.length,
-    public: publicCategories.length,
+    public: publicOnlyCategories.length,
     subscribed: subscribedCategories.length,
-  }), [myCategories.length, publicCategories.length, subscribedCategories.length])
+  }), [allCategories.length, myCategories.length, publicOnlyCategories.length, subscribedCategories.length])
 
   const totalSongs = useMemo(() => {
-    const all = activeTab === 'mine'
+    const all = activeTab === 'all'
+      ? allCategories
+      : activeTab === 'mine'
       ? myCategories
       : activeTab === 'subscribed'
         ? subscribedCategories
-        : publicCategories
+        : publicOnlyCategories
     return all.reduce((sum, category) => sum + (category.song_count || 0), 0)
-  }, [activeTab, myCategories, publicCategories, subscribedCategories])
+  }, [activeTab, allCategories, myCategories, publicOnlyCategories, subscribedCategories])
 
-  const visibleCategories = activeTab === 'mine'
+  const visibleCategories = activeTab === 'all'
+    ? allCategories
+    : activeTab === 'mine'
     ? myCategories
     : activeTab === 'subscribed'
       ? subscribedCategories
-      : publicCategories
+      : publicOnlyCategories
 
-  const currentLoaded = activeTab === 'mine'
+  const currentLoaded = activeTab === 'all'
+    ? publicLoaded && (!user || (loaded && subscribedLoaded))
+    : activeTab === 'mine'
     ? loaded
     : activeTab === 'subscribed'
       ? subscribedLoaded
@@ -233,12 +267,16 @@ export default function PersonalCategoriesPage() {
   const open = (category) => navigate(`/personal-categories/${category.category_code}`)
   const openCreate = () => user ? setCreateOpen(true) : openLogin()
 
-  const emptyTitle = activeTab === 'mine'
+  const emptyTitle = activeTab === 'all'
+    ? '아직 볼 수 있는 카테고리가 없어요'
+    : activeTab === 'mine'
     ? '아직 만든 카테고리가 없어요'
     : activeTab === 'subscribed'
       ? '아직 구독한 카테고리가 없어요'
       : isAdmin ? '카테고리가 없어요' : '공개 카테고리가 없어요'
-  const emptyBody = activeTab === 'mine'
+  const emptyBody = activeTab === 'all'
+    ? '공개 카테고리가 생기거나 카테고리를 만들면 여기에 표시돼요.'
+    : activeTab === 'mine'
     ? '카테고리를 만들고 곡 상세 화면에서 곡을 저장해보세요.'
     : activeTab === 'subscribed'
       ? '카테고리 링크에서 구독하면 여기에 표시돼요.'
@@ -259,7 +297,7 @@ export default function PersonalCategoriesPage() {
               </div>
             </div>
             <MobilePageNav />
-            <Tabs activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} user={user} isAdmin={isAdmin} />
+            <Tabs activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} user={user} />
           </div>
         </header>
         <div className="pcat-mobile-body">
@@ -326,7 +364,7 @@ export default function PersonalCategoriesPage() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>음악 카테고리</h2>
           <span style={{ color: 'var(--fg-3)', fontSize: 12, marginLeft: 4 }}>
             {visibleCategories.length.toLocaleString()}개 · 저장된 곡 {totalSongs.toLocaleString()}곡
-            {isAdmin && activeTab === 'public' ? ' · 관리자 전체 보기' : ''}
+            {isAdmin && activeTab === 'all' ? ' · 관리자 전체 보기' : ''}
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             <HelpButton />
@@ -335,7 +373,7 @@ export default function PersonalCategoriesPage() {
         </div>
 
         <div className="pcat-tabs-wrap">
-          <Tabs activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} user={user} isAdmin={isAdmin} />
+          <Tabs activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} user={user} />
         </div>
 
         <div className="grp-body">

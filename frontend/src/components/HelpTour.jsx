@@ -85,12 +85,12 @@ const PAGE_HELP = {
     steps: [
       {
         title: '카테고리 탭',
-        body: '내 카테고리, 공개 카테고리, 구독한 카테고리를 탭으로 나눠 볼 수 있어요.',
+        body: '전체 카테고리를 기본으로 보고, 내 카테고리, 공개 카테고리, 구독한 카테고리를 탭으로 나눠 볼 수 있어요.',
         target: '.pcat-tabs, .mob-chips',
       },
       {
         title: '카테고리 만들기',
-        body: '로그인 후 카테고리 이름과 공개 여부를 정해서 새 음악 카테고리를 만들 수 있어요.',
+        body: '로그인 후 카테고리 이름과 공개 여부, 다른 사용자의 곡 추가·편집 허용 여부를 정할 수 있어요.',
         target: '.grp-btn.primary, .pcat-mobile-create',
       },
       {
@@ -110,17 +110,17 @@ const PAGE_HELP = {
       },
       {
         title: '카테고리 안에서 필터링',
-        body: '저장된 곡도 곡 목록처럼 별, 달, 해, 신곡, 변속곡, 즐겨찾기와 난이도/BPM 필터로 좁힐 수 있어요.',
+        body: '저장된 곡도 검색어, 별, 달, 해, 신곡, 변속곡, 즐겨찾기와 난이도/BPM 필터로 좁힐 수 있어요.',
         target: '.pcat-mobile-filters, .side',
       },
       {
         title: '곡 열기와 삭제',
-        body: '곡을 클릭하면 상세 화면을 열 수 있고, editor 권한 이상이면 이 카테고리에서 곡을 삭제할 수 있어요.',
+        body: '곡을 클릭하면 상세 화면을 열 수 있고, 삭제 권한이 있으면 이 카테고리에서 곡을 삭제할 수 있어요.',
         target: '.table-wrap, .mob-list-wrap',
       },
       {
         title: '데스크톱 관리 기능',
-        body: '데스크톱에서는 카테고리 이름, 공개 여부, 구독 사용자 권한을 관리할 수 있어요.',
+        body: '데스크톱에서는 카테고리 이름, 공개 여부, 공동 작업과 구독 사용자 권한을 관리할 수 있어요.',
         target: '.pcat-editor-panel, .pcat-song-delete, .mob-delete-btn',
       },
     ],

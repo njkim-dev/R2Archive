@@ -18,11 +18,15 @@ _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 class XyxCategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     is_public: bool = True
+    allow_contributions: bool = False
+    allow_edits: bool = False
 
 
 class XyxCategoryPatch(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=40)
     is_public: Optional[bool] = None
+    allow_contributions: Optional[bool] = None
+    allow_edits: Optional[bool] = None
 
 
 class XyxCategorySongCreate(BaseModel):
@@ -54,7 +58,34 @@ def _is_admin(cur, uid: Optional[int]) -> bool:
     return bool(row and row[0])
 
 
-def _viewer_role(cur, category_id: int, owner_id: int, viewer_uid: Optional[int]) -> dict:
+def _song_permissions(
+    viewer_uid: Optional[int],
+    *,
+    is_owner: bool,
+    member_role: Optional[str],
+    allow_contributions: bool,
+    allow_edits: bool,
+) -> dict:
+    authenticated = viewer_uid is not None
+    assigned_editor = member_role == "editor"
+    return {
+        "can_add_songs": is_owner or assigned_editor or (
+            authenticated and (allow_contributions or allow_edits)
+        ),
+        "can_delete_songs": is_owner or assigned_editor or (
+            authenticated and allow_edits
+        ),
+    }
+
+
+def _viewer_role(
+    cur,
+    category_id: int,
+    owner_id: int,
+    viewer_uid: Optional[int],
+    allow_contributions: bool = False,
+    allow_edits: bool = False,
+) -> dict:
     is_owner = viewer_uid is not None and int(viewer_uid) == int(owner_id)
     if is_owner:
         return {
@@ -64,6 +95,13 @@ def _viewer_role(cur, category_id: int, owner_id: int, viewer_uid: Optional[int]
             "can_edit": True,
             "can_manage": True,
             "is_admin_view": False,
+            **_song_permissions(
+                viewer_uid,
+                is_owner=True,
+                member_role=None,
+                allow_contributions=allow_contributions,
+                allow_edits=allow_edits,
+            ),
         }
 
     member_role = None
@@ -83,6 +121,13 @@ def _viewer_role(cur, category_id: int, owner_id: int, viewer_uid: Optional[int]
             "can_edit": member_role == "editor",
             "can_manage": False,
             "is_admin_view": False,
+            **_song_permissions(
+                viewer_uid,
+                is_owner=False,
+                member_role=member_role,
+                allow_contributions=allow_contributions,
+                allow_edits=allow_edits,
+            ),
         }
 
     if _is_admin(cur, viewer_uid):
@@ -93,6 +138,13 @@ def _viewer_role(cur, category_id: int, owner_id: int, viewer_uid: Optional[int]
             "can_edit": False,
             "can_manage": False,
             "is_admin_view": True,
+            **_song_permissions(
+                viewer_uid,
+                is_owner=False,
+                member_role=None,
+                allow_contributions=allow_contributions,
+                allow_edits=allow_edits,
+            ),
         }
 
     return {
@@ -102,6 +154,13 @@ def _viewer_role(cur, category_id: int, owner_id: int, viewer_uid: Optional[int]
         "can_edit": False,
         "can_manage": False,
         "is_admin_view": False,
+        **_song_permissions(
+            viewer_uid,
+            is_owner=False,
+            member_role=None,
+            allow_contributions=allow_contributions,
+            allow_edits=allow_edits,
+        ),
     }
 
 
@@ -110,6 +169,8 @@ def _category_from_row(row, viewer_uid: Optional[int] = None, *, force_admin: bo
     owner_id = int(row[5])
     is_owner = viewer_uid is not None and int(viewer_uid) == owner_id
     role = row[8] if len(row) > 8 else None
+    allow_contributions = bool(row[9]) if len(row) > 9 else False
+    allow_edits = bool(row[10]) if len(row) > 10 else False
     is_admin_view = bool(force_admin and not is_owner and not role)
     my_role = "owner" if is_owner else role or ("admin" if is_admin_view else "guest")
     return {
@@ -121,12 +182,21 @@ def _category_from_row(row, viewer_uid: Optional[int] = None, *, force_admin: bo
         "owner_id": owner_id,
         "owner_nickname": row[6] or "",
         "song_count": int(row[7] or 0),
+        "allow_contributions": allow_contributions,
+        "allow_edits": allow_edits,
         "is_owner": is_owner,
         "is_subscribed": bool(role and not is_owner),
         "my_role": my_role,
         "can_edit": is_owner or role == "editor",
         "can_manage": is_owner,
         "is_admin_view": is_admin_view,
+        **_song_permissions(
+            viewer_uid,
+            is_owner=is_owner,
+            member_role=role,
+            allow_contributions=allow_contributions,
+            allow_edits=allow_edits,
+        ),
     }
 
 
@@ -135,13 +205,14 @@ def _fetch_category_summary(cur, category_id: int, viewer_uid: Optional[int]) ->
         """
         SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
                xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
-               COUNT(xcs.song_id)::int AS song_count
+               COUNT(xcs.song_id)::int AS song_count,
+               xc.allow_contributions, xc.allow_edits
         FROM xyx_categories xc
         LEFT JOIN users u ON u.id = xc.owner_id
         LEFT JOIN xyx_category_songs xcs ON xcs.category_id = xc.id
         WHERE xc.id = %s
         GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                 xc.owner_id, u.nickname
+                 xc.owner_id, u.nickname, xc.allow_contributions, xc.allow_edits
         """,
         (category_id,),
     )
@@ -157,7 +228,16 @@ def _fetch_category_summary(cur, category_id: int, viewer_uid: Optional[int]) ->
         "owner_id": int(row[5]),
         "owner_nickname": row[6] or "",
         "song_count": int(row[7] or 0),
-        **_viewer_role(cur, int(row[0]), int(row[5]), viewer_uid),
+        "allow_contributions": bool(row[8]),
+        "allow_edits": bool(row[9]),
+        **_viewer_role(
+            cur,
+            int(row[0]),
+            int(row[5]),
+            viewer_uid,
+            bool(row[8]),
+            bool(row[9]),
+        ),
     }
 
 
@@ -172,6 +252,20 @@ def _ensure_can_manage(cur, category_id: int, uid: int) -> dict:
     category = _fetch_category_summary(cur, category_id, uid)
     if not category["can_manage"]:
         raise HTTPException(status_code=403, detail="No category manage permission")
+    return category
+
+
+def _ensure_can_add_song(cur, category_id: int, uid: int) -> dict:
+    category = _fetch_category_summary(cur, category_id, uid)
+    if not category["can_add_songs"]:
+        raise HTTPException(status_code=403, detail="You cannot add songs to this category")
+    return category
+
+
+def _ensure_can_delete_song(cur, category_id: int, uid: int) -> dict:
+    category = _fetch_category_summary(cur, category_id, uid)
+    if not category["can_delete_songs"]:
+        raise HTTPException(status_code=403, detail="You cannot delete songs from this category")
     return category
 
 
@@ -315,13 +409,14 @@ def list_my_xyx_categories(request: Request):
                 SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
                        xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
                        COUNT(xcs.song_id)::int AS song_count,
-                       NULL::text AS member_role
+                       NULL::text AS member_role,
+                       xc.allow_contributions, xc.allow_edits
                 FROM xyx_categories xc
                 LEFT JOIN users u ON u.id = xc.owner_id
                 LEFT JOIN xyx_category_songs xcs ON xcs.category_id = xc.id
                 WHERE xc.owner_id = %s
                 GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                         xc.owner_id, u.nickname
+                         xc.owner_id, u.nickname, xc.allow_contributions, xc.allow_edits
                 ORDER BY xc.created_at DESC
                 """,
                 (uid,),
@@ -340,15 +435,22 @@ def list_editable_xyx_categories(request: Request):
                 SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
                        xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
                        COUNT(xcs.song_id)::int AS song_count,
-                       xcm.role AS member_role
+                       xcm.role AS member_role,
+                       xc.allow_contributions, xc.allow_edits
                 FROM xyx_categories xc
                 LEFT JOIN xyx_category_members xcm
                   ON xcm.category_id = xc.id AND xcm.user_id = %s
                 LEFT JOIN users u ON u.id = xc.owner_id
                 LEFT JOIN xyx_category_songs xcs ON xcs.category_id = xc.id
-                WHERE xc.owner_id = %s OR xcm.role = 'editor'
+                WHERE xc.owner_id = %s
+                   OR xcm.role = 'editor'
+                   OR (
+                     (xc.allow_contributions OR xc.allow_edits)
+                     AND (xc.is_public OR xcm.user_id IS NOT NULL)
+                   )
                 GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                         xc.owner_id, u.nickname, xcm.role
+                         xc.owner_id, u.nickname, xcm.role,
+                         xc.allow_contributions, xc.allow_edits
                 ORDER BY xc.created_at DESC
                 """,
                 (uid, uid),
@@ -367,14 +469,16 @@ def list_my_xyx_category_subscriptions(request: Request):
                 SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
                        xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
                        COUNT(xcs.song_id)::int AS song_count,
-                       xcm.role AS member_role
+                       xcm.role AS member_role,
+                       xc.allow_contributions, xc.allow_edits
                 FROM xyx_category_members xcm
                 JOIN xyx_categories xc ON xc.id = xcm.category_id
                 LEFT JOIN users u ON u.id = xc.owner_id
                 LEFT JOIN xyx_category_songs xcs ON xcs.category_id = xc.id
                 WHERE xcm.user_id = %s AND xc.owner_id <> %s
                 GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                         xc.owner_id, u.nickname, xcm.role, xcm.joined_at
+                         xc.owner_id, u.nickname, xcm.role, xcm.joined_at,
+                         xc.allow_contributions, xc.allow_edits
                 ORDER BY xcm.joined_at DESC
                 """,
                 (uid, uid),
@@ -395,7 +499,8 @@ def list_public_xyx_categories(request: Request):
                 SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
                        xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
                        COUNT(xcs.song_id)::int AS song_count,
-                       xcm.role AS member_role
+                       xcm.role AS member_role,
+                       xc.allow_contributions, xc.allow_edits
                 FROM xyx_categories xc
                 LEFT JOIN xyx_category_members xcm
                   ON xcm.category_id = xc.id AND xcm.user_id = %s
@@ -403,7 +508,8 @@ def list_public_xyx_categories(request: Request):
                 LEFT JOIN xyx_category_songs xcs ON xcs.category_id = xc.id
                 {where_sql}
                 GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                         xc.owner_id, u.nickname, xcm.role
+                         xc.owner_id, u.nickname, xcm.role,
+                         xc.allow_contributions, xc.allow_edits
                 ORDER BY xc.created_at DESC
                 """,
                 (viewer_uid,),
@@ -423,6 +529,7 @@ def list_xyx_category_filters(request: Request):
                        xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
                        COUNT(DISTINCT xcs.song_id)::int AS song_count,
                        NULL::text AS member_role,
+                       xc.allow_contributions, xc.allow_edits,
                        COALESCE(
                          array_agg(DISTINCT xcs.song_id) FILTER (WHERE xcs.song_id IS NOT NULL),
                          ARRAY[]::integer[]
@@ -433,7 +540,7 @@ def list_xyx_category_filters(request: Request):
                 WHERE xc.is_public = TRUE
                    OR (%s IS NOT NULL AND xc.owner_id = %s)
                 GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                         xc.owner_id, u.nickname
+                         xc.owner_id, u.nickname, xc.allow_contributions, xc.allow_edits
                 ORDER BY CASE WHEN xc.owner_id = %s THEN 0 ELSE 1 END,
                          xc.name, xc.id
                 """,
@@ -443,8 +550,8 @@ def list_xyx_category_filters(request: Request):
 
     categories = []
     for row in rows:
-        category = _category_from_row(row[:9], viewer_uid)
-        category["song_ids"] = [int(song_id) for song_id in (row[9] or [])]
+        category = _category_from_row(row[:11], viewer_uid)
+        category["song_ids"] = [int(song_id) for song_id in (row[11] or [])]
         categories.append(category)
     return categories
 
@@ -470,7 +577,8 @@ def list_xyx_categories_for_song(request: Request, song_id: int):
                 SELECT xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
                        xc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
                        COUNT(xcs_all.song_id)::int AS song_count,
-                       xcm.role AS member_role
+                       xcm.role AS member_role,
+                       xc.allow_contributions, xc.allow_edits
                 FROM xyx_category_songs xcs_match
                 JOIN xyx_categories xc ON xc.id = xcs_match.category_id
                 LEFT JOIN xyx_category_members xcm
@@ -480,7 +588,8 @@ def list_xyx_categories_for_song(request: Request, song_id: int):
                 WHERE xcs_match.song_id = %s
                 {where_sql}
                 GROUP BY xc.id, xc.name, xc.is_public, xc.category_code, xc.created_at,
-                         xc.owner_id, u.nickname, xcm.role
+                         xc.owner_id, u.nickname, xcm.role,
+                         xc.allow_contributions, xc.allow_edits
                 ORDER BY
                   CASE WHEN xc.owner_id = %s THEN 0
                        WHEN xcm.role IS NOT NULL THEN 1
@@ -500,6 +609,8 @@ def create_xyx_category(request: Request, body: XyxCategoryCreate):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Category name is required")
+    allow_edits = body.allow_edits
+    allow_contributions = body.allow_contributions or allow_edits
 
     last_err = None
     with get_conn() as conn:
@@ -509,11 +620,14 @@ def create_xyx_category(request: Request, body: XyxCategoryCreate):
                 try:
                     cur.execute(
                         """
-                        INSERT INTO xyx_categories (owner_id, name, is_public, category_code)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO xyx_categories (
+                          owner_id, name, is_public, category_code,
+                          allow_contributions, allow_edits
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
-                        (uid, name, body.is_public, code),
+                        (uid, name, body.is_public, code, allow_contributions, allow_edits),
                     )
                     category_id = int(cur.fetchone()[0])
                     category = _fetch_category_summary(cur, category_id, uid)
@@ -634,13 +748,25 @@ def patch_xyx_category(request: Request, category_id: int, body: XyxCategoryPatc
     if body.is_public is not None:
         fields.append("is_public = %s")
         params.append(body.is_public)
-    if not fields:
-        return {"ok": True, "updated": 0}
-
-    params.append(category_id)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            _ensure_can_edit(cur, category_id, uid)
+            category = _ensure_can_edit(cur, category_id, uid)
+            if body.allow_contributions is not None or body.allow_edits is not None:
+                if not category["can_manage"]:
+                    raise HTTPException(status_code=403, detail="Only the owner can change collaboration settings")
+                allow_edits = body.allow_edits if body.allow_edits is not None else category["allow_edits"]
+                allow_contributions = (
+                    body.allow_contributions
+                    if body.allow_contributions is not None
+                    else category["allow_contributions"]
+                )
+                if allow_edits:
+                    allow_contributions = True
+                fields.extend(["allow_contributions = %s", "allow_edits = %s"])
+                params.extend([allow_contributions, allow_edits])
+            if not fields:
+                return {"ok": True, "updated": 0}
+            params.append(category_id)
             cur.execute(
                 f"UPDATE xyx_categories SET {', '.join(fields)}, updated_at = NOW() WHERE id = %s",
                 tuple(params),
@@ -721,7 +847,7 @@ def add_song_to_xyx_category(request: Request, category_id: int, body: XyxCatego
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            category = _ensure_can_edit(cur, category_id, uid)
+            category = _ensure_can_add_song(cur, category_id, uid)
 
             cur.execute("SELECT id, name FROM xyx_songs WHERE id = %s", (body.song_id,))
             song = cur.fetchone()
@@ -754,7 +880,7 @@ def delete_song_from_xyx_category(request: Request, category_id: int, song_id: i
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            _ensure_can_edit(cur, category_id, uid)
+            _ensure_can_delete_song(cur, category_id, uid)
             cur.execute(
                 """
                 DELETE FROM xyx_category_songs

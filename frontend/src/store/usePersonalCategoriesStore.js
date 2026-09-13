@@ -163,8 +163,10 @@ const usePersonalCategoriesStore = create((set, get) => ({
   clear: () => set({
     myCategories: [],
     editableCategories: [],
+    publicCategories: [],
     subscribedCategories: [],
     loaded: false,
+    publicLoaded: false,
     subscribedLoaded: false,
     loading: false,
   }),

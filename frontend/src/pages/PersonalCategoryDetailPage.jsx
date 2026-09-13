@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, Globe2, Lock, SlidersHorizontal, Users } from 'lucide-react'
+import { Copy, Globe2, Lock, Search, SlidersHorizontal, Users, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getPersonalCategoryByCode } from '../api/client'
 import useStore from '../store/useStore'
@@ -12,6 +12,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
+import CategoryCollaborationToggles from '../components/CategoryCollaborationToggles'
 
 function roleLabel(role) {
   if (role === 'owner') return '소유자'
@@ -22,9 +23,18 @@ function roleLabel(role) {
 }
 
 const CATEGORY_OPTIONS = [
-  { key: 'star', label: '별', rng: '1.5–3.5' },
-  { key: 'moon', label: '달', rng: '4–6.5' },
-  { key: 'sun', label: '해', rng: '7–12' },
+  {
+    key: 'star', label: '별', rng: '1.5–3.5',
+    icon: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L1 9.5l7.1-.6L12 2z"/></svg>,
+  },
+  {
+    key: 'moon', label: '달', rng: '4–6.5',
+    icon: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.4 13.9A8 8 0 1110.1 3.6a6.5 6.5 0 0010.3 10.3z"/></svg>,
+  },
+  {
+    key: 'sun', label: '해', rng: '7–12',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>,
+  },
 ]
 
 const QUICK_OPTIONS = [
@@ -33,6 +43,63 @@ const QUICK_OPTIONS = [
   { key: 'variants', label: '변속곡' },
   { key: 'favorite', label: '★ 내 즐겨찾기', needLogin: true },
 ]
+
+const SEARCH_OPTIONS = [
+  { key: 'both', label: '곡명 + 아티스트' },
+  { key: 'name', label: '곡명' },
+  { key: 'artist', label: '아티스트' },
+]
+
+function CategorySongSearch({ search, searchMode, excludeSearch, onSearch, onSearchMode, onExcludeSearch }) {
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    const focusSearch = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', focusSearch)
+    return () => document.removeEventListener('keydown', focusSearch)
+  }, [])
+
+  return (
+    <div className="pcat-song-search">
+      <div className="pcat-song-search-row">
+        <select value={searchMode} onChange={event => onSearchMode(event.target.value)} aria-label="검색 범위">
+          {SEARCH_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+        </select>
+        <label className="pcat-song-search-field">
+          <Search size={16} aria-hidden="true" />
+          <input
+            ref={inputRef}
+            type="search"
+            value={search}
+            onChange={event => onSearch(event.target.value)}
+            placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
+            aria-label="카테고리 음악 검색"
+            autoComplete="off"
+          />
+          {search && (
+            <button type="button" onClick={() => onSearch('')} aria-label="검색어 지우기" title="검색어 지우기">
+              <X size={15} />
+            </button>
+          )}
+        </label>
+      </div>
+      <label className={`pcat-song-search-exclude${search.trim() ? '' : ' disabled'}`}>
+        <input
+          type="checkbox"
+          checked={excludeSearch}
+          disabled={!search.trim()}
+          onChange={event => onExcludeSearch(event.target.checked)}
+        />
+        입력한 검색어만 제외하기
+      </label>
+    </div>
+  )
+}
 
 function PersonalCategoryFilterPanel({
   songs,
@@ -102,13 +169,14 @@ function PersonalCategoryFilterPanel({
       <div className="side-section">
         <div className="side-label"><span>카테고리</span></div>
         <div className="cat-group">
-          {CATEGORY_OPTIONS.map(({ key, label, rng }) => (
+          {CATEGORY_OPTIONS.map(({ key, label, rng, icon }) => (
             <button
               key={key}
               className={`cat-btn${filters.category === key ? ' active' : ''}`}
               onClick={() => onCategory(filters.category === key ? null : key)}
               title={`${label} (난이도 ${rng})`}
             >
+              {icon}
               <span>{label}</span>
               <span className="rng">{rng}</span>
             </button>
@@ -189,12 +257,13 @@ function PersonalCategoryMobileFilters({ filters, counts, user, onCategory, onQu
     <div className="pcat-mobile-filters">
       <div className="mob-chips">
         <button className={`mob-chip${!filters.category ? ' on' : ''}`} onClick={() => onCategory(null)}>전체</button>
-        {CATEGORY_OPTIONS.map(({ key, label, rng }) => (
+        {CATEGORY_OPTIONS.map(({ key, label, rng, icon }) => (
           <button
             key={key}
             className={`mob-chip${filters.category === key ? ' on' : ''}`}
             onClick={() => onCategory(filters.category === key ? null : key)}
           >
+            <span className="pcat-category-icon" aria-hidden="true">{icon}</span>
             {label}
             <span style={{ color: 'var(--fg-4)', fontSize: '10.5px' }}>{rng}</span>
           </button>
@@ -415,19 +484,30 @@ function EditorPanel({ category, onSaved }) {
   const { patch } = usePersonalCategoriesStore()
   const [name, setName] = useState(category.name)
   const [isPublic, setIsPublic] = useState(category.is_public)
+  const [allowContributions, setAllowContributions] = useState(category.allow_contributions)
+  const [allowEdits, setAllowEdits] = useState(category.allow_edits)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     setName(category.name)
     setIsPublic(category.is_public)
-  }, [category.id, category.name, category.is_public])
+    setAllowContributions(category.allow_contributions)
+    setAllowEdits(category.allow_edits)
+  }, [category.id, category.name, category.is_public, category.allow_contributions, category.allow_edits])
 
   const save = async () => {
     const trimmed = name.trim()
     if (!trimmed || busy) return
     setBusy(true)
     try {
-      await patch(category.id, { name: trimmed, is_public: isPublic })
+      await patch(category.id, {
+        name: trimmed,
+        is_public: isPublic,
+        ...(category.can_manage ? {
+          allow_contributions: allowContributions,
+          allow_edits: allowEdits,
+        } : {}),
+      })
       alert('카테고리를 저장했어요')
       onSaved()
     } catch (e) {
@@ -451,6 +531,14 @@ function EditorPanel({ category, onSaved }) {
           </div>
           <div className={`grp-toggle${isPublic ? ' on' : ''}`} />
         </label>
+        {category.can_manage && (
+          <CategoryCollaborationToggles
+            allowContributions={allowContributions}
+            allowEdits={allowEdits}
+            onAllowContributions={setAllowContributions}
+            onAllowEdits={setAllowEdits}
+          />
+        )}
         <div className="pcat-editor-actions">
           {category.can_manage && (
             <button className="gd-btn ghost sm" onClick={() => navigate(`/personal-categories/${category.category_code}/subscribers`)}>
@@ -478,6 +566,9 @@ export default function PersonalCategoryDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [subscribing, setSubscribing] = useState(false)
+  const [search, setSearch] = useState('')
+  const [searchMode, setSearchMode] = useState('both')
+  const [excludeSearch, setExcludeSearch] = useState(false)
   const [levelCategory, setLevelCategory] = useState(null)
   const [quick, setQuick] = useState('all')
   const [levelMin, setLevelMin] = useState(null)
@@ -517,10 +608,11 @@ export default function PersonalCategoryDetailPage() {
     bpmMax: bpmMax ?? bpmBounds[1],
   }), [levelCategory, quick, levelMin, levelMax, levelBounds, bpmMin, bpmMax, bpmBounds])
 
-  const filteredSongs = useMemo(() => {
-    const { exact } = filterSongs(songs, {
-      search: '',
-      searchMode: 'both',
+  const filtered = useMemo(() => {
+    const { exact, fuzzy } = filterSongs(songs, {
+      search,
+      searchMode,
+      excludeSearch,
       levelMin: activeFilters.levelMin,
       levelMax: activeFilters.levelMax,
       bpmMin: activeFilters.bpmMin,
@@ -530,8 +622,13 @@ export default function PersonalCategoryDetailPage() {
       artists: new Set(),
       favorites,
     })
-    return sortSongs(exact, sort)
-  }, [songs, activeFilters, favorites, sort])
+    return {
+      exact: sortSongs(exact, sort),
+      fuzzy: sortSongs(fuzzy, sort),
+    }
+  }, [songs, search, searchMode, excludeSearch, activeFilters, favorites, sort])
+
+  const filteredCount = filtered.exact.length + filtered.fuzzy.length
 
   const filterCounts = useMemo(() => {
     const base = {
@@ -554,6 +651,8 @@ export default function PersonalCategoryDetailPage() {
   }, [songs, activeFilters, favorites, user])
 
   const resetFilters = () => {
+    setSearch('')
+    setExcludeSearch(false)
     setLevelCategory(null)
     setQuick('all')
     setLevelMin(null)
@@ -597,7 +696,7 @@ export default function PersonalCategoryDetailPage() {
   }
 
   const handleDeleteSong = useCallback(async (song) => {
-    if (!category?.can_edit) return
+    if (!category?.can_delete_songs) return
     if (!confirm(`'${song.name}' 곡을 이 카테고리에서 삭제할까요?`)) return
     try {
       await deleteSong(category.id, song.id)
@@ -633,7 +732,7 @@ export default function PersonalCategoryDetailPage() {
     <div className="grp-empty pcat-empty-list">
       <div className="grp-empty-icon">⌕</div>
       <h3>조건에 맞는 곡이 없어요</h3>
-      <p>카테고리, 난이도, BPM 또는 빠른 필터를 조정해보세요.</p>
+      <p>검색어, 카테고리, 난이도, BPM 또는 빠른 필터를 조정해보세요.</p>
       <button className="grp-btn ghost" onClick={resetFilters}>필터 초기화</button>
     </div>
   )
@@ -720,6 +819,14 @@ export default function PersonalCategoryDetailPage() {
         {loading || error || !category ? blocked : (
           <>
             {detailHead}
+            <CategorySongSearch
+              search={search}
+              searchMode={searchMode}
+              excludeSearch={excludeSearch}
+              onSearch={setSearch}
+              onSearchMode={setSearchMode}
+              onExcludeSearch={setExcludeSearch}
+            />
             <PersonalCategoryMobileFilters
               filters={activeFilters}
               counts={filterCounts}
@@ -728,14 +835,14 @@ export default function PersonalCategoryDetailPage() {
               onQuick={setQuick}
             />
             {songs.length === 0 ? empty : (
-              filteredSongs.length === 0 ? filterEmpty : (
+              filteredCount === 0 ? filterEmpty : (
                 <div className="pcat-detail-mobile-table">
                   <SongsTable
-                    exact={filteredSongs}
-                    fuzzy={[]}
+                    exact={filtered.exact}
+                    fuzzy={filtered.fuzzy}
                     isMobile
                     tableMode="personalCategory"
-                    canDeleteSongs={category.can_edit}
+                    canDeleteSongs={category.can_delete_songs}
                     onDeleteSong={handleDeleteSong}
                   />
                 </div>
@@ -767,7 +874,7 @@ export default function PersonalCategoryDetailPage() {
             counts={filterCounts}
             levelBounds={levelBounds}
             bpmBounds={bpmBounds}
-            totalFiltered={filteredSongs.length}
+            totalFiltered={filteredCount}
             user={user}
             onCategory={setLevelCategory}
             onQuick={setQuick}
@@ -797,7 +904,7 @@ export default function PersonalCategoryDetailPage() {
                 {category.owner_nickname || '익명'}님의 카테고리 · {songs.length.toLocaleString()}곡
               </span>
               <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>
-                표시 {filteredSongs.length.toLocaleString()}곡
+                표시 {filteredCount.toLocaleString()}곡
               </span>
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <HelpButton />
@@ -813,15 +920,23 @@ export default function PersonalCategoryDetailPage() {
                 {user ? <UserChip /> : <button className="gd-btn ghost sm" onClick={openLogin}>로그인</button>}
               </div>
             </div>
+            <CategorySongSearch
+              search={search}
+              searchMode={searchMode}
+              excludeSearch={excludeSearch}
+              onSearch={setSearch}
+              onSearchMode={setSearchMode}
+              onExcludeSearch={setExcludeSearch}
+            />
             {category.can_edit && <EditorPanel category={category} onSaved={loadCategory} />}
             {songs.length === 0 ? empty : (
-              filteredSongs.length === 0 ? filterEmpty : (
+              filteredCount === 0 ? filterEmpty : (
                 <div className="pcat-detail-body">
                   <SongsTable
-                    exact={filteredSongs}
-                    fuzzy={[]}
+                    exact={filtered.exact}
+                    fuzzy={filtered.fuzzy}
                     tableMode="personalCategory"
-                    canDeleteSongs={category.can_edit}
+                    canDeleteSongs={category.can_delete_songs}
                     onDeleteSong={handleDeleteSong}
                     catalogOpen={catalogPanelOpen}
                   />

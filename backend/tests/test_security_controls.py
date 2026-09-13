@@ -176,6 +176,44 @@ class PersonalCategoryFilterSecurityTests(unittest.TestCase):
             self.assertIn("owner_id = %s", source)
             self.assertNotIn("category_members", source)
 
+    def test_collaboration_permissions_require_login_and_separate_add_from_delete(self):
+        for module in (personal_categories, xyx_categories):
+            anonymous = module._song_permissions(
+                None,
+                is_owner=False,
+                member_role=None,
+                allow_contributions=True,
+                allow_edits=True,
+            )
+            contributor = module._song_permissions(
+                2,
+                is_owner=False,
+                member_role=None,
+                allow_contributions=True,
+                allow_edits=False,
+            )
+            public_editor = module._song_permissions(
+                2,
+                is_owner=False,
+                member_role=None,
+                allow_contributions=True,
+                allow_edits=True,
+            )
+
+            self.assertEqual(anonymous, {"can_add_songs": False, "can_delete_songs": False})
+            self.assertEqual(contributor, {"can_add_songs": True, "can_delete_songs": False})
+            self.assertEqual(public_editor, {"can_add_songs": True, "can_delete_songs": True})
+
+    def test_song_mutations_use_their_dedicated_permissions(self):
+        cases = (
+            (personal_categories.add_song_to_personal_category, "_ensure_can_add_song"),
+            (personal_categories.delete_song_from_personal_category, "_ensure_can_delete_song"),
+            (xyx_categories.add_song_to_xyx_category, "_ensure_can_add_song"),
+            (xyx_categories.delete_song_from_xyx_category, "_ensure_can_delete_song"),
+        )
+        for endpoint, guard in cases:
+            self.assertIn(guard, inspect.getsource(endpoint))
+
 
 
 if __name__ == "__main__":
