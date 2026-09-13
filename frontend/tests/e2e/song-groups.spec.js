@@ -322,7 +322,10 @@ test('group virtualization supports PageDown, PageUp, bottom scrolling and regro
   await expect.poll(() => scroller.evaluate(node => node.scrollTop)).toBeGreaterThan(before)
   await page.keyboard.press('PageUp')
   await expect.poll(() => scroller.evaluate(node => node.scrollTop)).toBe(0)
-  await scroller.evaluate(node => { node.scrollTop = node.scrollHeight })
+  await scroller.evaluate(node => new Promise(resolve => {
+    node.scrollTop = node.scrollHeight
+    requestAnimationFrame(() => requestAnimationFrame(resolve))
+  }))
   await expect(page.locator('[data-song-id="540"].tbl-row')).toBeVisible()
   expect(await page.locator('.tbl-row').count()).toBeLessThan(90)
   const scrollState = () => scroller.evaluate(node => ({
