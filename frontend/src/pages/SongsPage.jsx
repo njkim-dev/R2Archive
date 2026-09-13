@@ -148,6 +148,7 @@ export default function SongsPage() {
           error={error}
           showOriginalBpmToggle
           showMyPerceivedToggle={!isXyxMode()}
+          showCategoryListToggle
           myPerceivedStatus={myPerceived.status}
           onRetryMyPerceived={myPerceived.retry}
         />
@@ -163,6 +164,7 @@ export default function SongsPage() {
                 catalogOpen={catalogPanelOpen}
                 myPerceivedLevels={myPerceived.levels}
                 mergeDifficulties={category === null}
+                showCategoryLabels
               />
         }
       </main>

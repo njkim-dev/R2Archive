@@ -6,6 +6,7 @@ import { allowedQuickFilter, detailedFilterStorageKey, normalizeDetailedFilters,
 
 const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
 const SHOW_MY_PERCEIVED_KEY = 'r2b_show_my_perceived'
+const SHOW_SONG_CATEGORIES_KEY = 'r2b_show_song_categories'
 const savedDetailedFilters = readDetailedFilters(SERVER_MODE)
 
 function readShowOriginalBpm() {
@@ -19,6 +20,14 @@ function readShowOriginalBpm() {
 function readShowMyPerceived() {
   try {
     return localStorage.getItem(SHOW_MY_PERCEIVED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function readShowSongCategories() {
+  try {
+    return localStorage.getItem(SHOW_SONG_CATEGORIES_KEY) === '1'
   } catch {
     return false
   }
@@ -214,6 +223,7 @@ const useStore = create((set, get) => ({
   excludeSearch: false,
   showOriginalBpm: readShowOriginalBpm(),
   showMyPerceived: readShowMyPerceived(),
+  showSongCategories: readShowSongCategories(),
   perceivedRevision: 0,
   levelMin: null,
   levelMax: null,
@@ -294,6 +304,14 @@ const useStore = create((set, get) => ({
       else localStorage.removeItem(SHOW_MY_PERCEIVED_KEY)
     } catch {}
     set({ showMyPerceived: next })
+  },
+  setShowSongCategories: (showSongCategories) => {
+    const next = !!showSongCategories
+    try {
+      if (next) localStorage.setItem(SHOW_SONG_CATEGORIES_KEY, '1')
+      else localStorage.removeItem(SHOW_SONG_CATEGORIES_KEY)
+    } catch {}
+    set({ showSongCategories: next })
   },
   setLevelMin: (v) => set({ levelMin: v, category: null }),
   setLevelMax: (v) => set({ levelMax: v, category: null }),

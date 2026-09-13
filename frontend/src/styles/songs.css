@@ -370,13 +370,21 @@
 }
 
 .title-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.title-text {
+  display: flex; flex: 1 1 auto; flex-direction: column; justify-content: center;
+  min-width: 0; gap: 1px; overflow: hidden;
+}
 .tbl-row-compact .td:has(.title-cell) { container-type: inline-size; }
 @container (max-width: 200px) {
   .tbl-row-compact .title-thumb,
   .tbl-song-group-compact .title-thumb { display: none; }
 }
 .title-thumb { width: 80px; height: 40px; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
-.title-main { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title-main { display: block; color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-category-list {
+  display: block; color: var(--fg-4); font-size: 10px; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .combo-warning-tag {
   flex: 0 0 auto;
   font-size: 9.5px;

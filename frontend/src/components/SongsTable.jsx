@@ -26,6 +26,14 @@ import {
 const SEPARATOR = { __type: 'separator' }
 const GroupListHeight = createContext(0)
 
+function categoriesForSongs(songs, categoriesBySongId) {
+  const found = new Map()
+  for (const song of songs) {
+    for (const category of categoriesBySongId.get(song.id) || []) found.set(category.id, category)
+  }
+  return [...found.values()]
+}
+
 // 모든 그룹의 높이를 알고 있으므로 추정치 때문에 스크롤 끝이 변하지 않도록 한다.
 const GroupListInner = forwardRef(function GroupListInner({ style, ...props }, ref) {
   const height = useContext(GroupListHeight)
@@ -68,8 +76,9 @@ export default function SongsTable({
   catalogOpen = false,
   myPerceivedLevels = null,
   mergeDifficulties = false,
+  showCategoryLabels = false,
 }) {
-  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm } = useStore()
+  const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm, showSongCategories, personalCategoryFilters } = useStore()
   const canFav = !!user
   const showKoreaName = isXyxMode()
   const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
@@ -112,6 +121,18 @@ export default function SongsTable({
   const restoredScrollRef = useRef(false)
   const activeSongId = modalOpen ? modalSong?.id : null
   const scrolledActiveRef = useRef(null)
+  const categoriesBySongId = useMemo(() => {
+    const result = new Map()
+    if (!showCategoryLabels || !showSongCategories) return result
+    for (const category of personalCategoryFilters) {
+      for (const songId of category.song_ids || []) {
+        const categories = result.get(songId)
+        if (categories) categories.push(category)
+        else result.set(songId, [category])
+      }
+    }
+    return result
+  }, [showCategoryLabels, showSongCategories, personalCategoryFilters])
 
   const grouped = mergeDifficulties && !isMobile && tableMode === 'default'
   const items = useMemo(() => {
@@ -284,6 +305,7 @@ export default function SongsTable({
         active={activeSongId === song.id}
         groupSongs={groupSongs}
         groupIndex={songIndex}
+        categories={categoriesBySongId.get(song.id) || []}
       />
     )
     if (!grouped) return renderSong(item, index, style)
@@ -299,11 +321,12 @@ export default function SongsTable({
             compact={compact}
             isAdmin={isAdmin}
             active={activeSongId === groupSongs[0].id}
+            categories={categoriesForSongs(groupSongs, categoriesBySongId)}
           />
         )}
       </div>
     )
-  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, nameColumn, compact, activeSongId, grouped, rowHeight])
+  }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, nameColumn, compact, activeSongId, grouped, rowHeight, categoriesBySongId])
 
   if (isMobile) {
     const totalCount = exact.length + fuzzy.length

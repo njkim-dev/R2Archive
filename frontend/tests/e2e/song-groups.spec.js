@@ -107,6 +107,33 @@ test('pending category creation resumes after login', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('r2b_pending_category_create'))).toBeNull()
 })
 
+test('song category labels are optional, grouped, and persisted without resizing rows', async ({ page }) => {
+  await mockCatalog(page, songs, {
+    personalCategories: [
+      { id: 41, name: '내 연습곡', is_public: false, is_owner: true, owner_nickname: 'Test', song_count: 1, song_ids: [1] },
+      { id: 42, name: '공개 추천곡', is_public: true, is_owner: false, owner_nickname: 'Other', song_count: 2, song_ids: [2, 4] },
+    ],
+  })
+  const toggle = page.getByLabel('등록된 카테고리 리스트 표시')
+  const group = merged(page)
+  const rowHeights = () => page.locator('.tbl-row').evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height))
+
+  await expect(toggle).not.toBeChecked()
+  await expect(page.locator('.song-category-list')).toHaveCount(0)
+  const before = await rowHeights()
+
+  await toggle.check()
+  await expect(group.locator('.song-category-list')).toContainText('내 연습곡')
+  await expect(group.locator('.song-category-list')).toContainText('공개 추천곡')
+  await expect(page.locator('[data-song-id="4"] .song-category-list')).toHaveText('공개 추천곡')
+  expect(await rowHeights()).toEqual(before)
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('r2b_show_song_categories'))).toBe('1')
+
+  await page.reload()
+  await expect(toggle).toBeChecked()
+  await expect(group.locator('.song-category-list')).toBeVisible()
+})
+
 for (const isAdmin of [false, true]) {
   test(`grouped favorites remain individually usable for ${isAdmin ? 'admins' : 'members'}`, async ({ page }) => {
     const { pendingFavorites, writes, errors } = await mockCatalog(page, songs, { holdFavorites: true, isAdmin })

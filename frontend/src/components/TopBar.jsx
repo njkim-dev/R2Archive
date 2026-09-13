@@ -35,8 +35,8 @@ function useElementWidth() {
   return [ref, width]
 }
 
-export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false, showMyPerceivedToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
-  const { search, setSearch, searchMode, setSearchMode, excludeSearch, setExcludeSearch, showOriginalBpm, setShowOriginalBpm, showMyPerceived, setShowMyPerceived, meta, sort, openLogin, user, logout, openOnboarding, openMyPage, modalOpen } = useStore()
+export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false, showMyPerceivedToggle = false, showCategoryListToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
+  const { search, setSearch, searchMode, setSearchMode, excludeSearch, setExcludeSearch, showOriginalBpm, setShowOriginalBpm, showMyPerceived, setShowMyPerceived, showSongCategories, setShowSongCategories, meta, sort, openLogin, user, logout, openOnboarding, openMyPage, modalOpen } = useStore()
   const inputRef = useRef(null)
   const [modeOpen, setModeOpen] = useState(false)
   const modeRef = useRef(null)
@@ -146,7 +146,7 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
             />
             <span>입력한 검색어만 제외하기</span>
           </label>
-          {(showOriginalBpmToggle || showMyPerceivedToggle) && (
+          {(showOriginalBpmToggle || showMyPerceivedToggle || showCategoryListToggle) && (
             <div className="search-display-options">
               {showOriginalBpmToggle && (
                 <label className="search-original-bpm">
@@ -167,6 +167,16 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
                     onChange={e => setShowMyPerceived(e.target.checked)}
                   />
                   <span>내 체감 난이도로 표시</span>
+                </label>
+              )}
+              {showCategoryListToggle && (
+                <label className="search-song-categories">
+                  <input
+                    type="checkbox"
+                    checked={showSongCategories}
+                    onChange={e => setShowSongCategories(e.target.checked)}
+                  />
+                  <span>등록된 카테고리 리스트 표시</span>
                 </label>
               )}
             </div>

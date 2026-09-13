@@ -69,11 +69,25 @@ function SongListenButton({ song }) {
   )
 }
 
+function SongTitle({ song, categories = [] }) {
+  const categoryNames = categories.map(category => category.name)
+  return (
+    <span className="title-text">
+      <span className="title-main" title={`${song.name} - ${song.artist}`}>{song.name}</span>
+      {categoryNames.length > 0 && (
+        <span className="song-category-list" title={`등록된 카테고리: ${categoryNames.join(', ')}`}>
+          {categoryNames.join(' · ')}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function songBpmTier(song) {
   return song.bpm >= 220 ? 'hot' : song.bpm >= 200 ? 'warm' : song.bpm < 120 ? 'cool' : undefined
 }
 
-export function SongGroupTitle({ songs, colTemplate, nameColumn, compact, isAdmin, active }) {
+export function SongGroupTitle({ songs, colTemplate, nameColumn, compact, isAdmin, active, categories = [] }) {
   const song = songs[0]
   const image = songs.find(member => member.image)?.image
   const actionsWidth = Math.max(...songs.map(member =>
@@ -86,7 +100,7 @@ export function SongGroupTitle({ songs, colTemplate, nameColumn, compact, isAdmi
           <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
             {image && <ArtworkThumbnail image={image} />}
           </div>
-          <span className="title-main" title={`${song.name} - ${song.artist}`}>{song.name}</span>
+          <SongTitle song={song} categories={categories} />
           <SongListenButton song={songs.find(member => member.youtube_url)} />
         </div>
       </div>
@@ -240,6 +254,7 @@ export function SongRow({
   active = false,
   groupSongs = null,
   groupIndex = 0,
+  categories = [],
 }) {
   const [copied, setCopied] = useState(false)
   const lvInt = Math.floor(song.level)
@@ -297,7 +312,7 @@ export function SongRow({
             {song.combo_warning && (
               <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
             )}
-            {!groupSongs && <span className="title-main">{song.name}</span>}
+            {!groupSongs && <SongTitle song={song} categories={categories} />}
             {!groupSongs && <SongListenButton song={song} />}
             {groupSongs && favoriteButton}
           </div>
@@ -365,7 +380,7 @@ export function SongRow({
           {song.combo_warning && (
             <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
           )}
-          {!groupSongs && <span className="title-main">{song.name}</span>}
+          {!groupSongs && <SongTitle song={song} categories={categories} />}
           {song.youtube_candidate && (
             <span
               className="candidate-pill"
