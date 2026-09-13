@@ -11,7 +11,7 @@ const songs = [song(1, 8), song(4, 7, 'Separate Song'), song(2, 2), song(3, 5),
   song(5, 7, 'Shared Song', 'Other Artist'), song(6, 8, 'Shared Song_EX')]
 const merged = page => page.locator('.tbl-song-group').filter({ has: page.locator('[data-song-id="1"]') })
 
-async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorites = false, isAdmin = false } = {}) {
+async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorites = false, isAdmin = false, personalCategories = [] } = {}) {
   const pending = []
   const pendingPlays = []
   const pendingFavorites = []
@@ -39,6 +39,7 @@ async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorite
     else if (detail) json = { ...data.find(song => song.id === +detail[1]), bpm_timeline: [], play_count_week: 0 }
     else if (path === '/api/meta') json = { total_count: data.length, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
     else if (path === '/api/auth/me') json = { user: { id: 1, nickname: 'Test', onboarded: true } }
+    else if (path === '/api/personal-categories/filters' || path === '/api/xyx-categories/filters') json = personalCategories
     else if (path.endsWith('/admin-status')) json = { is_admin: isAdmin }
     else if (path.includes('flags')) json = { favorites: [], played: [], played_all: [] }
     else if (path.endsWith('/perceived/stats')) json = { avg: null, total: 0, distribution: [], mine: null }
@@ -49,6 +50,18 @@ async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorite
   await expect(merged(page)).toBeVisible()
   return { pending, pendingPlays, pendingFavorites, writes, errors }
 }
+
+test('a visible personal category filters the song list from the detailed filter', async ({ page }) => {
+  await mockCatalog(page, songs, {
+    personalCategories: [{ id: 41, name: '연습곡', is_public: false, is_owner: true, owner_nickname: 'Test', song_count: 1, song_ids: [4] }],
+  })
+  await page.getByRole('button', { name: '상세 필터' }).click()
+  await page.getByLabel('내 카테고리 필터').selectOption('41')
+  await expect(page.locator('[data-song-id="4"]')).toBeVisible()
+  await expect(page.locator('[data-song-id="1"]')).toHaveCount(0)
+  await page.getByRole('button', { name: '상세 필터 닫기' }).click()
+  await expect(page.locator('.active-filters .pill')).toContainText('연습곡')
+})
 
 for (const isAdmin of [false, true]) {
   test(`grouped favorites remain individually usable for ${isAdmin ? 'admins' : 'members'}`, async ({ page }) => {

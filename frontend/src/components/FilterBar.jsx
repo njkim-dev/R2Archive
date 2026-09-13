@@ -1,4 +1,5 @@
 import useStore from '../store/useStore'
+import { selectedPersonalCategory } from '../utils/catalogFilters'
 
 export default function FilterBar() {
   const {
@@ -8,12 +9,19 @@ export default function FilterBar() {
     bpmMin, bpmMax, setBpmMin, setBpmMax,
     category, setCategory,
     quick, setQuick,
+    personalCategoryId, personalCategoryFilters, setPersonalCategoryId,
     artists, toggleArtist,
     aiMode, setAiMode, listenOnly, setListenOnly,
     clearAllFilters,
   } = useStore()
 
   const pills = []
+  const personalCategory = selectedPersonalCategory(personalCategoryFilters, personalCategoryId)
+
+  if (personalCategoryId != null) {
+    const label = personalCategory?.name || '내 카테고리'
+    pills.push(<span key="personal-category" className="pill">{label}<button onClick={() => setPersonalCategoryId(null)} aria-label={`${label} 필터 해제`}>×</button></span>)
+  }
 
   if (aiMode !== 'show') {
     pills.push(<span key="ai" className="pill">{aiMode === 'hide' ? 'AI 음원 제외' : 'AI 음원만'}<button onClick={() => setAiMode('show')} aria-label="AI 음원 필터 해제">×</button></span>)

@@ -395,6 +395,43 @@ def list_public_personal_categories(request: Request):
     return [_category_from_row(r, viewer_uid, force_admin=is_admin) for r in rows]
 
 
+@router.get("/personal-categories/filters")
+def list_personal_category_filters(request: Request):
+    viewer_uid = get_current_user_id(request)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT pc.id, pc.name, pc.is_public, pc.category_code, pc.created_at,
+                       pc.owner_id, COALESCE(u.nickname, '') AS owner_nickname,
+                       COUNT(DISTINCT pcs.song_id)::int AS song_count,
+                       NULL::text AS member_role,
+                       COALESCE(
+                         array_agg(DISTINCT pcs.song_id) FILTER (WHERE pcs.song_id IS NOT NULL),
+                         ARRAY[]::integer[]
+                       ) AS song_ids
+                FROM personal_categories pc
+                LEFT JOIN users u ON u.id = pc.owner_id
+                LEFT JOIN personal_category_songs pcs ON pcs.category_id = pc.id
+                WHERE pc.is_public = TRUE
+                   OR (%s IS NOT NULL AND pc.owner_id = %s)
+                GROUP BY pc.id, pc.name, pc.is_public, pc.category_code, pc.created_at,
+                         pc.owner_id, u.nickname
+                ORDER BY CASE WHEN pc.owner_id = %s THEN 0 ELSE 1 END,
+                         pc.name, pc.id
+                """,
+                (viewer_uid, viewer_uid, viewer_uid),
+            )
+            rows = cur.fetchall()
+
+    categories = []
+    for row in rows:
+        category = _category_from_row(row[:9], viewer_uid)
+        category["song_ids"] = [int(song_id) for song_id in (row[9] or [])]
+        categories.append(category)
+    return categories
+
+
 @router.get("/songs/{song_id}/personal-categories")
 def list_personal_categories_for_song(request: Request, song_id: int):
     uid = require_user_id(request)

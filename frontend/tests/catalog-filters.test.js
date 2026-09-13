@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { filterSongs } from '../src/utils/helpers.js'
-import { allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, detailedFilterStorageKey, isAiSong, normalizeDetailedFilters, readDetailedFilters, serializeDetailedFilters, visibleQuickFilters } from '../src/utils/catalogFilters.js'
+import { allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, detailedFilterStorageKey, isAiSong, normalizeDetailedFilters, readDetailedFilters, selectedPersonalCategorySongIds, serializeDetailedFilters, visibleQuickFilters } from '../src/utils/catalogFilters.js'
 
 const meta = { level_min: 1.5, level_max: 12, bpm_min: 60, bpm_max: 400 }
 const song = (id, artist, extra = {}) => ({ id, name: `Song ${id}`, artist, level: 8, bpm: 160, youtube_url: 'https://youtu.be/test', ...extra })
@@ -49,6 +49,14 @@ test('AI, artist, channel, quick, listening and ranges intersect', () => {
   assert.deepEqual(ids(filterSongs(songs, filters({ bpmMin: 161 }))), [])
   assert.deepEqual(ids(filterSongs(songs, filters({ quick: 'favorite', aiMode: 'hide' }))), [5])
   assert.deepEqual(ids(filterSongs(songs, filters({ quick: 'no_music', listenOnly: true }))), [])
+})
+
+test('personal category membership intersects with the other catalog filters', () => {
+  const categories = [{ id: 41, song_ids: [2, 5, 7] }]
+  const personalCategorySongIds = selectedPersonalCategorySongIds(categories, 41)
+  assert.deepEqual(ids(filterSongs(songs, filters({ personalCategoryId: 41, personalCategorySongIds }))), [2, 5, 7])
+  assert.deepEqual(ids(filterSongs(songs, filters({ personalCategoryId: 41, personalCategorySongIds, aiMode: 'hide' }))), [5, 7])
+  assert.deepEqual(ids(filterSongs(songs, filters({ personalCategoryId: 99, personalCategorySongIds: selectedPersonalCategorySongIds(categories, 99) }))), [])
 })
 
 test('search and excluded search respect the new filters', () => {
@@ -106,11 +114,12 @@ test('ranges normalize safely when closing, including blank and reversed inputs'
 })
 
 test('local storage round trip keeps all detailed settings and Set values', () => {
-  const original = filters({ category: 'sun', quick: 'new', aiMode: 'hide', artists: new Set(['MAZO', 'SEED9']), levelMin: 7, bpmMax: 180, listenOnly: true, sort: { key: 'bpm', dir: 'asc' } })
+  const original = filters({ category: 'sun', quick: 'new', personalCategoryId: 41, aiMode: 'hide', artists: new Set(['MAZO', 'SEED9']), levelMin: 7, bpmMax: 180, listenOnly: true, sort: { key: 'bpm', dir: 'asc' } })
   const serialized = serializeDetailedFilters(original)
   const storage = { getItem: key => key === detailedFilterStorageKey('kr') ? serialized : null }
   const restored = readDetailedFilters('kr', storage)
   assert.deepEqual(restored, normalizeDetailedFilters(original))
+  assert.equal(restored.personalCategoryId, 41)
   assert.equal(readDetailedFilters('xyx', storage), null)
   restored.artists.delete('MAZO')
   assert(original.artists.has('MAZO'))

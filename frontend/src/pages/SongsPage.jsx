@@ -7,7 +7,7 @@ import FilterBar from '../components/FilterBar'
 import SongsTable from '../components/SongsTable'
 import MobileHeader from '../components/MobileHeader'
 import DetailedFilters from '../components/DetailedFilters'
-import { allowedQuickFilter } from '../utils/catalogFilters'
+import { allowedQuickFilter, selectedPersonalCategorySongIds } from '../utils/catalogFilters'
 import { useMobile } from '../hooks/useMobile'
 import { useMyPerceivedLevels } from '../hooks/useMyPerceivedLevels'
 import { isXyxMode } from '../utils/serverMode'
@@ -56,12 +56,17 @@ export default function SongsPage() {
     songs, search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll, aiMode, listenOnly,
+    personalCategoryId, personalCategoryFilters,
     meta, setCategory, setQuick, isAdmin, modalOpen,
     loading, error, loadCatalog, showMyPerceived,
     authLoaded, adminLoaded, user,
   } = useStore()
   const effectiveExcludeSearch = !isMobile && excludeSearch
   const myPerceived = useMyPerceivedLevels(!isMobile && !isXyxMode() && showMyPerceived)
+  const personalCategorySongIds = useMemo(
+    () => selectedPersonalCategorySongIds(personalCategoryFilters, personalCategoryId),
+    [personalCategoryFilters, personalCategoryId],
+  )
 
   useEffect(() => {
     if (!authLoaded || !adminLoaded) return
@@ -76,10 +81,11 @@ export default function SongsPage() {
       search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
       artists, favorites, played: playedForFilter, aiMode, listenOnly,
+      personalCategoryId, personalCategorySongIds,
     })
     const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
     return { exact: sortSongs(exact, effectiveSort, myPerceived.levels), fuzzy: sortSongs(fuzzy, effectiveSort, myPerceived.levels) }
-  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly])
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly, personalCategoryId, personalCategorySongIds])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
@@ -104,6 +110,7 @@ export default function SongsPage() {
       favorites,
       played,
       aiMode, listenOnly,
+      personalCategoryId, personalCategorySongIds,
     })
     const currentDistinct = distinctSongCount([...filtered.exact, ...filtered.fuzzy])
     const expandedDistinct = distinctSongCount([...result.exact, ...result.fuzzy])
@@ -111,7 +118,7 @@ export default function SongsPage() {
     return {
       onApply: () => setCategory(category),
     }
-  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly, personalCategoryId, personalCategorySongIds])
 
   if (isMobile) {
     return (

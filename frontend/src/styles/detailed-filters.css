@@ -31,6 +31,9 @@
 .detailed-filter-dialog input[type="radio"], .detailed-filter-dialog input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; margin: 0; }
 .detailed-quick-option:has(input:checked) { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
 .detailed-quick-option.locked { opacity: 0.5; cursor: not-allowed; }
+.detailed-personal-category-section { padding: 16px 20px; border-bottom: 1px solid var(--line-soft); }
+.detailed-personal-category-section select { width: 100%; min-height: 38px; padding: 8px 34px 8px 10px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-0); color: var(--fg); font-size: 12px; }
+.detailed-personal-category-section select:focus { border-color: var(--accent); outline: 1px solid var(--accent); }
 .detailed-filter-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr); gap: 22px; padding: 20px; }
 .detailed-conditions { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 .detailed-channels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
@@ -78,6 +81,8 @@
   .detailed-filter-dialog { max-height: calc(100dvh - 24px); }
   .detailed-filter-header, .detailed-filter-footer { padding-inline: 16px; }
   .detailed-quick-section { padding: 16px; }
+  .detailed-personal-category-section { padding: 16px; }
+  .detailed-personal-category-section select { font-size: 16px; }
   .detailed-filter-body { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 20px; }
   .detailed-artists { border-left: 0; border-top: 1px solid var(--line-soft); padding: 16px 0 0; }
   .detailed-range input, .detailed-artist-search input { font-size: 16px; }

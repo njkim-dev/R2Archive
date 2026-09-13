@@ -10,7 +10,7 @@ from fastapi import Response
 from starlette.requests import Request
 
 from record_policy import SCREENSHOT_RECORD_ELIGIBLE_SQL
-from routers import analytics, auth_oauth
+from routers import analytics, auth_oauth, personal_categories, xyx_categories
 from security_middleware import _has_session_cookie, _trusted_request_source
 
 
@@ -163,6 +163,18 @@ class CSRFSecurityTests(unittest.TestCase):
 
     def test_anonymous_cookie_header_does_not_trigger_session_csrf_path(self):
         self.assertFalse(_has_session_cookie("visitor_id=value"))
+
+
+class PersonalCategoryFilterSecurityTests(unittest.TestCase):
+    def test_filter_endpoints_limit_private_categories_to_the_owner(self):
+        for endpoint in (
+            personal_categories.list_personal_category_filters,
+            xyx_categories.list_xyx_category_filters,
+        ):
+            source = inspect.getsource(endpoint)
+            self.assertIn("is_public = TRUE", source)
+            self.assertIn("owner_id = %s", source)
+            self.assertNotIn("category_members", source)
 
 
 

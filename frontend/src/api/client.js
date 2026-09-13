@@ -199,6 +199,7 @@ export const getMyPersonalCategories = () => api.get(apiPath('/me/personal-categ
 export const getEditablePersonalCategories = () => api.get(apiPath('/me/personal-categories/editable', '/me/xyx-categories/editable')).then(r => r.data)
 export const getPublicPersonalCategories = () => api.get(apiPath('/personal-categories/public', '/xyx-categories/public')).then(r => r.data)
 export const getMySubscribedPersonalCategories = () => api.get(apiPath('/me/personal-category-subscriptions', '/me/xyx-category-subscriptions')).then(r => r.data)
+export const getPersonalCategoryFilters = () => api.get(apiPath('/personal-categories/filters', '/xyx-categories/filters')).then(r => r.data)
 export const getSongPersonalCategories = (songId) =>
   api.get(apiPath(`/songs/${songId}/personal-categories`, `/xyx/songs/${songId}/categories`)).then(r => r.data)
 export const getRecommendedPracticeSections = (songId) =>

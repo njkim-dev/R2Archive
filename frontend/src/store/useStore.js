@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates, getSongs, getMeta } from '../api/client'
+import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates, getSongs, getMeta, getPersonalCategoryFilters } from '../api/client'
 import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
 import { SERVER_MODE, isXyxMode } from '../utils/serverMode'
 import { allowedQuickFilter, detailedFilterStorageKey, normalizeDetailedFilters, readDetailedFilters, serializeDetailedFilters } from '../utils/catalogFilters'
@@ -37,6 +37,7 @@ const useStore = create((set, get) => ({
         try { localStorage.setItem('r2b_last_provider', user.provider) } catch {}
       }
       set({ user: user || null, authLoaded: true, adminLoaded: !user })
+      get().refreshPersonalCategoryFilters()
       if (user) {
         get().refreshFlags()
         get().refreshPmangFavorites()
@@ -51,12 +52,14 @@ const useStore = create((set, get) => ({
       }
     } catch {
       set({ user: null, authLoaded: true, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] })
+      get().refreshPersonalCategoryFilters()
     }
   },
   setUser: (user) => set({ user }),
   logout: async () => {
     try { await logoutApi() } catch {}
     set({ user: null, favorites: new Set(), played: new Set(), playedAll: new Set(), pmangFavorites: new Set(), flagFavorite: false, flagMyPlayed: false, isAdmin: false, adminLoaded: true, pmangYoutubeCandidates: [] })
+    get().refreshPersonalCategoryFilters()
   },
 
   favorites: new Set(),
@@ -153,16 +156,45 @@ const useStore = create((set, get) => ({
 
   songs: [],
   meta: null,
+  personalCategoryFilters: [],
+  personalCategoryFiltersLoaded: false,
+  refreshPersonalCategoryFilters: async () => {
+    try {
+      const data = await getPersonalCategoryFilters()
+      const personalCategoryFilters = Array.isArray(data) ? data : []
+      set(state => ({
+        personalCategoryFilters,
+        personalCategoryFiltersLoaded: true,
+        personalCategoryId: state.personalCategoryId != null && !personalCategoryFilters.some(category => Number(category.id) === Number(state.personalCategoryId))
+          ? null
+          : state.personalCategoryId,
+      }))
+      return personalCategoryFilters
+    } catch {
+      set({ personalCategoryFilters: [], personalCategoryFiltersLoaded: true, personalCategoryId: null })
+      return []
+    }
+  },
   loading: true,
   error: null,
   loadCatalog: async () => {
     set({ loading: true, error: null })
     try {
-      const [songs, meta] = await Promise.all([getSongs(), getMeta()])
+      const [songs, meta, personalCategoryFilters] = await Promise.all([
+        getSongs(),
+        getMeta(),
+        getPersonalCategoryFilters().catch(() => []),
+      ])
+      const filters = normalizeDetailedFilters(get(), meta)
+      if (filters.personalCategoryId != null && !personalCategoryFilters.some(category => Number(category.id) === filters.personalCategoryId)) {
+        filters.personalCategoryId = null
+      }
       set({
         songs,
         meta,
-        ...normalizeDetailedFilters(get(), meta),
+        ...filters,
+        personalCategoryFilters,
+        personalCategoryFiltersLoaded: true,
         loading: false,
         error: null,
       })
@@ -188,6 +220,7 @@ const useStore = create((set, get) => ({
   bpmMin: null,
   bpmMax: null,
   category: 'sun',
+  personalCategoryId: null,
   quick: 'all',
   flagNew: false,
   flagVariants: false,
@@ -277,6 +310,11 @@ const useStore = create((set, get) => ({
   })),
 
   setQuick: (quick) => set({ quick, flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false }),
+  setPersonalCategoryId: (personalCategoryId) => set({
+    personalCategoryId: Number.isInteger(Number(personalCategoryId)) && Number(personalCategoryId) > 0
+      ? Number(personalCategoryId)
+      : null,
+  }),
   setAiMode: (aiMode) => set({ aiMode: ['show', 'hide', 'only'].includes(aiMode) ? aiMode : 'show' }),
   setListenOnly: (listenOnly) => set({ listenOnly: !!listenOnly }),
   toggleFlagNew: () => set(s => ({ flagNew: !s.flagNew })),
@@ -307,6 +345,7 @@ const useStore = create((set, get) => ({
     search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
     category: 'sun', quick: 'all', artists: new Set(),
+    personalCategoryId: null,
     aiMode: 'show', listenOnly: false,
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),
@@ -314,6 +353,7 @@ const useStore = create((set, get) => ({
     search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
     category: null, quick: 'all', artists: new Set(),
+    personalCategoryId: null,
     aiMode: 'show', listenOnly: false,
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),

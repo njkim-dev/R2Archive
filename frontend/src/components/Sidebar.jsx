@@ -3,7 +3,7 @@ import useStore from '../store/useStore'
 import { filterSongs, dedupeByNameArtistMaxLevel } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
 import { SlidersHorizontal } from 'lucide-react'
-import { detailedFilterCount, visibleQuickFilters } from '../utils/catalogFilters'
+import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import ServerSwitcher from './ServerSwitcher'
 import PageNavigation from './PageNavigation'
 
@@ -31,9 +31,14 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     levelMin, levelMax, setLevelMin, setLevelMax,
     bpmMin, bpmMax, setBpmMin, setBpmMax,
     artists, aiMode, listenOnly,
+    personalCategoryId, personalCategoryFilters,
     favorites, played, playedAll,
     isAdmin, closeModal, mobileSheetOpen, openMobileSheet,
   } = useStore()
+  const personalCategorySongIds = useMemo(
+    () => selectedPersonalCategorySongIds(personalCategoryFilters, personalCategoryId),
+    [personalCategoryFilters, personalCategoryId],
+  )
 
   useEffect(() => {
     if (xyxMode && quick === 'played') setQuick('all')
@@ -57,6 +62,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       category, quick: 'all', artists,
       aiMode, listenOnly,
       favorites, played: playedSet,
+      personalCategoryId, personalCategorySongIds,
     }).exact
     return {
       all:      base.length,
@@ -68,7 +74,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       my_played: user ? base.filter(s => playedSet.has(s.id)).length : 0,
       no_music: base.filter(s => !s.youtube_url).length,
     }
-  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, aiMode, listenOnly, user, favorites, played, playedAll])
+  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, aiMode, listenOnly, user, favorites, played, playedAll, personalCategoryId, personalCategorySongIds])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
@@ -77,7 +83,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     if (bpmMin > bpmMax) { setBpmMin(bpmMax); setBpmMax(bpmMin) }
   }
 
-  const detailCount = detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly }, meta)
+  const detailCount = detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, personalCategoryId }, meta)
 
   return (
     <aside className="side">

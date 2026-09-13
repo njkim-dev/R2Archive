@@ -4,7 +4,7 @@ import { FixedSizeList } from 'react-window'
 import { LockKeyhole, Moon, RotateCcw, Search, Shield, SlidersHorizontal, Star, Sun, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { filterSongs } from '../utils/helpers'
-import { AI_MODES, allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, normalizeDetailedFilters, visibleQuickFilters } from '../utils/catalogFilters'
+import { AI_MODES, allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, normalizeDetailedFilters, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import { isXyxMode } from '../utils/serverMode'
 
 const SORT_ROWS = [
@@ -48,7 +48,10 @@ function NumberRange({ label, minKey, maxKey, min, max, step, draft, update }) {
 }
 
 function FilterDialog({ songs, isMobile }) {
-  const { meta, user, isAdmin, search, searchMode, excludeSearch, favorites, played, playedAll } = useStore()
+  const {
+    meta, user, isAdmin, search, searchMode, excludeSearch, favorites, played, playedAll,
+    personalCategoryFilters, personalCategoryFiltersLoaded, refreshPersonalCategoryFilters,
+  } = useStore()
   const xyxMode = isXyxMode()
   const [draft, setDraft] = useState(() => normalizeDetailedFilters(useStore.getState(), meta))
   const [artistSearch, setArtistSearch] = useState('')
@@ -65,6 +68,15 @@ function FilterDialog({ songs, isMobile }) {
   useEffect(() => {
     useStore.getState().applyDetailedFilters(draft, { close: false })
   }, [draft])
+
+  useEffect(() => { refreshPersonalCategoryFilters() }, [refreshPersonalCategoryFilters])
+
+  useEffect(() => {
+    if (!personalCategoryFiltersLoaded || draft.personalCategoryId == null) return
+    if (!personalCategoryFilters.some(category => Number(category.id) === Number(draft.personalCategoryId))) {
+      setDraft(current => ({ ...current, personalCategoryId: null }))
+    }
+  }, [personalCategoryFilters, personalCategoryFiltersLoaded, draft.personalCategoryId])
 
   useEffect(() => {
     const previousFocus = document.activeElement
@@ -98,10 +110,20 @@ function FilterDialog({ songs, isMobile }) {
   }, [close])
 
   const options = visibleQuickFilters({ xyxMode, isAdmin })
+  const personalCategorySongIds = useMemo(
+    () => selectedPersonalCategorySongIds(personalCategoryFilters, draft.personalCategoryId),
+    [personalCategoryFilters, draft.personalCategoryId],
+  )
   const catalog = useMemo(() => {
-    const { exact } = filterSongs(songs, { category: draft.category, aiMode: draft.aiMode, artists: new Set() })
+    const { exact } = filterSongs(songs, {
+      category: draft.category,
+      aiMode: draft.aiMode,
+      artists: new Set(),
+      personalCategoryId: draft.personalCategoryId,
+      personalCategorySongIds,
+    })
     return buildArtistCatalog(exact)
-  }, [songs, draft.category, draft.aiMode])
+  }, [songs, draft.category, draft.aiMode, draft.personalCategoryId, personalCategorySongIds])
   const artists = useMemo(() => {
     const term = artistSearch.trim().normalize('NFKC').toLowerCase()
     return catalog.filter(item => item.artist.normalize('NFKC').toLowerCase().includes(term))
@@ -123,9 +145,10 @@ function FilterDialog({ songs, isMobile }) {
     const { exact, fuzzy } = filterSongs(songs, {
       ...filters, search, searchMode, excludeSearch: !isMobile && excludeSearch,
       favorites, played: filters.category ? playedAll : played,
+      personalCategorySongIds,
     })
     return exact.length + fuzzy.length
-  }, [draft, meta, xyxMode, isAdmin, user, songs, search, searchMode, isMobile, excludeSearch, favorites, played, playedAll])
+  }, [draft, meta, xyxMode, isAdmin, user, songs, search, searchMode, isMobile, excludeSearch, favorites, played, playedAll, personalCategorySongIds])
 
   return createPortal(
     <div className="detailed-filter-overlay" ref={overlayRef} onClick={event => { if (event.target === event.currentTarget) close() }}>
@@ -150,6 +173,21 @@ function FilterDialog({ songs, isMobile }) {
                 )
               })}
             </div>
+          </section>
+          <section className="detailed-personal-category-section">
+            <h3 id="detailed-personal-category-title">내 카테고리 필터</h3>
+            <select
+              value={draft.personalCategoryId ?? ''}
+              onChange={event => update('personalCategoryId', event.target.value ? Number(event.target.value) : null)}
+              aria-labelledby="detailed-personal-category-title"
+            >
+              <option value="">전체</option>
+              {personalCategoryFilters.map(category => (
+                <option value={category.id} key={category.id}>
+                  {category.name} · {category.is_owner ? '내 카테고리' : category.owner_nickname || '공개'} · {category.song_count.toLocaleString()}곡
+                </option>
+              ))}
+            </select>
           </section>
           <div className="detailed-filter-body">
             <div className="detailed-conditions">

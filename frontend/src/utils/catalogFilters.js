@@ -21,6 +21,7 @@ const validSortKeys = [null, 'file_order', 'name', 'korea_name', 'artist', 'leve
 export function defaultDetailedFilters(meta = null) {
   return {
     category: 'sun', quick: 'all', artists: new Set(),
+    personalCategoryId: null,
     levelMin: meta?.level_min ?? null, levelMax: meta?.level_max ?? null,
     bpmMin: meta?.bpm_min ?? null, bpmMax: meta?.bpm_max ?? null,
     aiMode: 'show', listenOnly: false,
@@ -33,6 +34,8 @@ export function normalizeDetailedFilters(value = {}, meta = null) {
   const source = value && typeof value === 'object' ? value : {}
   const result = defaultDetailedFilters(meta)
   result.category = ['star', 'moon', 'sun'].includes(source.category) ? source.category : null
+  const personalCategoryId = Number(source.personalCategoryId)
+  result.personalCategoryId = Number.isInteger(personalCategoryId) && personalCategoryId > 0 ? personalCategoryId : null
   const legacyQuick = source.flagNew ? 'new' : source.flagVariants ? 'variants' : source.flagFavorite ? 'favorite' : source.flagMyPlayed ? 'my_played' : 'all'
   result.quick = QUICK_FILTERS.some(item => item.key === source.quick) && source.quick !== 'all' ? source.quick : legacyQuick
   result.aiMode = AI_MODES.some(item => item.key === source.aiMode) ? source.aiMode : 'show'
@@ -91,12 +94,24 @@ export function allowedQuickFilter(key, { xyxMode, isAdmin, user }) {
 
 export function detailedFilterCount(state, meta) {
   let count = state.quick && state.quick !== 'all' ? 1 : 0
+  if (state.personalCategoryId != null) count++
   if (state.category) count++
   if (state.levelMin != null && (state.levelMin !== meta?.level_min || state.levelMax !== meta?.level_max)) count++
   if (state.bpmMin != null && (state.bpmMin !== meta?.bpm_min || state.bpmMax !== meta?.bpm_max)) count++
   if (state.aiMode && state.aiMode !== 'show') count++
   if (state.listenOnly) count++
   return count + (state.artists?.size || 0)
+}
+
+export function selectedPersonalCategory(categories, categoryId) {
+  if (categoryId == null) return null
+  return (categories || []).find(category => Number(category.id) === Number(categoryId)) || null
+}
+
+export function selectedPersonalCategorySongIds(categories, categoryId) {
+  if (categoryId == null) return null
+  const category = selectedPersonalCategory(categories, categoryId)
+  return new Set(category?.song_ids || [])
 }
 
 export function buildArtistCatalog(songs) {
