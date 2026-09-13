@@ -14,6 +14,7 @@ import AnalyticsTracker from './components/AnalyticsTracker'
 import SongModal from './components/SongModal'
 import SongsPage from './pages/SongsPage'
 import PageMetadata from './components/PageMetadata'
+import CreatePersonalCategoryModal, { takePendingCategoryCreate } from './components/CreatePersonalCategoryModal'
 
 const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
 const PmangSongsPage = lazy(() => import('./pages/PmangSongsPage'))
@@ -77,6 +78,12 @@ export default function App() {
     if (!user) return
     if (!user.onboarded) openOnboarding()
   }, [user, openOnboarding])
+
+  useEffect(() => {
+    if (!user?.onboarded) return
+    const source = takePendingCategoryCreate()
+    if (source) useStore.getState().openCategoryCreate(source)
+  }, [user?.id, user?.onboarded])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -156,6 +163,7 @@ export default function App() {
       </Suspense>
       <SongModal />
       <LoginModal />
+      <CreatePersonalCategoryModal />
       <OnboardingModal />
       <FeedbackModal />
       <MyPageModal />

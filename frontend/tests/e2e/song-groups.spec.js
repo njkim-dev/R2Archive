@@ -11,7 +11,7 @@ const songs = [song(1, 8), song(4, 7, 'Separate Song'), song(2, 2), song(3, 5),
   song(5, 7, 'Shared Song', 'Other Artist'), song(6, 8, 'Shared Song_EX')]
 const merged = page => page.locator('.tbl-song-group').filter({ has: page.locator('[data-song-id="1"]') })
 
-async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorites = false, isAdmin = false, personalCategories = [] } = {}) {
+async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorites = false, isAdmin = false, personalCategories = [], currentUser = { id: 1, nickname: 'Test', onboarded: true } } = {}) {
   const pending = []
   const pendingPlays = []
   const pendingFavorites = []
@@ -38,7 +38,7 @@ async function mockCatalog(page, data = songs, { holdPlays = false, holdFavorite
     if (path === '/api/songs') json = data
     else if (detail) json = { ...data.find(song => song.id === +detail[1]), bpm_timeline: [], play_count_week: 0 }
     else if (path === '/api/meta') json = { total_count: data.length, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
-    else if (path === '/api/auth/me') json = { user: { id: 1, nickname: 'Test', onboarded: true } }
+    else if (path === '/api/auth/me') json = { user: currentUser }
     else if (path === '/api/personal-categories/filters' || path === '/api/xyx-categories/filters') json = personalCategories
     else if (path.endsWith('/admin-status')) json = { is_admin: isAdmin }
     else if (path.includes('flags')) json = { favorites: [], played: [], played_all: [] }
@@ -61,6 +61,50 @@ test('a visible personal category filters the song list from the detailed filter
   await expect(page.locator('[data-song-id="1"]')).toHaveCount(0)
   await page.getByRole('button', { name: '상세 필터 닫기' }).click()
   await expect(page.locator('.active-filters .pill')).toContainText('연습곡')
+})
+
+test('personal category filter shares the condition column and exposes category creation', async ({ page }) => {
+  const artistSongs = Array.from({ length: 12 }, (_, index) => song(100 + index, 8, `Artist Track ${index}`, `Artist ${index}`))
+  await mockCatalog(page, [...songs, ...artistSongs], {
+    personalCategories: [
+      { id: 41, name: '내 연습곡', is_public: false, is_owner: true, owner_nickname: 'Test', song_count: 1, song_ids: [4] },
+      { id: 42, name: '공개 추천곡', is_public: true, is_owner: false, owner_nickname: 'Other', song_count: 2, song_ids: [1, 2] },
+    ],
+  })
+  await page.getByRole('button', { name: '상세 필터' }).click()
+
+  const selector = page.getByLabel('내 카테고리 필터')
+  await expect(selector.locator('option')).toHaveText([
+    '전체',
+    '내 연습곡 - 내 카테고리 - 1곡',
+    '공개 추천곡 - 공개 카테고리 - 2곡',
+    '카테고리 추가',
+  ])
+  const categoryWidth = (await page.locator('.detailed-personal-category-section').boundingBox()).width
+  const channelWidth = (await page.locator('.detailed-channels').boundingBox()).width
+  expect(Math.abs(categoryWidth - channelWidth)).toBeLessThan(2)
+  await expect(page.locator('.detailed-artist-list > div')).toHaveCSS('height', '400px')
+
+  await selector.selectOption('__create__')
+  await expect(page.locator('.grp-modal')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '카테고리 만들기' })).toBeVisible()
+})
+
+test('anonymous category creation waits for login', async ({ page }) => {
+  await mockCatalog(page, songs, { currentUser: null })
+  await page.getByRole('button', { name: '상세 필터' }).click()
+  await page.getByLabel('내 카테고리 필터').selectOption('__create__')
+
+  await expect(page.locator('.login-modal')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('r2b_pending_category_create'))).toBe('filter')
+})
+
+test('pending category creation resumes after login', async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem('r2b_pending_category_create', 'filter'))
+  await mockCatalog(page)
+
+  await expect(page.locator('.grp-modal')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('r2b_pending_category_create'))).toBeNull()
 })
 
 for (const isAdmin of [false, true]) {

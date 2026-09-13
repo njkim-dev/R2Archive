@@ -249,6 +249,8 @@ const useStore = create((set, get) => ({
   feedbackOpen: false,
 
   loginOpen: false,
+  categoryCreateOpen: false,
+  categoryCreateSource: null,
 
   setSongs: (songs) => set({ songs }),
   updateSongPerceived: (songId, avg, votes) => set(s => ({
@@ -381,6 +383,9 @@ const useStore = create((set, get) => ({
 
   openLogin: () => set({ loginOpen: true }),
   closeLogin: () => set({ loginOpen: false }),
+
+  openCategoryCreate: (source = 'directory') => set({ categoryCreateOpen: true, categoryCreateSource: source }),
+  closeCategoryCreate: () => set({ categoryCreateOpen: false, categoryCreateSource: null }),
 
   myPageOpen: false,
   openMyPage: () => set({ myPageOpen: true }),

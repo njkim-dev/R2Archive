@@ -6,6 +6,7 @@ import useStore from '../store/useStore'
 import { filterSongs } from '../utils/helpers'
 import { AI_MODES, allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, normalizeDetailedFilters, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import { isXyxMode } from '../utils/serverMode'
+import { queueCategoryCreateAfterLogin } from './CreatePersonalCategoryModal'
 
 const SORT_ROWS = [
   { key: 'file_order', label: '날짜', options: [['desc', '최신곡순'], ['asc', '구곡순']] },
@@ -131,6 +132,18 @@ function FilterDialog({ songs, isMobile }) {
   useEffect(() => { artistListRef.current?.scrollTo(0) }, [artists])
 
   const update = useCallback((key, value) => setDraft(current => ({ ...current, [key]: value })), [])
+  const selectPersonalCategory = useCallback(event => {
+    if (event.target.value !== '__create__') {
+      update('personalCategoryId', event.target.value ? Number(event.target.value) : null)
+      return
+    }
+    close()
+    if (user) useStore.getState().openCategoryCreate('filter')
+    else {
+      queueCategoryCreateAfterLogin('filter')
+      useStore.getState().openLogin()
+    }
+  }, [close, update, user])
   const toggleArtist = useCallback(artist => setDraft(current => {
     const selected = new Set(current.artists)
     if (selected.has(artist)) selected.delete(artist)
@@ -174,23 +187,24 @@ function FilterDialog({ songs, isMobile }) {
               })}
             </div>
           </section>
-          <section className="detailed-personal-category-section">
-            <h3 id="detailed-personal-category-title">내 카테고리 필터</h3>
-            <select
-              value={draft.personalCategoryId ?? ''}
-              onChange={event => update('personalCategoryId', event.target.value ? Number(event.target.value) : null)}
-              aria-labelledby="detailed-personal-category-title"
-            >
-              <option value="">전체</option>
-              {personalCategoryFilters.map(category => (
-                <option value={category.id} key={category.id}>
-                  {category.name} · {category.is_owner ? '내 카테고리' : category.owner_nickname || '공개'} · {category.song_count.toLocaleString()}곡
-                </option>
-              ))}
-            </select>
-          </section>
           <div className="detailed-filter-body">
             <div className="detailed-conditions">
+              <section className="detailed-personal-category-section">
+                <h3 id="detailed-personal-category-title">내 카테고리 필터</h3>
+                <select
+                  value={draft.personalCategoryId ?? ''}
+                  onChange={selectPersonalCategory}
+                  aria-labelledby="detailed-personal-category-title"
+                >
+                  <option value="">전체</option>
+                  {personalCategoryFilters.map(category => (
+                    <option value={category.id} key={category.id}>
+                      {category.name} - {category.is_owner ? '내 카테고리' : '공개 카테고리'} - {category.song_count.toLocaleString()}곡
+                    </option>
+                  ))}
+                  <option value="__create__">카테고리 추가</option>
+                </select>
+              </section>
               <section><h3>채널</h3><div className="detailed-channels" role="group" aria-label="채널 선택">
                 {CHANNELS.map(({ key, label, Icon }) => (
                   <button type="button" key={key || 'all'} data-channel={key || 'all'} aria-pressed={draft.category === key}
@@ -217,7 +231,7 @@ function FilterDialog({ songs, isMobile }) {
               </div>
               <label className="detailed-artist-search"><Search size={16} aria-hidden="true" /><input type="search" value={artistSearch} onChange={event => setArtistSearch(event.target.value)} placeholder="아티스트 검색" aria-label="아티스트 검색" /></label>
               <div className="detailed-artist-list" role="group" aria-label="곡명 수가 많은 순 아티스트 목록">
-                {artists.length ? <FixedSizeList ref={artistListRef} width="100%" height={Math.min(320, artists.length * 40)} itemSize={40} itemCount={artists.length} itemData={artistData} itemKey={(index, data) => data.items[index].artist} overscanCount={8}>{ArtistRow}</FixedSizeList>
+                {artists.length ? <FixedSizeList ref={artistListRef} width="100%" height={Math.min(isMobile ? 320 : 400, artists.length * 40)} itemSize={40} itemCount={artists.length} itemData={artistData} itemKey={(index, data) => data.items[index].artist} overscanCount={8}>{ArtistRow}</FixedSizeList>
                   : <div className="detailed-empty">검색 결과가 없습니다.</div>}
               </div>
             </section>

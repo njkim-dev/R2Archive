@@ -9,7 +9,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
-import CategoryCollaborationToggles from '../components/CategoryCollaborationToggles'
+import { queueCategoryCreateAfterLogin } from '../components/CreatePersonalCategoryModal'
 
 function fmtDate(value) {
   if (!value) return '-'
@@ -33,92 +33,6 @@ function roleLabel(category) {
   if (category.my_role === 'viewer') return '구독'
   if (category.my_role === 'admin') return '관리자'
   return '공개'
-}
-
-function CreateCategoryModal({ open, onClose }) {
-  const navigate = useNavigate()
-  const { create } = usePersonalCategoriesStore()
-  const [name, setName] = useState('')
-  const [isPublic, setIsPublic] = useState(true)
-  const [allowContributions, setAllowContributions] = useState(false)
-  const [allowEdits, setAllowEdits] = useState(false)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    if (open) {
-      setName('')
-      setIsPublic(true)
-      setAllowContributions(false)
-      setAllowEdits(false)
-      setBusy(false)
-    }
-  }, [open])
-
-  if (!open) return null
-
-  const submit = async () => {
-    const trimmed = name.trim()
-    if (!trimmed || busy) return
-    setBusy(true)
-    try {
-      const category = await create({
-        name: trimmed,
-        is_public: isPublic,
-        allow_contributions: allowContributions,
-        allow_edits: allowEdits,
-      })
-      onClose()
-      alert(`'${category.name}' 카테고리를 만들었어요.\n카테고리 코드: ${category.category_code}`)
-      navigate(`/personal-categories/${category.category_code}`)
-    } catch (e) {
-      alert(e?.response?.data?.detail || '카테고리 생성에 실패했어요')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="grp-modal" onClick={e => e.stopPropagation()}>
-        <div className="grp-modal-head">
-          <h3>카테고리 만들기</h3>
-          <button className="grp-modal-x" onClick={onClose}>×</button>
-        </div>
-        <div className="grp-modal-body">
-          <div className="grp-field">
-            <label>카테고리 이름</label>
-            <input
-              type="text"
-              maxLength={40}
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="예: 오늘 들을 곡"
-              autoFocus
-            />
-          </div>
-          <label className="grp-toggle-row" onClick={() => setIsPublic(v => !v)}>
-            <div className="grp-toggle-meta">
-              <b>공개 카테고리</b>
-              <span>비공개여도 링크를 받은 사람이나 구독자는 볼 수 있어요.</span>
-            </div>
-            <div className={`grp-toggle${isPublic ? ' on' : ''}`} />
-          </label>
-          <CategoryCollaborationToggles
-            allowContributions={allowContributions}
-            allowEdits={allowEdits}
-            onAllowContributions={setAllowContributions}
-            onAllowEdits={setAllowEdits}
-          />
-        </div>
-        <div className="grp-modal-foot">
-          <button className="grp-btn ghost" onClick={onClose}>취소</button>
-          <button className="grp-btn primary" disabled={!name.trim() || busy} onClick={submit}>
-            {busy ? '만드는 중...' : '카테고리 만들기'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function CategoryCard({ category, onCopy, onOpen }) {
@@ -189,7 +103,7 @@ function Tabs({ activeTab, setActiveTab, counts, user }) {
 export default function PersonalCategoriesPage() {
   const isMobile = useMobile()
   const navigate = useNavigate()
-  const { user, openLogin, isAdmin } = useStore()
+  const { user, openLogin, openCategoryCreate, isAdmin } = useStore()
   const {
     myCategories,
     publicCategories,
@@ -200,7 +114,6 @@ export default function PersonalCategoriesPage() {
     fetchDirectory,
     clear,
   } = usePersonalCategoriesStore()
-  const [createOpen, setCreateOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
 
   useEffect(() => {
@@ -265,7 +178,13 @@ export default function PersonalCategoriesPage() {
   }
 
   const open = (category) => navigate(`/personal-categories/${category.category_code}`)
-  const openCreate = () => user ? setCreateOpen(true) : openLogin()
+  const openCreate = () => {
+    if (user) openCategoryCreate('directory')
+    else {
+      queueCategoryCreateAfterLogin('directory')
+      openLogin()
+    }
+  }
 
   const emptyTitle = activeTab === 'all'
     ? '아직 볼 수 있는 카테고리가 없어요'
@@ -339,7 +258,6 @@ export default function PersonalCategoriesPage() {
             </div>
           )}
         </div>
-        <CreateCategoryModal open={createOpen} onClose={() => setCreateOpen(false)} />
       </div>
     )
   }
@@ -396,7 +314,6 @@ export default function PersonalCategoriesPage() {
         </div>
       </main>
 
-      <CreateCategoryModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   )
 }
