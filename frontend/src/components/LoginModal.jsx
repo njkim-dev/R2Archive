@@ -4,7 +4,7 @@ import { oauthLoginUrl } from '../api/client'
 
 export default function LoginModal() {
   const { loginOpen, closeLogin } = useStore()
-  const [remember, setRemember] = useState(false)
+  const [remember, setRemember] = useState(true)
   const [lastProvider, setLastProvider] = useState(null)
 
   useEffect(() => {
