@@ -1,4 +1,4 @@
-"""OAuth 로그인 (Kakao / Naver / Google) + 세션 관리.
+"""OAuth 로그인 (Kakao / Naver / Google / Discord) + 세션 관리.
 
 플로우:
   1. GET /api/auth/{provider}/login
@@ -49,6 +49,8 @@ NAVER_CLIENT_ID      = os.environ.get("OAUTH_NAVER_CLIENT_ID", "")
 NAVER_CLIENT_SECRET  = os.environ.get("OAUTH_NAVER_CLIENT_SECRET", "")
 GOOGLE_CLIENT_ID     = os.environ.get("OAUTH_GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("OAUTH_GOOGLE_CLIENT_SECRET", "")
+DISCORD_CLIENT_ID     = os.environ.get("OAUTH_DISCORD_CLIENT_ID", "")
+DISCORD_CLIENT_SECRET = os.environ.get("OAUTH_DISCORD_CLIENT_SECRET", "")
 GOOGLE_JWKS_CLIENT = PyJWKClient("https://www.googleapis.com/oauth2/v3/certs")
 
 
@@ -304,6 +306,26 @@ def google_login(request: Request, remember: int = 0, return_origin: str | None 
     )
 
 
+@router.get("/discord/login")
+def discord_login(request: Request, remember: int = 0, return_origin: str | None = None):
+    _require("discord", DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET)
+    central = _central_login_redirect("discord", request, bool(remember), return_origin)
+    if central is not None:
+        return central
+    return _build_login_redirect(
+        "discord",
+        request,
+        "https://discord.com/oauth2/authorize",
+        {
+            "client_id": DISCORD_CLIENT_ID,
+            "response_type": "code",
+            "scope": "identify",
+        },
+        remember=bool(remember),
+        return_origin=return_origin,
+    )
+
+
 def _finish_login(provider: str, provider_uid: str, request: Request) -> RedirectResponse:
     persistent = _read_remember(request)
     try:
@@ -436,3 +458,39 @@ async def google_callback(request: Request, code: str = "", state: str = ""):
         return _fail_redirect("no_sub", request)
 
     return _finish_login("google", str(google_sub), request)
+
+
+@router.get("/discord/callback")
+async def discord_callback(request: Request, code: str = "", state: str = ""):
+    if not code:
+        return _fail_redirect("no_code", request)
+    _check_state(request, state)
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        tok = await client.post(
+            "https://discord.com/api/oauth2/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": _redirect_uri("discord", request),
+            },
+            auth=(DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if tok.status_code != 200:
+            return _fail_redirect("token_exchange", request)
+        access_token = tok.json().get("access_token")
+        if not access_token:
+            return _fail_redirect("no_token", request)
+
+        me = await client.get(
+            "https://discord.com/api/v10/users/@me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        if me.status_code != 200:
+            return _fail_redirect("user_fetch", request)
+        discord_id = me.json().get("id")
+        if not discord_id:
+            return _fail_redirect("no_id", request)
+
+    return _finish_login("discord", str(discord_id), request)

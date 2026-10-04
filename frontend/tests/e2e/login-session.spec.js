@@ -26,7 +26,7 @@ async function mockCatalog(page, loginUrls) {
     const url = new URL(route.request().url())
     const path = url.pathname
     if (!path.startsWith('/api/')) return route.continue()
-    if (path === '/api/auth/naver/login') {
+    if (path === '/api/auth/naver/login' || path === '/api/auth/discord/login') {
       loginUrls.push(url)
       return route.fulfill({ status: 204 })
     }
@@ -76,4 +76,17 @@ test('login persistence is selected by default and remains optional without shif
   await modal.getByRole('button', { name: '네이버로 계속하기' }).click()
   await expect.poll(() => loginUrls.length).toBe(2)
   expect(loginUrls[1].searchParams.get('remember')).toBe('0')
+})
+
+test('Discord login uses the shared OAuth login flow', async ({ page }) => {
+  const loginUrls = []
+  await mockCatalog(page, loginUrls)
+  await page.goto('/')
+
+  const modal = await openLogin(page)
+  await modal.getByRole('button', { name: 'Discord로 계속하기' }).click()
+
+  await expect.poll(() => loginUrls.length).toBe(1)
+  expect(loginUrls[0].pathname).toBe('/api/auth/discord/login')
+  expect(loginUrls[0].searchParams.get('remember')).toBe('1')
 })

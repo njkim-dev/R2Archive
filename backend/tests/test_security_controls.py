@@ -2,6 +2,7 @@ import inspect
 import os
 import unittest
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 os.environ.setdefault("DB_PORT", "5432")
 os.environ.setdefault("SESSION_SECRET", "test-session-secret-for-security-controls")
@@ -150,6 +151,24 @@ class OAuthCookieSecurityTests(unittest.TestCase):
             "https://music.r2archive.com/api/auth/google/login?remember=1&return_origin=https%3A%2F%2Fxyx.r2archive.com",
         )
         self.assertNotIn("set-cookie", response.headers)
+
+    def test_discord_login_requests_only_identify_scope(self):
+        with (
+            patch.object(auth_oauth, "DISCORD_CLIENT_ID", "discord-client-id"),
+            patch.object(auth_oauth, "DISCORD_CLIENT_SECRET", "discord-client-secret"),
+        ):
+            response = auth_oauth.discord_login(make_request(), remember=1)
+
+        location = urlparse(response.headers["location"])
+        query = parse_qs(location.query)
+        self.assertEqual(location.netloc, "discord.com")
+        self.assertEqual(location.path, "/oauth2/authorize")
+        self.assertEqual(query["client_id"], ["discord-client-id"])
+        self.assertEqual(query["scope"], ["identify"])
+        self.assertEqual(
+            query["redirect_uri"],
+            ["https://music.r2archive.com/api/auth/discord/callback"],
+        )
 
 
 class CSRFSecurityTests(unittest.TestCase):

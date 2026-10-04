@@ -599,5 +599,7 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
 .oauth-btn.kakao:hover { background: #f5dd00; }
 .oauth-btn.google { background: #fff; color: #1f1f1f; }
 .oauth-btn.google:hover { background: #f5f5f5; }
+.oauth-btn.discord { background: #5865f2; color: #fff; }
+.oauth-btn.discord:hover { background: #4752c4; }
 .login-foot { font-size: 10.5px; color: var(--fg-4); margin-top: 18px; line-height: 1.6; }
 

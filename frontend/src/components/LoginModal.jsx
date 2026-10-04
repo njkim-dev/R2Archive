@@ -71,6 +71,15 @@ export default function LoginModal() {
             Google로 계속하기
           </button>
         </div>
+        <div style={btnWrap}>
+          {recentBadge('discord')}
+          <button className="oauth-btn discord" onClick={() => go('discord')}>
+            <svg width="18" height="14" viewBox="0 0 24 18" fill="currentColor" aria-hidden="true">
+              <path d="M20.32 1.5A19.8 19.8 0 0 0 15.44 0l-.6 1.2a18.1 18.1 0 0 0-5.68 0L8.56 0a19.8 19.8 0 0 0-4.88 1.5C.6 6.08-.24 10.55.18 14.96A19.8 19.8 0 0 0 6.16 18l1.46-1.98a12.8 12.8 0 0 1-2.3-1.1l.56-.42a14.2 14.2 0 0 0 12.24 0l.56.42a12.8 12.8 0 0 1-2.3 1.1L17.84 18a19.8 19.8 0 0 0 5.98-3.04c.5-5.12-.86-9.55-3.5-13.46ZM8.02 12.23c-1.17 0-2.13-1.08-2.13-2.4 0-1.33.94-2.41 2.13-2.41 1.2 0 2.15 1.09 2.13 2.4 0 1.33-.94 2.41-2.13 2.41Zm7.96 0c-1.17 0-2.13-1.08-2.13-2.4 0-1.33.94-2.41 2.13-2.41 1.2 0 2.15 1.09 2.13 2.4 0 1.33-.93 2.41-2.13 2.41Z"/>
+            </svg>
+            Discord로 계속하기
+          </button>
+        </div>
 
         <label style={{
           display: 'flex', alignItems: 'center', gap: 8,
