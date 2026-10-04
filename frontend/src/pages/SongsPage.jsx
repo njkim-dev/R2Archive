@@ -149,6 +149,7 @@ export default function SongsPage() {
           showOriginalBpmToggle
           showMyPerceivedToggle={!isXyxMode()}
           showCategoryListToggle
+          showRemovedSongsToggle={!isXyxMode()}
           myPerceivedStatus={myPerceived.status}
           onRetryMyPerceived={myPerceived.retry}
         />

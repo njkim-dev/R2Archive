@@ -199,7 +199,8 @@
 .search-exclude,
 .search-original-bpm,
 .search-my-perceived,
-.search-song-categories {
+.search-song-categories,
+.search-removed-songs {
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--fg-3); font-size: 11.5px; line-height: 1.3; cursor: pointer; user-select: none; white-space: nowrap;
 }
@@ -210,13 +211,15 @@
 .search-exclude:hover,
 .search-original-bpm:hover,
 .search-my-perceived:hover,
-.search-song-categories:hover { color: var(--fg-2); }
+.search-song-categories:hover,
+.search-removed-songs:hover { color: var(--fg-2); }
 .search-exclude.disabled,
 .search-my-perceived.disabled { color: var(--fg-4); cursor: default; }
 .search-exclude input,
 .search-original-bpm input,
 .search-my-perceived input,
-.search-song-categories input {
+.search-song-categories input,
+.search-removed-songs input {
   width: 14px; height: 14px; margin: 0; padding: 0; flex: 0 0 auto;
   accent-color: var(--accent); cursor: inherit;
 }

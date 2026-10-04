@@ -83,6 +83,35 @@ class AiArtistTests(unittest.TestCase):
                     self.assertIn(response.status_code, (401, 403))
                     db.assert_not_called()
 
+    def test_active_list_only_adds_released_removed_songs_when_requested(self):
+        app = FastAPI()
+        app.include_router(songs.router)
+        client = TestClient(app)
+        cur = MagicMock()
+        rows = [(1, "Song", "Artist", 8, 160, None, 700, False,
+                 "2:00", "", "", False, 1, None, "", [], [], None)]
+
+        def execute(query, params=None):
+            if query == "SELECT artist_name FROM ai_artists":
+                cur.fetchall.return_value = []
+            elif "SELECT s.id, s.name" in query:
+                cur.fetchall.return_value = rows
+            else:
+                cur.fetchall.return_value = []
+
+        cur.execute.side_effect = execute
+        with patch.object(songs, "get_conn") as db:
+            db.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = cur
+            response = client.get("/api/songs?include_removed=true")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        list_call = next(
+            call for call in cur.execute.call_args_list
+            if "ORDER BY s.stat DESC" in call.args[0]
+        )
+        self.assertIn("s.game_release_date IS NOT NULL", list_call.args[0])
+        self.assertEqual(list_call.args[1], (True,))
+
 
 if __name__ == "__main__":
     unittest.main()

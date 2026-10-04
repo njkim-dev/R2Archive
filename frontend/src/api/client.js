@@ -19,7 +19,9 @@ api.interceptors.response.use(
   }
 )
 
-export const getSongs = () => api.get(apiPath('/songs', '/xyx/songs')).then(r => r.data)
+export const getSongs = (includeRemoved = false) => api.get(apiPath('/songs', '/xyx/songs'), {
+  params: includeRemoved && !isXyxMode() ? { include_removed: true } : {},
+}).then(r => r.data)
 export const getRemovedSongs = () => api.get(apiPath('/songs/removed', '/xyx/songs/removed')).then(r => r.data)
 export const getMeta = () => api.get(apiPath('/meta', '/xyx/meta')).then(r => r.data)
 export const getPmangSongs = () => api.get('/pmang-songs').then(r => r.data)

@@ -116,7 +116,7 @@ def get_meta():
 
 
 @router.get("/songs", response_model=list[SongListItem])
-def get_songs():
+def get_songs(include_removed: bool = False):
     """전체 곡 목록 — 클라이언트 사이드 필터링용."""
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -178,8 +178,10 @@ def get_songs():
                 ") xyx_match ON TRUE "
                 "LEFT JOIN same_music_group_members smgm "
                 "  ON smgm.server = 'kr' AND smgm.song_id = s.id "
-                f"WHERE {ACTIVE_SONG_ALIAS_SQL} "
-                "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST"
+                "WHERE (COALESCE(s.is_removed, FALSE) IS FALSE "
+                "  OR (%s AND s.game_release_date IS NOT NULL)) "
+                "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST",
+                (include_removed,),
             )
             rows = cur.fetchall()
 

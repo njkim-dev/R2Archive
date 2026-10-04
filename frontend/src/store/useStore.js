@@ -7,6 +7,7 @@ import { allowedQuickFilter, detailedFilterStorageKey, normalizeDetailedFilters,
 const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
 const SHOW_MY_PERCEIVED_KEY = 'r2b_show_my_perceived'
 const SHOW_SONG_CATEGORIES_KEY = 'r2b_show_song_categories'
+const SHOW_REMOVED_SONGS_KEY = 'r2b_show_removed_songs'
 const savedDetailedFilters = readDetailedFilters(SERVER_MODE)
 
 function readShowOriginalBpm() {
@@ -28,6 +29,14 @@ function readShowMyPerceived() {
 function readShowSongCategories() {
   try {
     return localStorage.getItem(SHOW_SONG_CATEGORIES_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function readShowRemovedSongs() {
+  try {
+    return localStorage.getItem(SHOW_REMOVED_SONGS_KEY) === '1'
   } catch {
     return false
   }
@@ -190,7 +199,7 @@ const useStore = create((set, get) => ({
     set({ loading: true, error: null })
     try {
       const [songs, meta, personalCategoryFilters] = await Promise.all([
-        getSongs(),
+        getSongs(get().showRemovedSongs),
         getMeta(),
         getPersonalCategoryFilters().catch(() => []),
       ])
@@ -224,6 +233,7 @@ const useStore = create((set, get) => ({
   showOriginalBpm: readShowOriginalBpm(),
   showMyPerceived: readShowMyPerceived(),
   showSongCategories: readShowSongCategories(),
+  showRemovedSongs: readShowRemovedSongs(),
   perceivedRevision: 0,
   levelMin: null,
   levelMax: null,
@@ -312,6 +322,28 @@ const useStore = create((set, get) => ({
       else localStorage.removeItem(SHOW_SONG_CATEGORIES_KEY)
     } catch {}
     set({ showSongCategories: next })
+  },
+  setShowRemovedSongs: async (showRemovedSongs) => {
+    const previous = get().showRemovedSongs
+    const next = !!showRemovedSongs
+    if (next === previous) return
+    try {
+      if (next) localStorage.setItem(SHOW_REMOVED_SONGS_KEY, '1')
+      else localStorage.removeItem(SHOW_REMOVED_SONGS_KEY)
+    } catch {}
+    set({ showRemovedSongs: next })
+    try {
+      const songs = await getSongs(next)
+      if (get().showRemovedSongs === next) set({ songs })
+    } catch {
+      if (get().showRemovedSongs !== next) return
+      try {
+        if (previous) localStorage.setItem(SHOW_REMOVED_SONGS_KEY, '1')
+        else localStorage.removeItem(SHOW_REMOVED_SONGS_KEY)
+      } catch {}
+      set({ showRemovedSongs: previous })
+      alert('삭제된 곡 목록을 불러오지 못했습니다.')
+    }
   },
   setLevelMin: (v) => set({ levelMin: v, category: null }),
   setLevelMax: (v) => set({ levelMax: v, category: null }),

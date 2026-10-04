@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { watchLayout } from './layout.js'
 
 const song = (id, level, name = 'Shared Song', artist = 'Test Artist') => ({
   id, name, artist, level, bpm: 160, real_bpm: 159.8, combo: 200 + id,
@@ -20,9 +21,14 @@ async function mockCatalog(page, data = songs, {
   isAdmin = false,
   personalCategories = [],
   currentUser = { id: 1, nickname: 'Test', onboarded: true },
+  removedSongs = [],
+  deferRemoved = false,
 } = {}) {
   const writes = []
   const errors = []
+  let notifyRemovedRequest
+  let releaseRemovedRequest
+  const removedRequestStarted = new Promise(resolve => { notifyRemovedRequest = resolve })
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(() => {
     localStorage.setItem('r2b:detailed-filters:v1:kr', JSON.stringify({ version: 1, filters: { category: null } }))
@@ -33,14 +39,22 @@ async function mockCatalog(page, data = songs, {
     body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aemkAAAAASUVORK5CYII=', 'base64'),
   }))
   await page.route('**/api/**', async route => {
-    const path = new URL(route.request().url()).pathname.replace('/api/xyx/', '/api/')
+    const url = new URL(route.request().url())
+    const path = url.pathname.replace('/api/xyx/', '/api/')
     if (!path.startsWith('/api/')) return route.continue()
     if (route.request().method() !== 'GET') {
       writes.push({ path, method: route.request().method(), body: route.request().postDataJSON() })
     }
     let json = []
     const detail = path.match(/^\/api\/songs\/(\d+)$/)
-    if (path === '/api/songs') json = data
+    if (path === '/api/songs') {
+      const includeRemoved = url.searchParams.get('include_removed') === 'true'
+      if (includeRemoved) {
+        notifyRemovedRequest()
+        if (deferRemoved) await new Promise(resolve => { releaseRemovedRequest = resolve })
+      }
+      json = includeRemoved ? [...data, ...removedSongs] : data
+    }
     else if (detail) json = { ...data.find(item => item.id === +detail[1]), bpm_timeline: [], play_count_week: 0 }
     else if (path === '/api/meta') json = { total_count: data.length, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
     else if (path === '/api/auth/me') json = { user: currentUser }
@@ -54,7 +68,12 @@ async function mockCatalog(page, data = songs, {
   })
   await page.goto('/')
   await expect(page.locator('[data-song-id="1"]')).toBeVisible()
-  return { writes, errors }
+  return {
+    writes,
+    errors,
+    waitForRemovedRequest: () => removedRequestStarted,
+    releaseRemovedRequest: () => releaseRemovedRequest?.(),
+  }
 }
 
 test('a visible personal category filters the song list from the detailed filter', async ({ page }) => {
@@ -137,6 +156,28 @@ test('song category labels are optional, per-row, and persisted without resizing
   await page.reload()
   await expect(toggle).toBeChecked()
   await expect(page.locator('[data-song-id="1"] .song-category-list')).toBeVisible()
+})
+
+test('released removed songs can be shown without shifting the catalog', async ({ page }) => {
+  const removedSong = { ...song(90, 8, 'Removed Song'), is_removed: true }
+  const control = await mockCatalog(page, songs, {
+    removedSongs: [removedSong],
+    deferRemoved: true,
+  })
+  const toggle = page.getByLabel('삭제된 곡 표시')
+  const layout = await watchLayout(page, ['.tbl-header', '[data-song-id="1"]'])
+
+  await expect(toggle).not.toBeChecked()
+  await toggle.check()
+  await control.waitForRemovedRequest()
+  await expect(page.locator('[data-song-id="90"]')).toHaveCount(0)
+  await layout.expectStable()
+
+  control.releaseRemovedRequest()
+  await expect(page.locator('[data-song-id="90"]')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('r2b_show_removed_songs'))).toBe('1')
+  await layout.expectStable()
+  await layout.stop()
 })
 
 test('same-title difficulty rows keep independent cells and actions', async ({ page }) => {
