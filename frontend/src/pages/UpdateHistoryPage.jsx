@@ -10,6 +10,7 @@ import ArchiveBrand from '../components/ArchiveBrand'
 import ReleaseDatePicker from '../components/update-history/ReleaseDatePicker'
 import { useMobile } from '../hooks/useMobile'
 import { filterReleaseHistory, formatReleaseDate, formatReleaseTitle, releaseWeekday } from '../utils/releaseHistory'
+import { levelBarColor, staticUrl } from '../utils/helpers'
 import '../styles/update-history.css'
 
 function HistorySidebar() {
@@ -40,10 +41,15 @@ function HistoryMobileHeader() {
 function SongRow({ song }) {
   return (
     <div className="rh-song-row">
+      <div className="rh-song-art" aria-hidden="true">
+        {song.image && <img src={staticUrl(song.image)} alt="" draggable={false} onError={event => { event.currentTarget.style.display = 'none' }} />}
+      </div>
       <div className="rh-song-name" title={song.name}>{song.name}</div>
       <div className="rh-song-artist" title={song.artist}>{song.artist}</div>
       <div className="rh-levels" aria-label={`난이도 ${song.levels.join(', ')}`}>
-        {song.levels.map(level => <span key={level}>{Number(level).toFixed(1)}</span>)}
+        {song.levels.map(level => (
+          <span key={level} style={{ '--lv-bar': levelBarColor(level) }}>{Number(level).toFixed(1)}</span>
+        ))}
       </div>
     </div>
   )
@@ -143,7 +149,7 @@ export default function UpdateHistoryPage() {
     const entry = filteredEntries[index]
     const expanded = forceExpanded || expandedDates.has(entry.release_date)
     const collapsedHeight = mobile ? 114 : 88
-    const rowHeight = mobile ? 66 : 53
+    const rowHeight = mobile ? 66 : 60
     return expanded && entry.songs.length > 0 ? collapsedHeight + entry.songs.length * rowHeight + 12 : collapsedHeight
   }, [expandedDates, filteredEntries, forceExpanded, mobile])
 

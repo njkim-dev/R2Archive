@@ -263,20 +263,29 @@
 .rh-release-card.is-open .rh-expand svg { transform: rotate(180deg); }
 .rh-card-body { padding: 4px 17px 8px; border-top: 1px solid var(--line-soft); }
 .rh-song-row {
-  min-height: 53px;
+  min-height: 60px;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(96px, auto);
+  grid-template-columns: 80px minmax(0, 1.45fr) minmax(0, 1fr) minmax(96px, auto);
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-bottom: 1px solid var(--line-soft);
 }
 .rh-song-row:last-child { border-bottom: 0; }
+.rh-song-art {
+  width: 80px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-1);
+}
+.rh-song-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rh-song-name,
 .rh-song-artist { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rh-song-name { color: var(--fg); font-size: 12.5px; font-weight: 600; }
 .rh-song-artist { color: var(--fg-3); font-size: 12px; }
 .rh-levels { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
 .rh-levels span {
+  position: relative;
   min-width: 26px;
   height: 24px;
   padding: 0 5px;
@@ -287,6 +296,17 @@
   place-items: center;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 10px;
+}
+.rh-levels span::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+  left: 5px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lv-bar, var(--line));
+  opacity: .55;
 }
 
 .rh-mobile-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -346,9 +366,11 @@
   .rh-song-count { padding-inline: 6px; }
   .rh-notice-link { width: 32px; padding: 0; justify-content: center; font-size: 0; }
   .rh-card-body { padding-inline: 13px; }
-  .rh-song-row { min-height: 66px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 3px 8px; padding: 8px 0; }
-  .rh-song-artist { grid-column: 1; grid-row: 2; }
-  .rh-levels { grid-column: 2; grid-row: 1 / span 2; max-width: 96px; }
+  .rh-song-row { min-height: 66px; grid-template-columns: 64px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 3px 8px; padding: 8px 0; }
+  .rh-song-art { width: 64px; height: 32px; grid-column: 1; grid-row: 1 / span 2; }
+  .rh-song-name { grid-column: 2; grid-row: 1; }
+  .rh-song-artist { grid-column: 2; grid-row: 2; }
+  .rh-levels { grid-column: 3; grid-row: 1 / span 2; max-width: 96px; }
   .rh-status { inset: 0 12px 14px; }
 }
 

@@ -6,8 +6,8 @@ const releases = [
     release_date: '2026-09-30',
     notice_url: 'https://www.orvvit.com/page/r2beat/09wol-30il-su-eobdeiteu-annae',
     songs: [
-      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', levels: [3, 4.5, 8] },
-      { name: 'NEW WORLD', artist: 'SEED9', levels: [6] },
+      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', image: 'rnr_image/img_music/echo.bmp', levels: [3, 4.5, 8] },
+      { name: 'NEW WORLD', artist: 'SEED9', image: 'rnr_image/img_music/world.bmp', levels: [6] },
     ],
   },
   {
@@ -101,6 +101,17 @@ test('date picker enables release days and supports year and month selection', a
   const notice = page.locator('.rh-notice-link').first()
   await expect(notice).toHaveAttribute('target', '_blank')
   await expect(notice).toHaveAttribute('href', releases[0].notice_url)
+})
+
+test('expanded songs show album art and level colors', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single visual coverage')
+  await mockApis(page, releases)
+  await page.goto('/updates')
+
+  const firstSong = page.locator('.rh-song-row').first()
+  await expect(firstSong.locator('.rh-song-art img')).toHaveAttribute('src', /\/static\/rnr_image\/img_music\/echo\.bmp$/)
+  await expect(firstSong.locator('.rh-levels span')).toHaveCount(3)
+  expect(await firstSong.locator('.rh-levels span').first().evaluate(element => element.style.getPropertyValue('--lv-bar'))).toContain('oklch')
 })
 
 test('desktop and mobile navigation place update history between songs and rankings', async ({ page }, testInfo) => {

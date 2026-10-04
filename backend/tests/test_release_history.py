@@ -18,9 +18,9 @@ class ReleaseHistoryTests(unittest.TestCase):
         app.include_router(release_history.router)
         cur = MagicMock()
         cur.fetchall.return_value = [
-            (date(2026, 9, 30), "https://example.com/notice", "Song A", "Artist A", [3, 4.5, 8]),
-            (date(2026, 9, 30), "https://example.com/notice", "Song B", "Artist B", [6]),
-            (date(2026, 9, 17), None, "Song C", "Artist C", [7.5]),
+            (date(2026, 9, 30), "https://example.com/notice", "Song A", "Artist A", "rnr_image/img_music/a.bmp", [3, 4.5, 8]),
+            (date(2026, 9, 30), "https://example.com/notice", "Song B", "Artist B", "rnr_image/img_music/b.bmp", [6]),
+            (date(2026, 9, 17), None, "Song C", "Artist C", None, [7.5]),
         ]
 
         with patch.object(release_history, "get_conn") as db:
@@ -35,14 +35,14 @@ class ReleaseHistoryTests(unittest.TestCase):
                     "release_date": "2026-09-30",
                     "notice_url": "https://example.com/notice",
                     "songs": [
-                        {"name": "Song A", "artist": "Artist A", "levels": [3.0, 4.5, 8.0]},
-                        {"name": "Song B", "artist": "Artist B", "levels": [6.0]},
+                        {"name": "Song A", "artist": "Artist A", "image": "rnr_image/img_music/a.bmp", "levels": [3.0, 4.5, 8.0]},
+                        {"name": "Song B", "artist": "Artist B", "image": "rnr_image/img_music/b.bmp", "levels": [6.0]},
                     ],
                 },
                 {
                     "release_date": "2026-09-17",
                     "notice_url": None,
-                    "songs": [{"name": "Song C", "artist": "Artist C", "levels": [7.5]}],
+                    "songs": [{"name": "Song C", "artist": "Artist C", "image": None, "levels": [7.5]}],
                 },
             ],
         )

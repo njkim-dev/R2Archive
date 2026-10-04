@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api", tags=["release-history"])
 class ReleaseHistorySong(BaseModel):
     name: str
     artist: str
+    image: str | None = None
     levels: list[float]
 
 
@@ -31,7 +32,7 @@ def get_release_history():
                 "  FROM release_history "
                 "  GROUP BY release_date"
                 ") "
-                "SELECT s.game_release_date, n.url, s.name, s.artist, "
+                "SELECT s.game_release_date, n.url, s.name, s.artist, MIN(s.image), "
                 "       ARRAY_AGG(DISTINCT s.level ORDER BY s.level) "
                 "         FILTER (WHERE s.level IS NOT NULL) AS levels "
                 "FROM songs s "
@@ -43,7 +44,7 @@ def get_release_history():
             rows = cur.fetchall()
 
     grouped: dict[date, ReleaseHistoryEntry] = {}
-    for release_date, notice_url, name, artist, levels in rows:
+    for release_date, notice_url, name, artist, image, levels in rows:
         entry = grouped.get(release_date)
         if entry is None:
             entry = ReleaseHistoryEntry(
@@ -56,6 +57,7 @@ def get_release_history():
             ReleaseHistorySong(
                 name=name or "",
                 artist=artist or "",
+                image=image,
                 levels=[float(level) for level in (levels or [])],
             )
         )
