@@ -52,6 +52,7 @@ GOOGLE_CLIENT_SECRET = os.environ.get("OAUTH_GOOGLE_CLIENT_SECRET", "")
 DISCORD_CLIENT_ID     = os.environ.get("OAUTH_DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.environ.get("OAUTH_DISCORD_CLIENT_SECRET", "")
 GOOGLE_JWKS_CLIENT = PyJWKClient("https://www.googleapis.com/oauth2/v3/certs")
+DISCORD_JWKS_CLIENT = PyJWKClient("https://discord.com/api/oauth2/keys")
 
 
 def _require(provider: str, *values: str) -> None:
@@ -121,6 +122,32 @@ def _verify_google_id_token(id_token: str) -> tuple[dict | None, str | None]:
 
     if payload.get("iss") not in ("https://accounts.google.com", "accounts.google.com"):
         return None, "iss_mismatch"
+
+    return payload, None
+
+
+def _verify_discord_id_token(id_token: str, nonce: str) -> tuple[dict | None, str | None]:
+    try:
+        signing_key = DISCORD_JWKS_CLIENT.get_signing_key_from_jwt(id_token)
+        payload = jwt.decode(
+            id_token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=DISCORD_CLIENT_ID,
+            issuer="https://discord.com",
+            leeway=30,
+            options={"require": ["aud", "exp", "sub", "nonce"]},
+        )
+    except ExpiredSignatureError:
+        return None, "id_token_expired"
+    except InvalidAudienceError:
+        return None, "aud_mismatch"
+    except PyJWTError as exc:
+        logger.warning("[oauth:discord] id_token 검증 실패: %s", exc.__class__.__name__)
+        return None, "id_token_verify"
+
+    if not secrets.compare_digest(str(payload.get("nonce", "")), nonce):
+        return None, "nonce_mismatch"
 
     return payload, None
 
@@ -245,9 +272,12 @@ def _build_login_redirect(
     params: dict,
     remember: bool,
     return_origin: str | None = None,
+    include_nonce: bool = False,
 ) -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     params = {**params, "state": state, "redirect_uri": _redirect_uri(provider, request)}
+    if include_nonce:
+        params["nonce"] = state
     url = f"{auth_url}?{urlencode(params)}"
     resp = RedirectResponse(url, status_code=302)
     _set_state_cookie(resp, state, request)
@@ -319,10 +349,11 @@ def discord_login(request: Request, remember: int = 0, return_origin: str | None
         {
             "client_id": DISCORD_CLIENT_ID,
             "response_type": "code",
-            "scope": "identify",
+            "scope": "openid",
         },
         remember=bool(remember),
         return_origin=return_origin,
+        include_nonce=True,
     )
 
 
@@ -479,18 +510,16 @@ async def discord_callback(request: Request, code: str = "", state: str = ""):
         )
         if tok.status_code != 200:
             return _fail_redirect("token_exchange", request)
-        access_token = tok.json().get("access_token")
-        if not access_token:
+        id_token = tok.json().get("id_token")
+        if not id_token:
             return _fail_redirect("no_token", request)
 
-        me = await client.get(
-            "https://discord.com/api/v10/users/@me",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        if me.status_code != 200:
-            return _fail_redirect("user_fetch", request)
-        discord_id = me.json().get("id")
-        if not discord_id:
-            return _fail_redirect("no_id", request)
+    payload, error = _verify_discord_id_token(id_token, state)
+    if error:
+        return _fail_redirect(error, request)
 
-    return _finish_login("discord", str(discord_id), request)
+    discord_sub = payload.get("sub")
+    if not discord_sub:
+        return _fail_redirect("no_sub", request)
+
+    return _finish_login("discord", str(discord_sub), request)

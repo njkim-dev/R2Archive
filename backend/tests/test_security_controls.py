@@ -1,5 +1,6 @@
 import inspect
 import os
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
@@ -152,7 +153,7 @@ class OAuthCookieSecurityTests(unittest.TestCase):
         )
         self.assertNotIn("set-cookie", response.headers)
 
-    def test_discord_login_requests_only_identify_scope(self):
+    def test_discord_login_requests_only_openid_scope(self):
         with (
             patch.object(auth_oauth, "DISCORD_CLIENT_ID", "discord-client-id"),
             patch.object(auth_oauth, "DISCORD_CLIENT_SECRET", "discord-client-secret"),
@@ -164,11 +165,33 @@ class OAuthCookieSecurityTests(unittest.TestCase):
         self.assertEqual(location.netloc, "discord.com")
         self.assertEqual(location.path, "/oauth2/authorize")
         self.assertEqual(query["client_id"], ["discord-client-id"])
-        self.assertEqual(query["scope"], ["identify"])
+        self.assertEqual(query["scope"], ["openid"])
+        self.assertEqual(query["nonce"], query["state"])
         self.assertEqual(
             query["redirect_uri"],
             ["https://music.r2archive.com/api/auth/discord/callback"],
         )
+
+    def test_discord_id_token_rejects_a_different_nonce(self):
+        with (
+            patch.object(
+                auth_oauth.DISCORD_JWKS_CLIENT,
+                "get_signing_key_from_jwt",
+                return_value=SimpleNamespace(key="discord-signing-key"),
+            ),
+            patch.object(
+                auth_oauth.jwt,
+                "decode",
+                return_value={"sub": "discord-user", "nonce": "different-nonce"},
+            ),
+        ):
+            payload, error = auth_oauth._verify_discord_id_token(
+                "discord-id-token",
+                "expected-nonce",
+            )
+
+        self.assertIsNone(payload)
+        self.assertEqual(error, "nonce_mismatch")
 
 
 class CSRFSecurityTests(unittest.TestCase):
