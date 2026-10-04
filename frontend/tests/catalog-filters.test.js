@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { filterSongs } from '../src/utils/helpers.js'
-import { allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, detailedFilterStorageKey, isAiSong, normalizeDetailedFilters, readDetailedFilters, selectedPersonalCategorySongIds, serializeDetailedFilters, visibleQuickFilters } from '../src/utils/catalogFilters.js'
+import { allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, isAiSong, normalizeDetailedFilters, selectedPersonalCategorySongIds, visibleQuickFilters } from '../src/utils/catalogFilters.js'
 
 const meta = { level_min: 1.5, level_max: 12, bpm_min: 60, bpm_max: 400 }
 const song = (id, artist, extra = {}) => ({ id, name: `Song ${id}`, artist, level: 8, bpm: 160, youtube_url: 'https://youtu.be/test', ...extra })
@@ -17,17 +17,11 @@ const songs = [
 const ids = result => [...result.exact, ...result.fuzzy].map(item => item.id)
 const filters = overrides => ({ ...defaultDetailedFilters(meta), category: null, search: '', favorites: new Set([1, 5]), played: new Set([5]), ...overrides })
 
-test('reset selects the sun channel and persists it for both servers', () => {
+test('reset selects the sun channel', () => {
   const reset = defaultDetailedFilters(meta)
   assert.equal(defaultDetailedFilters().category, 'sun')
   assert.equal(reset.category, 'sun')
   assert.deepEqual(ids(filterSongs(songs, filters(reset))), [1, 2, 3, 4, 5, 6])
-  for (const server of ['kr', 'xyx']) {
-    const storage = { getItem: key => key === detailedFilterStorageKey(server) ? serializeDetailedFilters(reset) : null }
-    assert.equal(readDetailedFilters(server, storage).category, 'sun')
-    storage.getItem = () => serializeDetailedFilters({ ...reset, category: null })
-    assert.equal(readDetailedFilters(server, storage).category, null)
-  }
 })
 
 test('AI filtering uses the API flag rather than artist names', () => {
@@ -120,46 +114,12 @@ test('ranges normalize safely when closing, including blank and reversed inputs'
   assert.deepEqual([empty.levelMin, empty.levelMax, empty.bpmMin, empty.bpmMax], [1.5, 12, 60, 400])
 })
 
-test('local storage round trip keeps all detailed settings and Set values', () => {
-  const original = filters({ category: 'sun', quick: 'new', personalCategoryId: 41, aiMode: 'hide', artists: new Set(['MAZO', 'SEED9']), levelMin: 7, bpmMax: 180, listenOnly: true, removedMode: 'only', sort: { key: 'bpm', dir: 'asc' } })
-  const serialized = serializeDetailedFilters(original)
-  const storage = { getItem: key => key === detailedFilterStorageKey('kr') ? serialized : null }
-  const restored = readDetailedFilters('kr', storage)
-  assert.deepEqual(restored, normalizeDetailedFilters(original))
-  assert.equal(restored.personalCategoryId, 41)
-  assert.equal(restored.removedMode, 'only')
-  assert.equal(readDetailedFilters('xyx', storage), null)
-  restored.artists.delete('MAZO')
-  assert(original.artists.has('MAZO'))
-})
-
-test('legacy removed-song toggle migrates into detailed filters', () => {
-  const storage = {
-    getItem: key => key === detailedFilterStorageKey('kr') || key === detailedFilterStorageKey('xyx')
-      ? JSON.stringify({ version: 1, filters: { category: null } })
-      : key === 'r2b_show_removed_songs' ? '1' : null,
-  }
-  assert.equal(readDetailedFilters('kr', storage).removedMode, 'show')
-  assert.equal(readDetailedFilters('xyx', storage).removedMode, 'exclude')
-})
-
-test('corrupt, unavailable and unknown-version storage cannot crash the page', () => {
-  assert.equal(readDetailedFilters('kr', { getItem: () => '{bad' }), null)
-  assert.equal(readDetailedFilters('kr', { getItem: () => { throw new Error('blocked') } }), null)
-  assert.equal(readDetailedFilters('kr', { getItem: () => '{"version":2,"filters":{}}' }), null)
+test('invalid filter values normalize safely', () => {
   const clean = normalizeDetailedFilters({ artists: [null, 1, 'MAZO', 'MAZO'], category: 'invalid', aiMode: 'invalid', quick: 'invalid' })
   assert.deepEqual([...clean.artists], ['MAZO'])
   assert.equal(clean.category, null)
   assert.equal(clean.aiMode, 'show')
   assert.equal(clean.quick, 'all')
-})
-
-test('saved full ranges follow changed catalog bounds while custom bounds remain', () => {
-  const serialized = serializeDetailedFilters({ ...defaultDetailedFilters(meta), levelMin: 7, meta })
-  const restored = readDetailedFilters('kr', { getItem: () => serialized })
-  const updated = normalizeDetailedFilters(restored, { ...meta, bpm_max: 450 })
-  assert.equal(updated.levelMin, 7)
-  assert.equal(updated.bpmMax, 450)
 })
 
 test('legacy quick flags become the same selection in both controls', () => {

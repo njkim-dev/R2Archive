@@ -6,6 +6,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import ServerSwitcher from './ServerSwitcher'
 import PageNavigation from './PageNavigation'
+import ArchiveBrand from './ArchiveBrand'
 
 const CATEGORIES = [
   {
@@ -87,13 +88,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
 
   return (
     <aside className="side">
-      <div className="brand">
-        <div className="brand-mark" aria-hidden="true">R2</div>
-        <div>
-          <h1 className="brand-title">R2Music Archive</h1>
-          <div className="brand-sub">{xyxMode ? 'XYX Catalog' : 'Music Catalog'}</div>
-        </div>
-      </div>
+      <ArchiveBrand />
       <ServerSwitcher />
 
       <PageNavigation onNavigate={closeModal} />

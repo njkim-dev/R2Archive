@@ -9,6 +9,7 @@ import FeedbackComposeSheet from '../components/feedback/FeedbackComposeSheet'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
+import ArchiveBrand from '../components/ArchiveBrand'
 
 const BUG_TYPES = [
   { v: 'data',    label: '데이터 오류',         desc: 'BPM·콤보·시간이 실제와 다를 때',   icon: '📊' },
@@ -507,6 +508,7 @@ export default function FeedbackPage() {
   return (
     <div className="app">
       <aside className="side">
+        <ArchiveBrand />
         <ServerSwitcher />
         <PageNavigation />
       </aside>

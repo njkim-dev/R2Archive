@@ -9,6 +9,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
+import ArchiveBrand from '../components/ArchiveBrand'
 import { queueCategoryCreateAfterLogin } from '../components/CreatePersonalCategoryModal'
 
 function fmtDate(value) {
@@ -265,6 +266,7 @@ export default function PersonalCategoriesPage() {
   return (
     <div className="app">
       <aside className="side">
+        <ArchiveBrand />
         <ServerSwitcher />
         <PageNavigation />
 

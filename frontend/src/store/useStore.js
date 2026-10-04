@@ -2,12 +2,16 @@ import { create } from 'zustand'
 import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates, getSongs, getMeta, getPersonalCategoryFilters } from '../api/client'
 import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
 import { SERVER_MODE, isXyxMode } from '../utils/serverMode'
-import { allowedQuickFilter, detailedFilterStorageKey, normalizeDetailedFilters, readDetailedFilters, serializeDetailedFilters } from '../utils/catalogFilters'
+import { allowedQuickFilter, normalizeDetailedFilters } from '../utils/catalogFilters'
 
 const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
 const SHOW_MY_PERCEIVED_KEY = 'r2b_show_my_perceived'
 const SHOW_SONG_CATEGORIES_KEY = 'r2b_show_song_categories'
-const savedDetailedFilters = readDetailedFilters(SERVER_MODE)
+
+try {
+  localStorage.removeItem(`r2b:detailed-filters:v1:${SERVER_MODE}`)
+  localStorage.removeItem('r2b_show_removed_songs')
+} catch {}
 
 function readShowOriginalBpm() {
   try {
@@ -241,7 +245,6 @@ const useStore = create((set, get) => ({
   aiMode: 'show',
   listenOnly: false,
   removedMode: 'exclude',
-  ...savedDetailedFilters,
 
   mobileSheetOpen: false,
   openMobileSheet: () => set({ mobileSheetOpen: true }),
@@ -423,16 +426,5 @@ const useStore = create((set, get) => ({
   openMyPage: () => set({ myPageOpen: true }),
   closeMyPage: () => set({ myPageOpen: false }),
 }))
-
-let lastSavedFilters = serializeDetailedFilters(useStore.getState())
-useStore.subscribe(state => {
-  const serialized = serializeDetailedFilters(state)
-  if (serialized === lastSavedFilters) return
-  try {
-    localStorage.setItem(detailedFilterStorageKey(SERVER_MODE), serialized)
-    localStorage.removeItem('r2b_show_removed_songs')
-    lastSavedFilters = serialized
-  } catch {}
-})
 
 export default useStore

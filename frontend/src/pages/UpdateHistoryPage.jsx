@@ -6,6 +6,7 @@ import { ChevronDown, ExternalLink, Search } from 'lucide-react'
 import MobilePageNav from '../components/MobilePageNav'
 import PageNavigation from '../components/PageNavigation'
 import ServerSwitcher from '../components/ServerSwitcher'
+import ArchiveBrand from '../components/ArchiveBrand'
 import ReleaseDatePicker from '../components/update-history/ReleaseDatePicker'
 import { useMobile } from '../hooks/useMobile'
 import { filterReleaseHistory, formatReleaseDate, formatReleaseTitle, releaseWeekday } from '../utils/releaseHistory'
@@ -14,13 +15,7 @@ import '../styles/update-history.css'
 function HistorySidebar() {
   return (
     <aside className="side rh-sidebar">
-      <div className="brand">
-        <div className="brand-mark" aria-hidden="true">R2</div>
-        <div>
-          <h1 className="brand-title">R2Music Archive</h1>
-          <div className="brand-sub">Music Catalog</div>
-        </div>
-      </div>
+      <ArchiveBrand />
       <ServerSwitcher />
       <PageNavigation />
     </aside>

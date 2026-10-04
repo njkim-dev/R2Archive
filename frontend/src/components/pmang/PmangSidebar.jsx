@@ -3,6 +3,7 @@ import useStore from '../../store/useStore'
 import { filterPmangSongs } from '../../utils/pmang'
 import ServerSwitcher from '../ServerSwitcher'
 import PageNavigation from '../PageNavigation'
+import ArchiveBrand from '../ArchiveBrand'
 
 const CATEGORIES = [
   {
@@ -83,13 +84,7 @@ export default function PmangSidebar({
 
   return (
     <aside className="side">
-      <div className="brand">
-        <div className="brand-mark" aria-hidden="true">R2</div>
-        <div>
-          <h1 className="brand-title">R2Music Archive</h1>
-          <div className="brand-sub">Music Catalog</div>
-        </div>
-      </div>
+      <ArchiveBrand />
       <ServerSwitcher />
 
       <PageNavigation onNavigate={onNavigate} />

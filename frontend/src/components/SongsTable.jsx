@@ -39,12 +39,12 @@ function SearchFilterHint({ suggestion, empty = false }) {
   return (
     <div className="search-filter-hint">
       <span>
-        {empty
+        {suggestion.message || (empty
           ? '노래 난이도를 잘못 기억하신 것 같아요! 난이도 필터를 해제할까요?'
           : '혹시 원하는 결과가 나오지 않았다면 난이도 필터를 해제해보세요.'
-        }
+        )}
       </span>
-      <button className="search-filter-hint-action" onClick={suggestion.onApply}>해제하기</button>
+      <button className="search-filter-hint-action" onClick={suggestion.onApply}>{suggestion.actionLabel || '해제하기'}</button>
     </div>
   )
 }
@@ -57,6 +57,7 @@ export default function SongsTable({
   canDeleteSongs = false,
   onDeleteSong,
   categorySuggestion = null,
+  removedSuggestion = null,
   catalogOpen = false,
   myPerceivedLevels = null,
   showCategoryLabels = false,
@@ -300,6 +301,7 @@ export default function SongsTable({
           <span><b>{totalCount.toLocaleString()}</b> 곡</span>
           <MobileSortButton />
         </div>
+        <SearchFilterHint suggestion={removedSuggestion} empty={totalCount === 0} />
         <SearchFilterHint suggestion={categorySuggestion} empty={totalCount === 0} />
         {totalCount === 0
           ? (
@@ -334,6 +336,7 @@ export default function SongsTable({
   return (
     <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="곡 목록" aria-rowcount={items.length + 1}>
       <TableHeader sort={sort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
+      <SearchFilterHint suggestion={removedSuggestion} empty={items.length === 0} />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
         {items.length === 0 ? (

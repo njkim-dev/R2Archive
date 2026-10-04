@@ -23,6 +23,7 @@ async function mockCatalog(page, data = songs, {
   currentUser = { id: 1, nickname: 'Test', onboarded: true },
   removedSongs = [],
   deferRemoved = false,
+  clearDefaultCategory = true,
 } = {}) {
   const writes = []
   const errors = []
@@ -30,10 +31,6 @@ async function mockCatalog(page, data = songs, {
   let releaseRemovedRequest
   const removedRequestStarted = new Promise(resolve => { notifyRemovedRequest = resolve })
   page.on('pageerror', error => errors.push(error.message))
-  await page.addInitScript(() => {
-    localStorage.setItem('r2b:detailed-filters:v1:kr', JSON.stringify({ version: 1, filters: { category: null } }))
-    localStorage.setItem('r2b:detailed-filters:v1:xyx', JSON.stringify({ version: 1, filters: { category: null } }))
-  })
   await page.route('**/static/test-art.png', route => route.fulfill({
     contentType: 'image/png',
     body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aemkAAAAASUVORK5CYII=', 'base64'),
@@ -73,6 +70,7 @@ async function mockCatalog(page, data = songs, {
   })
   await page.goto('/')
   await expect(page.locator('[data-song-id="1"]')).toBeVisible()
+  if (clearDefaultCategory) await page.locator('.cat-group .cat-btn').filter({ hasText: '해' }).click()
   return {
     writes,
     errors,
@@ -131,7 +129,7 @@ test('anonymous category creation waits for login', async ({ page }) => {
 
 test('pending category creation resumes after login', async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem('r2b_pending_category_create', 'filter'))
-  await mockCatalog(page)
+  await mockCatalog(page, songs, { clearDefaultCategory: false })
 
   await expect(page.locator('.grp-modal')).toBeVisible()
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('r2b_pending_category_create'))).toBeNull()
@@ -194,7 +192,24 @@ test('released removed songs can be shown without shifting the catalog', async (
   await onlyRemoved.check()
   await expect(page.locator('[data-song-id="1"]')).toHaveCount(0)
   await expect(page.locator('[data-song-id="90"]')).toBeVisible()
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('r2b:detailed-filters:v1:kr')).filters.removedMode)).toBe('only')
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('r2b:detailed-filters:v1:kr'))).toBeNull()
+
+  await page.reload()
+  await expect(page.locator('[data-song-id="1"]')).toBeVisible()
+  await expect(page.locator('[data-song-id="90"]')).toHaveCount(0)
+  await page.getByRole('button', { name: '상세 필터' }).click()
+  await expect(page.getByLabel('삭제된 곡 제외')).toBeChecked()
+})
+
+test('searching for a removed song offers the detailed filter shortcut', async ({ page }) => {
+  const removedSong = { ...song(90, 5, 'Deleted Secret'), is_removed: true }
+  await mockCatalog(page, songs, { removedSongs: [removedSong] })
+
+  await page.getByRole('textbox', { name: '곡명 + 아티스트 검색' }).fill('Deleted Secret')
+  await expect(page.getByText('삭제된 곡입니다. 상세필터에서 삭제된 곡 보기 옵션을 켜보세요.')).toBeVisible()
+  await page.getByRole('button', { name: '상세필터 열기' }).click()
+  await expect(page.getByRole('dialog', { name: '상세 필터' })).toBeVisible()
+  await expect(page.getByLabel('삭제된 곡 제외')).toBeChecked()
 })
 
 test('original BPM option follows the available table width', async ({ page }) => {

@@ -10,6 +10,7 @@ import GroupsMobileList from '../components/groups/GroupsMobileList'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
+import ArchiveBrand from '../components/ArchiveBrand'
 
 const PENDING_JOIN_KEY = 'r2b_pending_join_code'
 
@@ -232,6 +233,7 @@ export default function GroupsPage() {
     return (
       <div className="app">
         <aside className="side">
+          <ArchiveBrand />
           <ServerSwitcher />
           <PageNavigation />
         </aside>
@@ -282,6 +284,7 @@ export default function GroupsPage() {
   return (
     <div className="app">
       <aside className="side">
+        <ArchiveBrand />
         <ServerSwitcher />
         <PageNavigation />
 

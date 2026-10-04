@@ -12,6 +12,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
+import ArchiveBrand from '../components/ArchiveBrand'
 import CategoryCollaborationToggles from '../components/CategoryCollaborationToggles'
 
 function roleLabel(role) {
@@ -859,6 +860,7 @@ export default function PersonalCategoryDetailPage() {
   return (
     <div className={`app song-list-layout${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={levelCategory || undefined}>
       <aside className="side">
+        <ArchiveBrand />
         <ServerSwitcher />
         <PageNavigation />
         <div className="side-section">

@@ -11,6 +11,21 @@ import { allowedQuickFilter, selectedPersonalCategorySongIds } from '../utils/ca
 import { useMobile } from '../hooks/useMobile'
 import { useMyPerceivedLevels } from '../hooks/useMyPerceivedLevels'
 import { isXyxMode } from '../utils/serverMode'
+import { getSongs } from '../api/client'
+
+let removedSongLookupPromise = null
+
+function loadRemovedSongLookup() {
+  if (!removedSongLookupPromise) {
+    removedSongLookupPromise = getSongs(true)
+      .then(items => items.filter(song => song.is_removed))
+      .catch(error => {
+        removedSongLookupPromise = null
+        throw error
+      })
+  }
+  return removedSongLookupPromise
+}
 
 function distinctSongCount(items) {
   const keys = new Set()
@@ -53,12 +68,13 @@ function CatalogErrorState({ message, onRetry, isMobile }) {
 export default function SongsPage() {
   const isMobile = useMobile(isXyxMode() ? 1100 : 768)
   const [originalBpmAvailable, setOriginalBpmAvailable] = useState(false)
+  const [removedSearchSongs, setRemovedSearchSongs] = useState(null)
   const {
     songs, search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll, aiMode, listenOnly, removedMode,
     personalCategoryId, personalCategoryFilters,
-    meta, setCategory, setQuick, isAdmin, modalOpen,
+    meta, setCategory, setQuick, openMobileSheet, isAdmin, modalOpen,
     loading, error, loadCatalog, showMyPerceived,
     authLoaded, adminLoaded, user,
   } = useStore()
@@ -90,6 +106,50 @@ export default function SongsPage() {
   }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
+
+  useEffect(() => {
+    if (isXyxMode() || effectiveExcludeSearch || removedMode !== 'exclude' || !search.trim() || removedSearchSongs) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      loadRemovedSongLookup()
+        .then(items => { if (!cancelled) setRemovedSearchSongs(items) })
+        .catch(() => {})
+    }, 200)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [search, effectiveExcludeSearch, removedMode, removedSearchSongs])
+
+  const removedSuggestion = useMemo(() => {
+    if (isXyxMode() || effectiveExcludeSearch || removedMode !== 'exclude' || !search.trim() || !removedSearchSongs?.length) return null
+    const result = filterSongs(removedSearchSongs, {
+      search,
+      searchMode,
+      excludeSearch: false,
+      levelMin: null,
+      levelMax: null,
+      bpmMin: null,
+      bpmMax: null,
+      category: null,
+      quick: 'all',
+      artists: new Set(),
+      favorites,
+      played,
+      aiMode: 'show',
+      listenOnly: false,
+      removedMode: 'only',
+      personalCategoryId: null,
+      personalCategorySongIds: null,
+    })
+    if (result.exact.length + result.fuzzy.length === 0) return null
+    return {
+      message: '삭제된 곡입니다. 상세필터에서 삭제된 곡 보기 옵션을 켜보세요.',
+      actionLabel: '상세필터 열기',
+      onApply: openMobileSheet,
+    }
+  }, [search, searchMode, effectiveExcludeSearch, removedMode, removedSearchSongs, favorites, played, openMobileSheet])
+
   const categorySuggestion = useMemo(() => {
     if (effectiveExcludeSearch || !search.trim() || !category) return null
     const levelBounds = {
@@ -130,7 +190,7 @@ export default function SongsPage() {
           ? <CatalogLoadingState isMobile />
           : error
             ? <CatalogErrorState message={error} onRetry={loadCatalog} isMobile />
-            : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} />
+            : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} removedSuggestion={removedSuggestion} />
         }
         <DetailedFilters songs={songs} isMobile showRemovedFilter={!isXyxMode()} />
       </div>
@@ -164,6 +224,7 @@ export default function SongsPage() {
                 exact={filtered.exact}
                 fuzzy={filtered.fuzzy}
                 categorySuggestion={categorySuggestion}
+                removedSuggestion={removedSuggestion}
                 catalogOpen={catalogPanelOpen}
                 myPerceivedLevels={myPerceived.levels}
                 showCategoryLabels

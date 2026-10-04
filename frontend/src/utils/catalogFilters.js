@@ -70,32 +70,6 @@ export function normalizeDetailedFilters(value = {}, meta = null) {
   return result
 }
 
-export function detailedFilterStorageKey(serverMode) {
-  return `r2b:detailed-filters:v1:${serverMode}`
-}
-
-export function readDetailedFilters(serverMode, storage) {
-  try {
-    const target = storage ?? globalThis.localStorage
-    const saved = JSON.parse(target?.getItem(detailedFilterStorageKey(serverMode)) || 'null')
-    if (saved?.version !== 1) return null
-    const filters = normalizeDetailedFilters(saved.filters)
-    if (serverMode === 'kr' && saved.filters?.removedMode == null && target?.getItem('r2b_show_removed_songs') === '1') {
-      filters.removedMode = 'show'
-    }
-    return filters
-  } catch { return null }
-}
-
-export function serializeDetailedFilters(state) {
-  const filters = normalizeDetailedFilters(state)
-  // 전체 범위는 상한 변경이나 신곡 추가 이후에도 전체로 유지한다.
-  for (const [key, bound] of [['levelMin', 'level_min'], ['levelMax', 'level_max'], ['bpmMin', 'bpm_min'], ['bpmMax', 'bpm_max']]) {
-    if (state.meta && filters[key] === state.meta[bound]) filters[key] = null
-  }
-  return JSON.stringify({ version: 1, filters: { ...filters, artists: [...filters.artists] } })
-}
-
 export function visibleQuickFilters({ xyxMode, isAdmin }) {
   return QUICK_FILTERS.filter(item => (!item.krOnly || !xyxMode) && (!item.adminOnly || isAdmin))
 }
