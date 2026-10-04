@@ -11,6 +11,7 @@ import ReleaseDatePicker from '../components/update-history/ReleaseDatePicker'
 import { useMobile } from '../hooks/useMobile'
 import { filterReleaseHistory, formatReleaseDate, formatReleaseTitle, releaseWeekday } from '../utils/releaseHistory'
 import { levelBarColor, staticUrl } from '../utils/helpers'
+import useStore from '../store/useStore'
 import '../styles/update-history.css'
 
 function HistorySidebar() {
@@ -38,24 +39,42 @@ function HistoryMobileHeader() {
   )
 }
 
-function SongRow({ song }) {
+function SongRow({ song, onOpenVariant }) {
+  const highestVariant = song.variants?.at(-1)
   return (
     <div className="rh-song-row">
       <div className="rh-song-art" aria-hidden="true">
         {song.image && <img src={staticUrl(song.image)} alt="" draggable={false} onError={event => { event.currentTarget.style.display = 'none' }} />}
       </div>
-      <div className="rh-song-name" title={song.name}>{song.name}</div>
+      <button
+        type="button"
+        className="rh-song-name"
+        title={`${song.name} 최고 난이도 카탈로그 열기`}
+        disabled={!highestVariant}
+        onClick={() => onOpenVariant(song, highestVariant)}
+      >
+        {song.name}
+      </button>
       <div className="rh-song-artist" title={song.artist}>{song.artist}</div>
       <div className="rh-levels" aria-label={`난이도 ${song.levels.join(', ')}`}>
-        {song.levels.map(level => (
-          <span key={level} style={{ '--lv-bar': levelBarColor(level) }}>{Number(level).toFixed(1)}</span>
+        {(song.variants || []).map(variant => (
+          <button
+            type="button"
+            key={variant.id}
+            style={{ '--lv-bar': levelBarColor(variant.level) }}
+            title={`난이도 ${Number(variant.level).toFixed(1)} 카탈로그 열기`}
+            aria-label={`난이도 ${Number(variant.level).toFixed(1)} 카탈로그 열기`}
+            onClick={() => onOpenVariant(song, variant)}
+          >
+            {Number(variant.level).toFixed(1)}
+          </button>
         ))}
       </div>
     </div>
   )
 }
 
-function HistoryCard({ entry, expanded, onToggle }) {
+function HistoryCard({ entry, expanded, onToggle, onOpenVariant }) {
   return (
     <div className="rh-history-item">
       <div className="rh-date-column">
@@ -86,7 +105,7 @@ function HistoryCard({ entry, expanded, onToggle }) {
         </div>
         {expanded && (
           <div className="rh-card-body">
-            {entry.songs.map(song => <SongRow key={`${song.name}\u0000${song.artist}`} song={song} />)}
+            {entry.songs.map(song => <SongRow key={`${song.name}\u0000${song.artist}`} song={song} onOpenVariant={onOpenVariant} />)}
           </div>
         )}
       </article>
@@ -96,6 +115,7 @@ function HistoryCard({ entry, expanded, onToggle }) {
 
 export default function UpdateHistoryPage() {
   const mobile = useMobile()
+  const openModal = useStore(state => state.openModal)
   const listRef = useRef(null)
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -144,6 +164,17 @@ export default function UpdateHistoryPage() {
       return next
     })
   }, [])
+
+  const openVariant = useCallback((song, variant) => {
+    if (!variant) return
+    openModal({
+      id: variant.id,
+      name: song.name,
+      artist: song.artist,
+      image: song.image,
+      level: variant.level,
+    }, { preservePath: true })
+  }, [openModal])
 
   const itemSize = useCallback(index => {
     const entry = filteredEntries[index]
@@ -207,6 +238,7 @@ export default function UpdateHistoryPage() {
                         entry={entry}
                         expanded={expanded}
                         onToggle={() => toggleEntry(entry.release_date)}
+                        onOpenVariant={openVariant}
                       />
                     </div>
                   )

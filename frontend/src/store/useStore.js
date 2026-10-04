@@ -271,6 +271,7 @@ const useStore = create((set, get) => ({
   modalSong: null,
   modalOpen: false,
   modalReturnUrl: null,
+  modalPreservePath: false,
 
   feedbackSong: null,
   feedbackOpen: false,
@@ -395,20 +396,22 @@ const useStore = create((set, get) => ({
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
   })),
 
-  openModal: (song) => {
+  openModal: (song, { preservePath = false } = {}) => {
     const state = get()
     const modalReturnUrl = state.modalOpen
       ? state.modalReturnUrl
       : `${window.location.pathname}${window.location.search}`
-    if (song?.id) replaceCatalogHash(songCatalogHash(song.id), '/', '')
-    set({ modalSong: song, modalOpen: true, modalReturnUrl: modalReturnUrl || '/' })
+    const pathname = preservePath ? window.location.pathname : '/'
+    const search = preservePath ? window.location.search : ''
+    if (song?.id) replaceCatalogHash(songCatalogHash(song.id), pathname, search)
+    set({ modalSong: song, modalOpen: true, modalReturnUrl: modalReturnUrl || '/', modalPreservePath: preservePath })
   },
   closeModal: () => {
     const { modalReturnUrl } = get()
     if (/^#song=\d+$/.test(window.location.hash)) {
       window.history.replaceState(window.history.state, '', modalReturnUrl || '/')
     }
-    set({ modalOpen: false, modalSong: null, modalReturnUrl: null })
+    set({ modalOpen: false, modalSong: null, modalReturnUrl: null, modalPreservePath: false })
   },
   setModalReturnUrl: (url) => set({ modalReturnUrl: url || '/' }),
   updateModalSong: (song) => set({ modalSong: song }),

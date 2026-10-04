@@ -36,7 +36,6 @@ function CloseModalOnCataloglessRoutes() {
     const shouldClose =
       path === '/feedback' ||
       path === '/analytics' ||
-      path === '/updates' ||
       path === '/groups' ||
       path.startsWith('/groups/') ||
       ((path === '/personal-categories' || path.startsWith('/personal-categories/')) && !location.state?.keepCatalogOpen)
@@ -54,12 +53,13 @@ function SyncCatalogUrl() {
   const location = useLocation()
   const modalOpen = useStore(s => s.modalOpen)
   const songId = useStore(s => s.modalSong?.id)
+  const preservePath = useStore(s => s.modalPreservePath)
 
   useEffect(() => {
     if (!modalOpen || !songId) return
     useStore.getState().setModalReturnUrl(`${location.pathname}${location.search}` || '/')
-    replaceCatalogHash(songCatalogHash(songId), '/', '')
-  }, [modalOpen, songId, location.pathname, location.search])
+    replaceCatalogHash(songCatalogHash(songId), preservePath ? location.pathname : '/', preservePath ? location.search : '')
+  }, [modalOpen, songId, preservePath, location.pathname, location.search])
 
   return null
 }

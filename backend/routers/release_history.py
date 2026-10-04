@@ -9,11 +9,17 @@ from database import get_conn
 router = APIRouter(prefix="/api", tags=["release-history"])
 
 
+class ReleaseHistoryVariant(BaseModel):
+    id: int
+    level: float
+
+
 class ReleaseHistorySong(BaseModel):
     name: str
     artist: str
     image: str | None = None
     levels: list[float]
+    variants: list[ReleaseHistoryVariant]
 
 
 class ReleaseHistoryEntry(BaseModel):
@@ -33,8 +39,8 @@ def get_release_history():
                 "  GROUP BY release_date"
                 ") "
                 "SELECT s.game_release_date, n.url, s.name, s.artist, MIN(s.image), "
-                "       ARRAY_AGG(DISTINCT s.level ORDER BY s.level) "
-                "         FILTER (WHERE s.level IS NOT NULL) AS levels "
+                "       JSONB_AGG(JSONB_BUILD_OBJECT('id', s.id, 'level', s.level) "
+                "         ORDER BY s.level, s.id) FILTER (WHERE s.level IS NOT NULL) AS variants "
                 "FROM songs s "
                 "LEFT JOIN notices n ON n.release_date = s.game_release_date "
                 "WHERE s.game_release_date IS NOT NULL "
@@ -44,7 +50,7 @@ def get_release_history():
             rows = cur.fetchall()
 
     grouped: dict[date, ReleaseHistoryEntry] = {}
-    for release_date, notice_url, name, artist, image, levels in rows:
+    for release_date, notice_url, name, artist, image, raw_variants in rows:
         entry = grouped.get(release_date)
         if entry is None:
             entry = ReleaseHistoryEntry(
@@ -53,12 +59,21 @@ def get_release_history():
                 songs=[],
             )
             grouped[release_date] = entry
+        variants_by_level: dict[float, ReleaseHistoryVariant] = {}
+        for variant in raw_variants or []:
+            level = float(variant["level"])
+            variants_by_level.setdefault(
+                level,
+                ReleaseHistoryVariant(id=int(variant["id"]), level=level),
+            )
+        variants = [variants_by_level[level] for level in sorted(variants_by_level)]
         entry.songs.append(
             ReleaseHistorySong(
                 name=name or "",
                 artist=artist or "",
                 image=image,
-                levels=[float(level) for level in (levels or [])],
+                levels=[variant.level for variant in variants],
+                variants=variants,
             )
         )
 

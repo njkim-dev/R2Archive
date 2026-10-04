@@ -281,10 +281,13 @@
 .rh-song-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rh-song-name,
 .rh-song-artist { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rh-song-name { color: var(--fg); font-size: 12.5px; font-weight: 600; }
+.rh-song-name { padding: 0; border: 0; background: transparent; color: var(--fg); font-size: 12.5px; font-weight: 600; text-align: left; }
+.rh-song-name:not(:disabled) { cursor: pointer; }
+.rh-song-name:not(:disabled):hover,
+.rh-song-name:not(:disabled):focus-visible { color: var(--accent); }
 .rh-song-artist { color: var(--fg-3); font-size: 12px; }
 .rh-levels { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
-.rh-levels span {
+.rh-levels button {
   position: relative;
   min-width: 26px;
   height: 24px;
@@ -296,8 +299,12 @@
   place-items: center;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 10px;
+  border: 0;
+  cursor: pointer;
 }
-.rh-levels span::after {
+.rh-levels button:hover,
+.rh-levels button:focus-visible { color: var(--fg); background: var(--surface-2); }
+.rh-levels button::after {
   content: "";
   position: absolute;
   right: 5px;

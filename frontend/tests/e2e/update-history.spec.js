@@ -6,8 +6,8 @@ const releases = [
     release_date: '2026-09-30',
     notice_url: 'https://www.orvvit.com/page/r2beat/09wol-30il-su-eobdeiteu-annae',
     songs: [
-      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', image: 'rnr_image/img_music/echo.bmp', levels: [3, 4.5, 8] },
-      { name: 'NEW WORLD', artist: 'SEED9', image: 'rnr_image/img_music/world.bmp', levels: [6] },
+      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', image: 'rnr_image/img_music/echo.bmp', levels: [3, 4.5, 8], variants: [{ id: 101, level: 3 }, { id: 102, level: 4.5 }, { id: 103, level: 8 }] },
+      { name: 'NEW WORLD', artist: 'SEED9', image: 'rnr_image/img_music/world.bmp', levels: [6], variants: [{ id: 104, level: 6 }] },
     ],
   },
   {
@@ -110,8 +110,25 @@ test('expanded songs show album art and level colors', async ({ page }, testInfo
 
   const firstSong = page.locator('.rh-song-row').first()
   await expect(firstSong.locator('.rh-song-art img')).toHaveAttribute('src', /\/static\/rnr_image\/img_music\/echo\.bmp$/)
-  await expect(firstSong.locator('.rh-levels span')).toHaveCount(3)
-  expect(await firstSong.locator('.rh-levels span').first().evaluate(element => element.style.getPropertyValue('--lv-bar'))).toContain('oklch')
+  await expect(firstSong.locator('.rh-levels button')).toHaveCount(3)
+  expect(await firstSong.locator('.rh-levels button').first().evaluate(element => element.style.getPropertyValue('--lv-bar'))).toContain('oklch')
+})
+
+test('song title opens the highest difficulty and level buttons open their own catalog', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
+  await mockApis(page, releases)
+  await page.goto('/updates')
+
+  const firstSong = page.locator('.rh-song-row').first()
+  await firstSong.locator('.rh-song-name').click()
+  await expect(page).toHaveURL(/\/updates#song=103$/)
+  await expect(page.getByRole('complementary', { name: 'ECHOES OF TIME (PREQUEL I) 곡 상세' })).toBeVisible()
+  await page.getByRole('button', { name: '닫기' }).click()
+  await expect(page).toHaveURL(/\/updates$/)
+
+  await firstSong.getByRole('button', { name: '난이도 4.5 카탈로그 열기' }).click()
+  await expect(page).toHaveURL(/\/updates#song=102$/)
+  await expect(page.getByRole('complementary', { name: 'ECHOES OF TIME (PREQUEL I) 곡 상세' })).toBeVisible()
 })
 
 test('desktop and mobile navigation place update history between songs and rankings', async ({ page }, testInfo) => {
