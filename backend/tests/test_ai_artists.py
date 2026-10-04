@@ -52,7 +52,7 @@ class AiArtistTests(unittest.TestCase):
                         if query == "SELECT artist_name FROM ai_artists":
                             cur.fetchall.return_value = [(name,) for name in registered]
                         elif "SELECT s.id, s.name" in query:
-                            cur.fetchall.return_value = rows
+                            cur.fetchall.return_value = [row + (False,) for row in rows] if "AS is_removed" in query else rows
                         else:
                             cur.fetchall.return_value = []
 
@@ -89,7 +89,7 @@ class AiArtistTests(unittest.TestCase):
         client = TestClient(app)
         cur = MagicMock()
         rows = [(1, "Song", "Artist", 8, 160, None, 700, False,
-                 "2:00", "", "", False, 1, None, "", [], [], None)]
+                 "2:00", "", "", False, 1, None, "", [], [], None, True)]
 
         def execute(query, params=None):
             if query == "SELECT artist_name FROM ai_artists":
@@ -105,6 +105,7 @@ class AiArtistTests(unittest.TestCase):
             response = client.get("/api/songs?include_removed=true")
 
         self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()[0]["is_removed"])
         list_call = next(
             call for call in cur.execute.call_args_list
             if "ORDER BY s.stat DESC" in call.args[0]

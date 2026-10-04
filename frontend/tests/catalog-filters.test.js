@@ -41,6 +41,13 @@ test('AI filtering uses the API flag rather than artist names', () => {
   assert.equal(isAiSong({ artist: null }), false)
 })
 
+test('removed songs can be excluded, included, or shown alone', () => {
+  const data = [...songs, song(8, 'Removed Artist', { is_removed: true })]
+  assert.deepEqual(ids(filterSongs(data, filters({ removedMode: 'exclude' }))), [1, 2, 3, 4, 5, 6, 7])
+  assert.deepEqual(ids(filterSongs(data, filters({ removedMode: 'show' }))), [1, 2, 3, 4, 5, 6, 7, 8])
+  assert.deepEqual(ids(filterSongs(data, filters({ removedMode: 'only' }))), [8])
+})
+
 test('AI, artist, channel, quick, listening and ranges intersect', () => {
   assert.deepEqual(ids(filterSongs(songs, filters({ aiMode: 'hide', quick: 'new' }))), [5])
   assert.deepEqual(ids(filterSongs(songs, filters({ aiMode: 'only', listenOnly: true }))), [1, 2, 3])
@@ -114,15 +121,26 @@ test('ranges normalize safely when closing, including blank and reversed inputs'
 })
 
 test('local storage round trip keeps all detailed settings and Set values', () => {
-  const original = filters({ category: 'sun', quick: 'new', personalCategoryId: 41, aiMode: 'hide', artists: new Set(['MAZO', 'SEED9']), levelMin: 7, bpmMax: 180, listenOnly: true, sort: { key: 'bpm', dir: 'asc' } })
+  const original = filters({ category: 'sun', quick: 'new', personalCategoryId: 41, aiMode: 'hide', artists: new Set(['MAZO', 'SEED9']), levelMin: 7, bpmMax: 180, listenOnly: true, removedMode: 'only', sort: { key: 'bpm', dir: 'asc' } })
   const serialized = serializeDetailedFilters(original)
   const storage = { getItem: key => key === detailedFilterStorageKey('kr') ? serialized : null }
   const restored = readDetailedFilters('kr', storage)
   assert.deepEqual(restored, normalizeDetailedFilters(original))
   assert.equal(restored.personalCategoryId, 41)
+  assert.equal(restored.removedMode, 'only')
   assert.equal(readDetailedFilters('xyx', storage), null)
   restored.artists.delete('MAZO')
   assert(original.artists.has('MAZO'))
+})
+
+test('legacy removed-song toggle migrates into detailed filters', () => {
+  const storage = {
+    getItem: key => key === detailedFilterStorageKey('kr') || key === detailedFilterStorageKey('xyx')
+      ? JSON.stringify({ version: 1, filters: { category: null } })
+      : key === 'r2b_show_removed_songs' ? '1' : null,
+  }
+  assert.equal(readDetailedFilters('kr', storage).removedMode, 'show')
+  assert.equal(readDetailedFilters('xyx', storage).removedMode, 'exclude')
 })
 
 test('corrupt, unavailable and unknown-version storage cannot crash the page', () => {

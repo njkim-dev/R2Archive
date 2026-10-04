@@ -4,7 +4,7 @@ import { FixedSizeList } from 'react-window'
 import { LockKeyhole, Moon, RotateCcw, Search, Shield, SlidersHorizontal, Star, Sun, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { filterSongs } from '../utils/helpers'
-import { AI_MODES, allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, normalizeDetailedFilters, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
+import { AI_MODES, REMOVED_MODES, allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, normalizeDetailedFilters, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import { isXyxMode } from '../utils/serverMode'
 import { queueCategoryCreateAfterLogin } from './CreatePersonalCategoryModal'
 
@@ -48,7 +48,7 @@ function NumberRange({ label, minKey, maxKey, min, max, step, draft, update }) {
   )
 }
 
-function FilterDialog({ songs, isMobile }) {
+function FilterDialog({ songs, isMobile, showRemovedFilter }) {
   const {
     meta, user, isAdmin, search, searchMode, excludeSearch, favorites, played, playedAll,
     personalCategoryFilters, personalCategoryFiltersLoaded, refreshPersonalCategoryFilters,
@@ -119,12 +119,13 @@ function FilterDialog({ songs, isMobile }) {
     const { exact } = filterSongs(songs, {
       category: draft.category,
       aiMode: draft.aiMode,
+      removedMode: showRemovedFilter ? draft.removedMode : undefined,
       artists: new Set(),
       personalCategoryId: draft.personalCategoryId,
       personalCategorySongIds,
     })
     return buildArtistCatalog(exact)
-  }, [songs, draft.category, draft.aiMode, draft.personalCategoryId, personalCategorySongIds])
+  }, [songs, draft.category, draft.aiMode, draft.removedMode, draft.personalCategoryId, personalCategorySongIds, showRemovedFilter])
   const artists = useMemo(() => {
     const term = artistSearch.trim().normalize('NFKC').toLowerCase()
     return catalog.filter(item => item.artist.normalize('NFKC').toLowerCase().includes(term))
@@ -224,6 +225,14 @@ function FilterDialog({ songs, isMobile }) {
                   </label>
                 ))}
               </div></section>
+              {showRemovedFilter && <section><h3 id="detailed-removed-title">삭제된 곡</h3><div className="detailed-removed-options" role="radiogroup" aria-labelledby="detailed-removed-title">
+                {REMOVED_MODES.map(option => (
+                  <label key={option.key} title={option.title}>
+                    <input type="radio" name="detailed-removed" value={option.key} checked={draft.removedMode === option.key} onChange={() => update('removedMode', option.key)} />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div></section>}
             </div>
             <section className="detailed-artists">
               <div className="detailed-artist-heading"><h3>아티스트 <span>{draft.artists.size ? `${draft.artists.size}개 선택` : `${catalog.length}개`}</span></h3>
@@ -251,7 +260,7 @@ function FilterDialog({ songs, isMobile }) {
   )
 }
 
-export default function DetailedFilters({ songs, isMobile = false }) {
+export default function DetailedFilters({ songs, isMobile = false, showRemovedFilter = false }) {
   const open = useStore(state => state.mobileSheetOpen)
-  return open ? <FilterDialog songs={songs} isMobile={isMobile} /> : null
+  return open ? <FilterDialog songs={songs} isMobile={isMobile} showRemovedFilter={showRemovedFilter} /> : null
 }

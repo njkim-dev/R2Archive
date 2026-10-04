@@ -136,6 +136,7 @@ def _rows_to_song_items(
                 aliases=_song_aliases(korea_name, aliases),
                 artist_aliases=_artist_aliases(artist, artist_aliases),
                 same_music_group_id=int(same_music_group_id) if same_music_group_id is not None else None,
+                is_removed=removed,
             )
         )
     return songs

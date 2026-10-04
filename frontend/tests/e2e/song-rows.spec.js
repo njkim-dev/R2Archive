@@ -164,7 +164,6 @@ test('released removed songs can be shown without shifting the catalog', async (
     removedSongs: [removedSong],
     deferRemoved: true,
   })
-  const toggle = page.getByLabel('삭제된 곡 표시')
   const excludeBox = await page.getByLabel('입력한 검색어만 제외하기').boundingBox()
   const dividerBox = await page.locator('.search-options-divider').boundingBox()
   const displayOptionsBox = await page.locator('.search-display-options').boundingBox()
@@ -172,17 +171,25 @@ test('released removed songs can be shown without shifting the catalog', async (
 
   expect(excludeBox.y + excludeBox.height).toBeLessThanOrEqual(dividerBox.y)
   expect(dividerBox.y + dividerBox.height).toBeLessThanOrEqual(displayOptionsBox.y)
-  await expect(toggle).not.toBeChecked()
-  await toggle.check()
+  await expect(page.getByLabel('삭제된 곡 표시')).toHaveCount(0)
+  await page.getByRole('button', { name: '상세 필터' }).click()
+  const showRemoved = page.getByLabel('삭제된 곡 표시')
+  const onlyRemoved = page.getByLabel('삭제된 곡만 표시')
+  const excludeRemoved = page.getByLabel('삭제된 곡 제외')
+  await expect(excludeRemoved).toBeChecked()
+  await showRemoved.check()
   await control.waitForRemovedRequest()
   await expect(page.locator('[data-song-id="90"]')).toHaveCount(0)
   await layout.expectStable()
 
   control.releaseRemovedRequest()
   await expect(page.locator('[data-song-id="90"]')).toBeVisible()
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('r2b_show_removed_songs'))).toBe('1')
   await layout.expectStable()
   await layout.stop()
+  await onlyRemoved.check()
+  await expect(page.locator('[data-song-id="1"]')).toHaveCount(0)
+  await expect(page.locator('[data-song-id="90"]')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('r2b:detailed-filters:v1:kr')).filters.removedMode)).toBe('only')
 })
 
 test('same-title difficulty rows keep independent cells and actions', async ({ page }) => {

@@ -30,7 +30,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     quick, setQuick,
     levelMin, levelMax, setLevelMin, setLevelMax,
     bpmMin, bpmMax, setBpmMin, setBpmMax,
-    artists, aiMode, listenOnly,
+    artists, aiMode, listenOnly, removedMode,
     personalCategoryId, personalCategoryFilters,
     favorites, played, playedAll,
     isAdmin, closeModal, mobileSheetOpen, openMobileSheet,
@@ -60,7 +60,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       search: '', searchMode: 'both',
       levelMin, levelMax, bpmMin, bpmMax,
       category, quick: 'all', artists,
-      aiMode, listenOnly,
+      aiMode, listenOnly, removedMode,
       favorites, played: playedSet,
       personalCategoryId, personalCategorySongIds,
     }).exact
@@ -74,7 +74,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       my_played: user ? base.filter(s => playedSet.has(s.id)).length : 0,
       no_music: base.filter(s => !s.youtube_url).length,
     }
-  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, aiMode, listenOnly, user, favorites, played, playedAll, personalCategoryId, personalCategorySongIds])
+  }, [songs, levelMin, levelMax, bpmMin, bpmMax, category, artists, aiMode, listenOnly, removedMode, user, favorites, played, playedAll, personalCategoryId, personalCategorySongIds])
 
   const handleLvBlur = () => {
     if (levelMin > levelMax) { setLevelMin(levelMax); setLevelMax(levelMin) }
@@ -83,7 +83,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     if (bpmMin > bpmMax) { setBpmMin(bpmMax); setBpmMax(bpmMin) }
   }
 
-  const detailCount = detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, personalCategoryId }, meta)
+  const detailCount = detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, removedMode, personalCategoryId }, meta)
 
   return (
     <aside className="side">

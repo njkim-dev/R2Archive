@@ -151,7 +151,8 @@ def get_songs(include_removed: bool = False):
                 "COALESCE(xyx_match.xyx_name, '') AS xyx_name, "
                 "COALESCE(song_aliases.aliases, ARRAY[]::text[]) AS aliases, "
                 "COALESCE(artist_aliases.aliases, ARRAY[]::text[]) AS artist_aliases, "
-                "smgm.group_id AS same_music_group_id "
+                "smgm.group_id AS same_music_group_id, "
+                "COALESCE(s.is_removed, FALSE) AS is_removed "
                 "FROM songs s "
                 "LEFT JOIN LATERAL ("
                 "  SELECT array_agg(DISTINCT sa.alias) FILTER ("
@@ -187,7 +188,7 @@ def get_songs(include_removed: bool = False):
 
     songs = []
     for row in rows:
-        sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, file_order, image, xyx_name, aliases, artist_aliases, same_music_group_id = row
+        sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, file_order, image, xyx_name, aliases, artist_aliases, same_music_group_id, is_removed = row
         p_avg, p_votes = perceived.get(sid, (None, 0))
         songs.append(SongListItem(
             id=sid,
@@ -213,6 +214,7 @@ def get_songs(include_removed: bool = False):
             aliases=list(aliases) if aliases else [],
             artist_aliases=list(artist_aliases) if artist_aliases else [],
             same_music_group_id=int(same_music_group_id) if same_music_group_id is not None else None,
+            is_removed=bool(is_removed),
         ))
     return songs
 
@@ -312,6 +314,7 @@ def get_removed_songs(request: Request):
             aliases=list(aliases) if aliases else [],
             artist_aliases=list(artist_aliases) if artist_aliases else [],
             same_music_group_id=int(same_music_group_id) if same_music_group_id is not None else None,
+            is_removed=True,
         ))
     return songs
 

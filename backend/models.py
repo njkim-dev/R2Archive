@@ -42,6 +42,7 @@ class SongListItem(BaseModel):
     aliases: list[str] = []
     artist_aliases: list[str] = []
     same_music_group_id: Optional[int] = None
+    is_removed: bool = False
 
 
 class SongDetail(BaseModel):

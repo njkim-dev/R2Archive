@@ -55,7 +55,7 @@ export default function SongsPage() {
   const {
     songs, search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
-    artists, sort, favorites, played, playedAll, aiMode, listenOnly,
+    artists, sort, favorites, played, playedAll, aiMode, listenOnly, removedMode,
     personalCategoryId, personalCategoryFilters,
     meta, setCategory, setQuick, isAdmin, modalOpen,
     loading, error, loadCatalog, showMyPerceived,
@@ -81,11 +81,12 @@ export default function SongsPage() {
       search, searchMode, excludeSearch: effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax,
       category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
       artists, favorites, played: playedForFilter, aiMode, listenOnly,
+      removedMode,
       personalCategoryId, personalCategorySongIds,
     })
     const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
     return { exact: sortSongs(exact, effectiveSort, myPerceived.levels), fuzzy: sortSongs(fuzzy, effectiveSort, myPerceived.levels) }
-  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly, personalCategoryId, personalCategorySongIds])
+  }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
   const categorySuggestion = useMemo(() => {
@@ -109,7 +110,7 @@ export default function SongsPage() {
       artists,
       favorites,
       played,
-      aiMode, listenOnly,
+      aiMode, listenOnly, removedMode,
       personalCategoryId, personalCategorySongIds,
     })
     const currentDistinct = distinctSongCount([...filtered.exact, ...filtered.fuzzy])
@@ -118,7 +119,7 @@ export default function SongsPage() {
     return {
       onApply: () => setCategory(category),
     }
-  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly, personalCategoryId, personalCategorySongIds])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
 
   if (isMobile) {
     return (
@@ -130,7 +131,7 @@ export default function SongsPage() {
             ? <CatalogErrorState message={error} onRetry={loadCatalog} isMobile />
             : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} />
         }
-        <DetailedFilters songs={songs} isMobile />
+        <DetailedFilters songs={songs} isMobile showRemovedFilter={!isXyxMode()} />
       </div>
     )
   }
@@ -149,7 +150,6 @@ export default function SongsPage() {
           showOriginalBpmToggle
           showMyPerceivedToggle={!isXyxMode()}
           showCategoryListToggle
-          showRemovedSongsToggle={!isXyxMode()}
           myPerceivedStatus={myPerceived.status}
           onRetryMyPerceived={myPerceived.retry}
         />
@@ -168,7 +168,7 @@ export default function SongsPage() {
               />
         }
       </main>
-      <DetailedFilters songs={songs} />
+      <DetailedFilters songs={songs} showRemovedFilter={!isXyxMode()} />
     </div>
   )
 }

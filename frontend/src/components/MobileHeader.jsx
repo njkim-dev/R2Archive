@@ -32,7 +32,7 @@ export default function MobileHeader({ totalFiltered }) {
     search, setSearch,
     category, setCategory,
     quick, setQuick,
-    meta, bpmMin, bpmMax, levelMin, levelMax, artists, aiMode, listenOnly,
+    meta, bpmMin, bpmMax, levelMin, levelMax, artists, aiMode, listenOnly, removedMode,
     personalCategoryId,
     mobileSheetOpen, openMobileSheet,
     sort, user, isAdmin,
@@ -47,8 +47,8 @@ export default function MobileHeader({ totalFiltered }) {
   }, [category])
 
   const hasBadge = useMemo(() => {
-    return detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, personalCategoryId }, meta) > 0
-  }, [category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, personalCategoryId, meta])
+    return detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, removedMode, personalCategoryId }, meta) > 0
+  }, [category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, removedMode, personalCategoryId, meta])
 
   const handleChip = (chip) => {
     if (CHIPS.some(item => item.key === chip && item.flag)) {

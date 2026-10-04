@@ -50,10 +50,10 @@
 .detailed-listen-option input::before { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; border-radius: 50%; background: var(--fg-3); }
 .detailed-listen-option input:checked { background: var(--accent); }
 .detailed-listen-option input:checked::before { transform: translateX(12px); background: var(--accent-ink); }
-.detailed-ai-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-0); }
-.detailed-ai-options label { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; min-height: 36px; font-size: 12px; cursor: pointer; }
-.detailed-ai-options label + label { border-left: 1px solid var(--line-soft); }
-.detailed-ai-options label:has(input:checked) { background: var(--accent-dim); color: var(--accent); }
+.detailed-ai-options, .detailed-removed-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-0); }
+.detailed-ai-options label, .detailed-removed-options label { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; min-height: 36px; font-size: 12px; cursor: pointer; text-align: center; }
+.detailed-ai-options label + label, .detailed-removed-options label + label { border-left: 1px solid var(--line-soft); }
+.detailed-ai-options label:has(input:checked), .detailed-removed-options label:has(input:checked) { background: var(--accent-dim); color: var(--accent); }
 .detailed-artists { min-width: 0; border-left: 1px solid var(--line-soft); padding-left: 22px; }
 .detailed-artist-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .detailed-artist-heading h3 { margin: 0; }
@@ -88,5 +88,5 @@
 }
 @media (pointer: coarse) {
   .detailed-close { width: 44px; height: 44px; }
-  .detailed-quick-option, .detailed-channels button, .detailed-ai-options label, .detailed-reset, .detailed-artist-heading button { min-height: 44px; }
+  .detailed-quick-option, .detailed-channels button, .detailed-ai-options label, .detailed-removed-options label, .detailed-reset, .detailed-artist-heading button { min-height: 44px; }
 }

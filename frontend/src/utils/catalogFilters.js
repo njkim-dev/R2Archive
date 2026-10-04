@@ -15,6 +15,12 @@ export const AI_MODES = [
   { key: 'only', label: 'AI만 표시' },
 ]
 
+export const REMOVED_MODES = [
+  { key: 'exclude', label: '삭제된 곡 제외' },
+  { key: 'show', label: '삭제된 곡 표시', title: '일반 곡과 삭제된 곡 모두 표시' },
+  { key: 'only', label: '삭제된 곡만 표시' },
+]
+
 const numberOrNull = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value)
 const validSortKeys = [null, 'file_order', 'name', 'korea_name', 'artist', 'level', 'userLevel', 'bpm', 'real_bpm', 'combo', 'time', 'play_count', 'favorite_count']
 
@@ -24,7 +30,7 @@ export function defaultDetailedFilters(meta = null) {
     personalCategoryId: null,
     levelMin: meta?.level_min ?? null, levelMax: meta?.level_max ?? null,
     bpmMin: meta?.bpm_min ?? null, bpmMax: meta?.bpm_max ?? null,
-    aiMode: 'show', listenOnly: false,
+    aiMode: 'show', listenOnly: false, removedMode: 'exclude',
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
     sort: { key: null, dir: 'desc' },
   }
@@ -40,6 +46,7 @@ export function normalizeDetailedFilters(value = {}, meta = null) {
   result.quick = QUICK_FILTERS.some(item => item.key === source.quick) && source.quick !== 'all' ? source.quick : legacyQuick
   result.aiMode = AI_MODES.some(item => item.key === source.aiMode) ? source.aiMode : 'show'
   result.listenOnly = source.listenOnly === true
+  result.removedMode = REMOVED_MODES.some(item => item.key === source.removedMode) ? source.removedMode : 'exclude'
   const artists = source.artists instanceof Set ? [...source.artists] : source.artists
   result.artists = new Set(Array.isArray(artists) ? artists.filter(name => typeof name === 'string' && name.trim()) : [])
   for (const [minKey, maxKey, lower, upper] of [
@@ -69,8 +76,14 @@ export function detailedFilterStorageKey(serverMode) {
 
 export function readDetailedFilters(serverMode, storage) {
   try {
-    const saved = JSON.parse((storage ?? globalThis.localStorage)?.getItem(detailedFilterStorageKey(serverMode)) || 'null')
-    return saved?.version === 1 ? normalizeDetailedFilters(saved.filters) : null
+    const target = storage ?? globalThis.localStorage
+    const saved = JSON.parse(target?.getItem(detailedFilterStorageKey(serverMode)) || 'null')
+    if (saved?.version !== 1) return null
+    const filters = normalizeDetailedFilters(saved.filters)
+    if (serverMode === 'kr' && saved.filters?.removedMode == null && target?.getItem('r2b_show_removed_songs') === '1') {
+      filters.removedMode = 'show'
+    }
+    return filters
   } catch { return null }
 }
 
@@ -100,6 +113,7 @@ export function detailedFilterCount(state, meta) {
   if (state.bpmMin != null && (state.bpmMin !== meta?.bpm_min || state.bpmMax !== meta?.bpm_max)) count++
   if (state.aiMode && state.aiMode !== 'show') count++
   if (state.listenOnly) count++
+  if (state.removedMode && state.removedMode !== 'exclude') count++
   return count + (state.artists?.size || 0)
 }
 
