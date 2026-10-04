@@ -83,11 +83,20 @@ function HistoryCard({ entry, expanded, onToggle, onOpenVariant }) {
       </div>
       <div className="rh-rail" aria-hidden="true"><span /></div>
       <article className={`rh-release-card${expanded ? ' is-open' : ''}`}>
-        <div className="rh-card-head">
+        <div
+          className={`rh-card-head${entry.songs.length > 0 ? ' is-toggleable' : ''}`}
+          onClick={entry.songs.length > 0 ? onToggle : undefined}
+        >
           <h2>{formatReleaseTitle(entry.release_date)}</h2>
           <span className="rh-song-count">{entry.songs.length.toLocaleString()}곡</span>
           {entry.notice_url && (
-            <a className="rh-notice-link" href={entry.notice_url} target="_blank" rel="noopener noreferrer">
+            <a
+              className="rh-notice-link"
+              href={entry.notice_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={event => event.stopPropagation()}
+            >
               공식 공지 <ExternalLink size={14} aria-hidden="true" />
             </a>
           )}
@@ -97,7 +106,10 @@ function HistoryCard({ entry, expanded, onToggle, onOpenVariant }) {
               className="rh-expand"
               aria-label={`${formatReleaseTitle(entry.release_date)} 음원 목록 ${expanded ? '접기' : '펼치기'}`}
               aria-expanded={expanded}
-              onClick={onToggle}
+              onClick={event => {
+                event.stopPropagation()
+                onToggle()
+              }}
             >
               <ChevronDown size={17} aria-hidden="true" />
             </button>

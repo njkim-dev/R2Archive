@@ -224,6 +224,8 @@
   gap: 10px;
   padding: 13px 14px 13px 17px;
 }
+.rh-card-head.is-toggleable { cursor: pointer; }
+.rh-card-head.is-toggleable:hover { background: var(--surface-1); }
 .rh-card-head h2 { flex: 1 1 auto; min-width: 0; font-size: 13.5px; letter-spacing: -.01em; }
 .rh-song-count {
   flex: 0 0 auto;

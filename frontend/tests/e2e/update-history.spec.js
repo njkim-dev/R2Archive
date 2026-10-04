@@ -114,6 +114,25 @@ test('expanded songs show album art and level colors', async ({ page }, testInfo
   expect(await firstSong.locator('.rh-levels button').first().evaluate(element => element.style.getPropertyValue('--lv-bar'))).toContain('oklch')
 })
 
+test('clicking the release row toggles its songs without hijacking the notice link', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
+  await mockApis(page, releases)
+  await page.goto('/updates')
+
+  const firstCard = page.locator('.rh-release-card').first()
+  const firstHead = firstCard.locator('.rh-card-head')
+  await expect(firstCard.locator('.rh-card-body')).toBeVisible()
+  await firstHead.click({ position: { x: 20, y: 20 } })
+  await expect(firstCard.locator('.rh-card-body')).toBeHidden()
+  await firstHead.click({ position: { x: 20, y: 20 } })
+  await expect(firstCard.locator('.rh-card-body')).toBeVisible()
+
+  const notice = firstCard.locator('.rh-notice-link')
+  await notice.evaluate(element => element.addEventListener('click', event => event.preventDefault(), { once: true }))
+  await notice.click()
+  await expect(firstCard.locator('.rh-card-body')).toBeVisible()
+})
+
 test('song title opens the highest difficulty and level buttons open their own catalog', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
   await mockApis(page, releases)
