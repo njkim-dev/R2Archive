@@ -133,13 +133,13 @@ test('clicking the release row toggles its songs without hijacking the notice li
   await expect(firstCard.locator('.rh-card-body')).toBeVisible()
 })
 
-test('song title opens the highest difficulty and level buttons open their own catalog', async ({ page }, testInfo) => {
+test('song row opens the highest difficulty and level buttons open their own catalog', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
   await mockApis(page, releases)
   await page.goto('/updates')
 
   const firstSong = page.locator('.rh-song-row').first()
-  await firstSong.locator('.rh-song-name').click()
+  await firstSong.click({ position: { x: 100, y: 20 } })
   await expect(page).toHaveURL(/\/updates#song=103$/)
   await expect(page.getByRole('complementary', { name: 'ECHOES OF TIME (PREQUEL I) 곡 상세' })).toBeVisible()
   await page.getByRole('button', { name: '닫기' }).click()

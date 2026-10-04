@@ -43,18 +43,17 @@ function SongRow({ song, onOpenVariant }) {
   const highestVariant = song.variants?.at(-1)
   return (
     <div className="rh-song-row">
+      <button
+        type="button"
+        className="rh-song-open"
+        aria-label={`${song.name} 최고 난이도 카탈로그 열기`}
+        disabled={!highestVariant}
+        onClick={() => onOpenVariant(song, highestVariant)}
+      />
       <div className="rh-song-art" aria-hidden="true">
         {song.image && <img src={staticUrl(song.image)} alt="" draggable={false} onError={event => { event.currentTarget.style.display = 'none' }} />}
       </div>
-      <button
-        type="button"
-        className="rh-song-name"
-        title={`${song.name} 최고 난이도 카탈로그 열기`}
-        disabled={!highestVariant}
-        onClick={() => onOpenVariant(song, highestVariant)}
-      >
-        {song.name}
-      </button>
+      <div className="rh-song-name" title={song.name}>{song.name}</div>
       <div className="rh-song-artist" title={song.artist}>{song.artist}</div>
       <div className="rh-levels" aria-label={`난이도 ${song.levels.join(', ')}`}>
         {(song.variants || []).map(variant => (
