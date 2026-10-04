@@ -165,8 +165,13 @@ test('released removed songs can be shown without shifting the catalog', async (
     deferRemoved: true,
   })
   const toggle = page.getByLabel('삭제된 곡 표시')
+  const excludeBox = await page.getByLabel('입력한 검색어만 제외하기').boundingBox()
+  const dividerBox = await page.locator('.search-options-divider').boundingBox()
+  const displayOptionsBox = await page.locator('.search-display-options').boundingBox()
   const layout = await watchLayout(page, ['.tbl-header', '[data-song-id="1"]'])
 
+  expect(excludeBox.y + excludeBox.height).toBeLessThanOrEqual(dividerBox.y)
+  expect(dividerBox.y + dividerBox.height).toBeLessThanOrEqual(displayOptionsBox.y)
   await expect(toggle).not.toBeChecked()
   await toggle.check()
   await control.waitForRemovedRequest()

@@ -147,49 +147,52 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
             <span>입력한 검색어만 제외하기</span>
           </label>
           {(showOriginalBpmToggle || showMyPerceivedToggle || showCategoryListToggle || showRemovedSongsToggle) && (
-            <div className="search-display-options">
-              {showOriginalBpmToggle && (
-                <label className="search-original-bpm">
-                  <input
-                    type="checkbox"
-                    checked={showOriginalBpm}
-                    onChange={e => setShowOriginalBpm(e.target.checked)}
-                  />
-                  <span>음악 원 BPM 표시</span>
-                </label>
-              )}
-              {showMyPerceivedToggle && (
-                <label className={`search-my-perceived${user ? '' : ' disabled'}`} title={user ? undefined : '로그인 후 사용할 수 있습니다.'}>
-                  <input
-                    type="checkbox"
-                    checked={!!user && showMyPerceived}
-                    disabled={!user}
-                    onChange={e => setShowMyPerceived(e.target.checked)}
-                  />
-                  <span>내 체감 난이도로 표시</span>
-                </label>
-              )}
-              {showCategoryListToggle && (
-                <label className="search-song-categories">
-                  <input
-                    type="checkbox"
-                    checked={showSongCategories}
-                    onChange={e => setShowSongCategories(e.target.checked)}
-                  />
-                  <span>등록된 카테고리 리스트 표시</span>
-                </label>
-              )}
-              {showRemovedSongsToggle && (
-                <label className="search-removed-songs">
-                  <input
-                    type="checkbox"
-                    checked={showRemovedSongs}
-                    onChange={e => setShowRemovedSongs(e.target.checked)}
-                  />
-                  <span>삭제된 곡 표시</span>
-                </label>
-              )}
-            </div>
+            <>
+              <hr className="search-options-divider" />
+              <div className="search-display-options">
+                {showOriginalBpmToggle && (
+                  <label className="search-original-bpm">
+                    <input
+                      type="checkbox"
+                      checked={showOriginalBpm}
+                      onChange={e => setShowOriginalBpm(e.target.checked)}
+                    />
+                    <span>음악 원 BPM 표시</span>
+                  </label>
+                )}
+                {showMyPerceivedToggle && (
+                  <label className={`search-my-perceived${user ? '' : ' disabled'}`} title={user ? undefined : '로그인 후 사용할 수 있습니다.'}>
+                    <input
+                      type="checkbox"
+                      checked={!!user && showMyPerceived}
+                      disabled={!user}
+                      onChange={e => setShowMyPerceived(e.target.checked)}
+                    />
+                    <span>내 체감 난이도로 표시</span>
+                  </label>
+                )}
+                {showCategoryListToggle && (
+                  <label className="search-song-categories">
+                    <input
+                      type="checkbox"
+                      checked={showSongCategories}
+                      onChange={e => setShowSongCategories(e.target.checked)}
+                    />
+                    <span>등록된 카테고리 리스트 표시</span>
+                  </label>
+                )}
+                {showRemovedSongsToggle && (
+                  <label className="search-removed-songs">
+                    <input
+                      type="checkbox"
+                      checked={showRemovedSongs}
+                      onChange={e => setShowRemovedSongs(e.target.checked)}
+                    />
+                    <span>삭제된 곡 표시</span>
+                  </label>
+                )}
+              </div>
+            </>
           )}
           {myPerceivedStatus === 'error' && (
             <span className="search-personal-status" role="alert">
