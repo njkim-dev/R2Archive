@@ -97,14 +97,19 @@ handle {
 		host music.r2archive.com
 		path /pmang-songs /pmang-songs/
 	}
+	@kr_updates {
+		host music.r2archive.com
+		path /updates /updates/
+	}
 	@kr_nonpublic {
 		host music.r2archive.com
-		not path / /index.html /pmang-songs /pmang-songs/
+		not path / /index.html /pmang-songs /pmang-songs/ /updates /updates/
 	}
 	header @kr_nonpublic X-Robots-Tag "noindex"
 	route {
 		rewrite @kr_home /seo/kr/home.html
 		rewrite @kr_pmang /seo/kr/pmang.html
+		rewrite @kr_updates /seo/kr/updates.html
 		try_files {path} {path}/ /index.html
 		file_server
 	}

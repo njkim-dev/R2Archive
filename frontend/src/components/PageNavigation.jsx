@@ -22,6 +22,9 @@ export default function PageNavigation({ onNavigate }) {
       <div className="page-nav">
         <NavLink to="/" end className={linkClass} onClick={handleClick()}><span>곡 목록</span></NavLink>
         {!xyxMode && (
+          <NavLink to="/updates" className={linkClass} onClick={handleClick()}><span>업데이트 내역</span></NavLink>
+        )}
+        {!xyxMode && (
           <NavLink to="/rankings" className={linkClass} onClick={handleClick()}><span>개인 성과</span></NavLink>
         )}
         {!xyxMode && (

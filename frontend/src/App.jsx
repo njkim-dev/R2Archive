@@ -26,6 +26,7 @@ const PersonalCategoryDetailPage = lazy(() => import('./pages/PersonalCategoryDe
 const PersonalCategorySubscribersPage = lazy(() => import('./pages/PersonalCategorySubscribersPage'))
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
+const UpdateHistoryPage = lazy(() => import('./pages/UpdateHistoryPage'))
 
 function CloseModalOnCataloglessRoutes() {
   const location = useLocation()
@@ -35,6 +36,7 @@ function CloseModalOnCataloglessRoutes() {
     const shouldClose =
       path === '/feedback' ||
       path === '/analytics' ||
+      path === '/updates' ||
       path === '/groups' ||
       path.startsWith('/groups/') ||
       ((path === '/personal-categories' || path.startsWith('/personal-categories/')) && !location.state?.keepCatalogOpen)
@@ -69,6 +71,7 @@ function openSongFromHash(song) {
 }
 
 export default function App() {
+  const appLocation = useLocation()
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
 
@@ -121,6 +124,7 @@ export default function App() {
   }, [songs])
 
   useEffect(() => {
+    if (appLocation.pathname === '/updates') return
     let cancelled = false
     loadCatalog().then(success => {
       if (!success || cancelled) return
@@ -134,7 +138,7 @@ export default function App() {
       }
     })
     return () => { cancelled = true }
-  }, [loadCatalog, restoreListState])
+  }, [loadCatalog, restoreListState, appLocation.pathname])
 
   return (
     <>
@@ -157,6 +161,7 @@ export default function App() {
           <Route path="/personal-categories/:code/subscribers" element={<PersonalCategorySubscribersPage />} />
           <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
           {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
+          {!xyxMode && <Route path="/updates" element={<UpdateHistoryPage />} />}
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

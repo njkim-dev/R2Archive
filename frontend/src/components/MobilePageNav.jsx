@@ -4,6 +4,7 @@ import { isXyxMode } from '../utils/serverMode'
 
 const PAGES = [
   { to: '/',            label: '곡',       end: true },
+  { to: '/updates',     label: '업데이트 내역', krOnly: true },
   { to: '/rankings',    label: '성과', krOnly: true },
   { to: '/groups',      label: '그룹',     needLogin: true, krOnly: true },
   { to: '/personal-categories', label: '카테고리', needLogin: true },

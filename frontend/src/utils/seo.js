@@ -14,6 +14,12 @@ export const PUBLIC_PAGES = [
     title: '과거 피망 알투비트 음악 목록 | R2Archive',
     description: '과거 피망 알투비트의 음악과 아티스트를 찾아보고 난이도, BPM, 콤보 정보와 음악 듣기 링크를 확인하세요.',
   },
+  {
+    path: '/updates',
+    file: 'updates.html',
+    title: '알투비트 음악 업데이트 내역 | R2Archive',
+    description: '알투비트 한국 서버 음원의 게임 출시일과 난이도를 날짜별로 확인하고 공식 업데이트 공지를 열어보세요.',
+  },
 ]
 
 export function getPageSeo(pathname) {

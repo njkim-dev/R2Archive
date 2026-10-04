@@ -1,0 +1,125 @@
+import { expect, test } from '@playwright/test'
+import { watchLayout } from './layout.js'
+
+const releases = [
+  {
+    release_date: '2026-09-30',
+    notice_url: 'https://www.orvvit.com/page/r2beat/09wol-30il-su-eobdeiteu-annae',
+    songs: [
+      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', levels: [3, 4.5, 8] },
+      { name: 'NEW WORLD', artist: 'SEED9', levels: [6] },
+    ],
+  },
+  {
+    release_date: '2026-09-17',
+    notice_url: 'https://www.orvvit.com/page/r2beat/09wol-17il-mog-eobdeiteu-annae',
+    songs: [{ name: '날개', artist: '아이리제', levels: [7.5] }],
+  },
+  {
+    release_date: '2026-09-10',
+    notice_url: null,
+    songs: [{ name: 'Another Song', artist: 'Another Artist', levels: [5] }],
+  },
+  {
+    release_date: '2026-08-27',
+    notice_url: null,
+    songs: [{ name: 'Late Summer', artist: 'Artist', levels: [6.5] }],
+  },
+  {
+    release_date: '2025-12-18',
+    notice_url: null,
+    songs: [{ name: 'Winter', artist: 'Artist', levels: [5] }],
+  },
+]
+
+async function mockApis(page, historyData, gate = Promise.resolve()) {
+  await page.route('**/api/**', async route => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (!path.startsWith('/api/')) return route.continue()
+    if (path === '/api/release-history') {
+      await gate
+      return route.fulfill({ json: historyData })
+    }
+    if (path === '/api/meta') {
+      return route.fulfill({ json: { total_count: 0, new_count: 0, played_count: 0, change_count: 0, top_artists: [], bpm_min: 0, bpm_max: 300, level_min: 0.5, level_max: 12 } })
+    }
+    if (path === '/api/auth/me') return route.fulfill({ json: { user: null } })
+    if (path.endsWith('/admin-status')) return route.fulfill({ json: { is_admin: false } })
+    if (path.includes('/flags')) return route.fulfill({ json: { favorites: [], played: [], played_all: [] } })
+    return route.fulfill({ json: [] })
+  })
+}
+
+test('loading the virtualized history keeps the toolbar and list geometry stable', async ({ page }) => {
+  let releaseHistory
+  const gate = new Promise(resolve => { releaseHistory = resolve })
+  const manyReleases = Array.from({ length: 160 }, (_, index) => {
+    const date = new Date(2026, 8, 30 - index * 7)
+    const releaseDate = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+    return {
+      release_date: releaseDate,
+      notice_url: null,
+      songs: [{ name: `Song ${index}`, artist: `Artist ${index}`, levels: [5] }],
+    }
+  })
+  await mockApis(page, manyReleases, gate)
+  await page.goto('/updates')
+  await expect(page.locator('.rh-toolbar')).toBeVisible()
+  await expect(page.locator('.rh-list-shell')).toBeVisible()
+  const watcher = await watchLayout(page, ['.rh-toolbar', '.rh-list-shell'])
+  releaseHistory()
+  await expect(page.locator('.rh-release-card').first()).toBeVisible()
+  await watcher.expectStable()
+  await watcher.stop()
+  expect(await page.locator('.rh-release-card').count()).toBeLessThan(manyReleases.length)
+})
+
+test('date picker enables release days and supports year and month selection', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
+  await mockApis(page, releases)
+  await page.goto('/updates')
+  await expect(page.locator('.rh-release-card').first()).toBeVisible()
+
+  await page.locator('.rh-date-trigger').click()
+  await expect(page.getByRole('button', { name: '2026년 9월 16일, 업데이트 없음' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '2026년 9월 17일 업데이트 선택' })).toBeEnabled()
+
+  await page.getByRole('button', { name: '연도 선택: 2026년' }).click()
+  await expect(page.getByRole('button', { name: '2025년으로 이동' })).toBeVisible()
+  await page.getByRole('button', { name: '2025년으로 이동' }).click()
+  await expect(page.getByRole('button', { name: '11월로 이동' })).toBeDisabled()
+  await page.getByRole('button', { name: '12월로 이동' }).click()
+  await page.getByRole('button', { name: '2025년 12월 18일 업데이트 선택' }).click()
+
+  await expect(page.locator('.rh-date-trigger')).toContainText('2025.12.18')
+  await expect(page.locator('.rh-release-card')).toHaveCount(1)
+  await expect(page.locator('.rh-release-card')).toContainText('Winter')
+
+  await page.locator('.rh-date-trigger').click()
+  await page.getByRole('button', { name: '전체 날짜 보기' }).click()
+  const notice = page.locator('.rh-notice-link').first()
+  await expect(notice).toHaveAttribute('target', '_blank')
+  await expect(notice).toHaveAttribute('href', releases[0].notice_url)
+})
+
+test('desktop and mobile navigation place update history between songs and rankings', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single navigation coverage')
+  await mockApis(page, releases)
+  await page.goto('/')
+
+  const desktopLinks = page.locator('.side .page-nav-item')
+  await expect(desktopLinks.nth(0)).toHaveText('곡 목록')
+  await expect(desktopLinks.nth(1)).toHaveText('업데이트 내역')
+  await expect(desktopLinks.nth(2)).toHaveText('개인 성과')
+  await desktopLinks.nth(1).click()
+  await expect(page).toHaveURL(/\/updates$/)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload()
+  const mobileLinks = page.locator('.rh-mobile-head .mob-pnav-item')
+  await expect(mobileLinks.nth(0)).toHaveText('곡')
+  await expect(mobileLinks.nth(1)).toHaveText('업데이트 내역')
+  await expect(mobileLinks.nth(2)).toHaveText('성과')
+  await expect(mobileLinks.nth(1)).toHaveClass(/\bon\b/)
+})
