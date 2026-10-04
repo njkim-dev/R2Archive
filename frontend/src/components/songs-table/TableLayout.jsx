@@ -1,15 +1,15 @@
-export const COL_TEMPLATE = '56px 2fr 1fr 76px 100px 110px 110px 68px 80px 56px'
-export const COMPACT_COL_TEMPLATE = 'minmax(0, 1.45fr) minmax(110px, 0.9fr) 76px'
+export const COL_TEMPLATE = '56px 76px 2fr 1fr 100px 110px 110px 68px 80px 56px'
+export const COMPACT_COL_TEMPLATE = '76px minmax(0, 1.45fr) minmax(110px, 0.9fr)'
 export const CATALOG_FULL_TABLE_MIN_WIDTH = 620
-export const LINKED_COMPACT_COL_TEMPLATE = 'minmax(0, 1.25fr) minmax(0, 1fr) minmax(100px, 0.8fr) 76px'
-export const XYX_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
-export const XYX_CATEGORY_COL_TEMPLATE = '50px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 68px 86px 94px 96px 58px 64px 46px'
+export const LINKED_COMPACT_COL_TEMPLATE = '76px minmax(0, 1.25fr) minmax(0, 1fr) minmax(100px, 0.8fr)'
+export const XYX_COL_TEMPLATE = '50px 68px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 86px 94px 96px 58px 64px 46px'
+export const XYX_CATEGORY_COL_TEMPLATE = '50px 68px minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.95fr) 86px 94px 96px 58px 64px 46px'
 
 export const DEFAULT_HEADERS = [
   { label: '#',        key: 'file_order', cls: '' },
+  { label: '난이도',   key: 'level',     cls: 'num' },
   { label: '곡명',     key: 'name',      cls: '' },
   { label: '아티스트',  key: 'artist',    cls: '' },
-  { label: '난이도',   key: 'level',     cls: 'num' },
   { label: '유저 난이도', key: 'userLevel', cls: 'num' },
   { label: 'BPM',     key: 'bpm',       cls: 'num' },
   { label: '콤보',    key: 'combo',     cls: 'num' },
@@ -28,21 +28,22 @@ export const DEFAULT_HEADERS_WITH_REAL_BPM = [
 export const XYX_HEADERS = [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
+  DEFAULT_HEADERS[2],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
-  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'userLevel'),
+  ...DEFAULT_HEADERS.slice(3).filter(header => header.key !== 'userLevel'),
 ]
 
 export const FAVORITE_COUNT_HEADER = { label: '즐겨찾기', key: 'favorite_count', cls: 'num' }
 export const COMPACT_HEADERS = [
+  { label: '난이도', key: 'level', cls: 'num' },
   { label: '곡명', key: 'name', cls: '' },
   { label: '아티스트', key: 'artist', cls: '' },
-  { label: '난이도', key: 'level', cls: 'num' },
 ]
 export const compactLinkedHeaders = (label, key) => [
+  { label: '난이도', key: 'level', cls: 'num' },
   { label: '곡명', key: 'name', cls: '' },
   { label, key, cls: '' },
   { label: '아티스트', key: 'artist', cls: '' },
-  { label: '난이도', key: 'level', cls: 'num' },
 ]
 
 export const favoriteCountHeaders = (headers) => headers.map(header =>
@@ -52,8 +53,9 @@ export const favoriteCountHeaders = (headers) => headers.map(header =>
 export const xyxFavoriteCountHeaders = [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
+  DEFAULT_HEADERS[2],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
-  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'userLevel').map(header =>
+  ...DEFAULT_HEADERS.slice(3).filter(header => header.key !== 'userLevel').map(header =>
     header.key === 'play_count' ? FAVORITE_COUNT_HEADER : header
   ),
 ]
@@ -61,16 +63,18 @@ export const xyxFavoriteCountHeaders = [
 export const XYX_CATEGORY_HEADERS = [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
+  DEFAULT_HEADERS[2],
   { label: '한국 곡명', key: 'korea_name', cls: '' },
-  ...DEFAULT_HEADERS.slice(2).filter(header => header.key !== 'userLevel'),
+  ...DEFAULT_HEADERS.slice(3).filter(header => header.key !== 'userLevel'),
 ]
 
-export const KOREA_NAME_HEADER = XYX_HEADERS[2]
+export const KOREA_NAME_HEADER = XYX_HEADERS[3]
 export const xyxHeaders = (showOriginalBpmColumn = false) => [
   DEFAULT_HEADERS[0],
   DEFAULT_HEADERS[1],
+  DEFAULT_HEADERS[2],
   KOREA_NAME_HEADER,
-  ...DEFAULT_HEADERS.slice(2, 6).filter(header => header.key !== 'userLevel'),
+  ...DEFAULT_HEADERS.slice(3, 6).filter(header => header.key !== 'userLevel'),
   ...(showOriginalBpmColumn ? [REAL_BPM_HEADER] : []),
   ...DEFAULT_HEADERS.slice(6),
 ]

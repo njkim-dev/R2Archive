@@ -262,6 +262,13 @@ export function SongRow({
         onClick={() => onClick(song)}
         onKeyDown={e => openRowFromKeyboard(e, song, onClick)}
       >
+        {showColumn('level') && <div className="td num level-cell" data-column="level" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
+          <span className="level-val">
+            <span className="int">{lvInt}</span>
+            <span className="dec">{lvDec}</span>
+          </span>
+        </div>}
+
         <div className="td" role="cell" data-column="name">
           <div className="title-cell">
             <div className="title-thumb" style={{ background: artworkBg(song.id) }}>
@@ -288,12 +295,6 @@ export function SongRow({
           {song.artist}
         </div>}
 
-        {showColumn('level') && <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
-          <span className="level-val">
-            <span className="int">{lvInt}</span>
-            <span className="dec">{lvDec}</span>
-          </span>
-        </div>}
       </div>
     )
   }
@@ -316,6 +317,13 @@ export function SongRow({
           {favoriteButton}
         </div>
       </div>}
+
+      <div className="td num level-cell" data-column="level" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
+        <span className="level-val">
+          <span className="int">{lvInt}</span>
+          <span className="dec">{lvDec}</span>
+        </span>
+      </div>
 
       <div className="td" role="cell" data-column="name">
         <div className="title-cell">
@@ -374,13 +382,6 @@ export function SongRow({
           {song.artist}
         </div>
       )}
-
-      <div className="td num level-cell" style={{ '--lv-bar': levelBarColor(song.level) }} role="cell">
-        <span className="level-val">
-          <span className="int">{lvInt}</span>
-          <span className="dec">{lvDec}</span>
-        </span>
-      </div>
 
       {showColumn('userLevel') && (
         <div className="td num" role="cell">

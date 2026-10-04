@@ -146,6 +146,11 @@ test('same-title difficulty rows keep independent cells and actions', async ({ p
   const { writes, errors } = await mockCatalog(page, data)
 
   await expect(page.locator('.tbl-song-group')).toHaveCount(0)
+  const levelHeader = page.getByRole('columnheader', { name: /^난이도 기준/ })
+  const nameHeader = page.getByRole('columnheader', { name: /^곡명 기준/ })
+  const levelHeaderBox = await levelHeader.boundingBox()
+  const nameHeaderBox = await nameHeader.boundingBox()
+  expect(levelHeaderBox.x).toBeLessThan(nameHeaderBox.x)
   const artistVisible = await page.getByRole('columnheader', { name: /^아티스트/ }).count() > 0
   for (const id of [1, 2, 3]) {
     const row = page.locator(`[data-song-id="${id}"]`)
@@ -154,10 +159,27 @@ test('same-title difficulty rows keep independent cells and actions', async ({ p
     if (artistVisible) await expect(row.locator('.artist-cell')).toHaveText('Test Artist')
     else await expect(row.locator('.artist-cell')).toHaveCount(0)
     await expect(row.locator('.fav-btn')).toHaveCount(1)
+    const levelBox = await row.locator('[data-column="level"]').boundingBox()
+    const nameBox = await row.locator('[data-column="name"]').boundingBox()
+    expect(levelBox.x).toBeLessThan(nameBox.x)
   }
   const indexVisible = await page.locator('[data-song-id="1"] [data-column="file_order"]').count() > 0
-  if (indexVisible) await expect(page.locator('[data-song-id="1"] .new-tag')).toHaveText('NEW')
-  else await expect(page.locator('[data-song-id="1"] .new-tag')).toHaveCount(0)
+  const newRow = page.locator('[data-song-id="1"]')
+  if (indexVisible) {
+    const newTag = newRow.locator('.new-tag')
+    const favorite = newRow.locator('.fav-btn')
+    await expect(newTag).toHaveText('NEW')
+    await expect(newTag).toHaveCSS('opacity', '1')
+    await expect(favorite).toHaveCSS('opacity', '0')
+    await newRow.hover()
+    await expect(newTag).toHaveCSS('opacity', '0')
+    await expect(favorite).toHaveCSS('opacity', '1')
+    await favorite.click()
+    await expect(favorite).toHaveClass(/on/)
+    expect(writes.some(write => write.path.endsWith('/favorites/1'))).toBe(true)
+  } else {
+    await expect(newRow.locator('.new-tag')).toHaveCount(0)
+  }
   await expect(page.locator('[data-song-id="2"] .new-tag')).toHaveCount(0)
   await expect(page.locator('[data-song-id="1"] .song-youtube-icon')).toHaveCount(1)
   await expect(page.locator('[data-song-id="2"] .song-youtube-icon')).toHaveCount(0)
@@ -167,7 +189,11 @@ test('same-title difficulty rows keep independent cells and actions', async ({ p
   await page.locator('[data-song-id="2"]').hover()
   await favorite.click()
   await expect(favorite).toHaveClass(/on/)
-  await expect(page.locator('[data-song-id="1"] .fav-btn')).not.toHaveClass(/on/)
+  if (indexVisible) {
+    await expect(page.locator('[data-song-id="1"] .fav-btn')).toHaveClass(/on/)
+  } else {
+    await expect(page.locator('[data-song-id="1"] .fav-btn')).not.toHaveClass(/on/)
+  }
   expect(writes.some(write => write.path.endsWith('/favorites/2'))).toBe(true)
   expect(errors).toEqual([])
 })

@@ -260,7 +260,14 @@
 .td.dim { color: var(--fg-4); }
 .td.center { text-align: center; }
 
-.idx-cell { display: flex; align-items: center; gap: 6px; }
+.idx-cell {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 24px;
+}
+.idx-cell > .new-tag,
+.idx-cell > .fav-btn {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
 .idx { font-family: "JetBrains Mono", monospace; color: var(--fg-4); font-size: 11px; font-variant-numeric: tabular-nums; }
 .tbl-row:hover .idx { display: none; }
 .fav-btn {
@@ -271,6 +278,11 @@
 .tbl-row:hover .fav-btn,
 .fav-btn:focus-visible,
 .fav-btn.on { opacity: 1; pointer-events: auto; }
+.tbl-row:hover:not([data-restored-focus="true"]) .idx-cell > .new-tag,
+.idx-cell:has(.fav-btn:is(.on, :focus-visible)) > .new-tag {
+  opacity: 0;
+  pointer-events: none;
+}
 .tbl-row[data-restored-focus="true"]:hover .fav-btn:not(.on) {
   opacity: 0;
   pointer-events: none;
