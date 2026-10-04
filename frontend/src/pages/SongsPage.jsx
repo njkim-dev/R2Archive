@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useStore from '../store/useStore'
 import { filterSongs, sortSongs } from '../utils/helpers'
 import Sidebar from '../components/Sidebar'
@@ -52,6 +52,7 @@ function CatalogErrorState({ message, onRetry, isMobile }) {
 
 export default function SongsPage() {
   const isMobile = useMobile(isXyxMode() ? 1100 : 768)
+  const [originalBpmAvailable, setOriginalBpmAvailable] = useState(false)
   const {
     songs, search, searchMode, excludeSearch, levelMin, levelMax, bpmMin, bpmMax,
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
@@ -148,6 +149,7 @@ export default function SongsPage() {
           loading={loading}
           error={error}
           showOriginalBpmToggle
+          originalBpmAvailable={isXyxMode() || originalBpmAvailable}
           showMyPerceivedToggle={!isXyxMode()}
           showCategoryListToggle
           myPerceivedStatus={myPerceived.status}
@@ -165,6 +167,7 @@ export default function SongsPage() {
                 catalogOpen={catalogPanelOpen}
                 myPerceivedLevels={myPerceived.levels}
                 showCategoryLabels
+                onOriginalBpmAvailabilityChange={!isXyxMode() ? setOriginalBpmAvailable : undefined}
               />
         }
       </main>

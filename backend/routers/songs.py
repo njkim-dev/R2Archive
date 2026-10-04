@@ -329,7 +329,7 @@ def get_song(request: Request, song_id: int):
                 "COALESCE(real_combo, combo) AS combo, "
                 "(real_combo IS NOT NULL AND real_combo > combo) AS combo_warning, "
                 "COALESCE(real_time, time) AS time, "
-                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index "
+                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index, game_release_date "
                 "FROM songs WHERE id = %s",
                 (song_id,)
             )
@@ -388,7 +388,7 @@ def get_song(request: Request, song_id: int):
                     is_removed=bool(counterpart_row[3]),
                 )
 
-    sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index = row
+    sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index, game_release_date = row
     xyx_name = counterpart.name if counterpart and counterpart.server == "xyx" else ""
     base_bpm = float(bpm or 0)
     timeline = _parse_bpm_timeline(change_bpm or "")
@@ -419,6 +419,7 @@ def get_song(request: Request, song_id: int):
         image=image or None,
         bpm_timeline=timeline,
         counterpart=counterpart,
+        game_release_date=game_release_date,
     )
 
 

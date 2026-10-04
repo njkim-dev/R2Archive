@@ -27,6 +27,12 @@ function originalBpmText(song, detail) {
   return value != null ? fmtBpm(value) : '-'
 }
 
+function releaseDateText(value) {
+  const date = String(value ?? '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  return `${date} ${Number(date.slice(0, 4)) >= 2022 ? '벨로프 출시' : '이전 서비스 출시'}`
+}
+
 function MobileBpmTimeline({ timeline }) {
   return (
     <div className="mob-section">
@@ -51,6 +57,7 @@ function MobileDetail({ song, detail, onClose, difficultyVariants = [], onDiffic
   const practiceSectionCount = usePracticeSectionCount(song.id, !xyxMode)
   const counterpartUrl = getCounterpartUrl(song.counterpart)
   const counterpartLabel = getCounterpartLabel(song.counterpart)
+  const releaseText = !xyxMode ? releaseDateText(detail?.game_release_date) : null
 
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const catLabel = { star: '별 (1.5–3.5)', moon: '달 (4–6.5)', sun: '해 (7–12)' }[cat]
@@ -136,6 +143,7 @@ function MobileDetail({ song, detail, onClose, difficultyVariants = [], onDiffic
           <div className="mob-hero-linked-name">{linkedName.label} : {linkedName.value}</div>
         )}
         <div className="mob-hero-sub">{song.artist}{song.chapter ? ` · ${song.chapter}` : ''}</div>
+        {releaseText && <div className="mob-hero-release">{releaseText}</div>}
         <div className="mob-hero-tags">
           <span className="mob-h-tag mob-h-tag-accent">LV {song.level.toFixed(1)}</span>
           {perceivedStats?.avg != null && (
@@ -511,6 +519,7 @@ export default function SongModal() {
   const initials = (song.artist || '').split(/[\s_]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
   const counterpartUrl = getCounterpartUrl(song.counterpart)
   const counterpartLabel = getCounterpartLabel(song.counterpart)
+  const releaseText = !xyxMode ? releaseDateText(detail?.game_release_date) : null
   const linkedName = song.korea_name
     ? { label: '한국 곡명', value: song.korea_name }
     : song.xyx_name
@@ -579,6 +588,7 @@ export default function SongModal() {
                 <div className="m-linked-name">{linkedName.label} : {linkedName.value}</div>
               )}
               <div className="m-artist">by <b>{song.artist}</b> · {song.time} · {fmt(song.combo)} 콤보</div>
+              {releaseText && <div className="m-release-date">{releaseText}</div>}
             </div>
           </div>
 

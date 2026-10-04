@@ -288,7 +288,9 @@
     font-size: 12.5px; color: var(--accent); margin: -1px 0 5px;
     font-weight: 600; letter-spacing: -0.005em;
   }
-  .mob-hero-sub { font-size: 14px; color: var(--fg-3); margin-bottom: 14px; }
+  .mob-hero-sub { font-size: 14px; color: var(--fg-3); margin-bottom: 5px; }
+  .mob-hero-release { margin-bottom: 14px; color: var(--fg-4); font-size: 12px; }
+  .mob-hero-sub:not(:has(+ .mob-hero-release)) { margin-bottom: 14px; }
   .mob-hero-tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .mob-h-tag {
     display: inline-flex; align-items: center; gap: 4px;

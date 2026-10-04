@@ -55,7 +55,12 @@ async function mockCatalog(page, data = songs, {
       }
       json = includeRemoved ? [...data, ...removedSongs] : data
     }
-    else if (detail) json = { ...data.find(item => item.id === +detail[1]), bpm_timeline: [], play_count_week: 0 }
+    else if (detail) json = {
+      ...data.find(item => item.id === +detail[1]),
+      bpm_timeline: [],
+      play_count_week: 0,
+      game_release_date: +detail[1] === 1 ? '2024-07-11' : '2011-02-03',
+    }
     else if (path === '/api/meta') json = { total_count: data.length, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
     else if (path === '/api/auth/me') json = { user: currentUser }
     else if (path === '/api/personal-categories/filters' || path === '/api/xyx-categories/filters') json = personalCategories
@@ -190,6 +195,37 @@ test('released removed songs can be shown without shifting the catalog', async (
   await expect(page.locator('[data-song-id="1"]')).toHaveCount(0)
   await expect(page.locator('[data-song-id="90"]')).toBeVisible()
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('r2b:detailed-filters:v1:kr')).filters.removedMode)).toBe('only')
+})
+
+test('original BPM option follows the available table width', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await mockCatalog(page)
+  const toggle = page.getByLabel('음악 원 BPM 표시')
+
+  await expect(toggle).toBeEnabled()
+  await toggle.check()
+  await expect(page.getByRole('columnheader', { name: /^원 BPM 기준/ })).toBeVisible()
+
+  await page.setViewportSize({ width: 900, height: 900 })
+  await expect(toggle).toBeDisabled()
+  await expect(toggle).toBeChecked()
+  await expect(page.getByRole('columnheader', { name: /^원 BPM 기준/ })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await expect(toggle).toBeEnabled()
+  await expect(toggle).toBeChecked()
+  await expect(page.getByRole('columnheader', { name: /^원 BPM 기준/ })).toBeVisible()
+})
+
+test('Korean song catalog shows the release date and service era', async ({ page }) => {
+  await mockCatalog(page)
+
+  await page.locator('[data-song-id="1"] .title-main').click()
+  await expect(page.locator('.m-release-date')).toHaveText('2024-07-11 벨로프 출시')
+  await page.getByRole('button', { name: '닫기' }).click()
+
+  await page.locator('[data-song-id="2"] .title-main').click()
+  await expect(page.locator('.m-release-date')).toHaveText('2011-02-03 이전 서비스 출시')
 })
 
 test('same-title difficulty rows keep independent cells and actions', async ({ page }) => {

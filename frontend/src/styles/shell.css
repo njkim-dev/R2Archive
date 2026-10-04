@@ -213,6 +213,7 @@
 .search-song-categories:hover,
 .search-removed-songs:hover { color: var(--fg-2); }
 .search-exclude.disabled,
+.search-original-bpm.disabled,
 .search-my-perceived.disabled { color: var(--fg-4); cursor: default; }
 .search-exclude input,
 .search-original-bpm input,

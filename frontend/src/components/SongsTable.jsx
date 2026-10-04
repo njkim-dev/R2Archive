@@ -60,6 +60,7 @@ export default function SongsTable({
   catalogOpen = false,
   myPerceivedLevels = null,
   showCategoryLabels = false,
+  onOriginalBpmAvailabilityChange,
 }) {
   const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm, showSongCategories, personalCategoryFilters } = useStore()
   const canFav = !!user
@@ -90,6 +91,19 @@ export default function SongsTable({
     if (showKoreaName) hidden.add('userLevel')
     return hidden
   }, [columnWidth, unfilteredHeaders, compact, showKoreaName])
+  const originalBpmHeaders = compact
+    ? baseHeaders
+    : showKoreaName
+    ? (showFavoriteCount ? xyxHeadersWithFavoriteCount(true) : xyxHeaders(true))
+    : DEFAULT_HEADERS_WITH_REAL_BPM
+  const originalBpmUnfilteredHeaders = tableMode === 'personalCategory'
+    ? personalCategoryHeaders(originalBpmHeaders)
+    : (showFavoriteCount && !showKoreaName ? favoriteCountHeaders(originalBpmHeaders) : originalBpmHeaders)
+  const originalBpmAvailable = tableWidth > 0 && !compact && tableMode !== 'personalCategory' &&
+    !hideColumnsForWidth(columnWidth, originalBpmUnfilteredHeaders, compact).has('real_bpm')
+  useEffect(() => {
+    onOriginalBpmAvailabilityChange?.(originalBpmAvailable)
+  }, [onOriginalBpmAvailabilityChange, originalBpmAvailable])
   const headers = unfilteredHeaders.filter(header => !hiddenColumns.has(columnKey(header)))
     .map(header => header.key === 'userLevel' && myPerceivedLevels
       ? { ...header, label: '내 체감 난이도', cls: 'num th-my-perceived' }

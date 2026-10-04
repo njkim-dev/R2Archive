@@ -35,7 +35,7 @@ function useElementWidth() {
   return [ref, width]
 }
 
-export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false, showMyPerceivedToggle = false, showCategoryListToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
+export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false, originalBpmAvailable = true, showMyPerceivedToggle = false, showCategoryListToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
   const { search, setSearch, searchMode, setSearchMode, excludeSearch, setExcludeSearch, showOriginalBpm, setShowOriginalBpm, showMyPerceived, setShowMyPerceived, showSongCategories, setShowSongCategories, meta, sort, openLogin, user, logout, openOnboarding, openMyPage, modalOpen } = useStore()
   const inputRef = useRef(null)
   const [modeOpen, setModeOpen] = useState(false)
@@ -151,10 +151,11 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
               <hr className="search-options-divider" />
               <div className="search-display-options">
                 {showOriginalBpmToggle && (
-                  <label className="search-original-bpm">
+                  <label className={`search-original-bpm${originalBpmAvailable ? '' : ' disabled'}`} title={originalBpmAvailable ? undefined : '현재 화면 너비에서는 원 BPM 컬럼을 표시할 수 없습니다.'}>
                     <input
                       type="checkbox"
                       checked={showOriginalBpm}
+                      disabled={!originalBpmAvailable}
                       onChange={e => setShowOriginalBpm(e.target.checked)}
                     />
                     <span>음악 원 BPM 표시</span>

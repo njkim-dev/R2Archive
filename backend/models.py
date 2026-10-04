@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -65,6 +65,7 @@ class SongDetail(BaseModel):
     image: Optional[str] = None
     bpm_timeline: list[BpmPoint]
     counterpart: Optional[SongServerCounterpart] = None
+    game_release_date: Optional[date] = None
 
 
 class MetaResponse(BaseModel):

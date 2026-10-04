@@ -96,6 +96,7 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
 }
 .m-artist { color: var(--fg-2); font-size: 14px; }
 .m-artist b { color: var(--fg); font-weight: 500; }
+.m-release-date { margin-top: 5px; color: var(--fg-3); font-size: 12px; }
 .level-hero-pill {
   display: inline-flex; align-items: baseline; gap: 4px;
   padding: 5px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line);
