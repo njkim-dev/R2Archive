@@ -59,3 +59,52 @@
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 .user-search-popover .user-list { margin-top: 0; }
+
+.ranking-speed-tabs {
+  display: flex; align-items: center; gap: 4px; padding: 8px 28px;
+  border-bottom: 1px solid var(--line-soft); background: var(--bg); flex-shrink: 0;
+}
+.ranking-speed-tab {
+  min-height: 30px; padding: 0 12px; border-radius: 6px;
+  color: var(--fg-3); font-size: 12px; font-weight: 500;
+}
+.ranking-speed-tab:hover { background: var(--surface-1); color: var(--fg); }
+.ranking-speed-tab.active { background: var(--accent-dim); color: var(--accent); }
+.ranking-speed-tabs.mobile {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 8px; padding: 3px; border: 0; border-radius: 8px;
+  background: var(--surface-1);
+}
+.ranking-speed-tabs.mobile .ranking-speed-tab {
+  min-width: 0; min-height: 32px; padding: 0 4px; font-size: 11px;
+}
+.ranking-speed-tabs.mobile .ranking-speed-tab.active { background: var(--surface-2); }
+
+.ranking-speed-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 17px; padding: 0 5px; border-radius: 4px;
+  background: var(--surface-2); color: var(--fg-3); font-size: 9.5px;
+  font-weight: 600; line-height: 1; white-space: nowrap;
+}
+
+.ranking-speed-modal {
+  width: min(420px, calc(100vw - 32px)); padding: 22px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface-0); box-shadow: 0 24px 70px oklch(0 0 0 / 0.5);
+}
+.ranking-speed-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ranking-speed-modal-head h3 { margin: 0; font-size: 16px; color: var(--fg); }
+.ranking-speed-modal > p { margin: 8px 0 18px; color: var(--fg-3); font-size: 12px; line-height: 1.55; }
+.ranking-speed-modal-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ranking-speed-modal-options button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  min-height: 70px; padding: 12px; border: 1px solid var(--line-soft);
+  border-radius: 8px; background: var(--surface-1); text-align: left;
+}
+.ranking-speed-modal-options button:hover { border-color: var(--accent); background: var(--accent-dim); }
+.ranking-speed-modal-options strong { color: var(--fg); font-size: 13px; }
+.ranking-speed-modal-options span { color: var(--fg-4); font-size: 10.5px; }
+
+@media (max-width: 900px) {
+  .ranking-speed-tabs:not(.mobile) { padding-inline: 18px; }
+}

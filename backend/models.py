@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -136,6 +136,7 @@ class RecordCreate(BaseModel):
     memo_public: bool = False
     visibility: Optional[str] = Field(default=None, pattern=r"^(public|group|private)$")
     register_as_play_video: bool = False
+    speed: Literal["normal", "fast", "ultra"] = "ultra"
 
 
 class RecordResponse(BaseModel):
@@ -151,6 +152,7 @@ class RecordResponse(BaseModel):
     visibility: str = "public"
     is_mine: bool = False
     is_manual: bool = False
+    speed: Literal["normal", "fast", "ultra"] = "ultra"
     screenshot_url: Optional[str] = None
     owner_show_screenshot: bool = False
     created_at: datetime
@@ -160,6 +162,7 @@ class ManualRecordEntry(BaseModel):
     song_id: int = Field(ge=1)
     judgment_percent: Optional[float] = Field(default=None, ge=0.0, le=99.0)
     youtube_url: Optional[str] = Field(default=None, max_length=300)
+    speed: Literal["normal", "fast", "ultra"] = "ultra"
 
 
 class ManualRecordsBulk(BaseModel):

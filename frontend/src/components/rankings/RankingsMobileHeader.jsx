@@ -4,6 +4,7 @@ import useStore from '../../store/useStore'
 import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
 import ServerSwitcher from '../ServerSwitcher'
+import RankingSpeedTabs from './RankingSpeedTabs'
 
 // 카테고리 별과 내 성과 기호를 구분한다.
 const StarIcon = (
@@ -138,6 +139,8 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
             onClick={() => setSearchMode('user')}
           >사용자</button>
         </div>
+
+        <RankingSpeedTabs mobile />
 
         {pinnedUser && (
           <div className="mob-user-pin">

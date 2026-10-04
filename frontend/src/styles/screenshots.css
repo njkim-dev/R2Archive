@@ -137,6 +137,16 @@
 .rr-field .unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--fg-4); font-size: 12px; pointer-events: none; }
 .rr-field .with-unit { position: relative; }
 .rr-field .hint { font-size: 10.5px; color: var(--fg-4); margin-top: 5px; }
+.rr-speed-options {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  padding: 3px; border-radius: 8px; background: var(--surface-1);
+}
+.rr-speed-options button {
+  min-height: 34px; border-radius: 6px; color: var(--fg-3);
+  font-size: 12px; font-weight: 600;
+}
+.rr-speed-options button:hover { color: var(--fg); }
+.rr-speed-options button.active { background: var(--surface-2); color: var(--accent); }
 
 /* 곡명 프리뷰는 원본 상단을 확대한다. */
 .rr-song-search { position: relative; }

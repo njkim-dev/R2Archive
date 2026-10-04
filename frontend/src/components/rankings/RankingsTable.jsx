@@ -4,6 +4,7 @@ import AutoSizer from 'react-virtualized-auto-sizer'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import { levelBarColor, artworkBg, fmt, fmtBpm, staticUrl } from '../../utils/helpers'
+import { SPEED_LABELS } from './RankingSpeedTabs'
 
 const COL_TEMPLATE_NORMAL = '60px 2fr 1.2fr 76px 80px 80px 135px 135px 115px'
 const HEADERS_NORMAL = [
@@ -92,7 +93,7 @@ function moveCellOnEnter(e, colName) {
   }
 }
 
-function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinnedUser, editMode, dirtyValue, onDirtyChange, hasGroups }) {
+function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinnedUser, editMode, dirtyValue, onDirtyChange, hasGroups, speedFilter }) {
   const { song, top, totalRecords, mine, groupTop } = row
   const lvInt = Math.floor(song.level)
   const lvDec = song.level % 1 === 0 ? '.0' : '.5'
@@ -164,6 +165,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
             {top ? (
               <div className="rank-judge-cell">
                 <span className={`judge ${topCls}`}>{fmtJp(topJp)}<span className="pct">%</span></span>
+                {speedFilter === 'all' && <span className="ranking-speed-badge">{SPEED_LABELS[top.speed || 'ultra']}</span>}
                 <span
                   className="ranker"
                   onClick={e => {
@@ -190,6 +192,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
             ) : groupTop ? (
               <div className="rank-judge-cell">
                 <span className={`judge ${groupCls}`}>{fmtJp(groupJp)}<span className="pct">%</span></span>
+                {speedFilter === 'all' && <span className="ranking-speed-badge">{SPEED_LABELS[groupTop.speed || 'ultra']}</span>}
                 <span
                   className="ranker"
                   onClick={e => {
@@ -230,6 +233,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
               {fmtJp(myJp)}<span className="pct">%</span>
               {isMineManual && <span className="manual-mark" title="본인 직접 입력">M</span>}
             </span>
+            {speedFilter === 'all' && <span className="ranking-speed-badge">{SPEED_LABELS[mine.speed || 'ultra']}</span>}
             {delta && !isMyTop && (
               <span className={`delta mono ${delta.cls}`}>{delta.txt}</span>
             )}
@@ -270,7 +274,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
 function VirtualRow({ index, style, data }) {
   const {
     rows, onRowClick, onRankerClick, currentUserId, pinnedUser,
-    editMode, getDirtyValue, onDirtyChange, hasGroups,
+    editMode, getDirtyValue, onDirtyChange, hasGroups, speedFilter,
   } = data
   const row = rows[index]
   return (
@@ -285,12 +289,13 @@ function VirtualRow({ index, style, data }) {
       dirtyValue={editMode ? getDirtyValue(row.song.id) : null}
       onDirtyChange={onDirtyChange}
       hasGroups={hasGroups}
+      speedFilter={speedFilter}
     />
   )
 }
 
 export default function RankingsTable({ rows, hasGroups }) {
-  const { sort, setSort, pinUser, pinnedUser, editMode, dirty, myManualBySong, setDirtyValue } = useRankingsStore()
+  const { sort, setSort, pinUser, pinnedUser, editMode, dirty, myManualBySong, setDirtyValue, speedFilter } = useRankingsStore()
   const { user, openModal } = useStore()
   const listRef = useRef(null)
 
@@ -339,7 +344,8 @@ export default function RankingsTable({ rows, hasGroups }) {
     getDirtyValue,
     onDirtyChange: setDirtyValue,
     hasGroups,
-  }), [rows, handleRowClick, handleRankerClick, user, pinnedUser, editMode, getDirtyValue, setDirtyValue, hasGroups])
+    speedFilter,
+  }), [rows, handleRowClick, handleRankerClick, user, pinnedUser, editMode, getDirtyValue, setDirtyValue, hasGroups, speedFilter])
 
   return (
     <div className="table-wrap">

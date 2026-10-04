@@ -1,6 +1,22 @@
 import { create } from 'zustand'
 import { getRankings, searchRankingUsers, getUserRankingRecords, getMyRecords, saveManualRecords } from '../api/client'
 
+const recordSpeed = (record) => record.speed || 'ultra'
+
+function bestRecordsBySong(records, speed = 'all', manualOnly = false) {
+  const map = new Map()
+  for (const record of records || []) {
+    if (record.judgment_percent == null) continue
+    if (manualOnly && !record.is_manual) continue
+    if (speed !== 'all' && recordSpeed(record) !== speed) continue
+    const previous = map.get(record.song_id)
+    if (!previous || record.judgment_percent > previous.judgment_percent) {
+      map.set(record.song_id, { ...record, speed: recordSpeed(record) })
+    }
+  }
+  return map
+}
+
 const useRankingsStore = create((set, get) => ({
   rankings: [],
   rankingsBySong: new Map(),
@@ -9,6 +25,8 @@ const useRankingsStore = create((set, get) => ({
   myRecordsBySong: new Map(),
   myManualBySong: new Map(),
   pinnedRecordsBySong: new Map(),
+  myRecords: [],
+  pinnedRecords: [],
   loaded: false,
 
   activeGroupId: null,
@@ -16,6 +34,7 @@ const useRankingsStore = create((set, get) => ({
   quickBeforePin: null,
 
   editMode: false,
+  editSpeed: 'ultra',
   dirty: new Map(),
   saving: false,
   invalidUrlsModal: null,
@@ -29,6 +48,7 @@ const useRankingsStore = create((set, get) => ({
   levelMax: 12,
   category: 'sun',
   sort: { key: 'idx', dir: 'desc' },
+  speedFilter: 'all',
 
   userQuery: '',
   userResults: [],
@@ -52,18 +72,30 @@ const useRankingsStore = create((set, get) => ({
       ? { key, dir: s.sort.dir === 'asc' ? 'desc' : 'asc' }
       : { key, dir: ['name', 'artist'].includes(key) ? 'asc' : 'desc' },
   })),
+  setSpeedFilter: async (speedFilter) => {
+    if (!['all', 'normal', 'fast', 'ultra'].includes(speedFilter)) return
+    const state = get()
+    set({
+      speedFilter,
+      myRecordsBySong: bestRecordsBySong(state.myRecords, speedFilter),
+      pinnedRecordsBySong: bestRecordsBySong(state.pinnedRecords, speedFilter),
+    })
+    await get().fetchRankings()
+  },
 
   fetchRankings: async () => {
     try {
-      const { activeGroupId } = get()
-      const data = await getRankings(activeGroupId)
+      const { activeGroupId, speedFilter } = get()
+      const data = await getRankings(activeGroupId, speedFilter)
       const map = new Map()
       const gMap = new Map()
       for (const r of data) {
         map.set(r.song_id, r)
         if (r.group_top) gMap.set(r.song_id, r.group_top)
       }
-      set({ rankings: data, rankingsBySong: map, groupTopBySong: gMap, loaded: true })
+      if (get().speedFilter === speedFilter) {
+        set({ rankings: data, rankingsBySong: map, groupTopBySong: gMap, loaded: true })
+      }
     } catch (e) {
       console.error('fetchRankings failed', e)
       set({ loaded: true })
@@ -79,34 +111,14 @@ const useRankingsStore = create((set, get) => ({
   fetchMyRecords: async () => {
     try {
       const data = await getMyRecords()
-      const best = new Map()
-      const manual = new Map()
-      for (const rec of data.records || []) {
-        if (rec.judgment_percent == null) continue
-        const prev = best.get(rec.song_id)
-        if (!prev || rec.judgment_percent > prev.judgment_percent) {
-          best.set(rec.song_id, {
-            song_id: rec.song_id,
-            judgment_percent: rec.judgment_percent,
-            score: rec.score,
-            combo: rec.combo,
-            is_manual: !!rec.is_manual,
-          })
-        }
-        if (rec.is_manual) {
-          const prevM = manual.get(rec.song_id)
-          if (!prevM || rec.judgment_percent > prevM.judgment_percent) {
-            manual.set(rec.song_id, {
-              song_id: rec.song_id,
-              judgment_percent: rec.judgment_percent,
-              youtube_url: rec.youtube_url || null,
-            })
-          }
-        }
-      }
-      set({ myRecordsBySong: best, myManualBySong: manual })
+      const records = data.records || []
+      set({
+        myRecords: records,
+        myRecordsBySong: bestRecordsBySong(records, get().speedFilter),
+        myManualBySong: bestRecordsBySong(records, get().editSpeed, true),
+      })
     } catch {
-      set({ myRecordsBySong: new Map(), myManualBySong: new Map() })
+      set({ myRecords: [], myRecordsBySong: new Map(), myManualBySong: new Map() })
     }
   },
 
@@ -129,16 +141,17 @@ const useRankingsStore = create((set, get) => ({
     const newBefore = get().quickBeforePin ?? prevQuick
     set({
       pinnedUser: user,
+      pinnedRecords: [],
       pinnedRecordsBySong: new Map(),
       quick: 'mine',
       quickBeforePin: newBefore,
     })
     try {
       const data = await getUserRankingRecords(user.user_id)
-      const map = new Map()
-      for (const rec of data) map.set(rec.song_id, rec)
+      const map = bestRecordsBySong(data, get().speedFilter)
       if (get().pinnedUser?.user_id === user.user_id) {
         set({
+          pinnedRecords: data,
           pinnedRecordsBySong: map,
           pinnedUser: { ...user, record_count: map.size },
         })
@@ -150,6 +163,7 @@ const useRankingsStore = create((set, get) => ({
         if (get().pinnedUser?.user_id === user.user_id) {
           set({
             pinnedUser: null,
+            pinnedRecords: [],
             pinnedRecordsBySong: new Map(),
             quick: prevQuick,
             quickBeforePin: null,
@@ -166,13 +180,19 @@ const useRankingsStore = create((set, get) => ({
     // 핀 이후 직접 바꾼 필터가 있으면 그 선택을 유지한다.
     set({
       pinnedUser: null,
+      pinnedRecords: [],
       pinnedRecordsBySong: new Map(),
       quick: state.quickBeforePin ?? state.quick,
       quickBeforePin: null,
     })
   },
 
-  enableEditMode: () => set({ editMode: true }),
+  enableEditMode: (editSpeed = 'ultra') => set(s => ({
+    editMode: true,
+    editSpeed,
+    dirty: new Map(),
+    myManualBySong: bestRecordsBySong(s.myRecords, editSpeed, true),
+  })),
   disableEditMode: () => set({ editMode: false, dirty: new Map(), invalidUrlsModal: null }),
   setDirtyValue: (songId, field, value) => set(s => {
     const next = new Map(s.dirty)
@@ -183,7 +203,7 @@ const useRankingsStore = create((set, get) => ({
   closeInvalidUrlsModal: () => set({ invalidUrlsModal: null }),
   // URL 검증에 실패한 곡은 제외한 뒤 다시 저장할 수 있다.
   saveDirty: async (skipUrlsForSongIds = null) => {
-    const { dirty, myManualBySong } = get()
+    const { dirty, myManualBySong, editSpeed } = get()
     if (dirty.size === 0) return { ok: true, sent: 0 }
     const skipSet = skipUrlsForSongIds ? new Set(skipUrlsForSongIds) : null
 
@@ -197,7 +217,7 @@ const useRankingsStore = create((set, get) => ({
 
       if (judgmentRaw === '' && urlRaw === '') {
         if (myManualBySong.has(songId)) {
-          entries.push({ song_id: songId, judgment_percent: null, youtube_url: null })
+          entries.push({ song_id: songId, judgment_percent: null, youtube_url: null, speed: editSpeed })
         }
         continue
       }
@@ -213,6 +233,7 @@ const useRankingsStore = create((set, get) => ({
         song_id: songId,
         judgment_percent: Math.round(num * 1000) / 1000,
         youtube_url: urlRaw || null,
+        speed: editSpeed,
       })
     }
 
@@ -246,8 +267,9 @@ const useRankingsStore = create((set, get) => ({
     flagRanked: false,
     levelMin: 1, levelMax: 12, category: 'sun',
     sort: { key: 'idx', dir: 'desc' },
+    speedFilter: 'all',
     userResults: [], userQuery: '',
-    pinnedUser: null, pinnedRecordsBySong: new Map(),
+    pinnedUser: null, pinnedRecords: [], pinnedRecordsBySong: new Map(),
     quickBeforePin: null,
   }),
 }))

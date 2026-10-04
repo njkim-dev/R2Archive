@@ -69,11 +69,11 @@ def _mask_nickname(nickname: str, visibility: str, is_mine: bool) -> str:
 
 
 def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
-    # 호출처에 따라 길이가 다름: 마지막에 is_manual 컬럼이 있을 수도/없을 수도.
-    extended = (*r, None, False, False, False)[:15]
+    # 호출처에 따라 길이가 다름: 뒤쪽 선택 컬럼은 기본값으로 보완한다.
+    extended = (*r, None, False, False, False, "ultra")[:16]
     (rid, nickname, score, judgment_percent, combo, youtube_url,
      youtube_title, memo, visibility, created_at, row_user_id,
-     screenshot_path, owner_show, memo_public, is_manual) = extended
+     screenshot_path, owner_show, memo_public, is_manual, speed) = extended
 
     is_mine = (current_uid is not None
                and row_user_id is not None
@@ -98,6 +98,7 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
         visibility=visibility or "public",
         is_mine=is_mine,
         is_manual=bool(is_manual),
+        speed=speed or "ultra",
         screenshot_url=screenshot_url,
         owner_show_screenshot=bool(owner_show),
         created_at=created_at,
@@ -123,7 +124,8 @@ def get_records(request: Request, song_id: int):
                        CASE WHEN r.is_play_video THEN 'public' ELSE r.visibility END AS visibility,
                        r.created_at, r.user_id,
                        r.screenshot_path, COALESCE(u.show_screenshot, FALSE),
-                       (r.memo_public OR r.is_play_video) AS memo_public
+                       (r.memo_public OR r.is_play_video) AS memo_public,
+                       r.is_manual, r.speed
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s
@@ -168,7 +170,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                 """
                 SELECT id, nickname, score, judgment_percent, combo, youtube_url,
                        youtube_title, memo, visibility, created_at, user_id,
-                       screenshot_path, owner_show_screenshot, memo_public, is_manual
+                       screenshot_path, owner_show_screenshot, memo_public, is_manual, speed
                 FROM (
                     SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                            r.score, r.judgment_percent, r.combo, r.youtube_url,
@@ -178,6 +180,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                            COALESCE(u.show_screenshot, FALSE) AS owner_show_screenshot,
                            r.memo_public,
                            r.is_manual,
+                           r.speed,
                            ROW_NUMBER() OVER (
                                PARTITION BY COALESCE(r.user_id::text, 'anon:' || r.anon_id)
                                ORDER BY r.judgment_percent DESC NULLS LAST, r.created_at ASC
@@ -212,7 +215,7 @@ def get_my_records_for_song(request: Request, song_id: int):
                        r.score, r.judgment_percent, r.combo, r.youtube_url,
                        r.youtube_title, r.memo, r.visibility, r.created_at, r.user_id,
                        r.screenshot_path, COALESCE(u.show_screenshot, FALSE), r.memo_public,
-                       r.is_manual
+                       r.is_manual, r.speed
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s AND r.user_id = %s
@@ -265,15 +268,15 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
                 INSERT INTO records
                     (song_id, user_id, anon_id, nickname, score, judgment_percent,
                      combo, youtube_url, youtube_title, memo, memo_public, visibility,
-                     is_play_video)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     is_play_video, speed)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
                     song_id, current_uid, body.anon_id, nickname,
                     body.score, body.judgment_percent, body.combo,
                     body.youtube_url, youtube_title, body.memo, body.memo_public, visibility,
-                    is_play_video,
+                    is_play_video, body.speed,
                 ),
             )
             r = cur.fetchone()
@@ -291,6 +294,7 @@ async def add_record(request: Request, song_id: int, body: RecordCreate):
         memo_public=body.memo_public,
         visibility=visibility,
         is_mine=current_uid is not None,
+        speed=body.speed,
         created_at=r[1],
     )
 

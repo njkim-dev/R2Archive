@@ -152,8 +152,10 @@ export const deleteMyComment = (commentId) =>
 export const oauthLoginUrl = (provider, remember = false) =>
   `/api/auth/${provider}/login?remember=${remember ? '1' : '0'}`
 
-export const getRankings = (groupId = null) =>
-  api.get('/rankings/songs', { params: groupId ? { group_id: groupId } : {} }).then(r => r.data)
+export const getRankings = (groupId = null, speed = 'all') =>
+  api.get('/rankings/songs', {
+    params: { ...(groupId ? { group_id: groupId } : {}), speed },
+  }).then(r => r.data)
 export const searchRankingUsers = (q) => api.get('/rankings/users', { params: { q } }).then(r => r.data)
 export const lookupRankingUser = (nickname) =>
   api.get('/rankings/users/lookup', { params: { nickname } }).then(r => r.data)

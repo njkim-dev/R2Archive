@@ -3,6 +3,8 @@ import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import useStore from '../../store/useStore'
 import { artworkBg, fmtBpm, staticUrl } from '../../utils/helpers'
+import useRankingsStore from '../../store/useRankingsStore'
+import { SPEED_LABELS } from './RankingSpeedTabs'
 
 function fmtJp(jp) { return jp == null ? '—' : jp.toFixed(3) }
 
@@ -22,6 +24,7 @@ function judgeColor(jp) {
 }
 
 function MobileRankingCard({ row, style, onClick }) {
+  const speedFilter = useRankingsStore(state => state.speedFilter)
   const { song, top, mine, totalRecords } = row
   const cat = song.level >= 7 ? 'sun' : song.level >= 4 ? 'moon' : 'star'
   const delta = top && mine ? deltaInfo(mine.judgment_percent, top.judgment_percent) : null
@@ -61,6 +64,7 @@ function MobileRankingCard({ row, style, onClick }) {
             <span className="mob-rk-icon">🥇</span>
             <span className="mob-rk-nick">{top.nickname}{top.is_mine && <em className="mob-rk-me">나</em>}</span>
             <span className={`mob-rk-jp judge ${judgeColor(top.judgment_percent)} mono`}>{fmtJp(top.judgment_percent)}%</span>
+            {speedFilter === 'all' && <span className="ranking-speed-badge">{SPEED_LABELS[top.speed || 'ultra']}</span>}
             {additional && <span className="mob-rk-add mono">{additional}</span>}
           </div>
         ) : (
@@ -74,6 +78,7 @@ function MobileRankingCard({ row, style, onClick }) {
             <span className="mob-rk-icon">★</span>
             <span className="mob-rk-nick">내 성과</span>
             <span className={`mob-rk-jp judge ${judgeColor(mine.judgment_percent)} mono`}>{fmtJp(mine.judgment_percent)}%</span>
+            {speedFilter === 'all' && <span className="ranking-speed-badge">{SPEED_LABELS[mine.speed || 'ultra']}</span>}
             {delta && (
               <span className={`mob-rk-delta mono ${delta.cls}`}>{delta.txt}</span>
             )}

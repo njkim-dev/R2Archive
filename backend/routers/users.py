@@ -198,7 +198,8 @@ def get_my_records(request: Request):
                 SELECT r.id, r.song_id, s.name AS song_name, s.artist, s.level, s.image,
                        r.nickname, r.score, r.judgment_percent, r.combo,
                        r.youtube_url, r.youtube_title, r.memo, r.visibility,
-                       r.created_at, r.screenshot_filename, r.memo_public, r.is_manual
+                       r.created_at, r.screenshot_filename, r.memo_public, r.is_manual,
+                       r.speed
                 FROM records r
                 JOIN songs s ON s.id = r.song_id
                 WHERE r.user_id = %s
@@ -229,6 +230,7 @@ def get_my_records(request: Request):
                 "has_screenshot": bool(r[15]),
                 "memo_public": bool(r[16]),
                 "is_manual": bool(r[17]),
+                "speed": r[18] or "ultra",
             }
             for r in rows
         ]
@@ -365,9 +367,9 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
 
                 cur.execute(
                     "SELECT id FROM records "
-                    "WHERE user_id = %s AND song_id = %s AND is_manual = TRUE "
+                    "WHERE user_id = %s AND song_id = %s AND speed = %s AND is_manual = TRUE "
                     "ORDER BY created_at DESC",
-                    (uid, entry.song_id),
+                    (uid, entry.song_id, entry.speed),
                 )
                 existing_ids = [row[0] for row in cur.fetchall()]
 
@@ -398,10 +400,13 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
                         """
                         INSERT INTO records
                             (song_id, user_id, nickname, judgment_percent,
-                             visibility, is_manual, youtube_url, youtube_title)
-                        VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s)
+                             visibility, is_manual, youtube_url, youtube_title, speed)
+                        VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                         """,
-                        (entry.song_id, uid, nickname, judgment_percent, visibility, youtube_url, youtube_title),
+                        (
+                            entry.song_id, uid, nickname, judgment_percent, visibility,
+                            youtube_url, youtube_title, entry.speed,
+                        ),
                     )
                     inserted += 1
         conn.commit()

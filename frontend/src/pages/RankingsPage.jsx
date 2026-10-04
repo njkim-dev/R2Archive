@@ -110,7 +110,15 @@ export default function RankingsPage() {
   useEffect(() => {
     if (user) { fetchMyRecords(); fetchMyGroups() }
     else {
-      useRankingsStore.setState({ myRecordsBySong: new Map(), myManualBySong: new Map(), groupTopBySong: new Map(), activeGroupId: null })
+      useRankingsStore.setState({
+        myRecords: [],
+        pinnedRecords: [],
+        myRecordsBySong: new Map(),
+        myManualBySong: new Map(),
+        pinnedRecordsBySong: new Map(),
+        groupTopBySong: new Map(),
+        activeGroupId: null,
+      })
       useGroupsStore.setState({ myGroups: [], loaded: false })
     }
   }, [user, fetchMyRecords, fetchMyGroups])

@@ -34,6 +34,7 @@ class RankingTop(BaseModel):
     combo: Optional[int] = None
     is_mine: bool = False
     visibility: str
+    speed: str = "ultra"
 
 
 class SongRanking(BaseModel):
@@ -56,6 +57,17 @@ class UserRecord(BaseModel):
     score: Optional[int] = None
     combo: Optional[int] = None
     is_manual: bool = False
+    speed: str = "ultra"
+
+
+_SPEEDS = {"all", "normal", "fast", "ultra"}
+
+
+def _ranking_speed(value: str) -> str:
+    speed = (value or "all").strip().lower()
+    if speed not in _SPEEDS:
+        raise HTTPException(status_code=422, detail="지원하지 않는 속도입니다")
+    return speed
 
 
 def _mask_nickname(nickname: str, visibility: str, owner_uid: Optional[int], viewer_uid: Optional[int]) -> str:
@@ -63,7 +75,7 @@ def _mask_nickname(nickname: str, visibility: str, owner_uid: Optional[int], vie
 
 
 @router.get("/songs", response_model=list[SongRanking])
-def list_song_rankings(request: Request, group_id: Optional[int] = None):
+def list_song_rankings(request: Request, group_id: Optional[int] = None, speed: str = "all"):
     """모든 곡에 대해 곡별 1위 + (로그인 시) 그룹 1위.
 
     group_id 쿼리:
@@ -72,6 +84,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
       - 비로그인: 그룹 1위 없음
     """
     viewer_uid = get_current_user_id(request)
+    speed = _ranking_speed(speed)
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -86,11 +99,13 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                            r.judgment_percent,
                            r.combo,
                            r.visibility,
+                           r.speed,
                            r.created_at
                     FROM records r
                     LEFT JOIN users u ON u.id = r.user_id
                     WHERE r.judgment_percent IS NOT NULL
                       AND r.visibility = 'public'
+                      AND (%s = 'all' OR r.speed = %s)
                       -- manual 기록도 youtube_url이 있으면 (검증된 영상 인증) 랭킹에 합류
                       AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                     ORDER BY r.song_id,
@@ -99,7 +114,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                              r.created_at ASC
                 ),
                 ranked AS (
-                    SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility,
+                    SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, speed,
                            ROW_NUMBER() OVER (
                                PARTITION BY song_id
                                ORDER BY judgment_percent DESC NULLS LAST, created_at ASC
@@ -107,10 +122,11 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                            COUNT(*) OVER (PARTITION BY song_id) AS total_records
                     FROM user_best
                 )
-                SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, total_records
+                SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, speed, total_records
                 FROM ranked
                 WHERE song_rn = 1
-                """
+                """,
+                (speed, speed),
             )
             overall_rows = cur.fetchall()
 
@@ -128,28 +144,29 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                                 SELECT DISTINCT ON (r.song_id, r.user_id)
                                        r.song_id, r.user_id,
                                        COALESCE(u.nickname, r.nickname) AS nickname,
-                                       r.score, r.judgment_percent, r.combo, r.visibility, r.created_at
+                                       r.score, r.judgment_percent, r.combo, r.visibility, r.speed, r.created_at
                                 FROM records r
                                 JOIN users u ON u.id = r.user_id
                                 JOIN group_members gm ON gm.user_id = r.user_id AND gm.group_id = %s
                                 WHERE r.judgment_percent IS NOT NULL
                                   AND r.visibility IN ('public', 'group')
+                                  AND (%s = 'all' OR r.speed = %s)
                                   AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
                                 ORDER BY r.song_id, r.user_id,
                                          r.judgment_percent DESC NULLS LAST, r.created_at ASC
                             ),
                             ranked AS (
-                                SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility,
+                                SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, speed,
                                        ROW_NUMBER() OVER (
                                            PARTITION BY song_id
                                            ORDER BY judgment_percent DESC NULLS LAST, created_at ASC
                                        ) AS song_rn
                                 FROM user_best
                             )
-                            SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility
+                            SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, speed
                             FROM ranked WHERE song_rn = 1
                             """,
-                            (group_id,),
+                            (group_id, speed, speed),
                         )
                         group_rows = cur.fetchall()
                 else:
@@ -165,34 +182,35 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                             SELECT DISTINCT ON (r.song_id, r.user_id)
                                    r.song_id, r.user_id,
                                    COALESCE(u.nickname, r.nickname) AS nickname,
-                                   r.score, r.judgment_percent, r.combo, r.visibility, r.created_at
+                                   r.score, r.judgment_percent, r.combo, r.visibility, r.speed, r.created_at
                             FROM records r
                             JOIN users u ON u.id = r.user_id
                             JOIN my_group_users mgu ON mgu.user_id = r.user_id
                             WHERE r.judgment_percent IS NOT NULL
                               AND r.visibility IN ('public', 'group')
+                              AND (%s = 'all' OR r.speed = %s)
                               AND NOT r.is_manual
                             ORDER BY r.song_id, r.user_id,
                                      r.judgment_percent DESC NULLS LAST, r.created_at ASC
                         ),
                         ranked AS (
-                            SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility,
+                            SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, speed,
                                    ROW_NUMBER() OVER (
                                        PARTITION BY song_id
                                        ORDER BY judgment_percent DESC NULLS LAST, created_at ASC
                                    ) AS song_rn
                             FROM user_best
                         )
-                        SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility
+                        SELECT song_id, user_id, nickname, score, judgment_percent, combo, visibility, speed
                         FROM ranked WHERE song_rn = 1
                         """,
-                        (viewer_uid,),
+                        (viewer_uid, speed, speed),
                     )
                     group_rows = cur.fetchall()
 
     group_map: dict[int, RankingTop] = {}
     for r in group_rows:
-        sid, owner_uid, nickname, score, jp, combo, visibility = r
+        sid, owner_uid, nickname, score, jp, combo, visibility, record_speed = r
         is_mine = (viewer_uid is not None and owner_uid is not None and int(owner_uid) == int(viewer_uid))
         vis = visibility or "public"
         group_map[sid] = RankingTop(
@@ -203,11 +221,12 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
             combo=combo,
             is_mine=is_mine,
             visibility=vis,
+            speed=record_speed or "ultra",
         )
 
     out: list[SongRanking] = []
     for r in overall_rows:
-        song_id, owner_uid, nickname, score, jp, combo, visibility, total = r
+        song_id, owner_uid, nickname, score, jp, combo, visibility, record_speed, total = r
         is_mine = (viewer_uid is not None and owner_uid is not None and int(owner_uid) == int(viewer_uid))
         vis = visibility or "public"
         out.append(SongRanking(
@@ -220,6 +239,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None):
                 combo=combo,
                 is_mine=is_mine,
                 visibility=vis,
+                speed=record_speed or "ultra",
             ),
             total_records=int(total),
             group_top=group_map.get(song_id),
@@ -393,13 +413,13 @@ def get_user_records(request: Request, user_id: int):
         with conn.cursor() as cur:
             cur.execute(
                 f"""
-                SELECT DISTINCT ON (r.song_id)
-                       r.song_id, r.judgment_percent, r.score, r.combo, r.is_manual
+                SELECT DISTINCT ON (r.song_id, r.speed)
+                       r.song_id, r.judgment_percent, r.score, r.combo, r.is_manual, r.speed
                 FROM records r
                 WHERE r.user_id = %s
                   AND r.judgment_percent IS NOT NULL
                   AND {visibility_clause}
-                ORDER BY r.song_id,
+                ORDER BY r.song_id, r.speed,
                          r.judgment_percent DESC NULLS LAST,
                          r.created_at ASC
                 """,
@@ -413,6 +433,7 @@ def get_user_records(request: Request, user_id: int):
             score=r[2],
             combo=r[3],
             is_manual=bool(r[4]),
+            speed=r[5] or "ultra",
         )
         for r in rows
     ]

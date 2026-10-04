@@ -4,6 +4,7 @@ import useStore from '../../store/useStore'
 import UserSearchList from './UserSearchList'
 import { HelpButton } from '../HelpTour'
 import ScreenshotRegisterButton from '../ScreenshotRegisterButton'
+import RankingSpeedTabs, { SPEED_LABELS } from './RankingSpeedTabs'
 
 const SEARCH_MODES = [
   { key: 'song', label: '곡명 + 아티스트' },
@@ -40,21 +41,18 @@ function useElementWidth() {
 export default function RankingsTopBar({ filteredCount, totalCount }) {
   const {
     search, setSearch, searchMode, setSearchMode, sort, pinnedUser,
-    editMode, enableEditMode, disableEditMode, dirty, saving, saveDirty,
+    editMode, editSpeed, enableEditMode, disableEditMode, dirty, saving, saveDirty,
   } = useRankingsStore()
   const { user, openLogin, logout, openOnboarding, openMyPage } = useStore()
+  const [speedModalOpen, setSpeedModalOpen] = useState(false)
 
   const dirtyCount = dirty.size
 
   const handleEditToggle = (e) => {
     if (e.target.checked) {
       if (!user) { openLogin(); e.target.checked = false; return }
-      const ok = window.confirm(
-        '편집 모드에서 입력한 판정은 유튜브 링크를 등록한 것에 한해서만 개인 성과에 반영되며,\n' +
-        '영상 링크가 없는 성과는 본인 확인 혹은 다른 사람이 본인 닉네임을 검색하여 확인할 수만 있습니다. 계속 하시겠습니까?'
-      )
-      if (!ok) { e.target.checked = false; return }
-      enableEditMode()
+      setSpeedModalOpen(true)
+      e.target.checked = false
     } else {
       if (dirtyCount > 0) {
         const ok = window.confirm('저장하지 않은 변경분이 있어요. 편집 모드를 종료할까요?')
@@ -129,7 +127,8 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
   const topbarClassName = ['topbar', 'rankings-topbar', hideHelp && 'hide-help'].filter(Boolean).join(' ')
 
   return (
-    <div ref={topbarRef} className={topbarClassName}>
+    <>
+      <div ref={topbarRef} className={topbarClassName}>
       <div className="search" ref={searchWrapRef}>
         <div className="search-mode" ref={modeRef}>
           <button
@@ -193,7 +192,7 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
 
       <label className="edit-toggle" title="내 판정을 직접 입력하는 편집 모드">
         <input type="checkbox" checked={editMode} onChange={handleEditToggle} />
-        <span>편집 모드</span>
+        <span>{editMode ? `편집 모드 · ${SPEED_LABELS[editSpeed]}` : '편집 모드'}</span>
       </label>
       {editMode && (
         <button
@@ -234,6 +233,42 @@ export default function RankingsTopBar({ filteredCount, totalCount }) {
           로그인
         </button>
       )}
+      </div>
+      <RankingSpeedTabs />
+      {speedModalOpen && (
+        <EditSpeedModal
+          onClose={() => setSpeedModalOpen(false)}
+          onSelect={(speed) => {
+            setSpeedModalOpen(false)
+            enableEditMode(speed)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+function EditSpeedModal({ onClose, onSelect }) {
+  return (
+    <div className="modal-backdrop" style={{ zIndex: 100 }} onClick={onClose}>
+      <div className="ranking-speed-modal" role="dialog" aria-modal="true" aria-labelledby="ranking-speed-title" onClick={e => e.stopPropagation()}>
+        <div className="ranking-speed-modal-head">
+          <h3 id="ranking-speed-title">편집할 속도 선택</h3>
+          <button type="button" className="rr-close" onClick={onClose} aria-label="닫기">×</button>
+        </div>
+        <p>
+          선택한 속도의 내 판정과 YouTube 링크만 불러와 편집합니다.
+          영상 링크가 없는 판정은 전체 성과에는 반영되지 않고 본인 성과로만 저장됩니다.
+        </p>
+        <div className="ranking-speed-modal-options">
+          {Object.entries(SPEED_LABELS).map(([speed, label]) => (
+            <button key={speed} type="button" onClick={() => onSelect(speed)}>
+              <strong>{label}</strong>
+              <span>{speed === 'normal' ? '기본 배속' : speed === 'fast' ? '고속 배속' : '초고속 배속'}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

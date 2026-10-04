@@ -89,7 +89,7 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
     setIdx(0); setPhase('register')
   }
 
-  const handleSubmitOne = async ({ score, selectedSong, youtube_url, memo, memo_public, register_as_play_video }) => {
+  const handleSubmitOne = async ({ score, selectedSong, youtube_url, memo, memo_public, register_as_play_video, speed }) => {
     const currentShot = shots[idx]
     try {
       // 공개 범위는 사용자의 기본 설정을 따른다.
@@ -100,6 +100,7 @@ export default function ScreenshotRegisterModal({ open, onClose }) {
         memo: memo || null,
         memo_public: !!memo_public,
         register_as_play_video: !!register_as_play_video,
+        speed,
       })
       // 공개 설정은 파일 저장이 아니라 API 노출만 제어한다.
       if (created?.id && currentShot?.file) {
@@ -270,6 +271,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
   const [memo, setMemo] = useState('')
   const [memoPublic, setMemoPublic] = useState(false)
   const [registerAsPlayVideo, setRegisterAsPlayVideo] = useState(false)
+  const [speed, setSpeed] = useState('ultra')
   const [submitting, setSubmitting] = useState(false)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [imgDim, setImgDim] = useState(null)
@@ -341,6 +343,8 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
     setYoutubeUrl('')
     setMemo('')
     setMemoPublic(false)
+    setRegisterAsPlayVideo(false)
+    setSpeed('ultra')
   }, [shot.id])  // eslint-disable-line
 
   // 수동 입력값은 OCR 결과로 덮어쓰지 않는다.
@@ -386,6 +390,7 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
       memo: memo.trim() || null,
       memo_public: memoPublic,
       register_as_play_video: registerAsPlayVideo && !!youtubeUrl.trim(),
+      speed,
     })
     setSubmitting(false)
   }
@@ -431,6 +436,27 @@ function RegisterView({ shot, idx, total, songs, registered, onClose, onSubmit }
             ) : null}
           </div>
           <div className="rr-reg-form">
+            <div className="rr-field">
+              <label>플레이 속도</label>
+              <div className="rr-speed-options" role="group" aria-label="플레이 속도">
+                {[
+                  ['normal', '보통'],
+                  ['fast', '고속'],
+                  ['ultra', '초고속'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={speed === value ? 'active' : ''}
+                    aria-pressed={speed === value}
+                    onClick={() => setSpeed(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="rr-field">
               <div className="label-row">
                 <label>판정</label>
