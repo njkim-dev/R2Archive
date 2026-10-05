@@ -10,11 +10,12 @@ from __future__ import annotations
 from typing import Optional
 
 import psycopg2
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import get_current_user_id, require_admin, require_user_id, fetch_user
 from database import get_conn
+from discord_notifications import build_feedback_item_notification, send_discord_notification
 from rate_limit import limiter
 
 router = APIRouter(prefix="/api", tags=["feedback"])
@@ -184,7 +185,7 @@ def list_feedback(request: Request, tab: str = "bug", status: str = "all", q: st
 
 @router.post("/feedback", status_code=201)
 @limiter.limit("10/hour")
-def create_feedback(request: Request, body: FeedbackCreate):
+def create_feedback(request: Request, body: FeedbackCreate, background_tasks: BackgroundTasks):
     uid = require_user_id(request)
     user_row = fetch_user(uid)
     if not user_row or not user_row.get("nickname"):
@@ -219,6 +220,19 @@ def create_feedback(request: Request, body: FeedbackCreate):
             )
             fid, created_at = cur.fetchone()
         conn.commit()
+    background_tasks.add_task(
+        send_discord_notification,
+        build_feedback_item_notification(
+            feedback_id=fid,
+            tab=body.tab,
+            type_=body.type,
+            title=title_clean,
+            body=body_clean,
+            severity=severity,
+            author=user_row["nickname"],
+            song_title=song_title,
+        ),
+    )
     return {
         "id": fid,
         "tab": body.tab,
