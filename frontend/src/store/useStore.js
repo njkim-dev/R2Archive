@@ -247,15 +247,23 @@ const useStore = create((set, get) => ({
   removedMode: 'exclude',
 
   mobileSheetOpen: false,
-  openMobileSheet: () => set({ mobileSheetOpen: true }),
-  closeMobileSheet: () => set({ mobileSheetOpen: false }),
+  mobileSheetFocus: null,
+  openMobileSheet: (focusSection = null) => set({
+    mobileSheetOpen: true,
+    mobileSheetFocus: typeof focusSection === 'string' ? focusSection : null,
+  }),
+  closeMobileSheet: () => set({ mobileSheetOpen: false, mobileSheetFocus: null }),
   applyDetailedFilters: (filters, { close = true } = {}) => {
     const state = get()
     const next = normalizeDetailedFilters(filters, state.meta)
     next.quick = allowedQuickFilter(next.quick, { xyxMode: isXyxMode(), isAdmin: state.isAdmin, user: state.user })
     if (isXyxMode()) next.removedMode = 'exclude'
     const previousMode = state.removedMode
-    set({ ...next, mobileSheetOpen: close ? false : state.mobileSheetOpen })
+    set({
+      ...next,
+      mobileSheetOpen: close ? false : state.mobileSheetOpen,
+      mobileSheetFocus: close ? null : state.mobileSheetFocus,
+    })
 
     const includeRemoved = next.removedMode !== 'exclude'
     if (includeRemoved === (previousMode !== 'exclude')) return

@@ -146,7 +146,7 @@ export default function SongsPage() {
     return {
       message: '삭제된 곡입니다. 상세필터에서 삭제된 곡 보기 옵션을 켜보세요.',
       actionLabel: '상세필터 열기',
-      onApply: openMobileSheet,
+      onApply: () => openMobileSheet('removed'),
     }
   }, [search, searchMode, effectiveExcludeSearch, removedMode, removedSearchSongs, favorites, played, openMobileSheet])
 

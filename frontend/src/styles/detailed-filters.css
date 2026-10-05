@@ -54,6 +54,12 @@
 .detailed-ai-options label, .detailed-removed-options label { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; min-height: 36px; font-size: 12px; cursor: pointer; text-align: center; }
 .detailed-ai-options label + label, .detailed-removed-options label + label { border-left: 1px solid var(--line-soft); }
 .detailed-ai-options label:has(input:checked), .detailed-removed-options label:has(input:checked) { background: var(--accent-dim); color: var(--accent); }
+.detailed-removed-section { margin: -8px; padding: 8px; border: 1px solid transparent; border-radius: 7px; outline: 0; }
+.detailed-removed-section.is-highlighted { animation: detailed-removed-highlight 2s ease-out; }
+@keyframes detailed-removed-highlight {
+  0%, 35% { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent); }
+  100% { border-color: transparent; background: transparent; box-shadow: none; }
+}
 .detailed-artists { min-width: 0; border-left: 1px solid var(--line-soft); padding-left: 22px; }
 .detailed-artist-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .detailed-artist-heading h3 { margin: 0; }

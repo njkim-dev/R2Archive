@@ -216,6 +216,9 @@ test('searching for a removed song offers the detailed filter shortcut', async (
   await page.getByRole('button', { name: '상세필터 열기' }).click()
   await expect(page.getByRole('dialog', { name: '상세 필터' })).toBeVisible()
   await expect(page.getByLabel('삭제된 곡 제외')).toBeChecked()
+  const removedSection = page.locator('.detailed-removed-section')
+  await expect(removedSection).toHaveClass(/is-highlighted/)
+  await expect(removedSection).toBeFocused()
 })
 
 test('original BPM option follows the available table width', async ({ page }) => {

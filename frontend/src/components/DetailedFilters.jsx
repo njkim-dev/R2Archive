@@ -52,6 +52,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
   const {
     meta, user, isAdmin, search, searchMode, excludeSearch, favorites, played, playedAll,
     personalCategoryFilters, personalCategoryFiltersLoaded, refreshPersonalCategoryFilters,
+    mobileSheetFocus,
   } = useStore()
   const xyxMode = isXyxMode()
   const [draft, setDraft] = useState(() => normalizeDetailedFilters(useStore.getState(), meta))
@@ -60,6 +61,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
   const overlayRef = useRef(null)
   const panelRef = useRef(null)
   const artistListRef = useRef(null)
+  const removedSectionRef = useRef(null)
   draftRef.current = draft
 
   const close = useCallback(() => {
@@ -87,7 +89,12 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
       .map(element => ({ element, inert: element.inert }))
     background.forEach(({ element }) => { element.inert = true })
     document.body.style.overflow = 'hidden'
-    panelRef.current?.querySelector('.detailed-close')?.focus()
+    if (mobileSheetFocus === 'removed' && showRemovedFilter) {
+      removedSectionRef.current?.scrollIntoView({ block: 'center' })
+      removedSectionRef.current?.focus({ preventScroll: true })
+    } else {
+      panelRef.current?.querySelector('.detailed-close')?.focus()
+    }
     const onKeyDown = event => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -108,7 +115,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
       document.body.style.overflow = previousOverflow
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus()
     }
-  }, [close])
+  }, [close, mobileSheetFocus, showRemovedFilter])
 
   const options = visibleQuickFilters({ xyxMode, isAdmin })
   const personalCategorySongIds = useMemo(
@@ -225,7 +232,11 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
                   </label>
                 ))}
               </div></section>
-              {showRemovedFilter && <section><h3 id="detailed-removed-title">삭제된 곡</h3><div className="detailed-removed-options" role="radiogroup" aria-labelledby="detailed-removed-title">
+              {showRemovedFilter && <section
+                ref={removedSectionRef}
+                className={`detailed-removed-section${mobileSheetFocus === 'removed' ? ' is-highlighted' : ''}`}
+                tabIndex={-1}
+              ><h3 id="detailed-removed-title">삭제된 곡</h3><div className="detailed-removed-options" role="radiogroup" aria-labelledby="detailed-removed-title">
                 {REMOVED_MODES.map(option => (
                   <label key={option.key} title={option.title}>
                     <input type="radio" name="detailed-removed" value={option.key} checked={draft.removedMode === option.key} onChange={() => update('removedMode', option.key)} />
