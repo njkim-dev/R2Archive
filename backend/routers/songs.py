@@ -180,7 +180,7 @@ def get_songs(include_removed: bool = False):
                 "LEFT JOIN same_music_group_members smgm "
                 "  ON smgm.server = 'kr' AND smgm.song_id = s.id "
                 "WHERE (COALESCE(s.is_removed, FALSE) IS FALSE "
-                "  OR (%s AND s.game_release_date IS NOT NULL)) "
+                "  OR (%s AND (s.game_release_date IS NOT NULL OR s.game_delete_date IS NOT NULL))) "
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST",
                 (include_removed,),
             )
@@ -329,14 +329,15 @@ def get_song(request: Request, song_id: int):
                 "COALESCE(real_combo, combo) AS combo, "
                 "(real_combo IS NOT NULL AND real_combo > combo) AS combo_warning, "
                 "COALESCE(real_time, time) AS time, "
-                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index, game_release_date "
+                "change_bpm, youtube_url, stat, image, COALESCE(is_removed, FALSE), game_index, "
+                "game_release_date, game_delete_date "
                 "FROM songs WHERE id = %s",
                 (song_id,)
             )
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="곡을 찾을 수 없습니다")
-            if row[13]:
+            if row[13] and row[15] is None and row[16] is None:
                 require_admin(request)
             viewer_is_admin = _is_admin(cur, request)
 
@@ -388,7 +389,7 @@ def get_song(request: Request, song_id: int):
                     is_removed=bool(counterpart_row[3]),
                 )
 
-    sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index, game_release_date = row
+    sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index, game_release_date, game_delete_date = row
     xyx_name = counterpart.name if counterpart and counterpart.server == "xyx" else ""
     base_bpm = float(bpm or 0)
     timeline = _parse_bpm_timeline(change_bpm or "")
@@ -420,6 +421,7 @@ def get_song(request: Request, song_id: int):
         bpm_timeline=timeline,
         counterpart=counterpart,
         game_release_date=game_release_date,
+        game_delete_date=game_delete_date,
     )
 
 

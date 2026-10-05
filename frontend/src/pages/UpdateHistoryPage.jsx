@@ -53,7 +53,23 @@ function SongRow({ song, onOpenVariant }) {
       <div className="rh-song-art" aria-hidden="true">
         {song.image && <img src={staticUrl(song.image)} alt="" draggable={false} onError={event => { event.currentTarget.style.display = 'none' }} />}
       </div>
-      <div className="rh-song-name" title={song.name}>{song.name}</div>
+      <div className="rh-song-title">
+        {song.is_deleted && <span className="rh-delete-tag">삭제</span>}
+        <span className="rh-song-name" title={song.name}>{song.name}</span>
+        {song.youtube_url && (
+          <a
+            className="rh-preview-link"
+            href={song.youtube_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${song.name} 음악 미리듣기`}
+            onClick={event => event.stopPropagation()}
+          >
+            <span aria-hidden="true">♪</span>
+            <span>음악 미리듣기</span>
+          </a>
+        )}
+      </div>
       <div className="rh-song-artist" title={song.artist}>{song.artist}</div>
       <div className="rh-levels" aria-label={`난이도 ${song.levels.join(', ')}`}>
         {(song.variants || []).map(variant => (
@@ -74,6 +90,9 @@ function SongRow({ song, onOpenVariant }) {
 }
 
 function HistoryCard({ entry, expanded, onToggle, onOpenVariant }) {
+  const noticeUrls = entry.notice_urls?.length
+    ? entry.notice_urls
+    : entry.notice_url ? [entry.notice_url] : []
   return (
     <div className="rh-history-item">
       <div className="rh-date-column">
@@ -88,16 +107,21 @@ function HistoryCard({ entry, expanded, onToggle, onOpenVariant }) {
         >
           <h2>{formatReleaseTitle(entry.release_date)}</h2>
           <span className="rh-song-count">{entry.songs.length.toLocaleString()}곡</span>
-          {entry.notice_url && (
-            <a
-              className="rh-notice-link"
-              href={entry.notice_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={event => event.stopPropagation()}
-            >
-              공식 공지 <ExternalLink size={14} aria-hidden="true" />
-            </a>
+          {noticeUrls.length > 0 && (
+            <div className="rh-notice-links">
+              {noticeUrls.map((url, index) => (
+                <a
+                  key={url}
+                  className="rh-notice-link"
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={event => event.stopPropagation()}
+                >
+                  공식 공지{noticeUrls.length > 1 ? ` ${index + 1}` : ''} <ExternalLink size={14} aria-hidden="true" />
+                </a>
+              ))}
+            </div>
           )}
           {entry.songs.length > 0 && (
             <button
@@ -116,7 +140,7 @@ function HistoryCard({ entry, expanded, onToggle, onOpenVariant }) {
         </div>
         {expanded && (
           <div className="rh-card-body">
-            {entry.songs.map(song => <SongRow key={`${song.name}\u0000${song.artist}`} song={song} onOpenVariant={onOpenVariant} />)}
+            {entry.songs.map(song => <SongRow key={`${song.name}\u0000${song.artist}\u0000${song.is_deleted ? 'deleted' : 'released'}`} song={song} onOpenVariant={onOpenVariant} />)}
           </div>
         )}
       </article>
@@ -144,8 +168,9 @@ export default function UpdateHistoryPage() {
         return response.json()
       })
       .then(data => {
-        setEntries(data)
-        setExpandedDates(new Set(data[0] ? [data[0].release_date] : []))
+        const linkedEntries = data.filter(entry => entry.notice_urls?.length || entry.notice_url)
+        setEntries(linkedEntries)
+        setExpandedDates(new Set(linkedEntries[0] ? [linkedEntries[0].release_date] : []))
         setError('')
       })
       .catch(fetchError => {

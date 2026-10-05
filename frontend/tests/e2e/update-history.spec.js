@@ -5,9 +5,14 @@ const releases = [
   {
     release_date: '2026-09-30',
     notice_url: 'https://www.orvvit.com/page/r2beat/09wol-30il-su-eobdeiteu-annae',
+    notice_urls: [
+      'https://www.orvvit.com/page/r2beat/09wol-30il-su-eobdeiteu-annae',
+      'https://www.orvvit.com/page/r2beat/09wol-30il-sagje-annae',
+    ],
     songs: [
-      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', image: 'rnr_image/img_music/echo.bmp', levels: [3, 4.5, 8], variants: [{ id: 101, level: 3 }, { id: 102, level: 4.5 }, { id: 103, level: 8 }] },
+      { name: 'ECHOES OF TIME (PREQUEL I)', artist: 'rb free', image: 'rnr_image/img_music/echo.bmp', youtube_url: 'https://www.youtube.com/watch?v=aaaaaaaaaaa', is_deleted: false, levels: [3, 4.5, 8], variants: [{ id: 101, level: 3 }, { id: 102, level: 4.5 }, { id: 103, level: 8 }] },
       { name: 'NEW WORLD', artist: 'SEED9', image: 'rnr_image/img_music/world.bmp', levels: [6], variants: [{ id: 104, level: 6 }] },
+      { name: 'OLD WORLD', artist: 'SEED9', youtube_url: 'https://www.youtube.com/watch?v=bbbbbbbbbbb', is_deleted: true, levels: [5.5], variants: [{ id: 105, level: 5.5 }] },
     ],
   },
   {
@@ -17,17 +22,17 @@ const releases = [
   },
   {
     release_date: '2026-09-10',
-    notice_url: null,
+    notice_url: 'https://www.orvvit.com/page/r2beat/09wol-10il-eobdeiteu-annae',
     songs: [{ name: 'Another Song', artist: 'Another Artist', levels: [5] }],
   },
   {
     release_date: '2026-08-27',
-    notice_url: null,
+    notice_url: 'https://www.orvvit.com/page/r2beat/08wol-27il-eobdeiteu-annae',
     songs: [{ name: 'Late Summer', artist: 'Artist', levels: [6.5] }],
   },
   {
     release_date: '2025-12-18',
-    notice_url: null,
+    notice_url: 'https://www.orvvit.com/page/r2beat/12wol-18il-eobdeiteu-annae',
     songs: [{ name: 'Winter', artist: 'Artist', levels: [5] }],
   },
 ]
@@ -59,7 +64,7 @@ test('loading the virtualized history keeps the toolbar and list geometry stable
     const releaseDate = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
     return {
       release_date: releaseDate,
-      notice_url: null,
+      notice_url: `https://example.com/notices/${releaseDate}`,
       songs: [{ name: `Song ${index}`, artist: `Artist ${index}`, levels: [5] }],
     }
   })
@@ -114,6 +119,35 @@ test('expanded songs show album art and level colors', async ({ page }, testInfo
   expect(await firstSong.locator('.rh-levels button').first().evaluate(element => element.style.getPropertyValue('--lv-bar'))).toContain('oklch')
 })
 
+test('deletion events share the date card and songs expose direct preview links', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
+  await mockApis(page, releases)
+  await page.goto('/updates')
+
+  const firstCard = page.locator('.rh-release-card').first()
+  await expect(page.locator('.rh-release-card')).toHaveCount(5)
+  await expect(firstCard.locator('.rh-notice-link')).toHaveCount(2)
+  await expect(firstCard.locator('.rh-notice-link').nth(0)).toHaveAttribute('href', releases[0].notice_urls[0])
+  await expect(firstCard.locator('.rh-notice-link').nth(1)).toHaveAttribute('href', releases[0].notice_urls[1])
+
+  const deletedRow = firstCard.locator('.rh-song-row').filter({ hasText: 'OLD WORLD' })
+  await expect(deletedRow.locator('.rh-delete-tag')).toHaveText('삭제')
+  await expect(deletedRow.getByRole('link', { name: 'OLD WORLD 음악 미리듣기' })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=bbbbbbbbbbb')
+  await expect(firstCard.locator('.rh-song-row').first().getByRole('link', { name: 'ECHOES OF TIME (PREQUEL I) 음악 미리듣기' })).toHaveAttribute('target', '_blank')
+})
+
+test('entries without an official notice URL are omitted', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-1920', 'single behavior coverage')
+  await mockApis(page, [
+    releases[0],
+    { release_date: '2026-09-24', notice_url: null, notice_urls: [], songs: [{ name: 'NO NOTICE', artist: 'Unknown', levels: [5] }] },
+  ])
+  await page.goto('/updates')
+
+  await expect(page.locator('.rh-release-card')).toHaveCount(1)
+  await expect(page.getByText('NO NOTICE')).toHaveCount(0)
+})
+
 test('clicking the release row toggles its songs without hijacking the notice link', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1920', 'single interaction coverage')
   await mockApis(page, releases)
@@ -127,7 +161,7 @@ test('clicking the release row toggles its songs without hijacking the notice li
   await firstHead.click({ position: { x: 20, y: 20 } })
   await expect(firstCard.locator('.rh-card-body')).toBeVisible()
 
-  const notice = firstCard.locator('.rh-notice-link')
+  const notice = firstCard.locator('.rh-notice-link').first()
   await notice.evaluate(element => element.addEventListener('click', event => event.preventDefault(), { once: true }))
   await notice.click()
   await expect(firstCard.locator('.rh-card-body')).toBeVisible()

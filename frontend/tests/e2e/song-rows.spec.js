@@ -52,11 +52,17 @@ async function mockCatalog(page, data = songs, {
       }
       json = includeRemoved ? [...data, ...removedSongs] : data
     }
-    else if (detail) json = {
-      ...data.find(item => item.id === +detail[1]),
-      bpm_timeline: [],
-      play_count_week: 0,
-      game_release_date: +detail[1] === 1 ? '2024-07-11' : '2011-02-03',
+    else if (detail) {
+      const matchedSong = [...data, ...removedSongs].find(item => item.id === +detail[1])
+      json = {
+        ...matchedSong,
+        bpm_timeline: [],
+        play_count_week: 0,
+        game_release_date: Object.hasOwn(matchedSong || {}, 'game_release_date')
+          ? matchedSong.game_release_date
+          : (+detail[1] === 1 ? '2024-07-11' : '2011-02-03'),
+        game_delete_date: matchedSong?.game_delete_date ?? null,
+      }
     }
     else if (path === '/api/meta') json = { total_count: data.length, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
     else if (path === '/api/auth/me') json = { user: currentUser }
@@ -241,6 +247,25 @@ test('Korean song catalog shows the release date and service era', async ({ page
 
   await page.locator('[data-song-id="2"] .title-main').click()
   await expect(page.locator('.m-release-date')).toHaveText('2011-02-03 이전 서비스 출시')
+})
+
+test('removed song catalog shows release and deletion dates, or deletion date only', async ({ page }) => {
+  const removedSongs = [
+    { ...song(90, 5.5, 'Deleted With Release'), is_removed: true, game_release_date: '2024-07-11', game_delete_date: '2026-06-18' },
+    { ...song(91, 6, 'Deleted Without Release'), is_removed: true, game_release_date: null, game_delete_date: '2024-05-09' },
+  ]
+  await mockCatalog(page, songs, { removedSongs })
+  await page.getByRole('button', { name: '상세 필터' }).click()
+  await page.getByLabel('삭제된 곡 표시').check()
+  await page.getByRole('button', { name: '상세 필터 닫기' }).click()
+
+  await page.locator('[data-song-id="90"] .title-main').click()
+  await expect(page.locator('.m-release-date')).toHaveText('2024-07-11 벨로프 출시2026-06-18 삭제')
+  await page.getByRole('button', { name: '닫기' }).click()
+
+  await page.locator('[data-song-id="91"] .title-main').click()
+  await expect(page.locator('.m-release-date')).toHaveText('2024-05-09 삭제')
+  await expect(page.locator('.m-release-date')).not.toContainText('출시')
 })
 
 test('same-title difficulty rows keep independent cells and actions', async ({ page }) => {

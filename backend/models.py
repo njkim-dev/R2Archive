@@ -66,6 +66,7 @@ class SongDetail(BaseModel):
     bpm_timeline: list[BpmPoint]
     counterpart: Optional[SongServerCounterpart] = None
     game_release_date: Optional[date] = None
+    game_delete_date: Optional[date] = None
 
 
 class MetaResponse(BaseModel):

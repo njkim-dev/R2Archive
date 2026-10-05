@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from database import get_conn
 
@@ -18,6 +18,8 @@ class ReleaseHistorySong(BaseModel):
     name: str
     artist: str
     image: str | None = None
+    youtube_url: str | None = None
+    is_deleted: bool = False
     levels: list[float]
     variants: list[ReleaseHistoryVariant]
 
@@ -25,6 +27,7 @@ class ReleaseHistorySong(BaseModel):
 class ReleaseHistoryEntry(BaseModel):
     release_date: date
     notice_url: str | None = None
+    notice_urls: list[str] = Field(default_factory=list)
     songs: list[ReleaseHistorySong]
 
 
@@ -34,28 +37,45 @@ def get_release_history():
         with conn.cursor() as cur:
             cur.execute(
                 "WITH notices AS ("
-                "  SELECT release_date, MIN(url) AS url "
-                "  FROM release_history "
-                "  GROUP BY release_date"
+                "  SELECT event_date, ARRAY_AGG(DISTINCT url ORDER BY url) "
+                "    FILTER (WHERE NULLIF(BTRIM(url), '') IS NOT NULL) AS urls "
+                "  FROM ("
+                "    SELECT release_date AS event_date, url FROM release_history "
+                "    UNION ALL "
+                "    SELECT delete_date AS event_date, url FROM delete_date"
+                "  ) notice_rows "
+                "  WHERE NULLIF(BTRIM(url), '') IS NOT NULL "
+                "  GROUP BY event_date"
+                "), song_events AS ("
+                "  SELECT game_release_date AS event_date, FALSE AS is_deleted, "
+                "         id, name, artist, image, youtube_url, level "
+                "  FROM songs WHERE game_release_date IS NOT NULL "
+                "  UNION ALL "
+                "  SELECT game_delete_date AS event_date, TRUE AS is_deleted, "
+                "         id, name, artist, image, youtube_url, level "
+                "  FROM songs WHERE game_delete_date IS NOT NULL"
                 ") "
-                "SELECT s.game_release_date, n.url, s.name, s.artist, MIN(s.image), "
-                "       JSONB_AGG(JSONB_BUILD_OBJECT('id', s.id, 'level', s.level) "
-                "         ORDER BY s.level, s.id) FILTER (WHERE s.level IS NOT NULL) AS variants "
-                "FROM songs s "
-                "LEFT JOIN notices n ON n.release_date = s.game_release_date "
-                "WHERE s.game_release_date IS NOT NULL "
-                "GROUP BY s.game_release_date, n.url, s.name, s.artist "
-                "ORDER BY s.game_release_date DESC, LOWER(s.name), LOWER(s.artist)"
+                "SELECT e.event_date, COALESCE(n.urls, ARRAY[]::text[]), "
+                "       e.name, e.artist, MIN(e.image), "
+                "       MIN(NULLIF(BTRIM(e.youtube_url), '')), e.is_deleted, "
+                "       JSONB_AGG(JSONB_BUILD_OBJECT('id', e.id, 'level', e.level) "
+                "         ORDER BY e.level, e.id) FILTER (WHERE e.level IS NOT NULL) AS variants "
+                "FROM song_events e "
+                "JOIN notices n ON n.event_date = e.event_date "
+                "GROUP BY e.event_date, n.urls, e.name, e.artist, e.is_deleted "
+                "ORDER BY e.event_date DESC, e.is_deleted, LOWER(e.name), LOWER(e.artist)"
             )
             rows = cur.fetchall()
 
     grouped: dict[date, ReleaseHistoryEntry] = {}
-    for release_date, notice_url, name, artist, image, raw_variants in rows:
+    for release_date, notice_urls, name, artist, image, youtube_url, is_deleted, raw_variants in rows:
+        notice_urls = list(notice_urls or [])
         entry = grouped.get(release_date)
         if entry is None:
             entry = ReleaseHistoryEntry(
                 release_date=release_date,
-                notice_url=notice_url,
+                notice_url=notice_urls[0] if notice_urls else None,
+                notice_urls=notice_urls,
                 songs=[],
             )
             grouped[release_date] = entry
@@ -72,6 +92,8 @@ def get_release_history():
                 name=name or "",
                 artist=artist or "",
                 image=image,
+                youtube_url=youtube_url,
+                is_deleted=bool(is_deleted),
                 levels=[variant.level for variant in variants],
                 variants=variants,
             )
