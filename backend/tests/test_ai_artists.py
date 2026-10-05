@@ -83,7 +83,7 @@ class AiArtistTests(unittest.TestCase):
                     self.assertIn(response.status_code, (401, 403))
                     db.assert_not_called()
 
-    def test_active_list_only_adds_dated_removed_songs_when_requested(self):
+    def test_active_list_only_adds_released_removed_songs_when_requested(self):
         app = FastAPI()
         app.include_router(songs.router)
         client = TestClient(app)
@@ -111,7 +111,7 @@ class AiArtistTests(unittest.TestCase):
             if "ORDER BY s.stat DESC" in call.args[0]
         )
         self.assertIn("s.game_release_date IS NOT NULL", list_call.args[0])
-        self.assertIn("s.game_delete_date IS NOT NULL", list_call.args[0])
+        self.assertNotIn("OR s.game_delete_date IS NOT NULL", list_call.args[0])
         self.assertEqual(list_call.args[1], (True,))
 
 

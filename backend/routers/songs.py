@@ -181,7 +181,7 @@ def get_songs(include_removed: bool = False):
                 "LEFT JOIN same_music_group_members smgm "
                 "  ON smgm.server = 'kr' AND smgm.song_id = s.id "
                 "WHERE (COALESCE(s.is_removed, FALSE) IS FALSE "
-                "  OR (%s AND (s.game_release_date IS NOT NULL OR s.game_delete_date IS NOT NULL))) "
+                "  OR (%s AND s.game_release_date IS NOT NULL)) "
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST",
                 (include_removed,),
             )
