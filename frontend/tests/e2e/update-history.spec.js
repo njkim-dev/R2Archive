@@ -132,8 +132,11 @@ test('deletion events share the date card and songs expose direct preview links'
 
   const deletedRow = firstCard.locator('.rh-song-row').filter({ hasText: 'OLD WORLD' })
   await expect(deletedRow.locator('.rh-delete-tag')).toHaveText('삭제')
-  await expect(deletedRow.getByRole('link', { name: 'OLD WORLD 음악 미리듣기' })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=bbbbbbbbbbb')
-  await expect(firstCard.locator('.rh-song-row').first().getByRole('link', { name: 'ECHOES OF TIME (PREQUEL I) 음악 미리듣기' })).toHaveAttribute('target', '_blank')
+  await expect(deletedRow.getByRole('link', { name: 'YouTube에서 듣기' })).toHaveAttribute('href', 'https://www.youtube.com/watch?v=bbbbbbbbbbb')
+  const previewLink = firstCard.locator('.rh-song-row').first().getByRole('link', { name: 'YouTube에서 듣기' })
+  await expect(previewLink).toHaveText('♪')
+  await expect(previewLink).toHaveClass(/song-youtube-icon/)
+  await expect(previewLink).toHaveAttribute('target', '_blank')
 })
 
 test('entries without an official notice URL are omitted', async ({ page }, testInfo) => {

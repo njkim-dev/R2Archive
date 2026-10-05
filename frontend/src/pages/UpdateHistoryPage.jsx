@@ -58,16 +58,14 @@ function SongRow({ song, onOpenVariant }) {
         <span className="rh-song-name" title={song.name}>{song.name}</span>
         {song.youtube_url && (
           <a
-            className="rh-preview-link"
+            className="song-youtube-icon rh-preview-link"
             href={song.youtube_url}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`${song.name} 음악 미리듣기`}
+            title="YouTube에서 듣기"
+            aria-label="YouTube에서 듣기"
             onClick={event => event.stopPropagation()}
-          >
-            <span aria-hidden="true">♪</span>
-            <span>음악 미리듣기</span>
-          </a>
+          >♪</a>
         )}
       </div>
       <div className="rh-song-artist" title={song.artist}>{song.artist}</div>

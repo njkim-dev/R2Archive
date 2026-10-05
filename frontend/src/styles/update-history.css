@@ -315,18 +315,7 @@
 .rh-preview-link {
   position: relative;
   z-index: 2;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  border-radius: 5px;
-  color: var(--fg-3);
-  font-size: 10.5px;
-  font-weight: 600;
 }
-.rh-preview-link:hover,
-.rh-preview-link:focus-visible { background: var(--surface-2); color: var(--accent); }
 .rh-levels { position: relative; z-index: 2; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
 .rh-levels button {
   position: relative;
@@ -419,8 +408,6 @@
   .rh-song-art { width: 64px; height: 32px; grid-column: 1; grid-row: 1 / span 2; }
   .rh-song-title { grid-column: 2; grid-row: 1; gap: 4px; }
   .rh-song-artist { grid-column: 2; grid-row: 2; }
-  .rh-preview-link { padding: 2px 4px; font-size: 12px; }
-  .rh-preview-link > span:last-child { display: none; }
   .rh-levels { grid-column: 3; grid-row: 1 / span 2; max-width: 96px; }
   .rh-status { inset: 0 12px 14px; }
 }
