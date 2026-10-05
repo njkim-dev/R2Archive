@@ -219,6 +219,7 @@ test('searching for a removed song offers the detailed filter shortcut', async (
   const removedSection = page.locator('.detailed-removed-section')
   await expect(removedSection).toHaveClass(/is-highlighted/)
   await expect(removedSection).toBeFocused()
+  expect(await removedSection.evaluate(element => getComputedStyle(element).animationDuration)).toBe('5s')
 })
 
 test('original BPM option follows the available table width', async ({ page }) => {

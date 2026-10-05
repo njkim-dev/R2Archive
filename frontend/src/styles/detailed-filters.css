@@ -55,9 +55,10 @@
 .detailed-ai-options label + label, .detailed-removed-options label + label { border-left: 1px solid var(--line-soft); }
 .detailed-ai-options label:has(input:checked), .detailed-removed-options label:has(input:checked) { background: var(--accent-dim); color: var(--accent); }
 .detailed-removed-section { margin: -8px; padding: 8px; border: 1px solid transparent; border-radius: 7px; outline: 0; }
-.detailed-removed-section.is-highlighted { animation: detailed-removed-highlight 2s ease-out; }
+.detailed-removed-section.is-highlighted { animation: detailed-removed-highlight 5s ease-out; }
 @keyframes detailed-removed-highlight {
-  0%, 35% { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent); }
+  0%, 20%, 40%, 60% { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent); }
+  10%, 30%, 50% { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 6px color-mix(in oklch, var(--accent) 28%, transparent); }
   100% { border-color: transparent; background: transparent; box-shadow: none; }
 }
 .detailed-artists { min-width: 0; border-left: 1px solid var(--line-soft); padding-left: 22px; }
