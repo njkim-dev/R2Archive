@@ -57,6 +57,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
   const xyxMode = isXyxMode()
   const [draft, setDraft] = useState(() => normalizeDetailedFilters(useStore.getState(), meta))
   const [artistSearch, setArtistSearch] = useState('')
+  const [highlightRemoved, setHighlightRemoved] = useState(false)
   const draftRef = useRef(draft)
   const overlayRef = useRef(null)
   const panelRef = useRef(null)
@@ -73,6 +74,16 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
   }, [draft])
 
   useEffect(() => { refreshPersonalCategoryFilters() }, [refreshPersonalCategoryFilters])
+
+  useEffect(() => {
+    if (mobileSheetFocus !== 'removed' || !showRemovedFilter) {
+      setHighlightRemoved(false)
+      return undefined
+    }
+    setHighlightRemoved(true)
+    const timer = window.setTimeout(() => setHighlightRemoved(false), 5000)
+    return () => window.clearTimeout(timer)
+  }, [mobileSheetFocus, showRemovedFilter])
 
   useEffect(() => {
     if (!personalCategoryFiltersLoaded || draft.personalCategoryId == null) return
@@ -234,7 +245,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
               </div></section>
               {showRemovedFilter && <section
                 ref={removedSectionRef}
-                className={`detailed-removed-section${mobileSheetFocus === 'removed' ? ' is-highlighted' : ''}`}
+                className={`detailed-removed-section${highlightRemoved ? ' is-highlighted' : ''}`}
                 tabIndex={-1}
               ><h3 id="detailed-removed-title">삭제된 곡</h3><div className="detailed-removed-options" role="radiogroup" aria-labelledby="detailed-removed-title">
                 {REMOVED_MODES.map(option => (

@@ -207,7 +207,8 @@ test('released removed songs can be shown without shifting the catalog', async (
   await expect(page.getByLabel('삭제된 곡 제외')).toBeChecked()
 })
 
-test('searching for a removed song offers the detailed filter shortcut', async ({ page }) => {
+test('searching for a removed song offers the detailed filter shortcut', async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   const removedSong = { ...song(90, 5, 'Deleted Secret'), is_removed: true }
   await mockCatalog(page, songs, { removedSongs: [removedSong] })
 
@@ -219,7 +220,14 @@ test('searching for a removed song offers the detailed filter shortcut', async (
   const removedSection = page.locator('.detailed-removed-section')
   await expect(removedSection).toHaveClass(/is-highlighted/)
   await expect(removedSection).toBeFocused()
-  expect(await removedSection.evaluate(element => getComputedStyle(element).animationDuration)).toBe('5s')
+  await page.waitForTimeout(200)
+  expect(await removedSection.evaluate(element => getComputedStyle(element).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)')
+  if (testInfo.project.name === 'chromium-1920') {
+    await page.waitForTimeout(4000)
+    await expect(removedSection).toHaveClass(/is-highlighted/)
+    await page.waitForTimeout(1000)
+    await expect(removedSection).not.toHaveClass(/is-highlighted/)
+  }
 })
 
 test('original BPM option follows the available table width', async ({ page }) => {
