@@ -4,7 +4,7 @@ from database import get_conn
 from ai_artists import is_ai_artist, load_ai_artists
 from models import SongListItem, SongDetail, MetaResponse, BpmPoint, PlayLogCreate, SongServerCounterpart
 from rate_limit import limiter
-from youtube_views import load_youtube_view_counts, youtube_view_count_for_url
+from youtube_views import load_youtube_view_data, youtube_view_fields_for_url
 
 router = APIRouter(prefix="/api", tags=["songs"])
 
@@ -186,7 +186,7 @@ def get_songs(include_removed: bool = False):
                 (include_removed,),
             )
             rows = cur.fetchall()
-            youtube_view_counts = load_youtube_view_counts(cur)
+            youtube_view_data = load_youtube_view_data(cur)
 
     songs = []
     for row in rows:
@@ -208,7 +208,7 @@ def get_songs(include_removed: bool = False):
             is_new=bool(stat),
             file_order=int(file_order or 0),
             play_count=play_counts.get((name, artist), 0),
-            youtube_view_count=youtube_view_count_for_url(yt_url, youtube_view_counts),
+            **youtube_view_fields_for_url(yt_url, youtube_view_data),
             favorite_count=favorite_counts.get(sid, 0),
             is_change=bool(change_bpm),
             image=image or None,
@@ -288,7 +288,7 @@ def get_removed_songs(request: Request):
                 "ORDER BY s.stat DESC NULLS LAST, s.file_order DESC NULLS LAST"
             )
             rows = cur.fetchall()
-            youtube_view_counts = load_youtube_view_counts(cur)
+            youtube_view_data = load_youtube_view_data(cur)
 
     songs = []
     for row in rows:
@@ -310,7 +310,7 @@ def get_removed_songs(request: Request):
             is_new=bool(stat),
             file_order=int(file_order or 0),
             play_count=play_counts.get((name, artist), 0),
-            youtube_view_count=youtube_view_count_for_url(yt_url, youtube_view_counts),
+            **youtube_view_fields_for_url(yt_url, youtube_view_data),
             favorite_count=favorite_counts.get(sid, 0),
             is_change=bool(change_bpm),
             image=image or None,
@@ -393,7 +393,7 @@ def get_song(request: Request, song_id: int):
                     artist=counterpart_row[2] or "",
                     is_removed=bool(counterpart_row[3]),
                 )
-            youtube_view_count = youtube_view_count_for_url(row[10], load_youtube_view_counts(cur))
+            youtube_view_fields = youtube_view_fields_for_url(row[10], load_youtube_view_data(cur))
 
     sid, name, artist, level, bpm, real_bpm, combo, combo_warning, time_, change_bpm, yt_url, stat, image, _is_removed, _game_index, game_release_date, game_delete_date = row
     xyx_name = counterpart.name if counterpart and counterpart.server == "xyx" else ""
@@ -421,7 +421,7 @@ def get_song(request: Request, song_id: int):
         youtube_url=yt_url or "",
         is_new=bool(stat),
         play_count=int(play_count),
-        youtube_view_count=youtube_view_count,
+        **youtube_view_fields,
         play_count_week=int(play_count_week),
         is_change=bool(change_bpm),
         image=image or None,

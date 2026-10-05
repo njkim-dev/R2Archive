@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from urllib.parse import parse_qs, urlparse
 
 
 _VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_YOUTUBE_VIEW_ONLY_CHANNEL_IDS = frozenset(
+    {
+        "UCAR5Euqj20YJ1R3joEorAxA",  # R2 Music Box
+        "UCvdDuPYST8jUgmXDeTGRWBQ",  # 알투비트 R2BEAT MUSIC
+    }
+)
+
+
+@dataclass(frozen=True)
+class YoutubeViewData:
+    count: int = 0
+    youtube_only: bool = False
 
 
 def extract_youtube_video_id(url: str | None) -> str | None:
@@ -33,17 +46,37 @@ def extract_youtube_video_id(url: str | None) -> str | None:
     return candidate if candidate and _VIDEO_ID_RE.fullmatch(candidate) else None
 
 
-def load_youtube_view_counts(cur) -> dict[str, int]:
+def load_youtube_view_data(cur) -> dict[str, YoutubeViewData]:
     cur.execute(
         """
-        SELECT video_id, MAX(youtube_view_count)::bigint
+        SELECT DISTINCT ON (video_id) video_id, youtube_view_count, channel_id
         FROM youtube_channel_videos
-        GROUP BY video_id
+        ORDER BY video_id, view_count_updated_at DESC NULLS LAST
         """
     )
-    return {row[0]: int(row[1] or 0) for row in cur.fetchall()}
+    return {
+        row[0]: YoutubeViewData(
+            count=int(row[1] or 0),
+            youtube_only=row[2] in _YOUTUBE_VIEW_ONLY_CHANNEL_IDS,
+        )
+        for row in cur.fetchall()
+    }
 
 
-def youtube_view_count_for_url(url: str | None, counts: dict[str, int]) -> int:
+def youtube_view_data_for_url(
+    url: str | None,
+    data: dict[str, YoutubeViewData],
+) -> YoutubeViewData:
     video_id = extract_youtube_video_id(url)
-    return counts.get(video_id, 0) if video_id else 0
+    return data.get(video_id, YoutubeViewData()) if video_id else YoutubeViewData()
+
+
+def youtube_view_fields_for_url(
+    url: str | None,
+    data: dict[str, YoutubeViewData],
+) -> dict[str, int | bool]:
+    value = youtube_view_data_for_url(url, data)
+    return {
+        "youtube_view_count": value.count,
+        "youtube_view_count_only": value.youtube_only,
+    }

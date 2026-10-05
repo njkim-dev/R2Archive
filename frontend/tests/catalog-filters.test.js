@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { filterSongs, sortSongs, totalPlayCount } from '../src/utils/helpers.js'
+import { displayPlayCount, filterSongs, sortSongs } from '../src/utils/helpers.js'
 import { allowedQuickFilter, buildArtistCatalog, defaultDetailedFilters, isAiSong, normalizeDetailedFilters, selectedPersonalCategorySongIds, visibleQuickFilters } from '../src/utils/catalogFilters.js'
 
 const meta = { level_min: 1.5, level_max: 12, bpm_min: 60, bpm_max: 400 }
@@ -141,9 +141,10 @@ test('admin, login and server-specific quick options remain restricted', () => {
   assert(!visibleQuickFilters(guest).some(item => item.adminOnly))
 })
 
-test('displayed play count combines all-time internal plays and YouTube views', () => {
-  const low = song(10, 'Artist', { play_count: 12, youtube_view_count: 500 })
-  const high = song(11, 'Artist', { play_count: 3, youtube_view_count: 900 })
-  assert.equal(totalPlayCount(low), 512)
-  assert.deepEqual(sortSongs([low, high], { key: 'play_count', dir: 'desc' }).map(item => item.id), [11, 10])
+test('displayed play count selects YouTube only for the configured channels', () => {
+  const internal = song(10, 'Artist', { play_count: 12, youtube_view_count: 500, youtube_view_count_only: false })
+  const youtube = song(11, 'Artist', { play_count: 3, youtube_view_count: 900, youtube_view_count_only: true })
+  assert.equal(displayPlayCount(internal), 12)
+  assert.equal(displayPlayCount(youtube), 900)
+  assert.deepEqual(sortSongs([internal, youtube], { key: 'play_count', dir: 'desc' }).map(item => item.id), [11, 10])
 })

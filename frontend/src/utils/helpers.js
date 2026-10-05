@@ -61,7 +61,11 @@ export function bpmWaveBars(bpm, count = 14) {
 }
 
 export const fmt = n => (n ?? 0).toLocaleString()
-export const totalPlayCount = song => Number(song?.play_count || 0) + Number(song?.youtube_view_count || 0)
+export const displayPlayCount = (song, detail = null) => {
+  const youtubeOnly = detail?.youtube_view_count_only ?? song?.youtube_view_count_only ?? false
+  if (youtubeOnly) return Number(detail?.youtube_view_count ?? song?.youtube_view_count ?? 0)
+  return Number(detail?.play_count ?? song?.play_count ?? 0)
+}
 
 export const fmtBpm = bpm => {
   const n = Number(bpm)
@@ -246,7 +250,7 @@ export function sortSongs(songs, sort, myPerceivedLevels = null) {
       if (va == null) return 1
       if (vb == null) return -1
     }
-    else if (key === 'play_count') { va = totalPlayCount(a); vb = totalPlayCount(b) }
+    else if (key === 'play_count') { va = displayPlayCount(a); vb = displayPlayCount(b) }
     else { va = a[key] ?? 0; vb = b[key] ?? 0 }
     if (va < vb) return -1 * d
     if (va > vb) return 1 * d

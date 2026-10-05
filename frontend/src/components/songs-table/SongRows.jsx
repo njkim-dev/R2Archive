@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import useStore from '../../store/useStore'
-import { artworkBg, bpmWaveBars, fmt, fmtBpm, levelBarColor, staticUrl, totalPlayCount } from '../../utils/helpers'
+import { artworkBg, bpmWaveBars, displayPlayCount, fmt, fmtBpm, levelBarColor, staticUrl } from '../../utils/helpers'
 import { logPlay } from '../../api/client'
 import PersonalCategoryPicker from '../PersonalCategoryPicker'
 
@@ -225,7 +225,7 @@ export function SongRow({
   const lvDec = song.level % 1 === 0 ? '.0' : '.5'
   const comboPct = Math.min(100, (song.combo / 2000) * 100)
   const bpmTier = songBpmTier(song)
-  const displayedPlayCount = totalPlayCount(song)
+  const displayedPlayCount = displayPlayCount(song)
   const showColumn = (key) => !hiddenColumns?.has(key)
   const rowStyle = { ...style, gridTemplateColumns: colTemplate }
   const favoriteButton = (

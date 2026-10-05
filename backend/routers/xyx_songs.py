@@ -6,7 +6,7 @@ from database import get_conn
 from ai_artists import is_ai_artist, load_ai_artists
 from models import BpmPoint, MetaResponse, PlayLogCreate, SongDetail, SongListItem, SongServerCounterpart
 from rate_limit import limiter
-from youtube_views import load_youtube_view_counts, youtube_view_count_for_url
+from youtube_views import load_youtube_view_data, youtube_view_fields_for_url
 
 router = APIRouter(prefix="/api", tags=["xyx-songs"])
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -85,7 +85,7 @@ def _is_admin(cur, request: Request) -> bool:
 def _rows_to_song_items(
     rows,
     play_counts: dict[tuple, int],
-    youtube_view_counts: dict[str, int],
+    youtube_view_data,
     perceived: dict[int, tuple],
     favorite_counts: dict[int, int],
     *,
@@ -130,7 +130,7 @@ def _rows_to_song_items(
                 is_new=bool(stat),
                 file_order=int(file_order or 0),
                 play_count=play_counts.get((name, artist), 0),
-                youtube_view_count=youtube_view_count_for_url(yt_url, youtube_view_counts),
+                **youtube_view_fields_for_url(yt_url, youtube_view_data),
                 favorite_count=favorite_counts.get(sid, 0),
                 is_change=bool(change_bpm),
                 image=_xyx_image_path(image, fallback_to_korea=removed),
@@ -234,11 +234,11 @@ def _fetch_song_items(removed: bool = False, request: Request | None = None) -> 
                 "FROM xyx_user_favorites GROUP BY song_id"
             )
             favorite_counts = {r[0]: r[1] for r in cur.fetchall()}
-            youtube_view_counts = load_youtube_view_counts(cur)
+            youtube_view_data = load_youtube_view_data(cur)
     return _rows_to_song_items(
         rows,
         play_counts,
-        youtube_view_counts,
+        youtube_view_data,
         perceived,
         favorite_counts,
         ai_artists=ai_artists,
@@ -378,7 +378,7 @@ def get_xyx_song(request: Request, song_id: int):
                     artist=counterpart_row[2] or "",
                     is_removed=bool(counterpart_row[3]),
                 )
-            youtube_view_count = youtube_view_count_for_url(row[9], load_youtube_view_counts(cur))
+            youtube_view_fields = youtube_view_fields_for_url(row[9], load_youtube_view_data(cur))
 
     sid, name, artist, level, bpm, real_bpm, combo, time_, change_bpm, yt_url, stat, image, is_removed, game_index, korea_name = row
     base_bpm = float(bpm or 0)
@@ -402,7 +402,7 @@ def get_xyx_song(request: Request, song_id: int):
         youtube_url=yt_url or "",
         is_new=bool(stat),
         play_count=int(play_count),
-        youtube_view_count=youtube_view_count,
+        **youtube_view_fields,
         play_count_week=int(play_count_week),
         is_change=bool(change_bpm),
         image=_xyx_image_path(image, fallback_to_korea=is_removed),
