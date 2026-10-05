@@ -305,7 +305,10 @@ function MobileDetail({ song, detail, onClose, difficultyVariants = [], onDiffic
                   { lbl: '음악 원 BPM', val: originalBpmText(song, detail) },
                   { lbl: '콤보', val: fmt(song.combo) },
                   { lbl: '변속', val: song.is_change ? '있음' : '없음' },
-                  { lbl: '재생 수', val: `${(detail?.play_count ?? song.play_count ?? 0).toLocaleString()}회` },
+                  { lbl: '재생 수', val: `${(
+                    Number(detail?.play_count ?? song.play_count ?? 0)
+                    + Number(detail?.youtube_view_count ?? song.youtube_view_count ?? 0)
+                  ).toLocaleString()}회` },
                 ].map(({ lbl, val }) => (
                   <div key={lbl} className="mob-meta-row">
                     <span className="mob-meta-lbl">{lbl}</span>
@@ -732,7 +735,10 @@ export default function SongModal() {
             { lbl: '음악 원 BPM', val: originalBpmText(song, detail), sub: '원본' },
             { lbl: '콤보',  val: fmt(song.combo),         sub: '최대' },
             { lbl: '시간',  val: song.time,               sub: '재생' },
-            { lbl: '재생 수', val: detail?.play_count ?? song.play_count ?? 0, sub: '회' },
+            { lbl: '재생 수', val: (
+              Number(detail?.play_count ?? song.play_count ?? 0)
+              + Number(detail?.youtube_view_count ?? song.youtube_view_count ?? 0)
+            ), sub: '회' },
           ].map(({ lbl, val, sub, hi }) => (
             <div key={lbl} className={`m-stat${hi ? ' highlight' : ''}`}>
               <div className="lbl">{lbl}</div>

@@ -61,6 +61,7 @@ export function bpmWaveBars(bpm, count = 14) {
 }
 
 export const fmt = n => (n ?? 0).toLocaleString()
+export const totalPlayCount = song => Number(song?.play_count || 0) + Number(song?.youtube_view_count || 0)
 
 export const fmtBpm = bpm => {
   const n = Number(bpm)
@@ -117,17 +118,6 @@ function getFuse(songs, mode = 'both') {
   return fuse
 }
 
-// 재생 수가 공유되는 동일 곡은 최고 난이도 행만 남긴다.
-export function dedupeByNameArtistMaxLevel(songs) {
-  const map = new Map()
-  for (const s of songs) {
-    const key = `${s.name}\u0000${s.artist}`
-    const cur = map.get(key)
-    if (!cur || s.level > cur.level) map.set(key, s)
-  }
-  return [...map.values()]
-}
-
 function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick, artists, favorites, played, flagNew, flagVariants, flagFavorite, flagMyPlayed, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds }) {
   if (levelMin != null && s.level < levelMin) return false
   if (levelMax != null && s.level > levelMax) return false
@@ -144,7 +134,6 @@ function passesFilters(s, { levelMin, levelMax, bpmMin, bpmMax, category, quick,
   if (removedMode === 'only' && !s.is_removed) return false
   if (personalCategoryId != null && !personalCategorySongIds?.has(s.id)) return false
   if (quick === 'new' && !s.is_new) return false
-  if (quick === 'played' && !s.play_count) return false
   if (quick === 'variants' && !s.is_change) return false
   if (quick === 'favorite' && !(favorites && favorites.has(s.id))) return false
   if (quick === 'my_played' && !(played && played.has(s.id))) return false
@@ -181,12 +170,9 @@ export function matchSong(song, query) {
 export function filterSongs(songs, filters) {
   const { search, searchMode = 'both', quick, excludeSearch = false } = filters
   const searchTerms = getSearchTerms(search)
-  const dedupe = quick === 'played'
 
   if (!searchTerms.length) {
-    let exact = songs.filter(s => passesFilters(s, filters))
-    if (dedupe) exact = dedupeByNameArtistMaxLevel(exact)
-    return { exact, fuzzy: [] }
+    return { exact: songs.filter(s => passesFilters(s, filters)), fuzzy: [] }
   }
 
   const exactSet = new Set()
@@ -231,18 +217,10 @@ export function filterSongs(songs, filters) {
   })
 
   if (excludeSearch) {
-    let remaining = songs.filter(s =>
+    const remaining = songs.filter(s =>
       !exactSet.has(s.id) && !fuzzySet.has(s.id) && passesFilters(s, filters)
     )
-    if (dedupe) remaining = dedupeByNameArtistMaxLevel(remaining)
     return { exact: remaining, fuzzy: [] }
-  }
-
-  if (dedupe) {
-    const exactDeduped = dedupeByNameArtistMaxLevel(exact)
-    const keptKeys = new Set(exactDeduped.map(s => `${s.name} ${s.artist}`))
-    fuzzy = dedupeByNameArtistMaxLevel(fuzzy).filter(s => !keptKeys.has(`${s.name} ${s.artist}`))
-    return { exact: exactDeduped, fuzzy }
   }
 
   return { exact, fuzzy }
@@ -268,6 +246,7 @@ export function sortSongs(songs, sort, myPerceivedLevels = null) {
       if (va == null) return 1
       if (vb == null) return -1
     }
+    else if (key === 'play_count') { va = totalPlayCount(a); vb = totalPlayCount(b) }
     else { va = a[key] ?? 0; vb = b[key] ?? 0 }
     if (va < vb) return -1 * d
     if (va > vb) return 1 * d

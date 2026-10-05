@@ -5,7 +5,7 @@ const song = (id, level, name = 'Shared Song', artist = 'Test Artist') => ({
   id, name, artist, level, bpm: 160, real_bpm: 159.8, combo: 200 + id,
   time: '2:00', image: 'test-art.png', youtube_url: '', is_new: false,
   file_order: 1000 - id, user_level_avg: 8.5, user_level_votes: 2,
-  aliases: [], artist_aliases: [], play_count: 123, favorite_count: 2, is_ai: false,
+  aliases: [], artist_aliases: [], play_count: 123, youtube_view_count: 1000, favorite_count: 2, is_ai: false,
 })
 
 const songs = [
@@ -84,6 +84,18 @@ async function mockCatalog(page, data = songs, {
     releaseRemovedRequest: () => releaseRemovedRequest?.(),
   }
 }
+
+test('play column combines internal plays with YouTube views and omits the obsolete quick filter', async ({ page }) => {
+  await mockCatalog(page)
+  const playCell = page.locator('[data-song-id="1"] [data-column="play_count"]')
+  if (await playCell.count()) {
+    await expect(playCell).toHaveText('1,123')
+  } else {
+    await page.locator('[data-song-id="1"]').click()
+    await expect(page.locator('.m-stat, .mob-meta-row').filter({ hasText: '재생 수' })).toContainText(/1,?123/)
+  }
+  await expect(page.getByRole('button', { name: /전체 유저 플레이/ })).toHaveCount(0)
+})
 
 test('a visible personal category filters the song list from the detailed filter', async ({ page }) => {
   await mockCatalog(page, songs, {

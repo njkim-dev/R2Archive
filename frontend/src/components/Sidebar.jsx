@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import useStore from '../store/useStore'
-import { filterSongs, dedupeByNameArtistMaxLevel } from '../utils/helpers'
+import { filterSongs } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
 import { SlidersHorizontal } from 'lucide-react'
 import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
@@ -41,10 +41,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
     [personalCategoryFilters, personalCategoryId],
   )
 
-  useEffect(() => {
-    if (xyxMode && quick === 'played') setQuick('all')
-  }, [xyxMode, quick, setQuick])
-
   const hist = useMemo(() => {
     const bins = new Array(19).fill(0)
     songs.forEach(s => {
@@ -70,7 +66,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
       new:      base.filter(s => s.is_new).length,
       variants: base.filter(s => s.is_change).length,
       popular: base.length,
-      played:   dedupeByNameArtistMaxLevel(base.filter(s => s.play_count > 0)).length,
       favorite: user ? base.filter(s => favorites.has(s.id)).length : 0,
       my_played: user ? base.filter(s => playedSet.has(s.id)).length : 0,
       no_music: base.filter(s => !s.youtube_url).length,

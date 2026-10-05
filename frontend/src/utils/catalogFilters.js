@@ -5,7 +5,6 @@ export const QUICK_FILTERS = [
   { key: 'popular', label: '인기순', adminOnly: true },
   { key: 'favorite', label: '내 즐겨찾기', needLogin: true },
   { key: 'my_played', label: '내가 플레이한 곡', needLogin: true },
-  { key: 'played', label: '전체 유저 플레이 곡', krOnly: true },
   { key: 'no_music', label: '음악 없음', adminOnly: true },
 ]
 

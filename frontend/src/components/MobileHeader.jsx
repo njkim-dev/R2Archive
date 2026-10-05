@@ -23,7 +23,6 @@ const CHIPS = [
   { key: 'popular',   label: '인기순',     icon: '★', flag: true, adminOnly: true },
   { key: 'favorite',  label: '즐겨찾기',   icon: '★', flag: true, needLogin: true },
   { key: 'my_played', label: '내 플레이',  icon: '♪', flag: true, needLogin: true },
-  { key: 'played', label: '전체 유저 플레이 곡', flag: true, krOnly: true },
   { key: 'no_music', label: '음악 없음', flag: true, adminOnly: true },
 ]
 

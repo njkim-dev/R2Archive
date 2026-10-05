@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from auth import require_admin
 from database import get_conn
+from youtube_views import load_youtube_view_counts, youtube_view_count_for_url
 
 router = APIRouter(prefix="/api/admin", tags=["youtube_candidates"])
 
@@ -23,6 +24,7 @@ class YoutubeCandidateListItem(BaseModel):
     is_new: bool
     file_order: int
     play_count: int
+    youtube_view_count: int = 0
     favorite_count: int = 0
     is_change: bool
     image: Optional[str] = None
@@ -81,7 +83,6 @@ def get_youtube_candidates(
                 SELECT s.name, s.artist, COUNT(*)
                 FROM play_logs pl
                 JOIN songs s ON s.id = pl.song_id
-                WHERE pl.played_at >= NOW() - INTERVAL '30 days'
                 GROUP BY s.name, s.artist
                 """
             )
@@ -139,6 +140,7 @@ def get_youtube_candidates(
                 (status, status),
             )
             rows = cur.fetchall()
+            youtube_view_counts = load_youtube_view_counts(cur)
 
     result: list[YoutubeCandidateListItem] = []
     for row in rows:
@@ -179,6 +181,7 @@ def get_youtube_candidates(
                 is_new=bool(stat),
                 file_order=int(file_order or 0),
                 play_count=play_counts.get((name, artist), 0),
+                youtube_view_count=youtube_view_count_for_url(youtube_url, youtube_view_counts),
                 favorite_count=favorite_counts.get(song_id, 0),
                 is_change=bool(change_bpm),
                 image=image or None,

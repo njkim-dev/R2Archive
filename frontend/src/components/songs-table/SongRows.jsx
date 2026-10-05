@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import useStore from '../../store/useStore'
-import { artworkBg, bpmWaveBars, fmt, fmtBpm, levelBarColor, staticUrl } from '../../utils/helpers'
+import { artworkBg, bpmWaveBars, fmt, fmtBpm, levelBarColor, staticUrl, totalPlayCount } from '../../utils/helpers'
 import { logPlay } from '../../api/client'
 import PersonalCategoryPicker from '../PersonalCategoryPicker'
 
@@ -225,6 +225,7 @@ export function SongRow({
   const lvDec = song.level % 1 === 0 ? '.0' : '.5'
   const comboPct = Math.min(100, (song.combo / 2000) * 100)
   const bpmTier = songBpmTier(song)
+  const displayedPlayCount = totalPlayCount(song)
   const showColumn = (key) => !hiddenColumns?.has(key)
   const rowStyle = { ...style, gridTemplateColumns: colTemplate }
   const favoriteButton = (
@@ -436,8 +437,8 @@ export function SongRow({
           </button>
         </div>
       ) : showPlayCount && showColumn('play_count') ? (
-        <div className="td num" style={{ color: song.play_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell" data-column="play_count">
-          {song.play_count ? fmt(song.play_count) : '—'}
+        <div className="td num" style={{ color: displayedPlayCount ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell" data-column="play_count">
+          {displayedPlayCount ? fmt(displayedPlayCount) : '—'}
         </div>
       ) : showFavoriteCount && showColumn('favorite_count') ? (
         <div className="td num" style={{ color: song.favorite_count ? 'var(--fg-2)' : 'var(--fg-4)' }} role="cell">

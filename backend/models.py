@@ -34,6 +34,7 @@ class SongListItem(BaseModel):
     is_new: bool
     file_order: int
     play_count: int
+    youtube_view_count: int = 0
     favorite_count: int = 0
     is_change: bool
     image: Optional[str] = None
@@ -60,6 +61,7 @@ class SongDetail(BaseModel):
     youtube_url: str
     is_new: bool
     play_count: int
+    youtube_view_count: int = 0
     play_count_week: int
     is_change: bool
     image: Optional[str] = None

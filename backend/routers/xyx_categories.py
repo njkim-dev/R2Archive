@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user_id, require_user_id
 from database import get_conn
+from youtube_views import load_youtube_view_counts, youtube_view_count_for_url
 
 router = APIRouter(prefix="/api", tags=["xyx-categories"])
 
@@ -312,7 +313,6 @@ def _fetch_songs_for_category(cur, category_id: int, *, include_removed_korea_na
             FROM xyx_play_logs pl
             JOIN xyx_songs s ON s.id = pl.song_id
             JOIN category_song_keys k ON k.name = s.name AND k.artist = s.artist
-            WHERE pl.played_at >= NOW() - INTERVAL '30 days'
             GROUP BY s.name, s.artist
         ),
         perceived AS (
@@ -363,6 +363,7 @@ def _fetch_songs_for_category(cur, category_id: int, *, include_removed_korea_na
         (category_id, include_removed_korea_names),
     )
     rows = cur.fetchall()
+    youtube_view_counts = load_youtube_view_counts(cur)
 
     def xyx_image_path(image: str | None) -> str | None:
         image = (image or "").strip().replace("\\", "/")
@@ -389,6 +390,7 @@ def _fetch_songs_for_category(cur, category_id: int, *, include_removed_korea_na
             "file_order": int(r[11] or 0),
             "image": xyx_image_path(r[12]),
             "play_count": int(r[13] or 0),
+            "youtube_view_count": youtube_view_count_for_url(r[9], youtube_view_counts),
             "is_change": bool(r[8]),
             "user_level_avg": round(r[14], 2) if r[14] is not None else None,
             "user_level_votes": int(r[15] or 0),

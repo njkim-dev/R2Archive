@@ -61,7 +61,6 @@ export default function FilterBar() {
   if (quick !== 'all') {
     const labels = {
       new: '신곡',
-      played: '모든 유저 플레이',
       variants: '변속곡',
       popular: '인기순',
       favorite: '★ 즐겨찾기',
