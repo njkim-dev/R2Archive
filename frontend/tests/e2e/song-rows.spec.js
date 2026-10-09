@@ -100,6 +100,54 @@ test('play column selects YouTube or internal views by channel policy and omits 
   await expect(page.getByRole('button', { name: /전체 유저 플레이/ })).toHaveCount(0)
 })
 
+test('popular quick filter sorts by displayed plays and keeps the catalog stable while songs load', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'chromium-768'
+  if (mobile) await page.setViewportSize({ width: 390, height: 900 })
+  const data = [
+    { ...song(1, 8), favorite_count: 1 },
+    { ...song(4, 8), play_count: 2000, youtube_view_count: 9999, favorite_count: 0 },
+    { ...song(2, 8), play_count: 50, favorite_count: 500 },
+    { ...song(3, 8), play_count: 0, favorite_count: 200 },
+  ]
+  const removedSong = { ...song(90, 8), play_count: 1500, is_removed: true }
+  const control = await mockCatalog(page, data, {
+    isAdmin: true,
+    removedSongs: [removedSong],
+    deferRemoved: true,
+    clearDefaultCategory: false,
+  })
+  const rowIds = () => page.locator('[data-song-id]').evaluateAll(rows => rows.map(row => Number(row.dataset.songId)))
+  await expect.poll(rowIds).toEqual([1, 2, 3, 4])
+  const layout = await watchLayout(page, mobile
+    ? ['.mob-top', '.mob-list-wrap', '.mob-meta', '[data-song-id]']
+    : ['.topbar', '.table-wrap', '.tbl-header', '.tbl-row'])
+
+  await page.getByRole('button', { name: /인기순/ }).first().click()
+  await expect.poll(rowIds).toEqual([4, 1, 2, 3])
+  if (!mobile && await page.locator('[data-column="play_count"]').count()) {
+    await expect(page.locator('[data-song-id="4"] [data-column="play_count"]')).toHaveText('2,000')
+    await expect(page.getByRole('columnheader', { name: /^재생/ })).toHaveAttribute('aria-sort', 'descending')
+    await expect(page.getByRole('columnheader', { name: /^즐겨찾기/ })).toHaveCount(0)
+  }
+  await layout.expectStable()
+
+  await page.getByRole('button', { name: /^상세 필터/ }).click()
+  await page.getByLabel('삭제된 곡 표시', { exact: true }).check()
+  await control.waitForRemovedRequest()
+  await expect.poll(rowIds).toEqual([4, 1, 2, 3])
+  await layout.expectStable()
+  control.releaseRemovedRequest()
+  await expect.poll(rowIds).toEqual([4, 90, 1, 2, 3])
+  await layout.expectStable()
+  await page.getByRole('button', { name: '상세 필터 닫기', exact: true }).click()
+  if (mobile) await page.getByRole('button', { name: /인기순/ }).first().click()
+  else await page.getByRole('group', { name: '빠른 필터', exact: true }).getByRole('button', { name: /^전체 곡/ }).click()
+  await expect.poll(rowIds).toEqual([1, 2, 3, 4, 90])
+  await layout.expectStable()
+  await layout.stop()
+  expect(control.errors).toEqual([])
+})
+
 test('a visible personal category filters the song list from the detailed filter', async ({ page }) => {
   await mockCatalog(page, songs, {
     personalCategories: [{ id: 41, name: '연습곡', is_public: false, is_owner: true, owner_nickname: 'Test', song_count: 1, song_ids: [4] }],

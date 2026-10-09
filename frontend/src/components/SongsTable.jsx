@@ -66,7 +66,8 @@ export default function SongsTable({
   const { sort, setSort, openModal, search, quick, user, favorites, toggleFavorite, isAdmin, modalOpen, modalSong, showOriginalBpm, showSongCategories, personalCategoryFilters } = useStore()
   const canFav = !!user
   const showKoreaName = isXyxMode()
-  const showFavoriteCount = tableMode !== 'personalCategory' && (quick === 'favorite' || quick === 'popular')
+  const effectiveSort = quick === 'popular' ? { key: 'play_count', dir: 'desc' } : sort
+  const showFavoriteCount = tableMode !== 'personalCategory' && quick === 'favorite'
   const showPlayCount = !showFavoriteCount && tableMode !== 'personalCategory'
   const [tableRef, tableWidth] = useElementWidth()
   const compact = catalogOpen && tableWidth < CATALOG_FULL_TABLE_MIN_WIDTH + (showKoreaName ? 140 : 0)
@@ -335,7 +336,7 @@ export default function SongsTable({
 
   return (
     <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="곡 목록" aria-rowcount={items.length + 1}>
-      <TableHeader sort={sort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
+      <TableHeader sort={effectiveSort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
       <SearchFilterHint suggestion={removedSuggestion} empty={items.length === 0} />
       <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
       <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
@@ -368,8 +369,9 @@ export default function SongsTable({
 }
 
 function MobileSortButton() {
-  const { sort, openMobileSheet } = useStore()
+  const { sort, quick, openMobileSheet } = useStore()
   const label = useMemo(() => {
+    if (quick === 'popular') return '인기순'
     const map = {
       file_order: sort.dir === 'asc' ? '구곡순' : '최신곡순',
       level: sort.dir === 'asc' ? '난이도 낮은순' : '난이도 높은순',
@@ -379,7 +381,7 @@ function MobileSortButton() {
       favorite_count: '인기순',
     }
     return map[sort.key] ?? '최신곡순'
-  }, [sort])
+  }, [sort, quick])
   return (
     <button className="mob-sort-btn" onClick={openMobileSheet}>
       {label}

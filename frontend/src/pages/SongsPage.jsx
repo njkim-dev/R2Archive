@@ -101,7 +101,7 @@ export default function SongsPage() {
       removedMode,
       personalCategoryId, personalCategorySongIds,
     })
-    const effectiveSort = quick === 'popular' ? { key: 'favorite_count', dir: 'desc' } : sort
+    const effectiveSort = quick === 'popular' ? { key: 'play_count', dir: 'desc' } : sort
     return { exact: sortSongs(exact, effectiveSort, myPerceived.levels), fuzzy: sortSongs(fuzzy, effectiveSort, myPerceived.levels) }
   }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
 
