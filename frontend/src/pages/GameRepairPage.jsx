@@ -6,6 +6,9 @@ import '../styles/game-repair.css'
 const labels = { ok: '일치', missing: '누락', size: '불일치', hash: '불일치', unreadable: '읽기 실패' }
 
 export default function GameRepairPage() {
+  const downloadController = useRef(null)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadMessage, setDownloadMessage] = useState('검사 후 문제 파일을 ZIP 하나로 받을 수 있습니다. 받은 ZIP은 게임 설치 폴더에 압축을 풀어주세요.')
   const [manifest, setManifest] = useState(null)
   const [folderName, setFolderName] = useState('')
   const folderInput = useRef(null)
@@ -29,7 +32,7 @@ export default function GameRepairPage() {
   }
   useEffect(() => {
     loadManifest()
-    return () => scanController.current?.abort()
+    return () => { scanController.current?.abort(); downloadController.current?.abort() }
   }, [])
 
   async function scan(selected) {
@@ -42,7 +45,7 @@ export default function GameRepairPage() {
     setResult(checked)
     setProgress(100)
     const issues = checked.rows.filter(row => row.status !== 'ok').length
-    setMessage(issues ? `검사 완료 · 확인이 필요한 파일 ${issues}개. ‘파일 받기’로 내려받아 설치 폴더에 넣은 후 다시 검사해주세요.` : '검사 대상 파일의 SHA-256이 모두 일치합니다. 계속 종료된다면 보안 프로그램의 보호 기록과 게임 오류 로그를 확인해주세요.')
+    setMessage(issues ? `검사 완료 · 확인이 필요한 파일 ${issues}개. 개별 파일 또는 ZIP으로 내려받아 설치 폴더에 넣은 후 다시 검사해주세요.` : '검사 대상 파일의 SHA-256이 모두 일치합니다. 계속 종료된다면 보안 프로그램의 보호 기록과 게임 오류 로그를 확인해주세요.')
   }
 
   async function selectFolder(event) {
@@ -62,6 +65,63 @@ export default function GameRepairPage() {
     finally { setBusy(false) }
   }
 
+  async function downloadArchive() {
+    if (!issues.length || downloading || busy) return
+    if (!window.showSaveFilePicker) {
+      const link = document.createElement('a')
+      link.href = archiveUrl
+      link.download = 'R2beat-repair.zip'
+      link.click()
+      setDownloadMessage('브라우저 다운로드를 시작했습니다. 저장 위치는 브라우저 설정을 따릅니다. 받은 ZIP은 게임 설치 폴더에 압축을 풀어주세요.')
+      return
+    }
+    const controller = new AbortController()
+    downloadController.current = controller
+    setDownloading(true)
+    setDownloadMessage('ZIP을 저장할 위치를 선택해주세요.')
+    let writable
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'R2beat-repair.zip',
+        types: [{ description: 'ZIP 파일', accept: { 'application/zip': ['.zip'] } }],
+      })
+      controller.signal.throwIfAborted()
+      writable = await handle.createWritable()
+      controller.signal.throwIfAborted()
+      setDownloadMessage('ZIP 다운로드를 시작합니다.')
+      const response = await fetch(archiveUrl, { signal: controller.signal })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(typeof error.detail === 'string' ? error.detail : 'ZIP을 내려받지 못했습니다. 다시 검사한 후 시도해주세요.')
+      }
+      if (!response.body) throw new Error('다운로드 스트림을 열지 못했습니다.')
+      let received = 0
+      let lastUpdate = 0
+      const progress = new TransformStream({ transform(chunk, output) {
+        received += chunk.byteLength
+        const now = performance.now()
+        if (now - lastUpdate > 150) {
+          setDownloadMessage(`ZIP 다운로드 중 · ${(received / 1024 ** 2).toFixed(1)} MB 받음`)
+          lastUpdate = now
+        }
+        output.enqueue(chunk)
+      } })
+      await response.body.pipeThrough(progress).pipeTo(writable, { signal: controller.signal })
+      writable = null
+      setDownloadMessage('ZIP 저장을 완료했습니다. 게임과 런처를 종료한 뒤 설치 폴더에 압축을 풀고 다시 검사해주세요. 기존 파일은 먼저 백업해주세요.')
+    } catch (error) {
+      if (writable) await writable.abort().catch(() => {})
+      setDownloadMessage(error.name === 'AbortError' ? 'ZIP 다운로드를 취소했습니다.' : `ZIP을 저장하지 못했습니다: ${error.message} 기본 다운로드를 이용하거나 다시 시도해주세요.`)
+    } finally {
+      downloadController.current = null
+      setDownloading(false)
+    }
+  }
+
+  const issues = result?.rows.filter(row => row.status !== 'ok') || []
+  const archiveParams = new URLSearchParams()
+  issues.forEach(row => archiveParams.append('name', row.name))
+  const archiveUrl = manifest ? `/api/game-repair/archive/${encodeURIComponent(manifest.snapshot)}?${archiveParams}` : ''
   const targets = manifest ? repairTargets(manifest) : []
   const totalBytes = targets.reduce((total, file) => total + file.size, 0)
   const rows = result?.rows.filter(row => !onlyIssues || row.status !== 'ok') || []
@@ -71,19 +131,25 @@ export default function GameRepairPage() {
       <h2>게임과 런처를 종료하고 시작하세요</h2>
       <p>기본 설치 경로: <code>C:\VFUN\R2beat</code> · 경로를 모르면 게임 바로가기를 우클릭해 ‘파일 위치 열기’를 확인하세요.</p>
       <p>파일의 SHA-256을 정상 기준값과 비교합니다. 파일을 나눠 읽으며 디스크 속도에 따라 수 분 걸릴 수 있습니다. 파일 내용은 서버에 업로드하지 않습니다.</p>
-      <p>문제 파일은 ‘파일 받기’로 다운로드한 뒤 설치 폴더에 직접 넣어주세요. 기존 파일을 교체한다면 먼저 별도 폴더에 백업해주세요.</p>
+      <p>문제 파일은 개별 파일 또는 ZIP으로 다운로드한 뒤 설치 폴더에 넣어주세요. ZIP은 설치 폴더에 압축을 풀어주세요. 기존 파일을 교체한다면 먼저 별도 폴더에 백업해주세요.</p>
       <p>복구 후에도 파일이 사라지면 Windows 보안의 ‘보호 기록’을 확인해주세요. 내용이 같아도 PC 환경에 따른 실행 오류까지 확인하는 검사는 아닙니다.</p>
       <p>폴더 선택 창에 ‘업로드’라고 표시돼도 파일은 이 PC 안에서만 검사하며 서버로 전송하지 않습니다. 브라우저의 보안 설정을 변경할 필요가 없습니다.</p>
     </section>
     {!supported && <p className="repair-unsupported" role="alert">Windows의 Chrome 또는 Edge에서 열어주세요. 이 브라우저는 폴더 선택을 지원하지 않습니다.</p>}
     <div className="repair-toolbar">
       <input ref={folderInput} type="file" webkitdirectory="" multiple hidden aria-label="게임 설치 폴더" onChange={selectFolder} />
-      <button disabled={!supported || !manifest || busy} onClick={() => folderInput.current.click()}>설치 폴더 선택 · 검사</button>
+      <button disabled={!supported || !manifest || busy || downloading} onClick={() => folderInput.current.click()}>설치 폴더 선택 · 검사</button>
       <button disabled={!busy} onClick={() => scanController.current?.abort()}>검사 취소</button>
-      <button disabled={busy || !!manifest} onClick={loadManifest}>기준 정보 다시 불러오기</button>
+      <button disabled={busy || downloading || !!manifest} onClick={loadManifest}>기준 정보 다시 불러오기</button>
       <label><input type="checkbox" checked={onlyIssues} onChange={e => setOnlyIssues(e.target.checked)} /> 문제 파일만</label>
     </div>
     <div className="repair-status" role="status" aria-live="polite"><p>{message}</p><progress aria-label="SHA-256 검사 진행률" max="100" value={progress} /><span>{manifest ? `검사 대상 ${targets.length}개 · ${(totalBytes / 1024 ** 3).toFixed(2)} GiB` : '기준 정보 확인 중'}{folderName ? ` · 선택 폴더: ${folderName}` : ''}</span></div>
+    <div className="repair-download-toolbar">
+      <button disabled={busy || downloading || !issues.length} onClick={downloadArchive}>문제 파일 일괄 받기 (ZIP)</button>
+      <button disabled={!downloading} onClick={() => downloadController.current?.abort()}>다운로드 취소</button>
+      <a href={!busy && !downloading && issues.length ? archiveUrl : undefined} download="R2beat-repair.zip" aria-disabled={busy || downloading || !issues.length}>기본 다운로드로 받기</a>
+    </div>
+    <p className="repair-download-status" role="status" aria-live="polite">{downloadMessage}</p>
     <section className="repair-results" aria-label="파일 검사 결과" aria-busy={busy}>
       <table><thead><tr><th>파일</th><th>상태</th><th>다운로드</th></tr></thead>
         <tbody>{rows.map(row => <tr key={row.name} className={row.status === 'ok' ? '' : 'repair-issue'}><td>{row.name}</td><td>{labels[row.status]}</td><td>{row.status !== 'ok' && <a href={repairFileUrl(manifest, row)} download={row.name}>파일 받기</a>}</td></tr>)}</tbody>

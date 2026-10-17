@@ -58,11 +58,11 @@ test('worker SHA-256 detects equal-size pack corruption and excludes music, with
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
   await expect(scan).toBeDisabled()
   await watcher.expectStable()
-  await expect(page.getByRole('status')).toContainText('SHA-256 검사 중')
+  await expect(page.locator('.repair-status')).toContainText('SHA-256 검사 중')
   await watcher.expectStable()
   releaseHash()
   await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
-  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 3개')
+  await expect(page.locator('.repair-status')).toContainText('확인이 필요한 파일 3개')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' })).toContainText('누락')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'steam_api.dll' })).toContainText('불일치')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'rnr_boost_mode.pak' })).toContainText('불일치')
@@ -75,7 +75,7 @@ test('worker SHA-256 detects equal-size pack corruption and excludes music, with
   await writeFile(path.join(root, 'steam_api.dll'), 'good')
   await writeFile(path.join(root, 'rnr_boost_mode.pak'), 'good')
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
-  await expect(page.getByRole('status')).toContainText('검사 대상 파일의 SHA-256이 모두 일치합니다.')
+  await expect(page.locator('.repair-status')).toContainText('검사 대상 파일의 SHA-256이 모두 일치합니다.')
   await watcher.expectStable()
   await watcher.stop()
 })
@@ -89,9 +89,9 @@ test('cancelling a pending worker never reports a partially scanned installation
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-results'])
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
-  await expect(page.getByRole('status')).toContainText('SHA-256 검사 중')
+  await expect(page.locator('.repair-status')).toContainText('SHA-256 검사 중')
   await page.getByRole('button', { name: '검사 취소' }).click()
-  await expect(page.getByRole('status')).toContainText('검사를 취소했습니다.')
+  await expect(page.locator('.repair-status')).toContainText('검사를 취소했습니다.')
   await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
   await watcher.expectStable()
   await watcher.stop()
@@ -116,7 +116,7 @@ test('different or invalid INI values do not prevent hashing or downloads', asyn
   await page.goto('/game-repair')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
-  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 3개')
+  await expect(page.locator('.repair-status')).toContainText('확인이 필요한 파일 3개')
   expect(await page.evaluate(() => window.__readFiles)).toEqual([])
 })
 
@@ -125,7 +125,7 @@ test('installations without Patch.ini can be inspected', async ({ page }, testIn
   await page.goto('/game-repair')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo, '10659', false))
-  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 3개')
+  await expect(page.locator('.repair-status')).toContainText('확인이 필요한 파일 3개')
   expect(await page.evaluate(() => window.__readFiles)).toEqual([])
 })
 
@@ -143,4 +143,81 @@ test('root domain opens the portal and its repair button without redirecting to 
   await page.getByRole('link', { name: '게임 복구 시스템' }).click()
   await expect(page).toHaveURL('http://r2archive.com/game-repair')
   await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 · 복구' })).toBeVisible()
+})
+
+test('bulk ZIP saves only issues with stable pending, completion and cancellation states', async ({ page }, testInfo) => {
+  await setup(page)
+  await page.addInitScript(() => {
+    window.__savedZip = { chunks: [], closed: 0, aborted: 0, names: [] }
+    window.showSaveFilePicker = async options => {
+      window.__savedZip.names.push(options.suggestedName)
+      return { createWritable: async () => new WritableStream({
+        write(chunk) { window.__savedZip.chunks.push(...chunk) },
+        close() { window.__savedZip.closed++ },
+        abort() { window.__savedZip.aborted++ },
+      }) }
+    }
+  })
+  let release
+  const requests = []
+  await page.route('**/api/game-repair/archive/**', async route => {
+    requests.push(new URL(route.request().url()).searchParams.getAll('name'))
+    await new Promise(resolve => { release = resolve })
+    await route.fulfill({ body: Buffer.from('ZIP test bytes'), contentType: 'application/zip' }).catch(() => {})
+  })
+  await page.goto('/game-repair')
+  const bulk = page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })
+  await expect(bulk).toBeDisabled()
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-download-toolbar', '.repair-results'])
+  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
+  await expect(bulk).toBeEnabled()
+  await expect(page.getByRole('link', { name: '기본 다운로드로 받기' })).toHaveAttribute('href', /archive\/10659-test/)
+  await page.getByRole('checkbox', { name: '문제 파일만' }).uncheck()
+  await bulk.click()
+  await expect(page.locator('.repair-download-status')).toContainText('ZIP 다운로드를 시작합니다.')
+  await expect(bulk).toBeDisabled()
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeDisabled()
+  await expect.poll(() => requests.length).toBe(1)
+  expect(requests[0]).toEqual(['hv.dll', 'steam_api.dll', 'rnr_boost_mode.pak'])
+  await watcher.expectStable()
+  release()
+  await expect(page.locator('.repair-download-status')).toContainText('ZIP 저장을 완료했습니다.')
+  const saved = await page.evaluate(() => window.__savedZip)
+  expect(saved.names).toEqual(['R2beat-repair.zip'])
+  expect(Buffer.from(saved.chunks).toString()).toBe('ZIP test bytes')
+  expect(saved.closed).toBe(1)
+  await watcher.expectStable()
+  await bulk.click()
+  await expect.poll(() => requests.length).toBe(2)
+  await page.getByRole('button', { name: '다운로드 취소' }).click()
+  await expect(page.locator('.repair-download-status')).toContainText('ZIP 다운로드를 취소했습니다.')
+  release()
+  await expect(bulk).toBeEnabled()
+  expect(await page.evaluate(() => window.__savedZip.closed)).toBe(1)
+  expect(await page.evaluate(() => window.__savedZip.aborted)).toBe(1)
+  await watcher.expectStable()
+  await watcher.stop()
+})
+
+test('ZIP picker cancellation and server errors allow retry without losing results', async ({ page }, testInfo) => {
+  await setup(page)
+  await page.addInitScript(() => {
+    window.showSaveFilePicker = async () => { throw new DOMException('Dismissed', 'AbortError') }
+  })
+  await page.goto('/game-repair')
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
+  const bulk = page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })
+  await expect(bulk).toBeEnabled()
+  await bulk.click()
+  await expect(page.locator('.repair-download-status')).toContainText('ZIP 다운로드를 취소했습니다.')
+  await page.evaluate(() => {
+    window.showSaveFilePicker = async () => ({ createWritable: async () => new WritableStream() })
+  })
+  await page.route('**/api/game-repair/archive/**', route => route.fulfill({ status: 409, json: { detail: '복구 기준이 변경되었습니다. 다시 검사해주세요.' } }))
+  await bulk.click()
+  await expect(page.locator('.repair-download-status')).toContainText('복구 기준이 변경되었습니다. 다시 검사해주세요.')
+  await expect(bulk).toBeEnabled()
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
 })

@@ -30,3 +30,10 @@
 .archive-home-card h2 { font-size: 20px; margin-bottom: 12px; }
 .archive-home-card p { color: var(--fg-2); }
 @media (max-width: 600px) { .repair-page { padding: 18px 14px; } .repair-heading h1 { font-size: 21px; } .repair-guide { padding: 15px; } .repair-status { height: 148px; } }
+
+.repair-download-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 44px; }
+.repair-download-toolbar button { padding: 11px 15px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); cursor: pointer; }
+.repair-download-toolbar button:disabled { opacity: .5; cursor: default; }
+.repair-download-toolbar a { color: var(--accent); }
+.repair-download-toolbar a[aria-disabled="true"] { color: var(--fg-3); pointer-events: none; }
+.repair-download-status { height: 90px; overflow: auto; padding: 12px 0; color: var(--fg-2); overflow-wrap: anywhere; }
