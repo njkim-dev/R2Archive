@@ -62,10 +62,15 @@ class GameRepairTests(unittest.TestCase):
                     self.assertIsNone(archive.testzip())
                     for name in archive.namelist():
                         self.assertEqual(archive.read(name), contents[name])
+                response = client.get(url, params={"name": "rnr_music1.pak"})
+                self.assertEqual(response.status_code, 200)
+                with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                    self.assertEqual(archive.namelist(), ["rnr_music1.pak"])
+                    self.assertEqual(archive.read("rnr_music1.pak"), contents["rnr_music1.pak"])
                 chunks = list(game_repair.stream_archive([(manifest["files"][1], root / snapshot / "rnr_boost_mode.pak")]))
                 self.assertLessEqual(max(map(len, chunks)), 1024 * 1024)
                 self.assertGreater(len(chunks), 3)
-                for name in ["rnr_music1.pak", "config.ini", "../hv.dll", "nested/hv.dll", "missing.pak"]:
+                for name in ["config.ini", "../hv.dll", "nested/hv.dll", "missing.pak"]:
                     self.assertEqual(client.get(url, params={"name": name}).status_code, 404)
                 self.assertEqual(client.get(url).status_code, 422)
                 self.assertEqual(client.get(url, params=[("name", "hv.dll")] * 257).status_code, 422)

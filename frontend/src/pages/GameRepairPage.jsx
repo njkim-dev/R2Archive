@@ -1,11 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { inspectInstallation, repairFileUrl, repairTargets } from '../utils/gameRepair'
 import '../styles/game-repair.css'
 
 const labels = { ok: '일치', missing: '누락', size: '불일치', hash: '불일치', unreadable: '읽기 실패' }
 
 export default function GameRepairPage() {
+  const [params] = useSearchParams()
+  const mode = params.get('mode')
+  if (mode === 'launch' || mode === 'music') return <RepairInspection key={mode} mode={mode} />
+  return <main className="repair-page repair-choice-page">
+    <header className="repair-heading"><Link to="/">← 처음으로</Link><h1>게임 설치 파일 검사 및 복구</h1><p>어떤 문제가 발생하나요?</p></header>
+    <nav className="repair-choices" aria-label="복구 유형 선택">
+      <Link to="?mode=launch">게임 실행이 안 되시나요?</Link>
+      <Link to="?mode=music">특정 노래가 튕기시나요?</Link>
+    </nav>
+  </main>
+}
+
+function RepairInspection({ mode }) {
   const downloadController = useRef(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadMessage, setDownloadMessage] = useState('검사 후 문제 파일을 ZIP 하나로 받을 수 있습니다. 받은 ZIP은 게임 설치 폴더에 압축을 풀어주세요.')
@@ -40,7 +53,7 @@ export default function GameRepairPage() {
     const checked = await inspectInstallation(selected, manifest, ({ completed, total, file, bytes: read, size }) => {
       setProgress((completed + (size ? read / size : 0)) / total * 100)
       setMessage(`SHA-256 검사 중 · ${completed}/${total} · ${file}${size ? ` (${Math.floor(read / size * 100)}%)` : ''}`)
-    }, { signal: scanController.current.signal })
+    }, { signal: scanController.current.signal, mode })
     setFolderName(checked.folder)
     setResult(checked)
     setProgress(100)
@@ -122,11 +135,11 @@ export default function GameRepairPage() {
   const archiveParams = new URLSearchParams()
   issues.forEach(row => archiveParams.append('name', row.name))
   const archiveUrl = manifest ? `/api/game-repair/archive/${encodeURIComponent(manifest.snapshot)}?${archiveParams}` : ''
-  const targets = manifest ? repairTargets(manifest) : []
+  const targets = manifest ? repairTargets(manifest, mode) : []
   const totalBytes = targets.reduce((total, file) => total + file.size, 0)
   const rows = result?.rows.filter(row => !onlyIssues || row.status !== 'ok') || []
   return <main className="repair-page">
-    <header className="repair-heading"><Link to="/">← 처음으로</Link><h1>게임 설치 파일 검사 및 복구</h1><p>알투비트의 주요 게임 파일을 검사합니다.</p></header>
+    <header className="repair-heading"><Link to="/game-repair">← 문제 유형 선택</Link><h1>게임 설치 파일 검사 및 복구</h1><p>{mode === 'music' ? '특정 노래가 튕기시나요? 음악 파일을 검사합니다.' : '알투비트의 주요 게임 파일을 검사합니다.'}</p></header>
     <section className="repair-guide">
       <h2>게임을 종료하고 시작하세요</h2>
       <p>게임 설치 경로를 선택해서 파일을 검사하세요.</p>

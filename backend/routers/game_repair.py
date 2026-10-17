@@ -101,7 +101,7 @@ def download_archive(snapshot: str, name: list[str] = Query(..., min_length=1, m
     files = []
     for filename in dict.fromkeys(name):
         lower = filename.lower()
-        allowed = (lower.endswith(".pak") and not lower.startswith("rnr_music")) or lower in {"game.exe", "hv.dll", "steam_api.dll"}
+        allowed = lower.endswith(".pak") or lower in {"game.exe", "hv.dll", "steam_api.dll"}
         if filename not in entries or not allowed:
             raise HTTPException(status_code=404, detail="file not found")
         entry = entries[filename]

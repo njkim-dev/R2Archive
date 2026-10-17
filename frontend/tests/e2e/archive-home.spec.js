@@ -43,6 +43,7 @@ for (const portrait of [false, true]) {
     }
     await page.locator('.repair').click()
     await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 및 복구' })).toBeVisible()
+    await page.getByRole('link', { name: '게임 실행이 안 되시나요?' }).click()
     await expect(page.locator('.repair-guide')).toContainText('경로를 모르면 VLauncher에서 게임 실행 버튼 좌측의 설정 버튼을 클릭하면, 설치 경로를 확인할 수 있습니다.')
     await expect(page.locator('.repair-guide')).not.toContainText('기본 설치 경로')
     await expect(page.locator('.repair-guide')).not.toContainText('SHA-256')

@@ -82,3 +82,18 @@ test('empty selections and folders without target files are rejected', async () 
 test('manual recovery links retain the versioned snapshot and filename', () => {
   assert.equal(repairFileUrl(manifest, manifest.files[0]), '/api/game-repair/files/reference/hv.dll')
 })
+
+test('music mode only selects root music packs, case insensitively', () => {
+  const names = ['rnr_music.pak', 'RNR_MUSIC99.PAK', 'rnr_musicMod2.pak', 'rnr_music.txt', 'nested/rnr_music1.pak', 'nested\\rnr_music2.pak', 'rnr_boost_mode.pak', 'Game.exe', 'hv.dll']
+  assert.deepEqual(repairTargets({ files: names.map(name => ({ name })) }, 'music').map(f => f.name), names.slice(0, 3))
+})
+
+test('music scans detect equal-size corruption and missing music without reading launch files', async () => {
+  const ignored = file('Game.exe', 'evil')
+  ignored.slice = () => { throw new Error('launch files must not be hashed in music mode') }
+  const check = files => inspectInstallation(files, manifest, undefined, { ...options, mode: 'music' })
+  const corrupt = await check([ignored, file('rnr_music1.pak', 'wrong'), file('nested/rnr_music1.pak', 'music')])
+  assert.deepEqual(corrupt.rows.map(row => [row.name, row.status]), [['rnr_music1.pak', 'hash']])
+  assert.equal((await check([ignored])).rows[0].status, 'missing')
+  assert.equal((await check([file('rnr_music1.pak', 'music')])).rows[0].status, 'ok')
+})

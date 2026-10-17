@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { watchLayout } from './layout.js'
@@ -46,7 +46,7 @@ test('worker SHA-256 detects equal-size pack corruption and excludes music, with
   let releaseHash
   const hashGate = new Promise(resolve => { releaseHash = resolve })
   await page.route('**/fileHash.worker.js*', async route => { await hashGate; await route.continue().catch(() => {}) })
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   await expect(page.locator('.repair-results')).toBeVisible()
   await expect(page.locator('.repair-results th')).toHaveText(['파일', '상태', '다운로드'])
   await expect(page.locator('.repair-guide')).not.toContainText('최상위')
@@ -85,7 +85,7 @@ test('cancelling a pending worker never reports a partially scanned installation
   let releaseHash
   const gate = new Promise(resolve => { releaseHash = resolve })
   await page.route('**/fileHash.worker.js*', async route => { await gate; await route.continue().catch(() => {}) })
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-results'])
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
@@ -102,7 +102,7 @@ test('Game.exe is hashed and not accepted merely because its size matches', asyn
   await setup(page)
   const root = await fixture(testInfo)
   await writeFile(path.join(root, 'Game.exe'), 'evil')
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'Game.exe' })).toContainText('불일치')
@@ -113,7 +113,7 @@ test('different or invalid INI values do not prevent hashing or downloads', asyn
   await setup(page)
   const root = await fixture(testInfo, '10658')
   await writeFile(path.join(root, 'PatchInfo', 'Patch.ini'), 'unrelated invalid version information')
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
   await expect(page.locator('.repair-status')).toContainText('확인이 필요한 파일 3개')
@@ -122,7 +122,7 @@ test('different or invalid INI values do not prevent hashing or downloads', asyn
 
 test('installations without Patch.ini can be inspected', async ({ page }, testInfo) => {
   await setup(page)
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo, '10659', false))
   await expect(page.locator('.repair-status')).toContainText('확인이 필요한 파일 3개')
@@ -165,7 +165,7 @@ test('bulk ZIP saves only issues with stable pending, completion and cancellatio
     await new Promise(resolve => { release = resolve })
     await route.fulfill({ body: Buffer.from('ZIP test bytes'), contentType: 'application/zip' }).catch(() => {})
   })
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   const bulk = page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })
   await expect(bulk).toBeDisabled()
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
@@ -205,7 +205,7 @@ test('ZIP picker cancellation and server errors allow retry without losing resul
   await page.addInitScript(() => {
     window.showSaveFilePicker = async () => { throw new DOMException('Dismissed', 'AbortError') }
   })
-  await page.goto('/game-repair')
+  await page.goto('/game-repair?mode=launch')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
   const bulk = page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })
@@ -220,4 +220,64 @@ test('ZIP picker cancellation and server errors allow retry without losing resul
   await expect(page.locator('.repair-download-status')).toContainText('복구 기준이 변경되었습니다. 다시 검사해주세요.')
   await expect(bulk).toBeEnabled()
   await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
+})
+
+test('repair entry offers both flows and resets results when changing type', async ({ page }, testInfo) => {
+  await setup(page)
+  await page.goto('/game-repair')
+  await expect(page.getByRole('link', { name: '게임 실행이 안 되시나요?' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '특정 노래가 튕기시나요?' })).toBeVisible()
+  await expect(page.locator('.repair-results')).toHaveCount(0)
+  await page.getByRole('link', { name: '게임 실행이 안 되시나요?' }).click()
+  await expect(page).toHaveURL(/mode=launch/)
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
+  await page.getByRole('link', { name: '문제 유형 선택' }).click()
+  await page.getByRole('link', { name: '특정 노래가 튕기시나요?' }).click()
+  await expect(page).toHaveURL(/mode=music/)
+  await expect(page.locator('.repair-status')).toContainText('검사 대상 1개')
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeDisabled()
+})
+
+test('music mode hashes only music packs and keeps pending scan and download layout stable', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: testInfo.project.name.endsWith('768') ? 390 : 1440, height: 900 })
+  let releaseManifest
+  await setup(page, new Promise(resolve => { releaseManifest = resolve }))
+  const root = await fixture(testInfo)
+  let releaseHash
+  const hashGate = new Promise(resolve => { releaseHash = resolve })
+  await page.route('**/fileHash.worker.js*', async route => { await hashGate; await route.continue().catch(() => {}) })
+  await page.goto('/game-repair')
+  await page.getByRole('link', { name: '특정 노래가 튕기시나요?' }).click()
+  const scan = page.getByRole('button', { name: '설치 폴더 선택 · 검사' })
+  await expect(scan).toBeDisabled()
+  const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-download-toolbar', '.repair-results'])
+  releaseManifest()
+  await expect(scan).toBeEnabled()
+  await watcher.expectStable()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+  await expect(page.locator('.repair-status')).toContainText('SHA-256 검사 중')
+  await watcher.expectStable()
+  releaseHash()
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(1)
+  const row = page.locator('.repair-results tbody tr')
+  await expect(row).toContainText('rnr_music1.pak')
+  await expect(row).toContainText('불일치')
+  await expect(row.getByRole('link', { name: '파일 받기' })).toHaveAttribute('href', '/api/game-repair/files/10659-test/rnr_music1.pak')
+  const archive = page.getByRole('link', { name: '기본 다운로드로 받기' })
+  expect(new URL(await archive.getAttribute('href'), 'http://localhost').searchParams.getAll('name')).toEqual(['rnr_music1.pak'])
+  await watcher.expectStable()
+  await writeFile(path.join(root, 'rnr_music1.pak'), 'good')
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+  await expect(page.locator('.repair-status')).toContainText('검사 대상 파일의 SHA-256이 모두 일치합니다.')
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
+  await watcher.expectStable()
+  await unlink(path.join(root, 'rnr_music1.pak'))
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(1)
+  await expect(page.locator('.repair-results tbody tr')).toContainText('누락')
+  await watcher.expectStable()
+  await watcher.stop()
 })
