@@ -22,13 +22,10 @@ async function fixture(testInfo, version = '10659', includePatch = true) {
 async function setup(page, gate = Promise.resolve()) {
   await page.addInitScript(() => {
     window.showDirectoryPicker = async () => { throw new TypeError("Failed to execute 'getFileHandle' on 'FileSystemDirectoryHandle': Name is not allowed.") }
-    window.__scanGate = Promise.resolve()
     window.__readFiles = []
-    const original = File.prototype.text
     File.prototype.text = async function () {
       window.__readFiles.push(this.webkitRelativePath)
-      await window.__scanGate
-      return original.call(this)
+      throw new Error('INI and game file text must not be read')
     }
   })
   await page.context().route('**/api/**', async route => {
@@ -55,11 +52,9 @@ test('worker SHA-256 detects equal-size pack corruption and excludes music, with
   releaseManifest()
   const scan = page.getByRole('button', { name: '설치 폴더 선택 · 검사' })
   await expect(scan).toBeEnabled()
-  await page.evaluate(() => { window.__scanGate = new Promise(resolve => { window.__releaseScan = resolve }) })
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
   await expect(scan).toBeDisabled()
   await watcher.expectStable()
-  await page.evaluate(() => window.__releaseScan())
   await expect(page.getByRole('status')).toContainText('SHA-256 검사 중')
   await watcher.expectStable()
   releaseHash()
@@ -68,8 +63,8 @@ test('worker SHA-256 detects equal-size pack corruption and excludes music, with
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' })).toContainText('누락')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'steam_api.dll' })).toContainText('크기 다름')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'rnr_boost_mode.pak' })).toContainText('내용 다름')
-  await expect(page.locator('.repair-status')).toContainText('4개 대상')
-  expect(await page.evaluate(() => window.__readFiles)).toEqual(['R2beat/PatchInfo/Patch.ini'])
+  await expect(page.locator('.repair-status')).toContainText('검사 대상 4개')
+  expect(await page.evaluate(() => window.__readFiles)).toEqual([])
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' }).getByRole('link', { name: '파일 받기' }))
     .toHaveAttribute('href', '/api/game-repair/files/10659-test/hv.dll')
   await watcher.expectStable()
@@ -111,23 +106,24 @@ test('Game.exe is hashed and not accepted merely because its size matches', asyn
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'rnr_music' })).toHaveCount(0)
 })
 
-test('different patch version blocks recovery and reports patch guidance', async ({ page }, testInfo) => {
+test('different or invalid INI values do not prevent hashing or downloads', async ({ page }, testInfo) => {
   await setup(page)
+  const root = await fixture(testInfo, '10658')
+  await writeFile(path.join(root, 'PatchInfo', 'Patch.ini'), 'unrelated invalid version information')
   await page.goto('/game-repair')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
-  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo, '10658'))
-  await expect(page.getByRole('status')).toContainText('런처에서 패치를 받은 후')
-  await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: '파일 받기' })).toHaveCount(0)
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 3개')
+  expect(await page.evaluate(() => window.__readFiles)).toEqual([])
 })
 
-test('missing patch INI explains the folder problem without offering downloads', async ({ page }, testInfo) => {
+test('installations without Patch.ini can be inspected', async ({ page }, testInfo) => {
   await setup(page)
   await page.goto('/game-repair')
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo, '10659', false))
-  await expect(page.getByRole('status')).toContainText('PatchInfo/Patch.ini가 없습니다.')
-  await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
+  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 3개')
+  expect(await page.evaluate(() => window.__readFiles)).toEqual([])
 })
 
 test('root domain opens the portal and its repair button without redirecting to music', async ({ page, baseURL }) => {
