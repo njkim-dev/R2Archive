@@ -1,45 +1,46 @@
 import { expect, test } from '@playwright/test'
+import { mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { watchLayout } from './layout.js'
 
 const manifest = { version: '10659', snapshot: '10659-test', files: [{ name: 'Game.exe', size: 4 }, { name: 'hv.dll', size: 4 }, { name: 'steam_api.dll', size: 4 }] }
-async function setup(page, version = '10659', gate = Promise.resolve()) {
-  await page.addInitScript(version => {
+async function fixture(testInfo, version = '10659', includePatch = true) {
+  const root = testInfo.outputPath('R2beat')
+  await mkdir(path.join(root, 'PatchInfo'), { recursive: true })
+  await mkdir(path.join(root, 'nested'), { recursive: true })
+  if (includePatch) await writeFile(path.join(root, 'PatchInfo', 'Patch.ini'), `[patch]\r\nversion=${version}\r\n`)
+  await writeFile(path.join(root, 'Game.exe'), 'game')
+  await writeFile(path.join(root, 'steam_api.dll'), 'bad')
+  await writeFile(path.join(root, 'nested', 'hv.dll'), 'good')
+  return root
+}
+async function setup(page, gate = Promise.resolve()) {
+  await page.addInitScript(() => {
+    window.showDirectoryPicker = async () => { throw new TypeError("Failed to execute 'getFileHandle' on 'FileSystemDirectoryHandle': Name is not allowed.") }
     window.__scanGate = Promise.resolve()
-    window.__files = new Map([['Game.exe', 'game'], ['steam_api.dll', 'bad']])
-    const fileHandle = name => ({ kind: 'file', async getFile() { await window.__scanGate; return new File([window.__files.get(name)], name) }, async createWritable() {
-      const chunks = []
-      return { async write(value) { chunks.push(value) }, async close() { window.__files.set(name, await new Blob(chunks).text()) }, async abort() {} }
-    } })
-    const backup = { async getFileHandle() { return { async createWritable() { return new WritableStream({ write() {} }) } } } }
-    const directory = {
-      name: 'R2beat', async requestPermission() { return 'granted' },
-      async getDirectoryHandle(name) {
-        if (name === 'R2Archive-backup') return backup
-        return { async getFileHandle() { return { async getFile() { return new File([`[patch]\nversion=${version}`], 'Patch.ini') } } } }
-      },
-      async getFileHandle(name, options) {
-        if (!window.__files.has(name) && !options?.create) throw new DOMException('missing', 'NotFoundError')
-        if (!window.__files.has(name)) window.__files.set(name, '')
-        return fileHandle(name)
-      },
-      async *entries() { for (const name of window.__files.keys()) yield [name, fileHandle(name)] },
+    window.__readFiles = []
+    const original = File.prototype.text
+    File.prototype.text = async function () {
+      window.__readFiles.push(this.webkitRelativePath)
+      await window.__scanGate
+      return original.call(this)
     }
-    window.showDirectoryPicker = async () => directory
-  }, version)
-  await page.route('**/api/**', async route => {
-    const path = new URL(route.request().url()).pathname
-    if (!path.startsWith('/api/')) return route.continue()
-    if (path === '/api/game-repair/manifest') { await gate; return route.fulfill({ json: manifest }) }
-    if (path.startsWith('/api/game-repair/files/')) return route.fulfill({ body: 'good', contentType: 'application/octet-stream' })
-    if (path === '/api/auth/me') return route.fulfill({ json: { user: null } })
+  })
+  await page.context().route('**/api/**', async route => {
+    const urlPath = new URL(route.request().url()).pathname
+    if (!urlPath.startsWith('/api/')) return route.continue()
+    if (urlPath === '/api/game-repair/manifest') { await gate; return route.fulfill({ json: manifest }) }
+    if (urlPath.startsWith('/api/game-repair/files/')) return route.fulfill({ body: 'good', contentType: 'application/octet-stream' })
+    if (urlPath === '/api/auth/me') return route.fulfill({ json: { user: null } })
     return route.fulfill({ json: [] })
   })
 }
 
-test('reference loading, scan and repair preserve toolbar and result geometry', async ({ page }) => {
+test('real directory input reads INI and DLL metadata despite blocked native handles, with stable layout', async ({ page }, testInfo) => {
   let releaseManifest
   const gate = new Promise(resolve => { releaseManifest = resolve })
-  await setup(page, '10659', gate)
+  await setup(page, gate)
+  const root = await fixture(testInfo)
   await page.goto('/game-repair')
   await expect(page.locator('.repair-results')).toBeVisible()
   const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-results'])
@@ -47,31 +48,42 @@ test('reference loading, scan and repair preserve toolbar and result geometry', 
   const scan = page.getByRole('button', { name: '설치 폴더 선택 · 검사' })
   await expect(scan).toBeEnabled()
   await page.evaluate(() => { window.__scanGate = new Promise(resolve => { window.__releaseScan = resolve }) })
-  await scan.click()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
   await expect(scan).toBeDisabled()
   await watcher.expectStable()
   await page.evaluate(() => window.__releaseScan())
   await expect(page.locator('.repair-results tbody tr')).toHaveCount(2)
+  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 2개')
+  await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' })).toContainText('누락')
+  await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'steam_api.dll' })).toContainText('크기 다름')
+  expect(await page.evaluate(() => window.__readFiles)).toEqual(['R2beat/PatchInfo/Patch.ini'])
+  await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' }).getByRole('link', { name: '파일 받기' }))
+    .toHaveAttribute('href', '/api/game-repair/files/10659-test/hv.dll')
   await watcher.expectStable()
-  let releaseDownload
-  const downloadGate = new Promise(resolve => { releaseDownload = resolve })
-  await page.route('**/api/game-repair/files/**', async route => { await downloadGate; await route.fulfill({ body: 'good' }) })
-  await page.getByRole('button', { name: '문제 파일 복구', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('복구 준비 중')
-  await watcher.expectStable()
-  releaseDownload()
+  await writeFile(path.join(root, 'hv.dll'), 'good')
+  await writeFile(path.join(root, 'steam_api.dll'), 'good')
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
   await expect(page.getByRole('status')).toContainText('누락되거나 크기가 다른 파일이 없습니다.')
   await watcher.expectStable()
   await watcher.stop()
-  expect(await page.evaluate(() => Object.fromEntries(window.__files))).toEqual({ 'Game.exe': 'game', 'steam_api.dll': 'good', 'hv.dll': 'good' })
 })
 
-test('different patch version blocks recovery and reports patch guidance', async ({ page }) => {
-  await setup(page, '10658')
+test('different patch version blocks recovery and reports patch guidance', async ({ page }, testInfo) => {
+  await setup(page)
   await page.goto('/game-repair')
-  await page.getByRole('button', { name: '설치 폴더 선택 · 검사' }).click()
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo, '10658'))
   await expect(page.getByRole('status')).toContainText('런처에서 패치를 받은 후')
-  await expect(page.getByRole('button', { name: '문제 파일 복구', exact: true })).toBeDisabled()
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: '파일 받기' })).toHaveCount(0)
+})
+
+test('missing patch INI explains the folder problem without offering downloads', async ({ page }, testInfo) => {
+  await setup(page)
+  await page.goto('/game-repair')
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo, '10659', false))
+  await expect(page.getByRole('status')).toContainText('PatchInfo/Patch.ini가 없습니다.')
   await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
 })
 

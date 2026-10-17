@@ -1,47 +1,46 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { inspectInstallation, parsePatchVersion, restoreFile } from '../src/utils/gameRepair.js'
+import { inspectInstallation, parsePatchVersion, repairFileUrl } from '../src/utils/gameRepair.js'
 
-function directory(version, entries = []) {
-  return {
-    async getDirectoryHandle(name) {
-      assert.equal(name, 'PatchInfo')
-      return { async getFileHandle() { return { async getFile() { return new File([`[patch]\r\nversion=${version}\r\n`], 'Patch.ini') } } } }
-    },
-    async *entries() { yield* entries },
-  }
+function file(path, content) {
+  const selected = new File([content], path.split('/').at(-1))
+  Object.defineProperty(selected, 'webkitRelativePath', { value: `R2beat/${path}` })
+  return selected
 }
-const manifest = { version: '10659', files: [{ name: 'hv.dll', size: 10 }, { name: 'steam_api.dll', size: 20 }, { name: 'Game.exe', size: 30 }] }
+function installation(version = '10659') {
+  return [file('PatchInfo/Patch.ini', `[patch]\r\nversion=${version}\r\n`), file('Game.exe', 'game')]
+}
+const manifest = { version: '10659', snapshot: 'reference', files: [{ name: 'hv.dll', size: 10 }, { name: 'steam_api.dll', size: 20 }, { name: 'Game.exe', size: 4 }] }
+
 test('INI version handles CRLF, BOM, whitespace and comments', () => {
   assert.equal(parsePatchVersion('\uFEFF[patch]\r\n Version = 10659 ; patch\r\n'), '10659')
   assert.equal(parsePatchVersion('otherversion=10659'), null)
 })
-test('wrong version blocks file enumeration and repair', async () => {
-  const root = directory('10658')
-  root.entries = () => { throw new Error('must not enumerate') }
-  assert.equal((await inspectInstallation(root, manifest)).mismatch, true)
-  await assert.rejects(restoreFile(root, manifest, manifest.files[0]), /버전이 변경/)
+test('wrong version returns no repair candidates', async () => {
+  const result = await inspectInstallation(installation('10658'), manifest)
+  assert.equal(result.mismatch, true)
+  assert.deepEqual(result.rows, [])
 })
-test('only root metadata is inspected and missing, size and unreadable stay distinct', async () => {
-  const file = size => ({ kind: 'file', async getFile() { return { size } } })
-  const root = directory('10659', [['HV.DLL', file(10)], ['Game.exe', file(29)], ['subfolder', { kind: 'directory' }]])
-  const result = await inspectInstallation(root, manifest)
-  assert.deepEqual(result.rows.map(row => row.status), ['ok', 'missing', 'size'])
-  root.entries = async function* () { yield ['Game.exe', file(30)]; yield ['hv.dll', { kind: 'file', async getFile() { throw new Error('locked') } }] }
-  assert.equal((await inspectInstallation(root, manifest)).rows[0].status, 'unreadable')
+test('explicitly selected files support INI and DLL without native filesystem handles', async () => {
+  const files = [...installation(), file('HV.DLL', '1234567890'), file('steam_api.dll', 'short')]
+  for (const item of files.slice(1)) item.text = () => { throw new Error('game file contents must not be read') }
+  const result = await inspectInstallation(files, manifest)
+  assert.equal(result.folder, 'R2beat')
+  assert.deepEqual(result.rows.map(row => row.status), ['ok', 'size', 'ok'])
 })
-test('truncated download aborts the write instead of committing it', async () => {
-  const originalFetch = globalThis.fetch
-  let closed = false
-  let aborted = false
-  const root = directory('10659')
-  root.getFileHandle = async () => ({ async getFile() { return new File([], 'hv.dll') }, async createWritable() {
-    return { async write() {}, async close() { closed = true }, async abort() { aborted = true } }
-  } })
-  let lookup = 0
-  const target = root.getFileHandle
-  root.getFileHandle = async () => { if (!lookup++) throw Object.assign(new Error(), { name: 'NotFoundError' }); return target() }
-  globalThis.fetch = async () => new Response('short')
-  try { await assert.rejects(restoreFile(root, manifest, manifest.files[0]), /완전하지/); assert.equal(aborted, true); assert.equal(closed, false) }
-  finally { globalThis.fetch = originalFetch }
+test('nested files cannot mask missing root files and unrelated contents are never read', async () => {
+  const nested = file('nested/hv.dll', '1234567890')
+  nested.text = () => { throw new Error('must not read nested files') }
+  const result = await inspectInstallation([...installation(), nested], manifest)
+  assert.equal(result.rows[0].status, 'missing')
+  assert.equal(result.rows[1].status, 'missing')
+})
+test('missing, oversized and invalid patch information fail closed', async () => {
+  await assert.rejects(inspectInstallation([file('Game.exe', 'game')], manifest), /PatchInfo/)
+  await assert.rejects(inspectInstallation([file('PatchInfo/Patch.ini', 'x'.repeat(65537))], manifest), /올바르지/)
+  await assert.rejects(inspectInstallation([file('PatchInfo/Patch.ini', 'invalid')], manifest), /버전을 읽을/)
+  await assert.rejects(inspectInstallation([], manifest), /폴더를 선택/)
+})
+test('manual recovery links retain the versioned snapshot and filename', () => {
+  assert.equal(repairFileUrl(manifest, manifest.files[0]), '/api/game-repair/files/reference/hv.dll')
 })

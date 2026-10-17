@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { inspectInstallation, repairFileUrl, restoreFile } from '../utils/gameRepair'
+import { inspectInstallation, repairFileUrl } from '../utils/gameRepair'
 import '../styles/game-repair.css'
 
 const labels = { ok: '크기 일치', missing: '누락', size: '크기 다름', unreadable: '읽기 실패' }
@@ -8,12 +8,13 @@ const bytes = value => value == null ? '—' : value < 1048576 ? `${(value / 102
 
 export default function GameRepairPage() {
   const [manifest, setManifest] = useState(null)
-  const [directory, setDirectory] = useState(null)
+  const [folderName, setFolderName] = useState('')
+  const folderInput = useRef(null)
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('복구 기준 정보를 불러오고 있습니다.')
   const [onlyIssues, setOnlyIssues] = useState(true)
-  const supported = typeof window.showDirectoryPicker === 'function'
+  const supported = 'webkitdirectory' in document.createElement('input')
 
   async function loadManifest() {
     try {
@@ -30,62 +31,46 @@ export default function GameRepairPage() {
   async function scan(selected) {
     setResult(null)
     const checked = await inspectInstallation(selected, manifest, (done, total) => setMessage(`파일 검사 중 · ${done}/${total}`))
+    setFolderName(checked.folder)
     setResult(checked)
     if (checked.mismatch) setMessage(`설치 버전 ${checked.version} · 기준 버전 ${manifest.version}. 런처에서 패치를 받은 후 다시 검사해주세요. 버전이 다르면 복구할 수 없습니다.`)
     else {
       const issues = checked.rows.filter(row => row.status !== 'ok').length
-      setMessage(issues ? `검사 완료 · 확인이 필요한 파일 ${issues}개` : '누락되거나 크기가 다른 파일이 없습니다. 계속 종료된다면 보안 프로그램의 보호 기록과 게임 오류 로그를 확인해주세요.')
+      setMessage(issues ? `검사 완료 · 확인이 필요한 파일 ${issues}개. ‘파일 받기’로 내려받아 설치 폴더에 넣은 후 다시 검사해주세요.` : '누락되거나 크기가 다른 파일이 없습니다. 계속 종료된다면 보안 프로그램의 보호 기록과 게임 오류 로그를 확인해주세요.')
     }
   }
 
-  async function selectFolder() {
+  async function selectFolder(event) {
+    const selected = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (!selected.length) return
     setBusy(true)
-    try {
-      const selected = await window.showDirectoryPicker({ mode: 'read' })
-      setDirectory(selected)
-      await scan(selected)
-    } catch (error) {
-      if (error.name !== 'AbortError') setMessage(error.name === 'NotFoundError' ? 'PatchInfo/Patch.ini가 없습니다. R2beat 설치 폴더를 선택해주세요.' : `검사하지 못했습니다: ${error.message}`)
-    } finally { setBusy(false) }
+    setFolderName('')
+    setMessage('버전 정보와 파일 크기를 확인하고 있습니다.')
+    try { await scan(selected) }
+    catch (error) { setMessage(`검사하지 못했습니다: ${error.message}`) }
+    finally { setBusy(false) }
   }
 
-  async function repair() {
-    setBusy(true)
-    try {
-      if (await directory.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('복구하려면 선택한 폴더의 쓰기 권한을 허용해주세요.')
-      const current = await inspectInstallation(directory, manifest)
-      if (current.mismatch) throw new Error('게임 버전이 변경되었습니다. 다시 검사해주세요.')
-      for (const file of current.rows.filter(row => ['missing', 'size'].includes(row.status))) {
-        setMessage(`${file.name} 복구 준비 중`)
-        await restoreFile(directory, manifest, file, (done, total) => setMessage(`${file.name} 복구 중 · ${Math.floor(done / total * 100)}%`))
-      }
-      await scan(directory)
-    } catch (error) {
-      setMessage(`복구가 중단되었습니다: ${error.message} 폴더를 다시 검사해주세요. 직접 저장이 제한되면 파일별 다운로드를 사용하세요.`)
-    } finally { setBusy(false) }
-  }
-
-  const issues = result?.rows.filter(row => row.status !== 'ok') || []
   const rows = result?.rows.filter(row => !onlyIssues || row.status !== 'ok') || []
-  const repairable = issues.filter(row => ['missing', 'size'].includes(row.status))
   return <main className="repair-page">
     <header className="repair-heading"><Link to="/">← 처음으로</Link><h1>게임 설치 파일 검사 · 복구</h1><p>한국 VFUN 알투비트의 누락 파일과 크기가 다른 파일을 확인합니다.</p></header>
     <section className="repair-guide">
       <h2>게임과 런처를 종료하고 시작하세요</h2>
       <p>기본 설치 경로: <code>C:\VFUN\R2beat</code> · 경로를 모르면 게임 바로가기를 우클릭해 ‘파일 위치 열기’를 확인하세요.</p>
       <p>최상위 게임 파일만 검사합니다. 버전 확인을 위해 <code>PatchInfo/Patch.ini</code>를 읽습니다. 파일 내용은 서버로 업로드하지 않습니다.</p>
-      <p>복구 시 기존 파일은 <code>R2Archive-backup</code> 폴더에 백업합니다. 개인 설정과 로그는 검사·복구 대상에서 제외합니다.</p>
+      <p>문제 파일은 ‘파일 받기’로 다운로드한 뒤 설치 폴더에 직접 넣어주세요. 기존 파일을 교체한다면 먼저 별도 폴더에 백업해주세요. 개인 설정과 로그는 검사 대상에서 제외합니다.</p>
       <p>복구 후에도 파일이 사라지면 Windows 보안의 ‘보호 기록’을 확인해주세요. 이 검사는 같은 크기의 손상이나 실행 오류의 모든 원인을 확인하지는 못합니다.</p>
-      <p>DLL·실행 파일은 브라우저 보안 정책으로 직접 저장이 제한될 수 있습니다. 이 경우 ‘파일 받기’로 내려받아 설치 폴더에 직접 넣은 뒤 다시 검사하세요.</p>
+      <p>폴더 선택 창에 ‘업로드’라고 표시돼도 파일은 이 PC 안에서만 검사하며 서버로 전송하지 않습니다. 브라우저의 보안 설정을 변경할 필요가 없습니다.</p>
     </section>
-    {!supported && <p className="repair-unsupported" role="alert">Windows의 Chrome 또는 Edge에서 열어주세요. 이 브라우저는 폴더 검사·직접 복구를 지원하지 않습니다.</p>}
+    {!supported && <p className="repair-unsupported" role="alert">Windows의 Chrome 또는 Edge에서 열어주세요. 이 브라우저는 폴더 선택을 지원하지 않습니다.</p>}
     <div className="repair-toolbar">
-      <button disabled={!supported || !manifest || busy} onClick={selectFolder}>설치 폴더 선택 · 검사</button>
-      <button disabled={busy || !result || result.mismatch || !repairable.length} onClick={repair}>문제 파일 복구</button>
+      <input ref={folderInput} type="file" webkitdirectory="" multiple hidden aria-label="게임 설치 폴더" onChange={selectFolder} />
+      <button disabled={!supported || !manifest || busy} onClick={() => folderInput.current.click()}>설치 폴더 선택 · 검사</button>
       <button disabled={busy || !!manifest} onClick={loadManifest}>기준 정보 다시 불러오기</button>
       <label><input type="checkbox" checked={onlyIssues} onChange={e => setOnlyIssues(e.target.checked)} /> 문제 파일만</label>
     </div>
-    <div className="repair-status" role="status" aria-live="polite"><p>{message}</p><span>{manifest ? `기준 버전 ${manifest.version} · ${manifest.files.length}개 파일` : '기준 정보 확인 중'}{directory ? ` · 선택 폴더: ${directory.name}` : ''}</span></div>
+    <div className="repair-status" role="status" aria-live="polite"><p>{message}</p><span>{manifest ? `기준 버전 ${manifest.version} · ${manifest.files.length}개 파일` : '기준 정보 확인 중'}{folderName ? ` · 선택 폴더: ${folderName}` : ''}</span></div>
     <section className="repair-results" aria-label="파일 검사 결과" aria-busy={busy}>
       <table><thead><tr><th>파일</th><th>상태</th><th>설치 크기</th><th>기준 크기</th><th>다운로드</th></tr></thead>
         <tbody>{rows.map(row => <tr key={row.name} className={row.status === 'ok' ? '' : 'repair-issue'}><td>{row.name}</td><td>{labels[row.status]}</td><td>{bytes(row.sizeOnDisk)}</td><td>{bytes(row.size)}</td><td>{row.status !== 'ok' && <a href={repairFileUrl(manifest, row)} download={row.name}>파일 받기</a>}</td></tr>)}</tbody>
