@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom'
 import { inspectInstallation, repairFileUrl, repairTargets } from '../utils/gameRepair'
 import '../styles/game-repair.css'
 
-const labels = { ok: 'SHA-256 일치', missing: '누락', size: '크기 다름', hash: '내용 다름', unreadable: '읽기 실패' }
-const bytes = value => value == null ? '—' : value < 1048576 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`
+const labels = { ok: '일치', missing: '누락', size: '불일치', hash: '불일치', unreadable: '읽기 실패' }
 
 export default function GameRepairPage() {
   const [manifest, setManifest] = useState(null)
@@ -71,9 +70,8 @@ export default function GameRepairPage() {
     <section className="repair-guide">
       <h2>게임과 런처를 종료하고 시작하세요</h2>
       <p>기본 설치 경로: <code>C:\VFUN\R2beat</code> · 경로를 모르면 게임 바로가기를 우클릭해 ‘파일 위치 열기’를 확인하세요.</p>
-      <p>최상위 <code>*.pak</code> 파일과 <code>Game.exe</code>, <code>hv.dll</code>, <code>steam_api.dll</code>을 검사합니다. <code>rnr_music*.pak</code> 파일은 제외합니다.</p>
-      <p>파일의 SHA-256을 정상 기준값과 비교합니다. INI 파일과 게임 버전은 확인하지 않습니다. 파일을 나눠 읽으며 디스크 속도에 따라 수 분 걸릴 수 있습니다. 파일 내용은 서버에 업로드하지 않습니다.</p>
-      <p>문제 파일은 ‘파일 받기’로 다운로드한 뒤 설치 폴더에 직접 넣어주세요. 기존 파일을 교체한다면 먼저 별도 폴더에 백업해주세요. 개인 설정과 로그는 검사 대상에서 제외합니다.</p>
+      <p>파일의 SHA-256을 정상 기준값과 비교합니다. 파일을 나눠 읽으며 디스크 속도에 따라 수 분 걸릴 수 있습니다. 파일 내용은 서버에 업로드하지 않습니다.</p>
+      <p>문제 파일은 ‘파일 받기’로 다운로드한 뒤 설치 폴더에 직접 넣어주세요. 기존 파일을 교체한다면 먼저 별도 폴더에 백업해주세요.</p>
       <p>복구 후에도 파일이 사라지면 Windows 보안의 ‘보호 기록’을 확인해주세요. 내용이 같아도 PC 환경에 따른 실행 오류까지 확인하는 검사는 아닙니다.</p>
       <p>폴더 선택 창에 ‘업로드’라고 표시돼도 파일은 이 PC 안에서만 검사하며 서버로 전송하지 않습니다. 브라우저의 보안 설정을 변경할 필요가 없습니다.</p>
     </section>
@@ -87,8 +85,8 @@ export default function GameRepairPage() {
     </div>
     <div className="repair-status" role="status" aria-live="polite"><p>{message}</p><progress aria-label="SHA-256 검사 진행률" max="100" value={progress} /><span>{manifest ? `검사 대상 ${targets.length}개 · ${(totalBytes / 1024 ** 3).toFixed(2)} GiB` : '기준 정보 확인 중'}{folderName ? ` · 선택 폴더: ${folderName}` : ''}</span></div>
     <section className="repair-results" aria-label="파일 검사 결과" aria-busy={busy}>
-      <table><thead><tr><th>파일</th><th>상태</th><th>설치 크기</th><th>기준 크기</th><th>다운로드</th></tr></thead>
-        <tbody>{rows.map(row => <tr key={row.name} className={row.status === 'ok' ? '' : 'repair-issue'}><td>{row.name}</td><td>{labels[row.status]}</td><td>{bytes(row.sizeOnDisk)}</td><td>{bytes(row.size)}</td><td>{row.status !== 'ok' && <a href={repairFileUrl(manifest, row)} download={row.name}>파일 받기</a>}</td></tr>)}</tbody>
+      <table><thead><tr><th>파일</th><th>상태</th><th>다운로드</th></tr></thead>
+        <tbody>{rows.map(row => <tr key={row.name} className={row.status === 'ok' ? '' : 'repair-issue'}><td>{row.name}</td><td>{labels[row.status]}</td><td>{row.status !== 'ok' && <a href={repairFileUrl(manifest, row)} download={row.name}>파일 받기</a>}</td></tr>)}</tbody>
       </table>
       {!rows.length && <p className="repair-empty">{!result ? '폴더를 선택하면 검사 결과가 여기에 표시됩니다.' : onlyIssues ? '문제가 발견되지 않았습니다. 전체 파일은 ‘문제 파일만’을 해제해 확인하세요.' : '검사할 파일이 없습니다.'}</p>}
     </section>
