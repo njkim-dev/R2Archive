@@ -10,7 +10,7 @@ export default function PageMetadata() {
     if (isXyxMode()) return
     const portalHost = window.location.hostname === 'r2archive.com'
     const seo = portalHost ? null : getPageSeo(pathname)
-    document.title = pathname === '/game-repair' ? '게임 설치 파일 검사·복구 | R2Archive' : portalHost ? 'R2Archive | 알투비트 도구' : seo?.title ?? DEFAULT_TITLE
+    document.title = pathname === '/game-repair' ? '게임 설치 파일 검사 및 복구 | R2Archive' : portalHost ? 'R2Archive | 알투비트 팬 아카이브' : seo?.title ?? DEFAULT_TITLE
     document.head.querySelectorAll('[data-page-seo]').forEach(node => node.remove())
 
     const tags = [

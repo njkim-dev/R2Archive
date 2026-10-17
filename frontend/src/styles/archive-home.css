@@ -1,0 +1,100 @@
+.archive-portal { font-family: 'Pretendard', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif; color: #071b53; line-height: normal; font-synthesis: none; -webkit-font-smoothing: antialiased; }
+.archive-portal, .archive-portal * { box-sizing: border-box; }
+.archive-portal a { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.archive-portal a:focus-visible { outline: 3px solid #08296d; outline-offset: 7px; }
+.archive-portal { position: relative; isolation: isolate; min-height: max(900px, 100svh); overflow: hidden; background: linear-gradient(150deg, #6ceaf0 30%, #93eff0 65%, #31bfdf 100%); }
+
+.archive-portal .artwork { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; }
+.archive-portal .artwork img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: left center; }
+.archive-portal .game-logo { position: absolute; z-index: 1; top: 30px; right: 4.2vw; width: clamp(180px, 21vw, 330px); height: auto; aspect-ratio: 2120 / 595; overflow: hidden; filter: drop-shadow(0 3px 10px #0b6d9520); }
+@media (max-aspect-ratio: 4/3) {
+  .archive-portal .artwork img { object-position: center; }
+}
+.archive-portal .masthead { position: relative; padding: 30px 4.2vw 0; display: flex; align-items: flex-start; }
+.archive-portal .brand { display: inline-flex; flex-direction: column; gap: 6px; }
+.archive-portal .brand-name { font-size: 25px; font-weight: 850; letter-spacing: -.9px; line-height: 1; }
+.archive-portal .brand-name b { font-size: 33px; margin-right: 6px; letter-spacing: -2px; }
+.archive-portal .brand-name b span { color: #008fbc; }
+.archive-portal .brand-caption { font-size: 11px; letter-spacing: 3.5px; font-weight: 600; opacity: .76; }
+.archive-portal .masthead nav { position: absolute; left: 42%; top: 30px; transform: translateX(-50%); display: flex; align-items: center; gap: 22px; padding: 15px 29px; border: 1px solid #ffffffb3; border-radius: 100px; background: #ffffffbd; box-shadow: 0 6px 30px #056e9820; backdrop-filter: blur(18px); }
+.archive-portal .masthead nav a { font-size: 13px; white-space: nowrap; font-weight: 750; }
+.archive-portal .masthead nav a:hover { color: #008eb0; }
+.archive-portal .masthead nav > span { height: 15px; width: 1px; background: #99c8da; }
+.archive-portal .content { position: relative; width: min(49.5%, 850px); margin: clamp(140px, 17vh, 220px) 4.2vw 125px auto; }
+.archive-portal .intro { margin: 0 0 28px 6px; }
+.archive-portal .eyebrow { margin: 0 0 13px; color: #174677; font-size: 10px; font-weight: 800; letter-spacing: 3px; }
+.archive-portal h1 { margin: 0; font-size: clamp(32px, 3.05vw, 57px); line-height: 1.32; letter-spacing: -2.8px; font-weight: 900; text-shadow: 0 2px 22px #e8ffffd1; }
+.archive-portal h1 span { white-space: nowrap; }
+.archive-portal .lead { margin: 18px 0 0; font-size: clamp(14px, 1.1vw, 18px); color: #16406d; font-weight: 500; letter-spacing: -.5px; line-height: 1.8; text-shadow: 0 1px 12px #e7ffff; }
+.archive-portal .mobile-break { display: none; }
+.archive-portal .services { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.archive-portal .service { display: flex; min-width: 0; flex-direction: column; padding: 28px 24px 24px; background: linear-gradient(145deg, #ffffffdf, #efffffac); backdrop-filter: blur(15px); border: 1px solid #ffffffed; border-radius: 23px; box-shadow: 0 14px 50px #0b7eac1c, inset 0 1px #fff; transition: background .2s, box-shadow .2s; }
+.archive-portal .service:hover { background: linear-gradient(145deg, #fff, #efffffd9); box-shadow: 0 18px 55px #0b7eac35, inset 0 1px #fff; }
+.archive-portal .service-icon { position: relative; display: block; width: 64px; height: 64px; margin: 0 0 18px; color: #ff527b; }
+.archive-portal .service-icon svg { position: relative; z-index: 1; width: 58px; height: 58px; filter: drop-shadow(0 3px 0 #fff7); }
+.archive-portal .service-icon i { position: absolute; top: 4px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: #ffb3cb96; }
+.archive-portal .repair .service-icon { color: #009cc7; }
+.archive-portal .repair .service-icon i { background: #70e0e9ab; }
+.archive-portal .service-kicker { color: #637d99; font-size: 9px; font-weight: 750; letter-spacing: 2px; }
+.archive-portal h2 { margin: 8px 0 10px; font-size: clamp(22px, 1.8vw, 30px); font-weight: 850; letter-spacing: -1.3px; }
+.archive-portal .service p { margin: 0 0 26px; color: #365878; font-size: clamp(12px, .9vw, 15px); line-height: 1.85; letter-spacing: -.5px; }
+.archive-portal .service-cta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding: 17px 19px; border-radius: 13px; color: #fff; font-size: clamp(12px, .94vw, 15px); font-weight: 800; letter-spacing: -.3px; background: linear-gradient(135deg, #ff738c, #ff3e79); box-shadow: 0 6px 18px #ff4c7b2e, inset 0 1px #fff4; }
+.archive-portal .repair .service-cta { background: linear-gradient(135deg, #0bb9db, #0092c5); box-shadow: 0 6px 18px #009ec735, inset 0 1px #fff4; }
+.archive-portal .service-cta svg { flex-shrink: 0; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.archive-portal .small-note { margin: 21px 0 0; text-align: center; color: #175576; font-size: 11px; letter-spacing: -.2px; }
+.archive-portal .small-note > span { margin-right: 7px; color: #067f9e; }
+.archive-portal footer { position: absolute; bottom: 26px; left: 4.2vw; right: 4.2vw; display: flex; justify-content: space-between; gap: 14px; padding-top: 15px; border-top: 1px solid #ffffffa6; color: #fff; text-shadow: 0 1px 6px #056a9e; font-size: 11px; }
+.archive-portal .footer-caption { margin-left: 5px; opacity: .85; }
+@media (min-width: 1700px) { .archive-portal .content { margin-top: clamp(160px, 20vh, 260px); } .archive-portal .service { padding: 33px 30px 28px; } .archive-portal .service-icon { margin-bottom: 24px; } }
+@media (min-width: 601px) and (max-width: 1100px) {
+  .archive-portal { min-height: max(720px, 100svh); }
+  .archive-portal .content { width: 50%; margin: clamp(105px, 15vw, 165px) 3vw 110px auto; }
+  .archive-portal .intro { margin-left: 2px; margin-bottom: 22px; }
+  .archive-portal .eyebrow { font-size: 8px; letter-spacing: 1.5px; }
+  .archive-portal h1 { font-size: clamp(23px, 3.2vw, 35px); letter-spacing: -1.5px; }
+  .archive-portal .lead { font-size: clamp(11px, 1.35vw, 14px); margin-top: 13px; line-height: 1.8; }
+  .archive-portal .services { gap: 10px; }
+  .archive-portal .service { padding: 20px 14px 15px; border-radius: 18px; }
+  .archive-portal .service-icon { width: 46px; height: 46px; margin-bottom: 17px; }
+  .archive-portal .service-icon svg { width: 43px; height: 43px; }
+  .archive-portal .service-icon i { width: 13px; height: 13px; right: -2px; }
+  .archive-portal .service-kicker { font-size: 7px; letter-spacing: 1px; }
+  .archive-portal h2 { font-size: clamp(18px, 2.35vw, 25px); letter-spacing: -1px; }
+  .archive-portal .service p { font-size: clamp(10px, 1.2vw, 13px); margin-bottom: 20px; }
+  .archive-portal .service-cta { padding: 13px 8px; gap: 5px; font-size: clamp(9px, 1.2vw, 12px); border-radius: 10px; white-space: nowrap; }
+  .archive-portal .service-cta svg { width: 12px; height: 12px; }
+  .archive-portal .small-note { font-size: 10px; }
+  .archive-portal footer { color: #326980; text-shadow: none; }
+}
+@media (min-width: 601px) and (max-width: 850px) {
+  .archive-portal .masthead nav { left: auto; right: 4vw; transform: none; padding: 13px 18px; }
+}
+@media (max-width: 600px) {
+  .archive-portal { min-height: max(680px, 100svh); background: linear-gradient(#70e4ef 20%, #9fedf0 70%, #dcfaf7); }
+
+  .archive-portal .artwork img { object-position: 30% center; }
+  .archive-portal .game-logo { top: 150px; right: 4vw; width: 32vw; }
+
+  .archive-portal .masthead { padding: 18px 5vw 0; }
+  .archive-portal .brand-name { font-size: 15px; letter-spacing: -.5px; }
+  .archive-portal .brand-name b { font-size: 22px; margin-right: 4px; }
+  .archive-portal .brand-caption { font-size: 8px; letter-spacing: 1.7px; }
+  .archive-portal .masthead nav { left: auto; right: 5vw; top: 17px; transform: none; padding: 10px 15px; }
+  .archive-portal .masthead nav a { font-size: 11px; }
+  .archive-portal .content { width: 42%; margin: 165px 3vw 110px auto; padding: 0; }
+  .archive-portal .intro { position: absolute; top: -160px; left: calc(-55vw + 6vw); width: 88vw; margin: 0; text-align: center; }
+  .archive-portal .eyebrow, .archive-portal .lead { display: none; }
+  .archive-portal h1 { font-size: clamp(22px, 6.3vw, 34px); letter-spacing: -1.3px; line-height: 1.35; }
+  .archive-portal .services { grid-template-columns: 1fr; gap: 12px; }
+  .archive-portal .service { padding: 15px 12px 12px; border-radius: 17px; }
+  .archive-portal .service-icon, .archive-portal .service-kicker { display: none; }
+  .archive-portal h2 { margin: 0 0 9px; font-size: clamp(18px, 4.7vw, 25px); letter-spacing: -.9px; }
+  .archive-portal .service p { font-size: 12px; line-height: 1.65; margin-bottom: 14px; letter-spacing: -.5px; word-break: keep-all; overflow-wrap: anywhere; }
+  .archive-portal .service-cta { padding: 12px 9px; gap: 5px; font-size: 11px; white-space: nowrap; border-radius: 10px; }
+  .archive-portal .service-cta svg { width: 13px; height: 13px; }
+  .archive-portal .small-note { width: auto; margin: 22px 0 0; color: #175576; font-size: 10px; line-height: 1.7; text-align: left; }
+  .archive-portal footer { left: 6vw; right: 6vw; color: #326980; text-shadow: none; font-size: 10px; }
+  .archive-portal .footer-caption { display: none; }
+}
+@media (max-width: 360px) { .archive-portal .service-cta { font-size: 10px; padding-inline: 7px; } .archive-portal .service-cta svg { display: none; } }
+@media (prefers-reduced-motion: reduce) { .archive-portal * { transition: none !important; } }

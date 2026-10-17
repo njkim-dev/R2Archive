@@ -128,3 +128,13 @@ for tag, attrs in documents[0].tags:
         assert status == 200 and 'text/html' not in headers.get('Content-Type', '')
 
 print('PASS: initial metadata, Google verification, canonical URLs, sitemap, robots, crawler parity, protected paths, shared body/assets and XYX isolation')
+
+
+status, headers, _ = get('r2archive.com', '/')
+assert status == 200 and headers.get('Cache-Control') == 'no-store'
+assert not headers.get('Location') and not headers.get('Clear-Site-Data')
+status, headers, _ = get('r2archive.com', '/?refresh=home')
+assert status == 200 and headers.get('Cache-Control') == 'no-store'
+assert headers.get('Clear-Site-Data') == '"cache"'
+assert not get('music.r2archive.com', '/?refresh=home')[1].get('Clear-Site-Data')
+print('PASS: portal never redirects, entry HTML is not cached, and opt-in cache reset preserves cookies and storage')

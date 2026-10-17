@@ -138,11 +138,11 @@ test('root domain opens the portal and its repair button without redirecting to 
     await route.fulfill({ response })
   })
   await page.goto('http://r2archive.com/')
-  await expect(page.getByRole('link', { name: '게임 복구 시스템' })).toBeVisible()
-  await expect(page.getByRole('link', { name: '음악 아카이브' })).toHaveAttribute('href', 'https://music.r2archive.com')
-  await page.getByRole('link', { name: '게임 복구 시스템' }).click()
+  await expect(page.getByRole('link', { name: '게임 복구 파일 검사 시작' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '음악 아카이브 둘러보기' })).toHaveAttribute('href', 'https://music.r2archive.com')
+  await page.getByRole('link', { name: '게임 복구 파일 검사 시작' }).click()
   await expect(page).toHaveURL('http://r2archive.com/game-repair')
-  await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 · 복구' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 및 복구' })).toBeVisible()
 })
 
 test('bulk ZIP saves only issues with stable pending, completion and cancellation states', async ({ page }, testInfo) => {

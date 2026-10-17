@@ -27,7 +27,7 @@ export default function GameRepairPage() {
       const data = await response.json()
       if (!data.snapshot || !Array.isArray(data.files) || !data.files.length) throw new Error('복구 기준 정보가 올바르지 않습니다.')
       setManifest(data)
-      setMessage('게임과 런처를 종료한 뒤 설치 폴더를 선택해주세요.')
+      setMessage('게임을 종료한 뒤 설치 폴더를 선택해주세요.')
     } catch (error) { setMessage(error.message) }
   }
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function GameRepairPage() {
       } })
       await response.body.pipeThrough(progress).pipeTo(writable, { signal: controller.signal })
       writable = null
-      setDownloadMessage('ZIP 저장을 완료했습니다. 게임과 런처를 종료한 뒤 설치 폴더에 압축을 풀고 다시 검사해주세요. 기존 파일은 먼저 백업해주세요.')
+      setDownloadMessage('ZIP 저장을 완료했습니다. 게임을 종료한 뒤 설치 폴더에 압축을 풀고 다시 검사해주세요. 기존 파일은 먼저 백업해주세요.')
     } catch (error) {
       if (writable) await writable.abort().catch(() => {})
       setDownloadMessage(error.name === 'AbortError' ? 'ZIP 다운로드를 취소했습니다.' : `ZIP을 저장하지 못했습니다: ${error.message} 기본 다운로드를 이용하거나 다시 시도해주세요.`)
@@ -126,14 +126,15 @@ export default function GameRepairPage() {
   const totalBytes = targets.reduce((total, file) => total + file.size, 0)
   const rows = result?.rows.filter(row => !onlyIssues || row.status !== 'ok') || []
   return <main className="repair-page">
-    <header className="repair-heading"><Link to="/">← 처음으로</Link><h1>게임 설치 파일 검사 · 복구</h1><p>한국 VFUN 알투비트의 주요 게임 파일을 SHA-256으로 검사합니다.</p></header>
+    <header className="repair-heading"><Link to="/">← 처음으로</Link><h1>게임 설치 파일 검사 및 복구</h1><p>알투비트의 주요 게임 파일을 검사합니다.</p></header>
     <section className="repair-guide">
-      <h2>게임과 런처를 종료하고 시작하세요</h2>
-      <p>기본 설치 경로: <code>C:\VFUN\R2beat</code> · 경로를 모르면 게임 바로가기를 우클릭해 ‘파일 위치 열기’를 확인하세요.</p>
-      <p>파일의 SHA-256을 정상 기준값과 비교합니다. 파일을 나눠 읽으며 디스크 속도에 따라 수 분 걸릴 수 있습니다. 파일 내용은 서버에 업로드하지 않습니다.</p>
-      <p>문제 파일은 개별 파일 또는 ZIP으로 다운로드한 뒤 설치 폴더에 넣어주세요. ZIP은 설치 폴더에 압축을 풀어주세요. 기존 파일을 교체한다면 먼저 별도 폴더에 백업해주세요.</p>
-      <p>복구 후에도 파일이 사라지면 Windows 보안의 ‘보호 기록’을 확인해주세요. 내용이 같아도 PC 환경에 따른 실행 오류까지 확인하는 검사는 아닙니다.</p>
-      <p>폴더 선택 창에 ‘업로드’라고 표시돼도 파일은 이 PC 안에서만 검사하며 서버로 전송하지 않습니다. 브라우저의 보안 설정을 변경할 필요가 없습니다.</p>
+      <h2>게임을 종료하고 시작하세요</h2>
+      <p>게임 설치 경로를 선택해서 파일을 검사하세요.</p>
+      <p>경로를 모르면 VLauncher에서 게임 실행 버튼 좌측의 설정 버튼을 클릭하면, 설치 경로를 확인할 수 있습니다.</p>
+      <p>현재 설치된 파일이 올바르게 설치된게 맞는지 검사합니다.</p>
+      <p>중요 핵심 파일을 나눠 읽으며 디스크 속도에 따라 수 분 걸릴 수 있습니다. 파일 내용은 서버에 업로드하지 않습니다.</p>
+      <p>문제 파일은 개별 파일 또는 ZIP으로 다운로드한 뒤 설치 폴더에 넣어주세요.</p>
+      <p>폴더 선택 창에 '업로드'라고 표시되어도 파일은 이 PC 안에서만 검사하며 서버로 전송하지 않습니다. 브라우저의 보안 설정을 변경할 필요가 없습니다.</p>
     </section>
     {!supported && <p className="repair-unsupported" role="alert">Windows의 Chrome 또는 Edge에서 열어주세요. 이 브라우저는 폴더 선택을 지원하지 않습니다.</p>}
     <div className="repair-toolbar">

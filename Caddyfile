@@ -88,7 +88,16 @@ handle /assets/* {
 
 handle {
 	root * /srv
-	header Cache-Control "no-cache"
+	@portal host r2archive.com
+	@other_host not host r2archive.com
+	header @portal Cache-Control "no-store"
+	header @other_host Cache-Control "no-cache"
+	@portal_cache_reset {
+		host r2archive.com
+		path /
+		query refresh=home
+	}
+	header @portal_cache_reset Clear-Site-Data "\"cache\""
 	@kr_home {
 		host music.r2archive.com
 		path / /index.html
