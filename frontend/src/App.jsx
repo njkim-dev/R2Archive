@@ -27,6 +27,8 @@ const PersonalCategorySubscribersPage = lazy(() => import('./pages/PersonalCateg
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 const UpdateHistoryPage = lazy(() => import('./pages/UpdateHistoryPage'))
+const GameRepairPage = lazy(() => import('./pages/GameRepairPage'))
+const ArchiveHomePage = lazy(() => import('./pages/ArchiveHomePage'))
 
 function CloseModalOnCataloglessRoutes() {
   const location = useLocation()
@@ -74,6 +76,7 @@ export default function App() {
   const appLocation = useLocation()
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
+  const portalHost = window.location.hostname === 'r2archive.com'
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
 
@@ -124,7 +127,7 @@ export default function App() {
   }, [songs])
 
   useEffect(() => {
-    if (appLocation.pathname === '/updates') return
+    if (portalHost || ['/updates', '/game-repair'].includes(appLocation.pathname)) return
     let cancelled = false
     loadCatalog().then(success => {
       if (!success || cancelled) return
@@ -148,7 +151,7 @@ export default function App() {
       <AnalyticsTracker />
       <Suspense fallback={null}>
         <Routes>
-          <Route path="/" element={<SongsPage />} />
+          <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
           <Route path="/removed-songs" element={<RemovedSongsPage />} />
           {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}
           {!xyxMode && <Route path="/rankings" element={<RankingsPage />} />}
@@ -162,6 +165,7 @@ export default function App() {
           <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
           {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
           {!xyxMode && <Route path="/updates" element={<UpdateHistoryPage />} />}
+          {!xyxMode && <Route path="/game-repair" element={<GameRepairPage />} />}
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

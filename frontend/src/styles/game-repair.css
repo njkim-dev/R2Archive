@@ -1,0 +1,31 @@
+.repair-page { height: 100dvh; overflow: auto; scrollbar-gutter: stable; padding: 28px max(20px, calc((100vw - 1160px) / 2)); color: var(--fg); }
+.repair-heading h1 { font-size: 25px; margin: 18px 0 8px; }
+.repair-heading a, .repair-results a { color: var(--accent); }
+.repair-heading p, .repair-guide p { color: var(--fg-2); }
+.repair-guide { background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 22px 0; }
+.repair-guide h2 { font-size: 16px; margin-bottom: 10px; }
+.repair-guide p + p { margin-top: 9px; }
+.repair-guide code { overflow-wrap: anywhere; color: var(--fg); }
+.repair-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 44px; }
+.repair-toolbar button { padding: 11px 15px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); cursor: pointer; }
+.repair-toolbar button:first-child { background: var(--accent); color: var(--accent-ink); }
+.repair-toolbar button:disabled { opacity: .5; cursor: default; }
+.repair-toolbar label { display: flex; gap: 6px; align-items: center; }
+.repair-status { height: 116px; overflow: auto; padding: 14px 0; overflow-wrap: anywhere; }
+.repair-status span { display: block; margin-top: 7px; color: var(--fg-3); }
+.repair-results { height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-0); }
+.repair-results table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.repair-results th, .repair-results td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+.repair-results th { position: sticky; top: 0; background: var(--surface-1); }
+.repair-issue td:nth-child(2), .repair-unsupported { color: var(--warn); }
+.repair-empty { padding: 30px 18px; color: var(--fg-3); }
+.archive-home { padding-top: max(60px, 15vh); }
+.archive-home-brand { font-size: 17px; color: var(--accent); font-weight: 700; }
+.archive-home h1 { font-size: clamp(28px, 5vw, 44px); margin: 18px 0 12px; }
+.archive-home > p { color: var(--fg-2); font-size: 16px; }
+.archive-home-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 18px; margin-top: 36px; }
+.archive-home-card { display: block; color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 28px; background: var(--surface-1); text-decoration: none; }
+.archive-home-card:hover, .archive-home-card:focus-visible { border-color: var(--accent); }
+.archive-home-card h2 { font-size: 20px; margin-bottom: 12px; }
+.archive-home-card p { color: var(--fg-2); }
+@media (max-width: 600px) { .repair-page { padding: 18px 14px; } .repair-heading h1 { font-size: 21px; } .repair-guide { padding: 15px; } .repair-status { height: 148px; } }

@@ -8,8 +8,9 @@ export default function PageMetadata() {
 
   useEffect(() => {
     if (isXyxMode()) return
-    const seo = getPageSeo(pathname)
-    document.title = seo?.title ?? DEFAULT_TITLE
+    const portalHost = window.location.hostname === 'r2archive.com'
+    const seo = portalHost ? null : getPageSeo(pathname)
+    document.title = pathname === '/game-repair' ? '게임 설치 파일 검사·복구 | R2Archive' : portalHost ? 'R2Archive | 알투비트 도구' : seo?.title ?? DEFAULT_TITLE
     document.head.querySelectorAll('[data-page-seo]').forEach(node => node.remove())
 
     const tags = [
