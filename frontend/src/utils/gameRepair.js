@@ -1,6 +1,6 @@
 import { createFileHasher } from './fileHashWorker.js'
 
-export async function inspectInstallation(selectedFiles, manifest, onProgress = () => {}, { signal, createHasher = createFileHasher, mode = 'launch' } = {}) {
+export async function inspectInstallation(selectedFiles, manifest, onProgress = () => {}, { signal, createHasher = createFileHasher, mode = 'launch', onRow = () => {} } = {}) {
   signal?.throwIfAborted()
   const files = Array.from(selectedFiles)
   const folder = files[0]?.webkitRelativePath.split('/')[0]
@@ -40,7 +40,9 @@ export async function inspectInstallation(selectedFiles, manifest, onProgress = 
           status = 'unreadable'
         }
       }
-      rows.push({ ...expected, status, sizeOnDisk: size, actualSha256 })
+      const row = { ...expected, status, sizeOnDisk: size, actualSha256 }
+      rows.push(row)
+      onRow(row)
       onProgress({ completed: rows.length, total: targets.length, file: expected.name, bytes: 0, size: 0 })
     }
   } finally { hasher?.close() }

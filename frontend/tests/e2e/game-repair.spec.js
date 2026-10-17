@@ -19,7 +19,7 @@ async function fixture(testInfo, version = '10659', includePatch = true) {
   await writeFile(path.join(root, 'nested', 'hv.dll'), 'good')
   return root
 }
-async function setup(page, gate = Promise.resolve()) {
+async function setup(page, gate = Promise.resolve(), reference = manifest) {
   await page.addInitScript(() => {
     window.showDirectoryPicker = async () => { throw new TypeError("Failed to execute 'getFileHandle' on 'FileSystemDirectoryHandle': Name is not allowed.") }
     window.__readFiles = []
@@ -31,7 +31,7 @@ async function setup(page, gate = Promise.resolve()) {
   await page.context().route('**/api/**', async route => {
     const urlPath = new URL(route.request().url()).pathname
     if (!urlPath.startsWith('/api/')) return route.continue()
-    if (urlPath === '/api/game-repair/manifest') { await gate; return route.fulfill({ json: manifest }) }
+    if (urlPath === '/api/game-repair/manifest') { await gate; return route.fulfill({ json: reference }) }
     if (urlPath.startsWith('/api/game-repair/files/')) return route.fulfill({ body: 'good', contentType: 'application/octet-stream' })
     if (urlPath === '/api/auth/me') return route.fulfill({ json: { user: null } })
     return route.fulfill({ json: [] })
@@ -281,3 +281,71 @@ test('music mode hashes only music packs and keeps pending scan and download lay
   await watcher.expectStable()
   await watcher.stop()
 })
+
+for (const mode of ['launch', 'music']) {
+  test(`${mode} shows completed issues during a later hash and gates downloads until full completion`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: testInfo.project.name.endsWith('768') ? 390 : 1440, height: 1000 })
+    const reference = { ...manifest, files: [...manifest.files, entry('rnr_music_missing.pak', 'good'), entry('rnr_music2.pak', 'good')] }
+    await setup(page, Promise.resolve(), reference)
+    const heldName = mode === 'launch' ? 'rnr_boost_mode.pak' : 'rnr_music2.pak'
+    const expected = mode === 'launch' ? ['Game.exe', 'hv.dll', 'steam_api.dll'] : ['rnr_music1.pak', 'rnr_music_missing.pak']
+    const root = await fixture(testInfo)
+    await writeFile(path.join(root, 'Game.exe'), 'evil')
+    await writeFile(path.join(root, 'rnr_music2.pak'), 'good')
+    await page.addInitScript(({ heldName }) => {
+      window.__holdHash = true
+      const NativeWorker = window.Worker
+      window.Worker = class extends NativeWorker {
+        postMessage(message, ...args) {
+          if (window.__holdHash && message.file?.name === heldName) {
+            window.__releaseHash = () => { window.__holdHash = false; super.postMessage(message, ...args) }
+          } else super.postMessage(message, ...args)
+        }
+      }
+    }, { heldName })
+    await page.goto(`/game-repair?mode=${mode}`)
+    await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+    const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-download-toolbar', '.repair-results'])
+    const assertPending = async () => {
+      await expect(page.locator('.repair-status')).toContainText('SHA-256 검사 중')
+      await expect(page.locator('.repair-results tbody tr td:first-child')).toHaveText(expected)
+      await expect(page.locator('.repair-results tbody tr').first()).toContainText('불일치')
+      await expect(page.locator('.repair-results tbody tr').nth(1)).toContainText('누락')
+      await expect(page.locator('.repair-results')).toHaveAttribute('aria-busy', 'true')
+      await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeDisabled()
+      await expect(page.locator('.repair-download-toolbar a')).toHaveAttribute('aria-disabled', 'true')
+      await expect(page.locator('.repair-download-toolbar a')).not.toHaveAttribute('href', /./)
+      for (const link of await page.getByRole('link', { name: '파일 받기' }).all()) {
+        await expect(link).toHaveAttribute('aria-disabled', 'true')
+        await expect(link).not.toHaveAttribute('href', /./)
+      }
+      await watcher.expectStable()
+    }
+    await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+    await assertPending()
+    await page.evaluate(() => window.__releaseHash())
+    await expect(page.locator('.repair-status')).toContainText('검사 완료')
+    await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeEnabled()
+    for (const link of await page.getByRole('link', { name: '파일 받기' }).all()) {
+      await expect(link).toHaveAttribute('aria-disabled', 'false')
+      await expect(link).toHaveAttribute('href', /\/api\/game-repair\/files\//)
+    }
+    await watcher.expectStable()
+    await page.evaluate(() => { window.__holdHash = true })
+    await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+    await assertPending()
+    await page.getByRole('button', { name: '검사 취소' }).click()
+    await expect(page.locator('.repair-status')).toContainText('검사를 취소했습니다.')
+    await expect(page.locator('.repair-results tbody tr td:first-child')).toHaveText(expected)
+    await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeDisabled()
+    for (const link of await page.getByRole('link', { name: '파일 받기' }).all()) await expect(link).not.toHaveAttribute('href', /./)
+    await watcher.expectStable()
+    await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+    await assertPending()
+    await page.evaluate(() => window.__releaseHash())
+    await expect(page.locator('.repair-status')).toContainText('검사 완료')
+    await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeEnabled()
+    await watcher.expectStable()
+    await watcher.stop()
+  })
+}

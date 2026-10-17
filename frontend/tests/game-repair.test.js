@@ -97,3 +97,28 @@ test('music scans detect equal-size corruption and missing music without reading
   assert.equal((await check([ignored])).rows[0].status, 'missing')
   assert.equal((await check([file('rnr_music1.pak', 'music')])).rows[0].status, 'ok')
 })
+
+test('completed rows are reported while a later hash is still pending', async () => {
+  const emitted = []
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const pending = inspectInstallation(installation(), manifest, undefined, {
+    onRow: row => emitted.push(row),
+    createHasher: () => ({ async hash(file) { await gate; return hashFileChunks(file) }, close() {} }),
+  })
+  assert.deepEqual(emitted.map(row => [row.name, row.status]), [['hv.dll', 'missing'], ['steam_api.dll', 'missing']])
+  release()
+  const result = await pending
+  assert.deepEqual(emitted, result.rows)
+  assert.equal(emitted.find(row => row.name === 'Game.exe').status, 'ok')
+})
+
+test('cancelling after a reported row rejects rather than returning partial success', async () => {
+  const controller = new AbortController()
+  const emitted = []
+  await assert.rejects(inspectInstallation(installation(), manifest, undefined, {
+    ...options, signal: controller.signal,
+    onRow(row) { emitted.push(row); controller.abort() },
+  }), error => error.name === 'AbortError')
+  assert.deepEqual(emitted.map(row => row.name), ['hv.dll'])
+})

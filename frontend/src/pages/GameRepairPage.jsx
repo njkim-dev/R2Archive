@@ -28,6 +28,7 @@ function RepairInspection({ mode }) {
   const scanController = useRef(null)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState(null)
+  const [scanComplete, setScanComplete] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('복구 기준 정보를 불러오고 있습니다.')
   const [onlyIssues, setOnlyIssues] = useState(true)
@@ -50,12 +51,16 @@ function RepairInspection({ mode }) {
 
   async function scan(selected) {
     setResult(null)
+    setScanComplete(false)
     const checked = await inspectInstallation(selected, manifest, ({ completed, total, file, bytes: read, size }) => {
       setProgress((completed + (size ? read / size : 0)) / total * 100)
       setMessage(`SHA-256 검사 중 · ${completed}/${total} · ${file}${size ? ` (${Math.floor(read / size * 100)}%)` : ''}`)
-    }, { signal: scanController.current.signal, mode })
+    }, { signal: scanController.current.signal, mode, onRow: row => {
+      setResult(current => ({ rows: [...(current?.rows || []), row] }))
+    } })
     setFolderName(checked.folder)
     setResult(checked)
+    setScanComplete(true)
     setProgress(100)
     const issues = checked.rows.filter(row => row.status !== 'ok').length
     setMessage(issues ? `검사 완료 · 확인이 필요한 파일 ${issues}개. 개별 파일 또는 ZIP으로 내려받아 설치 폴더에 넣은 후 다시 검사해주세요.` : '검사 대상 파일의 SHA-256이 모두 일치합니다. 계속 종료된다면 보안 프로그램의 보호 기록과 게임 오류 로그를 확인해주세요.')
@@ -79,7 +84,7 @@ function RepairInspection({ mode }) {
   }
 
   async function downloadArchive() {
-    if (!issues.length || downloading || busy) return
+    if (!canDownload || !issues.length) return
     if (!window.showSaveFilePicker) {
       const link = document.createElement('a')
       link.href = archiveUrl
@@ -131,6 +136,7 @@ function RepairInspection({ mode }) {
     }
   }
 
+  const canDownload = scanComplete && !busy && !downloading
   const issues = result?.rows.filter(row => row.status !== 'ok') || []
   const archiveParams = new URLSearchParams()
   issues.forEach(row => archiveParams.append('name', row.name))
@@ -159,16 +165,16 @@ function RepairInspection({ mode }) {
     </div>
     <div className="repair-status" role="status" aria-live="polite"><p>{message}</p><progress aria-label="SHA-256 검사 진행률" max="100" value={progress} /><span>{manifest ? `검사 대상 ${targets.length}개 · ${(totalBytes / 1024 ** 3).toFixed(2)} GiB` : '기준 정보 확인 중'}{folderName ? ` · 선택 폴더: ${folderName}` : ''}</span></div>
     <div className="repair-download-toolbar">
-      <button disabled={busy || downloading || !issues.length} onClick={downloadArchive}>문제 파일 일괄 받기 (ZIP)</button>
+      <button disabled={!canDownload || !issues.length} onClick={downloadArchive}>문제 파일 일괄 받기 (ZIP)</button>
       <button disabled={!downloading} onClick={() => downloadController.current?.abort()}>다운로드 취소</button>
-      <a href={!busy && !downloading && issues.length ? archiveUrl : undefined} download="R2beat-repair.zip" aria-disabled={busy || downloading || !issues.length}>기본 다운로드로 받기</a>
+      <a href={canDownload && issues.length ? archiveUrl : undefined} download="R2beat-repair.zip" aria-disabled={!canDownload || !issues.length}>기본 다운로드로 받기</a>
     </div>
     <p className="repair-download-status" role="status" aria-live="polite">{downloadMessage}</p>
     <section className="repair-results" aria-label="파일 검사 결과" aria-busy={busy}>
       <table><thead><tr><th>파일</th><th>상태</th><th>다운로드</th></tr></thead>
-        <tbody>{rows.map(row => <tr key={row.name} className={row.status === 'ok' ? '' : 'repair-issue'}><td>{row.name}</td><td>{labels[row.status]}</td><td>{row.status !== 'ok' && <a href={repairFileUrl(manifest, row)} download={row.name}>파일 받기</a>}</td></tr>)}</tbody>
+        <tbody>{rows.map(row => <tr key={row.name} className={row.status === 'ok' ? '' : 'repair-issue'}><td>{row.name}</td><td>{labels[row.status]}</td><td>{row.status !== 'ok' && <a role="link" href={canDownload ? repairFileUrl(manifest, row) : undefined} aria-disabled={!canDownload} tabIndex={canDownload ? undefined : -1} download={row.name}>파일 받기</a>}</td></tr>)}</tbody>
       </table>
-      {!rows.length && <p className="repair-empty">{!result ? '폴더를 선택하면 검사 결과가 여기에 표시됩니다.' : onlyIssues ? '문제가 발견되지 않았습니다. 전체 파일은 ‘문제 파일만’을 해제해 확인하세요.' : '검사할 파일이 없습니다.'}</p>}
+      {!rows.length && <p className="repair-empty">{busy ? '검사 중입니다. 확인된 문제 파일부터 표시합니다.' : !result ? '폴더를 선택하면 검사 결과가 여기에 표시됩니다.' : !scanComplete ? '검사가 완료되지 않았습니다. 폴더를 다시 선택해 검사해주세요.' : onlyIssues ? '문제가 발견되지 않았습니다. 전체 파일은 ‘문제 파일만’을 해제해 확인하세요.' : '검사할 파일이 없습니다.'}</p>}
     </section>
   </main>
 }
