@@ -1,7 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { inspectInstallation, parsePatchVersion, repairFileUrl } from '../src/utils/gameRepair.js'
+import { createHash } from 'node:crypto'
+import { inspectInstallation, parsePatchVersion, repairFileUrl, repairTargets } from '../src/utils/gameRepair.js'
+import { hashFileChunks, HASH_CHUNK_BYTES } from '../src/utils/fileSha256.js'
 
+const digest = content => createHash('sha256').update(content).digest('hex')
+const entry = (name, content) => ({ name, size: Buffer.byteLength(content), sha256: digest(content) })
+const manifest = { version: '10659', snapshot: 'reference', files: [entry('hv.dll', 'good'), entry('steam_api.dll', 'good'), entry('Game.exe', 'game'), entry('rnr_boost_mode.pak', 'good'), entry('rnr_music1.pak', 'music'), entry('other.dll', 'other')] }
+const options = { createHasher: () => ({ hash: hashFileChunks, close() {} }) }
 function file(path, content) {
   const selected = new File([content], path.split('/').at(-1))
   Object.defineProperty(selected, 'webkitRelativePath', { value: `R2beat/${path}` })
@@ -10,36 +16,68 @@ function file(path, content) {
 function installation(version = '10659') {
   return [file('PatchInfo/Patch.ini', `[patch]\r\nversion=${version}\r\n`), file('Game.exe', 'game')]
 }
-const manifest = { version: '10659', snapshot: 'reference', files: [{ name: 'hv.dll', size: 10 }, { name: 'steam_api.dll', size: 20 }, { name: 'Game.exe', size: 4 }] }
+const inspect = (files, m = manifest, callback) => inspectInstallation(files, m, callback, options)
 
 test('INI version handles CRLF, BOM, whitespace and comments', () => {
   assert.equal(parsePatchVersion('\uFEFF[patch]\r\n Version = 10659 ; patch\r\n'), '10659')
   assert.equal(parsePatchVersion('otherversion=10659'), null)
 })
-test('wrong version returns no repair candidates', async () => {
-  const result = await inspectInstallation(installation('10658'), manifest)
+test('target selection includes Game.exe, two DLLs and non-music packs only', () => {
+  const names = ['Game.exe', 'hv.dll', 'STEAM_API.DLL', 'rnr_boost_mode.pak', 'another.PAK', 'rnr_music.pak', 'rnr_musicMod2.pak', 'RNR_MUSIC99.PAK', 'other.dll', 'config.ini', 'sub/nested.pak']
+  assert.deepEqual(repairTargets({ files: names.map(name => ({ name })) }).map(f => f.name), names.slice(0, 5))
+})
+test('wrong version never hashes files or offers candidates', async () => {
+  const result = await inspectInstallation(installation('10658'), manifest, undefined, { createHasher() { throw new Error('must not hash') } })
   assert.equal(result.mismatch, true)
   assert.deepEqual(result.rows, [])
 })
-test('explicitly selected files support INI and DLL without native filesystem handles', async () => {
-  const files = [...installation(), file('HV.DLL', '1234567890'), file('steam_api.dll', 'short')]
-  for (const item of files.slice(1)) item.text = () => { throw new Error('game file contents must not be read') }
-  const result = await inspectInstallation(files, manifest)
-  assert.equal(result.folder, 'R2beat')
-  assert.deepEqual(result.rows.map(row => row.status), ['ok', 'size', 'ok'])
+test('same-size corruption is detected, excluded files are never read, and only root files count', async () => {
+  const ignored = [file('rnr_music1.pak', 'wrong'), file('other.dll', 'wrong'), file('nested/hv.dll', 'good')]
+  for (const selected of ignored) selected.slice = () => { throw new Error('excluded file must not be hashed') }
+  const result = await inspect([...installation(), file('steam_api.dll', 'bad'), file('rnr_boost_mode.pak', 'evil'), ...ignored])
+  assert.deepEqual(result.rows.map(row => row.status), ['missing', 'size', 'ok', 'hash'])
+  assert.equal(result.rows[3].actualSha256, digest('evil'))
 })
-test('nested files cannot mask missing root files and unrelated contents are never read', async () => {
-  const nested = file('nested/hv.dll', '1234567890')
-  nested.text = () => { throw new Error('must not read nested files') }
-  const result = await inspectInstallation([...installation(), nested], manifest)
-  assert.equal(result.rows[0].status, 'missing')
-  assert.equal(result.rows[1].status, 'missing')
+test('Game.exe content is checked even when its size matches', async () => {
+  const result = await inspect([file('PatchInfo/Patch.ini', 'version=10659'), file('Game.exe', 'evil')])
+  assert.equal(result.rows.find(row => row.name === 'Game.exe').status, 'hash')
+})
+test('missing Game.exe is reported rather than preventing inspection', async () => {
+  const result = await inspect([file('PatchInfo/Patch.ini', 'version=10659')])
+  assert.equal(result.rows.find(row => row.name === 'Game.exe').status, 'missing')
+})
+test('invalid or missing target hashes cannot produce a normal result', async () => {
+  await assert.rejects(inspect(installation(), { ...manifest, files: [{ name: 'hv.dll', size: 4 }] }), /SHA-256 기준/)
+  await assert.rejects(inspect(installation(), { ...manifest, files: [] }), /SHA-256 기준/)
+})
+test('read failures stay distinct from content differences and the hasher is closed', async () => {
+  let closed = false
+  const result = await inspectInstallation(installation(), manifest, undefined, { createHasher: () => ({ async hash() { throw new Error('file changed') }, close() { closed = true } }) })
+  assert.equal(result.rows.find(row => row.name === 'Game.exe').status, 'unreadable')
+  assert.equal(closed, true)
+})
+test('cancellation rejects partial results and closes the worker', async () => {
+  const controller = new AbortController()
+  let closed = false
+  const hashing = inspectInstallation(installation(), manifest, undefined, { signal: controller.signal, createHasher: () => ({ async hash(file, progress, signal) { controller.abort(); signal.throwIfAborted() }, close() { closed = true } }) })
+  await assert.rejects(hashing, error => error.name === 'AbortError')
+  assert.equal(closed, true)
+})
+test('incremental SHA-256 matches Node crypto across chunk boundaries and bounds reads', async () => {
+  for (const length of [0, 3, HASH_CHUNK_BYTES + 137]) {
+    const content = Buffer.alloc(length, 0x61)
+    const blob = new Blob([content])
+    const reads = []
+    const bounded = { size: blob.size, slice(start, end) { reads.push(end - start); return blob.slice(start, end) }, arrayBuffer() { throw new Error('whole-file read forbidden') } }
+    assert.equal(await hashFileChunks(bounded), digest(content))
+    assert.ok(reads.every(size => size <= HASH_CHUNK_BYTES))
+  }
 })
 test('missing, oversized and invalid patch information fail closed', async () => {
-  await assert.rejects(inspectInstallation([file('Game.exe', 'game')], manifest), /PatchInfo/)
-  await assert.rejects(inspectInstallation([file('PatchInfo/Patch.ini', 'x'.repeat(65537))], manifest), /올바르지/)
-  await assert.rejects(inspectInstallation([file('PatchInfo/Patch.ini', 'invalid')], manifest), /버전을 읽을/)
-  await assert.rejects(inspectInstallation([], manifest), /폴더를 선택/)
+  await assert.rejects(inspect([file('Game.exe', 'game')]), /PatchInfo/)
+  await assert.rejects(inspect([file('PatchInfo/Patch.ini', 'x'.repeat(65537))]), /올바르지/)
+  await assert.rejects(inspect([file('PatchInfo/Patch.ini', 'invalid')]), /버전을 읽을/)
+  await assert.rejects(inspect([]), /폴더를 선택/)
 })
 test('manual recovery links retain the versioned snapshot and filename', () => {
   assert.equal(repairFileUrl(manifest, manifest.files[0]), '/api/game-repair/files/reference/hv.dll')

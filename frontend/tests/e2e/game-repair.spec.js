@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { watchLayout } from './layout.js'
 
-const manifest = { version: '10659', snapshot: '10659-test', files: [{ name: 'Game.exe', size: 4 }, { name: 'hv.dll', size: 4 }, { name: 'steam_api.dll', size: 4 }] }
+const entry = (name, content) => ({ name, size: Buffer.byteLength(content), sha256: createHash('sha256').update(content).digest('hex') })
+const manifest = { version: '10659', snapshot: '10659-test', files: [entry('Game.exe', 'game'), entry('hv.dll', 'good'), entry('steam_api.dll', 'good'), entry('rnr_boost_mode.pak', 'good'), entry('rnr_music1.pak', 'good'), entry('other.dll', 'good')] }
 async function fixture(testInfo, version = '10659', includePatch = true) {
   const root = testInfo.outputPath('R2beat')
   await mkdir(path.join(root, 'PatchInfo'), { recursive: true })
@@ -11,6 +13,9 @@ async function fixture(testInfo, version = '10659', includePatch = true) {
   if (includePatch) await writeFile(path.join(root, 'PatchInfo', 'Patch.ini'), `[patch]\r\nversion=${version}\r\n`)
   await writeFile(path.join(root, 'Game.exe'), 'game')
   await writeFile(path.join(root, 'steam_api.dll'), 'bad')
+  await writeFile(path.join(root, 'rnr_boost_mode.pak'), 'evil')
+  await writeFile(path.join(root, 'rnr_music1.pak'), 'evil')
+  await writeFile(path.join(root, 'other.dll'), 'evil')
   await writeFile(path.join(root, 'nested', 'hv.dll'), 'good')
   return root
 }
@@ -36,11 +41,14 @@ async function setup(page, gate = Promise.resolve()) {
   })
 }
 
-test('real directory input reads INI and DLL metadata despite blocked native handles, with stable layout', async ({ page }, testInfo) => {
+test('worker SHA-256 detects equal-size pack corruption and excludes music, with stable layout', async ({ page }, testInfo) => {
   let releaseManifest
   const gate = new Promise(resolve => { releaseManifest = resolve })
   await setup(page, gate)
   const root = await fixture(testInfo)
+  let releaseHash
+  const hashGate = new Promise(resolve => { releaseHash = resolve })
+  await page.route('**/fileHash.worker.js*', async route => { await hashGate; await route.continue().catch(() => {}) })
   await page.goto('/game-repair')
   await expect(page.locator('.repair-results')).toBeVisible()
   const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-results'])
@@ -52,20 +60,55 @@ test('real directory input reads INI and DLL metadata despite blocked native han
   await expect(scan).toBeDisabled()
   await watcher.expectStable()
   await page.evaluate(() => window.__releaseScan())
-  await expect(page.locator('.repair-results tbody tr')).toHaveCount(2)
-  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 2개')
+  await expect(page.getByRole('status')).toContainText('SHA-256 검사 중')
+  await watcher.expectStable()
+  releaseHash()
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
+  await expect(page.getByRole('status')).toContainText('확인이 필요한 파일 3개')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' })).toContainText('누락')
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'steam_api.dll' })).toContainText('크기 다름')
+  await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'rnr_boost_mode.pak' })).toContainText('내용 다름')
+  await expect(page.locator('.repair-status')).toContainText('4개 대상')
   expect(await page.evaluate(() => window.__readFiles)).toEqual(['R2beat/PatchInfo/Patch.ini'])
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'hv.dll' }).getByRole('link', { name: '파일 받기' }))
     .toHaveAttribute('href', '/api/game-repair/files/10659-test/hv.dll')
   await watcher.expectStable()
   await writeFile(path.join(root, 'hv.dll'), 'good')
   await writeFile(path.join(root, 'steam_api.dll'), 'good')
+  await writeFile(path.join(root, 'rnr_boost_mode.pak'), 'good')
   await page.getByLabel('게임 설치 폴더').setInputFiles(root)
-  await expect(page.getByRole('status')).toContainText('누락되거나 크기가 다른 파일이 없습니다.')
+  await expect(page.getByRole('status')).toContainText('검사 대상 파일의 SHA-256이 모두 일치합니다.')
   await watcher.expectStable()
   await watcher.stop()
+})
+
+test('cancelling a pending worker never reports a partially scanned installation as normal', async ({ page }, testInfo) => {
+  await setup(page)
+  let releaseHash
+  const gate = new Promise(resolve => { releaseHash = resolve })
+  await page.route('**/fileHash.worker.js*', async route => { await gate; await route.continue().catch(() => {}) })
+  await page.goto('/game-repair')
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-results'])
+  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
+  await expect(page.getByRole('status')).toContainText('SHA-256 검사 중')
+  await page.getByRole('button', { name: '검사 취소' }).click()
+  await expect(page.getByRole('status')).toContainText('검사를 취소했습니다.')
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
+  await watcher.expectStable()
+  await watcher.stop()
+  releaseHash()
+})
+
+test('Game.exe is hashed and not accepted merely because its size matches', async ({ page }, testInfo) => {
+  await setup(page)
+  const root = await fixture(testInfo)
+  await writeFile(path.join(root, 'Game.exe'), 'evil')
+  await page.goto('/game-repair')
+  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  await page.getByLabel('게임 설치 폴더').setInputFiles(root)
+  await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'Game.exe' })).toContainText('내용 다름')
+  await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'rnr_music' })).toHaveCount(0)
 })
 
 test('different patch version blocks recovery and reports patch guidance', async ({ page }, testInfo) => {

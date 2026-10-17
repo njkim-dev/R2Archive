@@ -8,10 +8,11 @@
 .repair-guide code { overflow-wrap: anywhere; color: var(--fg); }
 .repair-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 44px; }
 .repair-toolbar button { padding: 11px 15px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); cursor: pointer; }
-.repair-toolbar button:first-child { background: var(--accent); color: var(--accent-ink); }
+.repair-toolbar button:first-of-type { background: var(--accent); color: var(--accent-ink); }
 .repair-toolbar button:disabled { opacity: .5; cursor: default; }
 .repair-toolbar label { display: flex; gap: 6px; align-items: center; }
 .repair-status { height: 116px; overflow: auto; padding: 14px 0; overflow-wrap: anywhere; }
+.repair-status progress { display: block; width: 100%; height: 6px; margin-top: 8px; accent-color: var(--accent); }
 .repair-status span { display: block; margin-top: 7px; color: var(--fg-3); }
 .repair-results { height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-0); }
 .repair-results table { width: 100%; border-collapse: collapse; white-space: nowrap; }
