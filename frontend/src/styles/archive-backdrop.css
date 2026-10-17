@@ -1,0 +1,20 @@
+body { isolation: isolate; }
+.archive-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(rgb(5 18 35 / 48%), rgb(5 14 28 / 70%)), url('../assets/archive-home/r2beat-aquarium-wide.png');
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: saturate(.55);
+}
+.app > .main { background: rgb(9 16 28 / 87%); }
+.app > .side { background: rgb(14 21 33 / 97%); }
+.app-mobile { background: rgb(9 16 28 / 90%); }
+.app-mobile > .main { background: transparent; }
+.repair-page { background: rgb(9 16 28 / 90%); }
+@media (max-aspect-ratio: 4/3) {
+  .archive-backdrop { background-image: linear-gradient(rgb(5 18 35 / 48%), rgb(5 14 28 / 70%)), url('../assets/archive-home/r2beat-aquarium-portrait.png'); }
+}

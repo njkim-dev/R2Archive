@@ -14,6 +14,7 @@ import AnalyticsTracker from './components/AnalyticsTracker'
 import SongModal from './components/SongModal'
 import SongsPage from './pages/SongsPage'
 import PageMetadata from './components/PageMetadata'
+import './styles/archive-backdrop.css'
 import CreatePersonalCategoryModal, { takePendingCategoryCreate } from './components/CreatePersonalCategoryModal'
 
 const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
@@ -145,6 +146,7 @@ export default function App() {
 
   return (
     <>
+      {!(portalHost && appLocation.pathname === '/') && <div className="archive-backdrop" aria-hidden="true" />}
       <PageMetadata />
       <SyncCatalogUrl />
       <CloseModalOnCataloglessRoutes />
