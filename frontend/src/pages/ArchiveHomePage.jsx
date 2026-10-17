@@ -16,7 +16,7 @@ export default function ArchiveHomePage() {
       <div className="intro">
         <p className="eyebrow">MUSIC, MEMORIES & PLAY</p>
         <h1 id="hero-title">함께 즐기는,<br /><span>알투비트의 모든 순간.</span></h1>
-        <p className="lead">좋아하는 음악부터 원활한 플레이까지,<br className="mobile-break" /> 한곳에서 함께해요.</p>
+        <p className="lead">좋아하는 음악을 들으며 추억을 쌓아요.</p>
       </div>
       <div className="services">
         <a className="service music" href="https://music.r2archive.com" aria-label="음악 아카이브 둘러보기">

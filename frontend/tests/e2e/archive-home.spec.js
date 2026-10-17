@@ -41,6 +41,7 @@ for (const portrait of [false, true]) {
       expect(await page.locator('.artwork img').evaluate(image => image.currentSrc)).toContain('r2beat-aquarium-portrait')
       expect(await page.locator('.services').evaluate(node => node.getBoundingClientRect().left > innerWidth / 2)).toBe(true)
     }
+    await expect(page.locator('.archive-portal .lead')).toHaveText('좋아하는 음악을 들으며 추억을 쌓아요.')
     await page.locator('.repair').click()
     await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 및 복구' })).toBeVisible()
     await page.getByRole('link', { name: '게임 실행이 안되거나 게임이 튕기시나요?' }).click()

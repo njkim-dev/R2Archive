@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { mkdir, writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 import { watchLayout } from './layout.js'
 
 const entry = (name, content) => ({ name, size: Buffer.byteLength(content), sha256: createHash('sha256').update(content).digest('hex') })
@@ -145,81 +146,47 @@ test('root domain opens the portal and its repair button without redirecting to 
   await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 및 복구' })).toBeVisible()
 })
 
-test('bulk ZIP saves only issues with stable pending, completion and cancellation states', async ({ page }, testInfo) => {
+test('single bulk link uses native ZIP download and includes only issues', async ({ page, baseURL }, testInfo) => {
   await setup(page)
-  await page.addInitScript(() => {
-    window.__savedZip = { chunks: [], closed: 0, aborted: 0, names: [] }
-    window.showSaveFilePicker = async options => {
-      window.__savedZip.names.push(options.suggestedName)
-      return { createWritable: async () => new WritableStream({
-        write(chunk) { window.__savedZip.chunks.push(...chunk) },
-        close() { window.__savedZip.closed++ },
-        abort() { window.__savedZip.aborted++ },
-      }) }
+  await page.addInitScript(() => { window.showSaveFilePicker = () => { throw new Error('Save picker must not be used') } })
+  let names
+  const server = createServer(async (request, response) => {
+    if (request.url.startsWith('/api/game-repair/archive/')) {
+      names = new URL(request.url, 'http://localhost').searchParams.getAll('name')
+      response.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="R2beat-repair.zip"' })
+      response.end('ZIP test bytes')
+      return
     }
+    try {
+      const upstream = await fetch(baseURL + request.url)
+      const headers = Object.fromEntries([...upstream.headers].filter(([name]) => !['content-encoding', 'content-length', 'transfer-encoding'].includes(name)))
+      response.writeHead(upstream.status, headers)
+      response.end(Buffer.from(await upstream.arrayBuffer()))
+    } catch { response.writeHead(502); response.end() }
   })
-  let release
-  const requests = []
-  await page.route('**/api/game-repair/archive/**', async route => {
-    requests.push(new URL(route.request().url()).searchParams.getAll('name'))
-    await new Promise(resolve => { release = resolve })
-    await route.fulfill({ body: Buffer.from('ZIP test bytes'), contentType: 'application/zip' }).catch(() => {})
-  })
-  await page.goto('/game-repair?mode=launch')
-  const bulk = page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  await page.route('**/api/game-repair/archive/**', route => route.continue())
+  try {
+  await page.goto(`http://127.0.0.1:${server.address().port}/game-repair?mode=launch`)
+  const bulk = page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })
   await expect(bulk).toBeDisabled()
+  await expect(page.getByRole('checkbox', { name: '문제 파일만' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '다운로드 취소' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
   const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-download-toolbar', '.repair-results'])
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
   await expect(bulk).toBeEnabled()
-  await expect(page.getByRole('link', { name: '기본 다운로드로 받기' })).toHaveAttribute('href', /archive\/10659-test/)
-  await page.getByRole('checkbox', { name: '문제 파일만' }).uncheck()
+  await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
+  const event = page.waitForEvent('download')
   await bulk.click()
-  await expect(page.locator('.repair-download-status')).toContainText('ZIP 다운로드를 시작합니다.')
-  await expect(bulk).toBeDisabled()
-  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeDisabled()
-  await expect.poll(() => requests.length).toBe(1)
-  expect(requests[0]).toEqual(['hv.dll', 'steam_api.dll', 'rnr_boost_mode.pak'])
-  await watcher.expectStable()
-  release()
-  await expect(page.locator('.repair-download-status')).toContainText('ZIP 저장을 완료했습니다.')
-  const saved = await page.evaluate(() => window.__savedZip)
-  expect(saved.names).toEqual(['R2beat-repair.zip'])
-  expect(Buffer.from(saved.chunks).toString()).toBe('ZIP test bytes')
-  expect(saved.closed).toBe(1)
-  await watcher.expectStable()
-  await bulk.click()
-  await expect.poll(() => requests.length).toBe(2)
-  await page.getByRole('button', { name: '다운로드 취소' }).click()
-  await expect(page.locator('.repair-download-status')).toContainText('ZIP 다운로드를 취소했습니다.')
-  release()
-  await expect(bulk).toBeEnabled()
-  expect(await page.evaluate(() => window.__savedZip.closed)).toBe(1)
-  expect(await page.evaluate(() => window.__savedZip.aborted)).toBe(1)
+  const download = await event
+  expect(await download.failure()).toBeNull()
+  expect(download.suggestedFilename()).toBe('R2beat-repair.zip')
+  expect(names).toEqual(['hv.dll', 'steam_api.dll', 'rnr_boost_mode.pak'])
   await watcher.expectStable()
   await watcher.stop()
-})
-
-test('ZIP picker cancellation and server errors allow retry without losing results', async ({ page }, testInfo) => {
-  await setup(page)
-  await page.addInitScript(() => {
-    window.showSaveFilePicker = async () => { throw new DOMException('Dismissed', 'AbortError') }
-  })
-  await page.goto('/game-repair?mode=launch')
-  await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
-  await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
-  const bulk = page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })
-  await expect(bulk).toBeEnabled()
-  await bulk.click()
-  await expect(page.locator('.repair-download-status')).toContainText('ZIP 다운로드를 취소했습니다.')
-  await page.evaluate(() => {
-    window.showSaveFilePicker = async () => ({ createWritable: async () => new WritableStream() })
-  })
-  await page.route('**/api/game-repair/archive/**', route => route.fulfill({ status: 409, json: { detail: '복구 기준이 변경되었습니다. 다시 검사해주세요.' } }))
-  await bulk.click()
-  await expect(page.locator('.repair-download-status')).toContainText('복구 기준이 변경되었습니다. 다시 검사해주세요.')
-  await expect(bulk).toBeEnabled()
-  await expect(page.locator('.repair-results tbody tr')).toHaveCount(3)
+  } finally { await new Promise(resolve => { server.close(resolve); server.closeAllConnections() }) }
 })
 
 test('repair entry offers both flows and resets results when changing type', async ({ page }, testInfo) => {
@@ -238,7 +205,7 @@ test('repair entry offers both flows and resets results when changing type', asy
   await expect(page).toHaveURL(/mode=music/)
   await expect(page.locator('.repair-status')).toContainText('검사 대상 1개')
   await expect(page.locator('.repair-results tbody tr')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeDisabled()
+  await expect(page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })).toBeDisabled()
 })
 
 test('music mode hashes only music packs and keeps pending scan and download layout stable', async ({ page }, testInfo) => {
@@ -266,7 +233,7 @@ test('music mode hashes only music packs and keeps pending scan and download lay
   await expect(row).toContainText('rnr_music1.pak')
   await expect(row).toContainText('불일치')
   await expect(row.getByRole('link', { name: '파일 받기' })).toHaveAttribute('href', '/api/game-repair/files/10659-test/rnr_music1.pak')
-  const archive = page.getByRole('link', { name: '기본 다운로드로 받기' })
+  const archive = page.getByRole('link', { name: '문제 파일 일괄 받기' })
   expect(new URL(await archive.getAttribute('href'), 'http://localhost').searchParams.getAll('name')).toEqual(['rnr_music1.pak'])
   await watcher.expectStable()
   await writeFile(path.join(root, 'rnr_music1.pak'), 'good')
@@ -312,7 +279,7 @@ for (const mode of ['launch', 'music']) {
       await expect(page.locator('.repair-results tbody tr').first()).toContainText('불일치')
       await expect(page.locator('.repair-results tbody tr').nth(1)).toContainText('누락')
       await expect(page.locator('.repair-results')).toHaveAttribute('aria-busy', 'true')
-      await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeDisabled()
+      await expect(page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })).toBeDisabled()
       await expect(page.locator('.repair-download-toolbar a')).toHaveAttribute('aria-disabled', 'true')
       await expect(page.locator('.repair-download-toolbar a')).not.toHaveAttribute('href', /./)
       for (const link of await page.getByRole('link', { name: '파일 받기' }).all()) {
@@ -323,9 +290,12 @@ for (const mode of ['launch', 'music']) {
     }
     await page.getByLabel('게임 설치 폴더').setInputFiles(root)
     await assertPending()
+    await expect(page.getByLabel('예상 남은 시간')).toContainText(/약 .*남음/, { timeout: 7000 })
+    await watcher.expectStable()
     await page.evaluate(() => window.__releaseHash())
     await expect(page.locator('.repair-status')).toContainText('검사 완료')
-    await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeEnabled()
+    await expect(page.getByLabel('예상 남은 시간')).toHaveText('예상 남은 시간: 0초')
+    await expect(page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })).toBeEnabled()
     for (const link of await page.getByRole('link', { name: '파일 받기' }).all()) {
       await expect(link).toHaveAttribute('aria-disabled', 'false')
       await expect(link).toHaveAttribute('href', /\/api\/game-repair\/files\//)
@@ -336,15 +306,18 @@ for (const mode of ['launch', 'music']) {
     await assertPending()
     await page.getByRole('button', { name: '검사 취소' }).click()
     await expect(page.locator('.repair-status')).toContainText('검사를 취소했습니다.')
+    await expect(page.getByLabel('예상 남은 시간')).toHaveText('예상 남은 시간: —')
     await expect(page.locator('.repair-results tbody tr td:first-child')).toHaveText(expected)
-    await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeDisabled()
+    await expect(page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })).toBeDisabled()
     for (const link of await page.getByRole('link', { name: '파일 받기' }).all()) await expect(link).not.toHaveAttribute('href', /./)
     await watcher.expectStable()
     await page.getByLabel('게임 설치 폴더').setInputFiles(root)
     await assertPending()
+    await expect(page.getByLabel('예상 남은 시간')).toContainText('계산 중')
     await page.evaluate(() => window.__releaseHash())
     await expect(page.locator('.repair-status')).toContainText('검사 완료')
-    await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeEnabled()
+    await expect(page.getByLabel('예상 남은 시간')).toHaveText('예상 남은 시간: 0초')
+    await expect(page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })).toBeEnabled()
     await watcher.expectStable()
     await watcher.stop()
   })
@@ -385,7 +358,7 @@ test('launch completion alerts for missing or different-size music only, after h
   const warning = '음악 파일도 일부 문제가 발견되었습니다.\n복구 완료 후, 음악 파일 복구도 진행해주세요'
   await expect.poll(() => messages).toEqual([warning])
   await expect(page.locator('.repair-status')).toContainText('검사 완료')
-  await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toBeEnabled()
+  await expect(page.getByRole('link', { name: '문제 파일 일괄 받기', exact: true })).toBeEnabled()
   await expect(page.locator('.repair-results tbody tr').filter({ hasText: 'rnr_music' })).toHaveCount(0)
   expect(new URL(await page.locator('.repair-download-toolbar a').getAttribute('href'), 'http://localhost').searchParams.getAll('name')).toEqual(['hv.dll', 'steam_api.dll', 'rnr_boost_mode.pak'])
   await watcher.expectStable()

@@ -1,6 +1,6 @@
 import { createFileHasher } from './fileHashWorker.js'
 
-export async function inspectInstallation(selectedFiles, manifest, onProgress = () => {}, { signal, createHasher = createFileHasher, mode = 'launch', onRow = () => {} } = {}) {
+export async function inspectInstallation(selectedFiles, manifest, onProgress = () => {}, { signal, createHasher = createFileHasher, mode = 'launch', onRow = () => {}, now = () => performance.now() } = {}) {
   signal?.throwIfAborted()
   const files = Array.from(selectedFiles)
   const folder = files[0]?.webkitRelativePath.split('/')[0]
@@ -19,6 +19,11 @@ export async function inspectInstallation(selectedFiles, manifest, onProgress = 
   if (![...repairTargets(manifest), ...repairTargets(manifest, 'music')].some(file => entries.has(file.name.toLowerCase()))) {
     throw new Error('검사 대상 파일이 없습니다. R2beat 설치 폴더를 선택해주세요.')
   }
+  const totalHashBytes = targets.reduce((total, expected) => total + (entries.get(expected.name.toLowerCase())?.size === expected.size ? expected.size : 0), 0)
+  let readBytes = 0
+  let handledBytes = 0
+  let startedAt = null
+  const timing = (currentBytes = 0) => ({ bytesRead: readBytes + currentBytes, remainingBytes: Math.max(0, totalHashBytes - handledBytes - currentBytes), elapsedMs: startedAt === null ? 0 : now() - startedAt })
   const rows = []
   let hasher
   try {
@@ -28,22 +33,31 @@ export async function inspectInstallation(selectedFiles, manifest, onProgress = 
       const size = file?.size ?? null
       let status = !file ? 'missing' : 'size'
       let actualSha256 = null
-      const progress = bytes => onProgress({ completed: rows.length, total: targets.length, file: expected.name, bytes, size: expected.size })
+      let currentBytes = 0
+      const needsHash = file && size === expected.size
+      if (needsHash) startedAt ??= now()
+      const progress = bytes => {
+        currentBytes = Math.max(currentBytes, Math.min(bytes, expected.size))
+        onProgress({ completed: rows.length, total: targets.length, file: expected.name, bytes: currentBytes, size: expected.size, ...timing(currentBytes) })
+      }
       progress(0)
-      if (file && size === expected.size) {
+      if (needsHash) {
         try {
           hasher ||= createHasher()
           actualSha256 = await hasher.hash(file, progress, signal)
+          currentBytes = expected.size
           status = actualSha256 === expected.sha256.toLowerCase() ? 'ok' : 'hash'
         } catch (error) {
           if (signal?.aborted || error.name === 'AbortError' || error.name === 'WorkerError') throw error
           status = 'unreadable'
         }
       }
+      readBytes += currentBytes
+      if (needsHash) handledBytes += expected.size
       const row = { ...expected, status, sizeOnDisk: size, actualSha256 }
       rows.push(row)
       onRow(row)
-      onProgress({ completed: rows.length, total: targets.length, file: expected.name, bytes: 0, size: 0 })
+      onProgress({ completed: rows.length, total: targets.length, file: expected.name, bytes: 0, size: 0, ...timing() })
     }
   } finally { hasher?.close() }
   signal?.throwIfAborted()

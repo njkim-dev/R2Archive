@@ -132,3 +132,36 @@ test('launch completion checks only root music presence and size without reading
   assert.deepEqual((await check([file('Game.exe', 'game'), file('nested/rnr_music1.pak', 'music'), file('rnr_music.pak', 'bad')])).musicIssues, ['rnr_music1.pak', 'rnr_music.pak'])
   assert.deepEqual((await check([file('Game.exe', 'game'), ignored])).musicIssues, ['rnr_music.pak'])
 })
+
+test('timing counts actual hash bytes and excludes missing, different-size and out-of-scope files', async () => {
+  let clock = 0
+  const updates = []
+  await inspectInstallation([file('Game.exe', 'game'), file('steam_api.dll', 'bad'), file('rnr_boost_mode.pak', 'good')], manifest, update => updates.push(update), {
+    now: () => clock,
+    createHasher: () => ({ async hash(selected, progress) {
+      clock += 2000; progress(2)
+      clock += 1000; progress(4)
+      return selected.name === 'Game.exe' ? digest('game') : digest('good')
+    }, close() {} }),
+  })
+  assert.equal(updates[0].remainingBytes, 8)
+  assert.ok(updates.some(update => update.bytesRead === 2 && update.remainingBytes === 6 && update.elapsedMs === 2000))
+  assert.equal(updates.at(-1).bytesRead, 8)
+  assert.equal(updates.at(-1).remainingBytes, 0)
+  assert.equal(updates.at(-1).elapsedMs, 6000)
+  assert.ok(updates.every((update, index) => !index || update.bytesRead >= updates[index - 1].bytesRead))
+})
+
+test('failed reads remove unreadable work from remaining bytes without inventing read bytes', async () => {
+  const updates = []
+  await inspectInstallation([file('Game.exe', 'game'), file('rnr_boost_mode.pak', 'good')], manifest, update => updates.push(update), {
+    createHasher: () => ({ async hash(selected, progress) {
+      progress(2)
+      if (selected.name === 'Game.exe') throw new Error('unreadable')
+      progress(4)
+      return digest('good')
+    }, close() {} }),
+  })
+  assert.equal(updates.at(-1).bytesRead, 6)
+  assert.equal(updates.at(-1).remainingBytes, 0)
+})
