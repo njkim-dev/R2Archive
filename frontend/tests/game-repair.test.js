@@ -122,3 +122,13 @@ test('cancelling after a reported row rejects rather than returning partial succ
   }), error => error.name === 'AbortError')
   assert.deepEqual(emitted.map(row => row.name), ['hv.dll'])
 })
+
+test('launch completion checks only root music presence and size without reading music bytes', async () => {
+  const reference = { ...manifest, files: [...manifest.files, entry('rnr_music.pak', 'base')] }
+  const check = files => inspectInstallation(files, reference, undefined, options)
+  const ignored = file('RNR_MUSIC1.PAK', 'wrong')
+  ignored.slice = ignored.arrayBuffer = ignored.text = () => { throw new Error('quick music check must not read contents') }
+  assert.deepEqual((await check([file('Game.exe', 'game'), ignored, file('rnr_music.pak', 'base')])).musicIssues, [])
+  assert.deepEqual((await check([file('Game.exe', 'game'), file('nested/rnr_music1.pak', 'music'), file('rnr_music.pak', 'bad')])).musicIssues, ['rnr_music1.pak', 'rnr_music.pak'])
+  assert.deepEqual((await check([file('Game.exe', 'game'), ignored])).musicIssues, ['rnr_music.pak'])
+})

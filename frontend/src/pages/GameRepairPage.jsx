@@ -12,7 +12,7 @@ export default function GameRepairPage() {
   return <main className="repair-page repair-choice-page">
     <header className="repair-heading"><Link to="/">← 처음으로</Link><h1>게임 설치 파일 검사 및 복구</h1><p>어떤 문제가 발생하나요?</p></header>
     <nav className="repair-choices" aria-label="복구 유형 선택">
-      <Link to="?mode=launch">게임 실행이 안 되시나요?</Link>
+      <Link to="?mode=launch">게임 실행이 안되거나 게임이 튕기시나요?</Link>
       <Link to="?mode=music">특정 노래가 튕기시나요?</Link>
     </nav>
   </main>
@@ -29,6 +29,7 @@ function RepairInspection({ mode }) {
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState(null)
   const [scanComplete, setScanComplete] = useState(false)
+  const [musicWarning, setMusicWarning] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('복구 기준 정보를 불러오고 있습니다.')
   const [onlyIssues, setOnlyIssues] = useState(true)
@@ -49,9 +50,17 @@ function RepairInspection({ mode }) {
     return () => { scanController.current?.abort(); downloadController.current?.abort() }
   }, [])
 
+  useEffect(() => {
+    if (!busy && scanComplete && musicWarning) {
+      setMusicWarning(false)
+      window.alert('음악 파일도 일부 문제가 발견되었습니다.\n복구 완료 후, 음악 파일 복구도 진행해주세요')
+    }
+  }, [busy, scanComplete, musicWarning])
+
   async function scan(selected) {
     setResult(null)
     setScanComplete(false)
+    setMusicWarning(false)
     const checked = await inspectInstallation(selected, manifest, ({ completed, total, file, bytes: read, size }) => {
       setProgress((completed + (size ? read / size : 0)) / total * 100)
       setMessage(`SHA-256 검사 중 · ${completed}/${total} · ${file}${size ? ` (${Math.floor(read / size * 100)}%)` : ''}`)
@@ -61,6 +70,7 @@ function RepairInspection({ mode }) {
     setFolderName(checked.folder)
     setResult(checked)
     setScanComplete(true)
+    setMusicWarning(checked.musicIssues.length > 0)
     setProgress(100)
     const issues = checked.rows.filter(row => row.status !== 'ok').length
     setMessage(issues ? `검사 완료 · 확인이 필요한 파일 ${issues}개. 개별 파일 또는 ZIP으로 내려받아 설치 폴더에 넣은 후 다시 검사해주세요.` : '검사 대상 파일의 SHA-256이 모두 일치합니다. 계속 종료된다면 보안 프로그램의 보호 기록과 게임 오류 로그를 확인해주세요.')

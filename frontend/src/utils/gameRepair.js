@@ -46,7 +46,9 @@ export async function inspectInstallation(selectedFiles, manifest, onProgress = 
       onProgress({ completed: rows.length, total: targets.length, file: expected.name, bytes: 0, size: 0 })
     }
   } finally { hasher?.close() }
-  return { folder, rows }
+  signal?.throwIfAborted()
+  const musicIssues = mode === 'launch' ? repairTargets(manifest, 'music').filter(expected => entries.get(expected.name.toLowerCase())?.size !== expected.size).map(file => file.name) : []
+  return { folder, rows, musicIssues }
 }
 
 export function repairFileUrl(manifest, file) {
