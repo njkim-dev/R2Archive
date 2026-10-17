@@ -33,6 +33,8 @@ for (const portrait of [false, true]) {
     await expect(official).toHaveAttribute('href', 'https://vfunkr.valofe.com/library/r2beat-ko')
     await expect(official).toHaveAttribute('target', '_blank')
     await expect(official).toHaveAttribute('rel', 'noopener noreferrer')
+    await page.waitForLoadState('load')
+    await official.click({ trial: true })
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
     expect(await page.locator('.archive-portal').evaluate(node => getComputedStyle(node).backgroundImage.includes('url('))).toBe(false)
     if (portrait) {
