@@ -133,6 +133,26 @@ def _clean_referrer(referrer: str | None) -> str | None:
     return f"{parsed.scheme}://{host}{port}{path}"[:2048]
 
 
+def _recent_pageviews(cur):
+    cur.execute(
+        """
+        SELECT
+          to_char(p.created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI:SS') AS at,
+          p.path,
+          p.server,
+          p.device,
+          p.user_id,
+          p.session_id,
+          u.nickname
+        FROM site_pageviews p
+        LEFT JOIN users u ON u.id = p.user_id
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT 30
+        """
+    )
+    return _rows(cur)
+
+
 def _visitor_signature(visitor_id: str) -> str:
     return hmac.new(
         _ANALYTICS_SECRET,
@@ -478,21 +498,7 @@ def analytics_summary(request: Request, days: int = 30):
             )
             referrers = _rows(cur)
 
-            cur.execute(
-                """
-                SELECT
-                  to_char(created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI:SS') AS at,
-                  path,
-                  server,
-                  device,
-                  user_id,
-                  session_id
-                FROM site_pageviews
-                ORDER BY created_at DESC
-                LIMIT 30
-                """
-            )
-            recent = _rows(cur)
+            recent = _recent_pageviews(cur)
 
     return {
         "days": days,

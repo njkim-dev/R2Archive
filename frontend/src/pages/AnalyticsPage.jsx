@@ -146,7 +146,10 @@ function AnalyticsContent({ data, days, setDays, loading, error }) {
               {(data?.recent || []).map((row, i) => (
                 <div key={`${row.at}-${i}`} className="ana-recent-row">
                   <span className="ana-time">{row.at}</span>
-                  <span className="ana-name">{row.path}</span>
+                  <div className="ana-visit">
+                    <span className="ana-visitor" title={row.nickname || (row.user_id ? '닉네임 없음' : '비로그인')}>{row.nickname || (row.user_id ? '닉네임 없음' : '비로그인')}</span>
+                    <span className="ana-name" title={row.path}>{row.path}</span>
+                  </div>
                   <span className="ana-pill">{row.server}</span>
                   <span className="ana-pill muted">{row.device}</span>
                 </div>

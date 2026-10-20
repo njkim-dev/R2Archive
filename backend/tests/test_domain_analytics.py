@@ -22,7 +22,8 @@ class SqliteCursor:
     def __init__(self, conn):
         self.cur = conn.cursor()
 
-    def execute(self, query, params):
+    def execute(self, query, params=()):
+        query = query.replace("to_char(p.created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI:SS')", "p.created_at")
         self.cur.execute(query.replace("::int", "").replace("::text", "").replace("%s", "?").replace("%%", "%"), params)
 
     @property
@@ -37,6 +38,23 @@ class SqliteCursor:
 
 
 class DomainAnalyticsTests(unittest.TestCase):
+    def test_recent_visits_include_current_nickname_without_losing_anonymous_or_missing_users(self):
+        with sqlite3.connect(":memory:") as db:
+            db.execute("CREATE TABLE users(id INTEGER PRIMARY KEY, nickname TEXT, email TEXT)")
+            db.execute("CREATE TABLE site_pageviews(id INTEGER PRIMARY KEY, created_at TEXT, path TEXT, server TEXT, device TEXT, user_id INTEGER, session_id TEXT)")
+            db.executemany("INSERT INTO users VALUES (?, ?, ?)", [(1, "방문자", "private@example.com"), (2, None, "hidden@example.com")])
+            for i in range(1, 36):
+                db.execute("INSERT INTO site_pageviews VALUES (?, ?, ?, ?, ?, ?, ?)", (i, "2026-10-20 10:00:00", "/", "kr", "desktop", [None, 1, 2, 999][i % 4], str(i)))
+            rows = analytics._recent_pageviews(SqliteCursor(db))
+            self.assertEqual([row["session_id"] for row in rows], [str(i) for i in range(35, 5, -1)])
+            self.assertTrue(any(row["user_id"] is None for row in rows))
+            self.assertTrue(any(row["user_id"] == 999 for row in rows))
+            for row in rows:
+                self.assertEqual(row["nickname"], "방문자" if row["user_id"] == 1 else None)
+                self.assertEqual(set(row), {"at", "path", "server", "device", "user_id", "session_id", "nickname"})
+            db.execute("UPDATE users SET nickname = '새 닉네임' WHERE id = 1")
+            self.assertTrue(all(row["nickname"] == "새 닉네임" for row in analytics._recent_pageviews(SqliteCursor(db)) if row["user_id"] == 1))
+
     def test_pageview_uses_trusted_request_host_and_strips_private_url_parts(self):
         for host in analytics.TRACKED_DOMAINS:
             self.assertEqual(analytics._pageview_path(request(host), "https://attacker.example/groups?token=secret#x"), f"https://{host}/groups")

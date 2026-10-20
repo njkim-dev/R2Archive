@@ -6,7 +6,7 @@ function summary(days, count = 5) {
     { domain: 'r2archive.com', visitors: count, pageviews: 8 },
     { domain: 'music.r2archive.com', visitors: count + 1, pageviews: 12 },
     { domain: 'unknown', visitors: 50, pageviews: 90 },
-  ], main_to_music: { visitors: count - 1 }, pages: Array.from({ length: count }, (_, i) => ({ path: `/page-${i}`, visitors: 1, pageviews: 2 })), servers: [], devices: [], referrers: [], recent: Array.from({ length: count }, (_, i) => ({ at: `2026-10-20 10:00:0${i}`, path: '/', server: 'kr', device: 'desktop' })) }
+  ], main_to_music: { visitors: count - 1 }, pages: Array.from({ length: count }, (_, i) => ({ path: `/page-${i}`, visitors: 1, pageviews: 2 })), servers: [], devices: [], referrers: [], recent: Array.from({ length: count }, (_, i) => ({ at: `2026-10-20 10:00:0${i}`, path: '/', server: 'kr', device: 'desktop', user_id: i === 1 ? null : i + 1, nickname: ['방문자테스터', null, null, '아주긴닉네임을사용하는방문자테스터입니다'][i % 4] })) }
 }
 
 async function apiData(path, admin = false) {
@@ -36,6 +36,12 @@ test('domain statistics preserve layout through initial load, range refresh, sta
   await expect(page.locator('.ana-domain-table tbody tr').filter({ hasText: 'music.r2archive.com' })).toContainText('6')
   await expect(page.locator('.ana-transition strong')).toHaveText('4명')
   await expect(page.locator('.ana-domain-table')).toContainText('도메인 미구분')
+  await expect(page.locator('.ana-visitor').nth(0)).toHaveText('방문자테스터')
+  await expect(page.locator('.ana-visitor').nth(1)).toHaveText('비로그인')
+  await expect(page.locator('.ana-visitor').nth(2)).toHaveText('닉네임 없음')
+  const longName = page.locator('.ana-visitor').nth(3)
+  await expect(longName).toHaveAttribute('title', '아주긴닉네임을사용하는방문자테스터입니다')
+  expect(await page.locator('.ana-recent').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
   await watcher.expectStable()
   await page.getByRole('button', { name: '7일', exact: true }).click()
   await expect.poll(() => pending.length).toBe(1)
