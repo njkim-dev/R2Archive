@@ -21,7 +21,7 @@ function currentDevice() {
 
 export default function AnalyticsTracker() {
   const location = useLocation()
-  const lastSentRef = useRef({ path: '', at: 0 })
+  const lastSentRef = useRef({ path: '', at: 0, url: null })
 
   useEffect(() => {
     const send = () => {
@@ -29,12 +29,12 @@ export default function AnalyticsTracker() {
       const now = Date.now()
       const last = lastSentRef.current
       if (last.path === path && now - last.at < 10000) return
-      lastSentRef.current = { path, at: now }
+      lastSentRef.current = { path, at: now, url: window.location.origin + path }
       trackPageview({
         path,
         title: document.title,
         server: currentServer(path),
-        referrer: document.referrer || null,
+        referrer: last.url || document.referrer || null,
         device: currentDevice(),
       })
     }

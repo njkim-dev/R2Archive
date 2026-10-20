@@ -18,6 +18,10 @@ router = APIRouter(prefix="/api", tags=["analytics"])
 
 VALID_SERVERS = {"kr", "xyx", "pmang", "unknown"}
 VALID_CATALOG_SERVERS = {"kr", "xyx", "pmang"}
+TRACKED_DOMAINS = ("r2archive.com", "music.r2archive.com", "xyx.r2archive.com")
+DOMAIN_SQL = "CASE " + " ".join(
+    f"WHEN path LIKE 'https://{host}/%%' THEN '{host}'" for host in TRACKED_DOMAINS
+) + " ELSE 'unknown' END"
 VALID_DEVICES = {"desktop", "mobile", "tablet", "unknown"}
 CATALOG_COUNT_TABLES = {
     "kr": "songs",
@@ -69,6 +73,41 @@ def _clean_path(path: str) -> str:
     if not value.startswith("/"):
         value = f"/{value}"
     return value[:512]
+
+
+def _pageview_path(request: Request, path: str) -> str:
+    clean = _clean_path(path)
+    host = (request.headers.get("host") or "").split(":", 1)[0].strip().lower()
+    return f"https://{host}{clean}" if host in TRACKED_DOMAINS else clean
+
+
+def _domain_summary(cur, start):
+    cur.execute(
+        f"""
+        SELECT {DOMAIN_SQL} AS domain,
+               COUNT(*)::int AS pageviews,
+               COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
+        FROM site_pageviews
+        WHERE created_at >= %s
+        GROUP BY domain
+        ORDER BY pageviews DESC, domain ASC
+        """,
+        (start,),
+    )
+    domains = _rows(cur)
+    cur.execute(
+        f"""
+        SELECT COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
+        FROM site_pageviews
+        WHERE created_at >= %s
+          AND ({DOMAIN_SQL}) = 'music.r2archive.com'
+          AND (referrer IN ('https://r2archive.com', 'http://r2archive.com')
+               OR referrer LIKE 'https://r2archive.com/%%'
+               OR referrer LIKE 'http://r2archive.com/%%')
+        """,
+        (start,),
+    )
+    return domains, {"visitors": int(cur.fetchone()[0])}
 
 
 def _clean_referrer(referrer: str | None) -> str | None:
@@ -211,7 +250,7 @@ def create_pageview(request: Request, response: Response, body: PageviewCreate):
                 conn.commit()
                 return {"ok": True, "ignored": "admin"}
 
-            path = _clean_path(body.path)
+            path = _pageview_path(request, body.path)
             if _cleanup_due():
                 cur.execute(
                     "DELETE FROM site_pageviews WHERE created_at < NOW() - INTERVAL '180 days'"
@@ -423,6 +462,7 @@ def analytics_summary(request: Request, days: int = 30):
                 (start,),
             )
             devices = _rows(cur)
+            domains, main_to_music = _domain_summary(cur, start)
 
             cur.execute(
                 """
@@ -462,6 +502,8 @@ def analytics_summary(request: Request, days: int = 30):
         "pages": pages,
         "servers": servers,
         "devices": devices,
+        "domains": domains,
+        "main_to_music": main_to_music,
         "referrers": referrers,
         "recent": recent,
     }

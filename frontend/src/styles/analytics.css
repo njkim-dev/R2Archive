@@ -260,3 +260,79 @@
     grid-column: 1 / -1;
   }
 }
+
+.ana-status {
+  height: 42px;
+  overflow: auto;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+.ana-domains {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.ana-domain-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+.ana-domain-table th,
+.ana-domain-table td {
+  height: 42px;
+  padding: 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ana-domain-table th {
+  text-align: left;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.ana-domain-table th:first-child { width: 54%; }
+.ana-domain-table td,
+.ana-domain-table thead th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ana-domain-note,
+.ana-transition p {
+  margin-top: 12px;
+  color: var(--fg-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ana-transition strong {
+  display: block;
+  margin: 24px 0;
+  color: var(--accent);
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+}
+.ana-transition small {
+  margin-left: 8px;
+  color: var(--fg-3);
+  font-size: 13px;
+  font-weight: 400;
+}
+.ana-grid .ana-panel {
+  height: 340px;
+  display: flex;
+  flex-direction: column;
+}
+.ana-grid .ana-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+.ana-recent {
+  height: 360px;
+  overflow: auto;
+  align-content: start;
+}
+@media (max-width: 767px) {
+  .ana-domains { grid-template-columns: 1fr; }
+  .ana-transition strong { margin: 14px 0; }
+}
