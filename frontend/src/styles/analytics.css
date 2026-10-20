@@ -263,6 +263,7 @@
 
 .ana-status {
   height: 42px;
+  flex-shrink: 0;
   overflow: auto;
   color: var(--fg-3);
   font-size: 12px;
