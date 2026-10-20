@@ -41,6 +41,11 @@ for (const host of ['music.r2archive.com', 'xyx.r2archive.com']) {
     const alpha = await page.locator(panel).evaluate(node => Number(getComputedStyle(node).backgroundColor.match(/[\d.]+/g)?.[3] ?? 1))
     expect(alpha).toBeGreaterThanOrEqual(.85)
     releaseImage()
+    await layer.evaluate(async node => {
+      const image = new Image()
+      image.src = getComputedStyle(node).backgroundImage.match(/url\(["']?(.*?)["']?\)/)[1]
+      await image.decode()
+    })
     await watcher.expectStable()
     releaseCatalog()
     await expect(page.locator(mobile ? '.mob-card' : '.tbl-row')).toHaveCount(1)
@@ -51,5 +56,6 @@ for (const host of ['music.r2archive.com', 'xyx.r2archive.com']) {
     await expect(layer).toHaveCount(1)
     await expect(page.locator('.app > .main, .app-mobile')).toBeVisible()
     await expect(layer).toHaveCSS('position', 'fixed')
+    await page.unrouteAll({ behavior: 'wait' })
   })
 }

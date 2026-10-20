@@ -83,4 +83,5 @@ test('cross-domain entry keeps the referring main domain but SPA navigation uses
   await expect.poll(() => events.some(row => row.path === '/updates')).toBe(true)
   const navigation = events.find(row => row.path === '/updates')
   expect(navigation.referrer).toBe('https://music.r2archive.com/')
+  await page.unrouteAll({ behavior: 'wait' })
 })
