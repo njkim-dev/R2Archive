@@ -5,6 +5,7 @@ export const repairStatusError = '복구 서비스 운영 상태를 확인하지
 export default function useRepairAvailability() {
   const [status, setStatus] = useState(null)
   const requestId = useRef(0)
+  const lastResponse = useRef({ id: 0, status: null })
   const refresh = useCallback(async () => {
     const id = ++requestId.current
     let data
@@ -20,7 +21,8 @@ export default function useRepairAvailability() {
       data = { enabled: false, revision: 'unavailable', message: repairStatusError }
     } finally { window.clearTimeout(timeout) }
     if (id === requestId.current) setStatus(data)
-    return id === requestId.current ? data : null
+    if (id > lastResponse.current.id) lastResponse.current = { id, status: data }
+    return lastResponse.current.status
   }, [])
   useEffect(() => {
     refresh()

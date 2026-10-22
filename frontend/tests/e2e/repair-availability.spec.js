@@ -98,7 +98,12 @@ test('closed or unavailable status blocks both repair flows and non-admin manage
 test('polling closes an active hash scan and reopening requires a new complete scan', async ({ page }, info) => {
   if (info.project.name.endsWith('768')) await page.setViewportSize({ width: 390, height: 900 })
   const state = { enabled: true, revision: 'a' }
-  await mock(page, state)
+  let holdReads = false
+  const reads = []
+  await mock(page, state, false, async (route, url) => {
+    if (holdReads && url.pathname === '/api/game-repair/status') { reads.push(route); return true }
+    return false
+  })
   let releaseHash
   const gate = new Promise(resolve => { releaseHash = resolve })
   await page.route('**/fileHash.worker.js*', async route => { await gate; await route.continue().catch(() => {}) })
@@ -110,8 +115,15 @@ test('polling closes an active hash scan and reopening requires a new complete s
   const scan = page.getByRole('button', { name: '설치 폴더 선택 · 검사' })
   await expect(scan).toBeEnabled()
   const watcher = await watchLayout(page, ['.repair-availability', '.repair-toolbar', '.repair-status', '.repair-results'])
+  holdReads = true
   await page.getByLabel('게임 설치 폴더').setInputFiles(folder)
+  await expect.poll(() => reads.length).toBe(1)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect.poll(() => reads.length).toBe(2)
+  holdReads = false
+  await reads.shift().fulfill({ json: state })
   await expect(page.locator('.repair-status')).toContainText('SHA-256 검사 중')
+  await reads.shift().fulfill({ json: state })
   Object.assign(state, { enabled: false, revision: 'b' })
   await expect(page.locator('.repair-availability')).toContainText(closedMessage, { timeout: 15000 })
   await expect(scan).toBeDisabled()
