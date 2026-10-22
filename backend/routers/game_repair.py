@@ -1,16 +1,78 @@
 import json
 import zipfile
 import os
+import tempfile
+import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel, StrictBool
+
+from auth import require_admin
 
 router = APIRouter(prefix="/api/game-repair", tags=["game-repair"])
 REPAIR_DIR = Path(os.environ.get("GAME_REPAIR_DIR", Path(__file__).resolve().parents[2] / "game_repair"))
+CONTROL_FILE = Path(os.environ.get("GAME_REPAIR_STATUS_FILE", Path(__file__).resolve().parents[2] / "record_screenshots" / ".service-state" / "game-repair.json"))
+MAINTENANCE_MESSAGE = "게임 점검 및 복구 기준 파일 확인으로 검사와 다운로드를 일시 중단했습니다. 준비가 끝나면 다시 이용해주세요."
 
 
-def load_manifest():
+class RepairAvailability(BaseModel):
+    enabled: StrictBool
+
+
+def load_status():
+    try:
+        data = json.loads(CONTROL_FILE.read_text(encoding="utf-8"))
+        if type(data["enabled"]) is not bool or not isinstance(data["revision"], str) or not data["revision"]:
+            raise ValueError("invalid repair status")
+        return {"enabled": data["enabled"], "revision": data["revision"], "message": "" if data["enabled"] else MAINTENANCE_MESSAGE}
+    except FileNotFoundError:
+        return {"enabled": True, "revision": "initial", "message": ""}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {"enabled": False, "revision": "unavailable", "message": "복구 서비스 운영 상태를 확인 중입니다. 잠시 후 다시 시도해주세요."}
+
+
+def require_open():
+    status = load_status()
+    if not status["enabled"]:
+        raise HTTPException(status_code=503, detail=status["message"], headers={"Cache-Control": "no-store", "Retry-After": "30"})
+
+
+@router.get("/status")
+def get_status():
+    return JSONResponse(load_status(), headers={"Cache-Control": "no-store"})
+
+
+@router.put("/admin/status")
+def update_status(request: Request, body: RepairAvailability):
+    require_admin(request)
+    if body.enabled:
+        load_manifest(check_status=False)
+    data = {"enabled": body.enabled, "revision": str(uuid.uuid4())}
+    temporary = None
+    try:
+        CONTROL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=CONTROL_FILE.parent, delete=False) as target:
+            temporary = target.name
+            json.dump(data, target)
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(temporary, CONTROL_FILE)
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail="운영 상태를 저장하지 못했습니다. 다시 시도해주세요.") from exc
+    finally:
+        if temporary:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+    return JSONResponse(load_status(), headers={"Cache-Control": "no-store"})
+
+
+def load_manifest(check_status=True):
+    if check_status:
+        require_open()
     try:
         manifest = json.loads((REPAIR_DIR / "manifest.json").read_text(encoding="utf-8"))
         if not manifest["files"] or not str(manifest["version"]).isdigit():

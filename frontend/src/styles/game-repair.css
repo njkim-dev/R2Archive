@@ -43,3 +43,9 @@
 @media (max-width: 600px) { .repair-choices { grid-template-columns: 1fr; } .repair-choices a { min-height: 110px; font-size: 18px; } }
 
 .repair-results a[aria-disabled="true"] { color: var(--fg-3); pointer-events: none; }
+.repair-availability { position: relative; height: 100px; overflow: auto; margin-top: 18px; padding: 12px 16px 32px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-1); color: var(--fg-2); }
+.repair-admin-link { position: absolute; bottom: 10px; right: 16px; color: var(--accent); }
+.repair-availability p { height: 100%; overflow: auto; }
+.repair-choices a[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+.repair-admin-status { height: 80px; overflow: auto; color: var(--fg-2); padding: 16px 0; }
+.repair-admin-message { height: 90px; overflow: auto; padding: 14px 0; color: var(--fg-2); }

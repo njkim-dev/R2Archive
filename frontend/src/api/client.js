@@ -3,6 +3,7 @@ import { getSessionId } from '../utils/helpers'
 import { apiPath, isXyxMode } from '../utils/serverMode'
 
 const api = axios.create({ baseURL: '/api', withCredentials: true })
+export const setRepairAvailability = (enabled) => api.put('/game-repair/admin/status', { enabled }).then(r => r.data)
 
 let _rateLimitAlertCooldown = 0
 api.interceptors.response.use(

@@ -3,15 +3,58 @@ import json
 import zipfile
 import tempfile
 import unittest
+import os
+import jwt
 from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+os.environ.setdefault("SESSION_SECRET", "repair-availability-test-secret")
 from routers import game_repair
+import auth
 
 
 class GameRepairTests(unittest.TestCase):
+    def test_admin_can_persist_close_and_reopen_and_all_download_endpoints_enforce_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "snapshot").mkdir()
+            (root / "snapshot" / "hv.dll").write_bytes(b"good")
+            (root / "manifest.json").write_text(json.dumps({"version": "1", "snapshot": "snapshot", "files": [{"name": "hv.dll", "size": 4}]}))
+            app = FastAPI()
+            app.include_router(game_repair.router)
+            client = TestClient(app)
+            control = root / "persistent" / "status.json"
+            with patch.object(game_repair, "REPAIR_DIR", root), patch.object(game_repair, "CONTROL_FILE", control):
+                self.assertTrue(client.get("/api/game-repair/status").json()["enabled"])
+                self.assertEqual(client.put("/api/game-repair/admin/status", json={"enabled": False}).status_code, 401)
+                self.assertFalse(control.exists())
+                client.cookies.set(auth.SESSION_COOKIE, jwt.encode({"sub": "1"}, auth.SESSION_SECRET, algorithm="HS256"))
+                with patch.object(auth, "fetch_user", return_value={"id": 1, "is_admin": False}):
+                    self.assertEqual(client.put("/api/game-repair/admin/status", json={"enabled": False}).status_code, 403)
+                self.assertFalse(control.exists())
+                with patch.object(auth, "fetch_user", return_value={"id": 1, "is_admin": True}):
+                    self.assertEqual(client.put("/api/game-repair/admin/status", json={"enabled": "false"}).status_code, 422)
+                    closed = client.put("/api/game-repair/admin/status", json={"enabled": False})
+                    self.assertEqual(closed.status_code, 200)
+                    self.assertFalse(closed.json()["enabled"])
+                    self.assertEqual(json.loads(control.read_text())["revision"], closed.json()["revision"])
+                    for url in ["/manifest", "/files/snapshot/hv.dll", "/archive/snapshot?name=hv.dll"]:
+                        response = client.get("/api/game-repair" + url)
+                        self.assertEqual(response.status_code, 503)
+                        self.assertEqual(response.headers["cache-control"], "no-store")
+                    self.assertFalse(TestClient(app).get("/api/game-repair/status").json()["enabled"])
+                    opened = client.put("/api/game-repair/admin/status", json={"enabled": True})
+                    self.assertTrue(opened.json()["enabled"])
+                    self.assertNotEqual(opened.json()["revision"], closed.json()["revision"])
+                    self.assertEqual(client.get("/api/game-repair/files/snapshot/hv.dll").content, b"good")
+                    control.write_text("corrupt")
+                    self.assertFalse(client.get("/api/game-repair/status").json()["enabled"])
+                    self.assertEqual(client.get("/api/game-repair/manifest").status_code, 503)
+                    (root / "manifest.json").unlink()
+                    self.assertEqual(client.put("/api/game-repair/admin/status", json={"enabled": True}).status_code, 503)
+
     def test_only_current_allowlisted_snapshot_files_are_downloadable(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

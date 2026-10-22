@@ -32,6 +32,7 @@ async function setup(page, gate = Promise.resolve(), reference = manifest) {
   await page.context().route('**/api/**', async route => {
     const urlPath = new URL(route.request().url()).pathname
     if (!urlPath.startsWith('/api/')) return route.continue()
+    if (urlPath === '/api/game-repair/status') return route.fulfill({ json: { enabled: true, revision: 'initial', message: '' } })
     if (urlPath === '/api/game-repair/manifest') { await gate; return route.fulfill({ json: reference }) }
     if (urlPath.startsWith('/api/game-repair/files/')) return route.fulfill({ body: 'good', contentType: 'application/octet-stream' })
     if (urlPath === '/api/auth/me') return route.fulfill({ json: { user: null } })

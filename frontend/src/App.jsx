@@ -29,6 +29,7 @@ const FeedbackPage = lazy(() => import('./pages/FeedbackPage'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 const UpdateHistoryPage = lazy(() => import('./pages/UpdateHistoryPage'))
 const GameRepairPage = lazy(() => import('./pages/GameRepairPage'))
+const RepairAdminPage = lazy(() => import('./pages/RepairAdminPage'))
 const ArchiveHomePage = lazy(() => import('./pages/ArchiveHomePage'))
 
 function CloseModalOnCataloglessRoutes() {
@@ -39,6 +40,7 @@ function CloseModalOnCataloglessRoutes() {
     const shouldClose =
       path === '/feedback' ||
       path === '/analytics' ||
+      path.startsWith('/game-repair') ||
       path === '/groups' ||
       path.startsWith('/groups/') ||
       ((path === '/personal-categories' || path.startsWith('/personal-categories/')) && !location.state?.keepCatalogOpen)
@@ -128,7 +130,7 @@ export default function App() {
   }, [songs])
 
   useEffect(() => {
-    if (portalHost || ['/updates', '/game-repair'].includes(appLocation.pathname)) return
+    if (portalHost || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
     let cancelled = false
     loadCatalog().then(success => {
       if (!success || cancelled) return
@@ -168,6 +170,7 @@ export default function App() {
           {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
           {!xyxMode && <Route path="/updates" element={<UpdateHistoryPage />} />}
           {!xyxMode && <Route path="/game-repair" element={<GameRepairPage />} />}
+          <Route path="/game-repair/admin" element={<RepairAdminPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

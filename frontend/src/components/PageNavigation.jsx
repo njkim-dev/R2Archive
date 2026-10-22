@@ -42,6 +42,7 @@ export default function PageNavigation({ onNavigate }) {
         {isAdmin && (
           <NavLink to="/analytics" className={linkClass} onClick={handleClick()}><span>접속 통계</span></NavLink>
         )}
+        {isAdmin && <NavLink to="/game-repair/admin" className={linkClass} onClick={handleClick()}><span>복구 기능 관리</span></NavLink>}
         {!xyxMode && (
           <NavLink to="/feedback" className={linkClass} onClick={handleClick()}><span>피드백</span></NavLink>
         )}
