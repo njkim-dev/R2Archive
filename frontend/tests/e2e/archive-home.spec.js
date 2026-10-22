@@ -5,6 +5,7 @@ import { watchLayout } from './layout.js'
 async function portalRoute(page, baseURL, gate) {
   await page.route('http://r2archive.com/**', async route => {
     const url = new URL(route.request().url())
+    if (url.pathname === '/api/game-repair/status') return route.fulfill({ json: { enabled: true, revision: 'initial', message: '' } })
     if (url.pathname.startsWith('/api/')) return route.fulfill({ json: { user: null } })
     if (route.request().resourceType() === 'image' && url.pathname.includes('/assets/archive-home/')) await gate
     const response = await route.fetch({ url: `${baseURL}${url.pathname}${url.search}` })
@@ -49,6 +50,7 @@ for (const portrait of [false, true]) {
     await expect(page.locator('.repair-guide')).not.toContainText('기본 설치 경로')
     await expect(page.locator('.repair-guide')).not.toContainText('SHA-256')
     await expect(page.locator('.repair-heading p')).toHaveText('알투비트의 주요 게임 파일을 검사합니다.')
+    await page.unrouteAll({ behavior: 'wait' })
   })
 }
 
