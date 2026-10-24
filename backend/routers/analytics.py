@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user_id, require_admin
 from database import get_conn
-from rate_limit import limiter
+from rate_limit import client_ip, limiter
 
 router = APIRouter(prefix="/api", tags=["analytics"])
 
@@ -192,7 +192,7 @@ def _analytics_client_key(request: Request) -> str:
     visitor_id = _visitor_id_from_cookie(request)
     if visitor_id:
         return f"analytics:visitor:{visitor_id}"
-    peer = request.client.host if request.client else "unknown"
+    peer = client_ip(request)
     fingerprint = "|".join((
         peer,
         (request.headers.get("user-agent") or "")[:300],

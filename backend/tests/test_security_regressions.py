@@ -21,7 +21,7 @@ from starlette.requests import Request
 
 from models import ManualRecordsBulk, RecordCreate
 from rate_limit import ip_key
-from routers import auth_oauth, parse_screenshot, personal_categories, records, users, xyx_categories
+from routers import analytics, groups, auth_oauth, parse_screenshot, personal_categories, records, users, xyx_categories
 from work_capacity import WorkCapacity
 
 
@@ -334,6 +334,56 @@ class RankingEvidenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([row.id for row in result], [4])
         finally:
             conn.close()
+
+
+class AnalyticsVisitorTests(unittest.TestCase):
+    def test_bootstrap_keys_use_trusted_client_ip_and_ignore_untrusted_spoofing(self):
+        with patch.object(analytics, "get_current_user_id", return_value=None), patch.object(
+            analytics, "_visitor_id_from_cookie", return_value=None
+        ):
+            key = analytics._analytics_client_key
+            self.assertNotEqual(key(request(forwarded="203.0.113.1")), key(request(forwarded="203.0.113.2")))
+            self.assertEqual(key(request("198.51.100.1", "203.0.113.1")), key(request("198.51.100.1", "203.0.113.2")))
+            self.assertEqual(key(request(forwarded="203.0.113.1, 203.0.113.2")), key(request()))
+
+    def test_authenticated_and_signed_visitor_keys_remain_stable_across_ips(self):
+        for user, visitor, expected in [(7, None, "analytics:user:7"), (None, "signed-visitor", "analytics:visitor:signed-visitor")]:
+            with self.subTest(user=user), patch.object(analytics, "get_current_user_id", return_value=user), patch.object(
+                analytics, "_visitor_id_from_cookie", return_value=visitor
+            ):
+                for address in ("203.0.113.1", "203.0.113.2"):
+                    self.assertEqual(analytics._analytics_client_key(request(forwarded=address)), expected)
+
+
+class GroupFeedAccessTests(unittest.TestCase):
+    def test_feed_links_agree_with_file_endpoint_for_every_access_combination(self):
+        for visibility in ("private", "group", "public"):
+            for show in (False, True):
+                for shares_group in (False, True):
+                    for viewer in (1, 2):
+                        with self.subTest(visibility=visibility, show=show, shares_group=shares_group, viewer=viewer):
+                            expected = viewer == 1 or (show and (visibility == "public" or (visibility == "group" and shares_group)))
+                            db = DB(visibility=visibility, show=show, same_group=shares_group)
+                            feed_row = ("score", datetime.now(), 1, "Owner", None, 11, "Song", 99.0,
+                                        1, "image.png", "https://youtu.be/test", show, visibility, shares_group)
+                            with patch.object(groups, "get_conn", db.connect), patch.object(groups, "require_user_id", return_value=viewer), patch.object(
+                                groups, "_ensure_member_or_admin"
+                            ), patch.object(db, "execute") as execute, patch.object(db, "fetchall", return_value=[feed_row], create=True):
+                                feed = groups.get_group_feed(request(), 10)
+                                self.assertEqual(execute.call_args.args[1], (10, viewer, 10, 80))
+                            self.assertEqual(bool(feed[0]["screenshot_url"]), expected)
+                            self.assertEqual(bool(feed[0]["youtube_url"]), expected)
+                            with tempfile.TemporaryDirectory() as folder:
+                                Path(folder, "image.png").write_bytes(b"test")
+                                with patch.object(records, "get_conn", db.connect), patch.object(records, "get_current_user_id", return_value=viewer), patch.object(
+                                    records, "_SCREENSHOTS_DIR", Path(folder)
+                                ):
+                                    if expected:
+                                        self.assertEqual(records.get_record_screenshot(request(), 1).status_code, 200)
+                                    else:
+                                        with self.assertRaises(HTTPException) as caught:
+                                            records.get_record_screenshot(request(), 1)
+                                        self.assertEqual(caught.exception.status_code, 403)
 
 
 if __name__ == "__main__": unittest.main()

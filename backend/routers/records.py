@@ -17,6 +17,7 @@ from auth import fetch_user, get_current_user_id, require_user_id
 from database import get_conn
 from models import RecordCreate, RecordResponse
 from rate_limit import limiter, ip_song_key
+from record_policy import can_view_screenshot
 from routers.songs import ensure_active_song, get_active_song_combo
 
 _YT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{11}$')
@@ -428,24 +429,22 @@ def get_record_screenshot(request: Request, record_id: int):
     owner_uid, path, owner_show, visibility = row
     is_mine = (current_uid is not None and owner_uid is not None
                and int(owner_uid) == int(current_uid))
-    if not is_mine:
-        allowed = bool(owner_show and visibility == "public")
-        if owner_show and visibility == "group" and current_uid is not None and owner_uid is not None:
-            with get_conn() as conn2:
-                with conn2.cursor() as cur2:
-                    cur2.execute(
-                        """
-                        SELECT 1 FROM group_members me
-                        JOIN group_members them ON them.group_id = me.group_id
-                        WHERE me.user_id = %s AND them.user_id = %s
-                        LIMIT 1
-                        """,
-                        (current_uid, int(owner_uid)),
-                    )
-                    if cur2.fetchone():
-                        allowed = True
-        if not allowed:
-            raise HTTPException(status_code=403, detail="공유되지 않은 스크린샷입니다")
+    shares_group = False
+    if not is_mine and owner_show and visibility == "group" and current_uid is not None and owner_uid is not None:
+        with get_conn() as conn2:
+            with conn2.cursor() as cur2:
+                cur2.execute(
+                    """
+                    SELECT 1 FROM group_members me
+                    JOIN group_members them ON them.group_id = me.group_id
+                    WHERE me.user_id = %s AND them.user_id = %s
+                    LIMIT 1
+                    """,
+                    (current_uid, int(owner_uid)),
+                )
+                shares_group = cur2.fetchone() is not None
+    if not can_view_screenshot(owner_uid, current_uid, visibility, owner_show, shares_group):
+        raise HTTPException(status_code=403, detail="공유되지 않은 스크린샷입니다")
 
     safe_name = Path(path).name
     file_path = (_SCREENSHOTS_DIR / safe_name).resolve()

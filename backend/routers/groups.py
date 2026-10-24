@@ -36,7 +36,7 @@ from pydantic import BaseModel, Field
 
 from auth import require_user_id, fetch_user
 from database import get_conn
-from record_policy import SCREENSHOT_RECORD_ELIGIBLE_SQL
+from record_policy import SCREENSHOT_RECORD_ELIGIBLE_SQL, can_view_screenshot
 
 router = APIRouter(prefix="/api", tags=["groups"])
 
@@ -730,14 +730,6 @@ def get_group_leaderboard(request: Request, gid: int):
 
 @router.get("/groups/{gid}/feed")
 def get_group_feed(request: Request, gid: int, limit: int = 80):
-    """활동 피드: 가입 이벤트 + 점수 기록.
-    그룹 생성자(joined_at == groups.created_at)의 join 이벤트는 제외.
-
-    노출 정책:
-      - visibility='public'/'group' 기록만 피드에 포함.
-      - score 이벤트의 record_id/screenshot_url/youtube_url은 can_view 통과 시에만:
-        본인 / show_screenshot=TRUE / searchable in ('public','group').
-    """
     uid = require_user_id(request)
     limit = max(1, min(int(limit or 80), 200))
     with get_conn() as conn:
@@ -758,7 +750,8 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
                            NULL::text AS screenshot_path,
                            NULL::text AS youtube_url,
                            NULL::boolean AS owner_show,
-                           NULL::text AS owner_searchable
+                           NULL::text AS visibility,
+                           NULL::boolean AS shares_group
                     FROM group_members gm
                     JOIN groups g ON g.id = gm.group_id
                     LEFT JOIN users u ON u.id = gm.user_id
@@ -779,7 +772,12 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
                            r.screenshot_path,
                            r.youtube_url,
                            COALESCE(u.show_screenshot, FALSE) AS owner_show,
-                           COALESCE(u.searchable, 'public') AS owner_searchable
+                           r.visibility,
+                           EXISTS (
+                               SELECT 1 FROM group_members me
+                               JOIN group_members them ON them.group_id = me.group_id
+                               WHERE me.user_id = %s AND them.user_id = r.user_id
+                           ) AS shares_group
                     FROM records r
                     JOIN group_members gm ON gm.user_id = r.user_id AND gm.group_id = %s
                     LEFT JOIN users u ON u.id = r.user_id
@@ -793,7 +791,7 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
                 ORDER BY at DESC NULLS LAST
                 LIMIT %s
                 """,
-                (gid, gid, limit),
+                (gid, uid, gid, limit),
             )
             rows = cur.fetchall()
 
@@ -805,15 +803,7 @@ def get_group_feed(request: Request, gid: int, limit: int = 80):
         screenshot_path = r[9]
         youtube_url_raw = r[10]
         owner_show = bool(r[11]) if r[11] is not None else False
-        owner_searchable = r[12]
-        is_mine = (owner_uid is not None and int(owner_uid) == int(uid))
-
-        # 그룹 피드에서는 본인, 공개 기록과 같은 그룹에 허용된 기록만 노출한다.
-        can_view = (
-            is_mine
-            or owner_show
-            or owner_searchable in ("public", "group")
-        )
+        can_view = can_view_screenshot(owner_uid, uid, r[12], owner_show, bool(r[13]))
 
         screenshot_url = None
         youtube_url = None
