@@ -303,18 +303,18 @@ class RankingEvidenceTests(unittest.IsolatedAsyncioTestCase):
           CREATE TABLE records(id INTEGER PRIMARY KEY, song_id INTEGER, user_id INTEGER, anon_id TEXT,
             nickname TEXT, score INTEGER, judgment_percent REAL, combo INTEGER, youtube_url TEXT,
             youtube_title TEXT, memo TEXT, visibility TEXT, created_at TEXT, screenshot_path TEXT,
-            memo_public BOOLEAN, is_manual BOOLEAN, speed TEXT);
+            memo_public BOOLEAN, is_manual BOOLEAN, speed TEXT, is_play_video BOOLEAN);
           INSERT INTO users VALUES(1, 'verified', 1);
           INSERT INTO users VALUES(2, 'unproven', 0);
           INSERT INTO users VALUES(3, 'manual', 0);
           INSERT INTO records VALUES(1,1,NULL,'anon','forged',NULL,99,NULL,NULL,NULL,NULL,'public',
-            '2026-10-24 00:00:00',NULL,0,0,'ultra');
+            '2026-10-24 00:00:00',NULL,0,0,'ultra',0);
           INSERT INTO records VALUES(2,1,2,NULL,'unproven',NULL,99,NULL,NULL,NULL,NULL,'public',
-            '2026-10-24 00:00:00',NULL,0,0,'ultra');
+            '2026-10-24 00:00:00',NULL,0,0,'ultra',0);
           INSERT INTO records VALUES(3,1,3,NULL,'manual',NULL,99,NULL,'https://youtu.be/abcdefghijk',NULL,NULL,'public',
-            '2026-10-24 00:00:00',NULL,0,1,'ultra');
+            '2026-10-24 00:00:00',NULL,0,1,'ultra',0);
           INSERT INTO records VALUES(4,1,1,NULL,'verified',NULL,98,NULL,NULL,NULL,NULL,'public',
-            '2026-10-24 00:00:00','proof.png',0,0,'ultra');
+            '2026-10-24 00:00:00','proof.png',0,0,'ultra',0);
         ''')
         class Cursor:
             def __enter__(self): return self

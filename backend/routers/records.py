@@ -71,7 +71,7 @@ def _mask_nickname(nickname: str, visibility: str, is_mine: bool) -> str:
     return nickname or ""
 
 
-def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
+def _row_to_response(r: tuple, current_uid: int | None, *, public_video: bool = False) -> RecordResponse:
     # 호출처에 따라 길이가 다름: 뒤쪽 선택 컬럼은 기본값으로 보완한다.
     extended = (*r, None, False, False, False, "ultra")[:16]
     (rid, nickname, score, judgment_percent, combo, youtube_url,
@@ -88,14 +88,15 @@ def _row_to_response(r: tuple, current_uid: int | None) -> RecordResponse:
         else None
     )
     visible_memo = memo if (memo_public or is_mine) else None
+    can_view_video = is_mine or bool(owner_show) or public_video
     return RecordResponse(
         id=rid,
         nickname=_mask_nickname(nickname or "", visibility or "public", is_mine),
         score=score,
         judgment_percent=float(judgment_percent) if judgment_percent is not None else None,
         combo=combo,
-        youtube_url=youtube_url,
-        youtube_title=youtube_title,
+        youtube_url=youtube_url if can_view_video else None,
+        youtube_title=youtube_title if can_view_video else None,
         memo=visible_memo,
         memo_public=bool(memo_public),
         visibility=visibility or "public",
@@ -128,7 +129,7 @@ def get_records(request: Request, song_id: int):
                        r.created_at, r.user_id,
                        r.screenshot_path, COALESCE(u.show_screenshot, FALSE),
                        (r.memo_public OR r.is_play_video) AS memo_public,
-                       r.is_manual, r.speed
+                       r.is_manual, r.speed, r.is_play_video
                 FROM records r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.song_id = %s
@@ -157,7 +158,7 @@ def get_records(request: Request, song_id: int):
                 (song_id, current_uid, current_uid, current_uid),
             )
             rows = cur.fetchall()
-    return [_row_to_response(r, current_uid) for r in rows]
+    return [_row_to_response(r[:16], current_uid, public_video=bool(r[16])) for r in rows]
 
 
 @router.get("/songs/{song_id}/ranking", response_model=list[RecordResponse])
@@ -173,7 +174,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                 """
                 SELECT id, nickname, score, judgment_percent, combo, youtube_url,
                        youtube_title, memo, visibility, created_at, user_id,
-                       screenshot_path, owner_show_screenshot, memo_public, is_manual, speed
+                       screenshot_path, owner_show_screenshot, memo_public, is_manual, speed, is_play_video
                 FROM (
                     SELECT r.id, COALESCE(u.nickname, r.nickname) AS nickname,
                            r.score, r.judgment_percent, r.combo, r.youtube_url,
@@ -184,6 +185,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                            r.memo_public,
                            r.is_manual,
                            r.speed,
+                           r.is_play_video,
                            ROW_NUMBER() OVER (
                                PARTITION BY COALESCE(r.user_id::text, 'anon:' || r.anon_id)
                                ORDER BY r.judgment_percent DESC NULLS LAST, r.created_at ASC
@@ -202,7 +204,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                 (song_id, limit),
             )
             rows = cur.fetchall()
-    return [_row_to_response(r, current_uid) for r in rows]
+    return [_row_to_response(r[:16], current_uid, public_video=bool(r[16])) for r in rows]
 
 
 @router.get("/songs/{song_id}/records/me", response_model=list[RecordResponse])
