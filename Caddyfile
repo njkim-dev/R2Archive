@@ -1,5 +1,7 @@
 {
 	servers {
+		trusted_proxies static {$TRUSTED_PROXY_CIDRS:127.0.0.1/32 ::1/128}
+		trusted_proxies_strict
 		timeouts {
 			read_body 60s
 			read_header 10s
@@ -72,9 +74,7 @@ handle_path /static/pmang_image/* {
 @api path /api/*
 handle @api {
 	reverse_proxy {$API_UPSTREAM} {
-		# 신뢰된 외부 프록시가 전달한 단일 클라이언트 주소를 애플리케이션에 전달한다.
-		header_up -X-Forwarded-For
-		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-For {client_ip}
 		header_up -X-Forwarded-Host
 	}
 }

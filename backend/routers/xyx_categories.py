@@ -256,15 +256,25 @@ def _ensure_can_manage(cur, category_id: int, uid: int) -> dict:
     return category
 
 
-def _ensure_can_add_song(cur, category_id: int, uid: int) -> dict:
+def _ensure_write_access(category: dict, access_code: str | None) -> None:
+    if category["is_public"] or category["is_owner"] or category["is_subscribed"]:
+        return
+    if access_code and secrets.compare_digest(_normalize_code(access_code), category["category_code"]):
+        return
+    raise HTTPException(status_code=403, detail="비공개 카테고리 접근 권한이 없습니다")
+
+
+def _ensure_can_add_song(cur, category_id: int, uid: int, access_code: str | None = None) -> dict:
     category = _fetch_category_summary(cur, category_id, uid)
+    _ensure_write_access(category, access_code)
     if not category["can_add_songs"]:
         raise HTTPException(status_code=403, detail="You cannot add songs to this category")
     return category
 
 
-def _ensure_can_delete_song(cur, category_id: int, uid: int) -> dict:
+def _ensure_can_delete_song(cur, category_id: int, uid: int, access_code: str | None = None) -> dict:
     category = _fetch_category_summary(cur, category_id, uid)
+    _ensure_write_access(category, access_code)
     if not category["can_delete_songs"]:
         raise HTTPException(status_code=403, detail="You cannot delete songs from this category")
     return category
@@ -845,11 +855,11 @@ def delete_xyx_category_member(request: Request, category_id: int, member_user_i
 
 
 @router.post("/xyx-categories/{category_id}/songs", status_code=201)
-def add_song_to_xyx_category(request: Request, category_id: int, body: XyxCategorySongCreate):
+def add_song_to_xyx_category(request: Request, category_id: int, body: XyxCategorySongCreate, access_code: str | None = None):
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            category = _ensure_can_add_song(cur, category_id, uid)
+            category = _ensure_can_add_song(cur, category_id, uid, access_code)
 
             cur.execute("SELECT id, name FROM xyx_songs WHERE id = %s", (body.song_id,))
             song = cur.fetchone()
@@ -878,11 +888,11 @@ def add_song_to_xyx_category(request: Request, category_id: int, body: XyxCatego
 
 
 @router.delete("/xyx-categories/{category_id}/songs/{song_id}")
-def delete_song_from_xyx_category(request: Request, category_id: int, song_id: int):
+def delete_song_from_xyx_category(request: Request, category_id: int, song_id: int, access_code: str | None = None):
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            _ensure_can_delete_song(cur, category_id, uid)
+            _ensure_can_delete_song(cur, category_id, uid, access_code)
             cur.execute(
                 """
                 DELETE FROM xyx_category_songs

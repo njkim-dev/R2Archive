@@ -3,17 +3,32 @@ from starlette.requests import Request
 
 from auth import get_current_user_id
 
-# 같은 호스트의 Caddy만 신뢰. 다른 컨테이너/외부에서 온 요청의 XFF는 무시한다.
-_TRUSTED_PROXIES = {"127.0.0.1", "::1"}
+import os
+import re
+from ipaddress import ip_address, ip_network
+
+
+_TRUSTED_PROXIES = tuple(
+    ip_network(value, strict=False)
+    for value in re.split(r"[\s,]+", os.environ.get("TRUSTED_PROXY_CIDRS", "127.0.0.1/32 ::1/128").strip())
+    if value
+)
 
 
 def _client_ip(request: Request) -> str:
     peer = request.client.host if request.client else ""
-    if peer in _TRUSTED_PROXIES:
-        xff = request.headers.get("x-forwarded-for")
-        if xff:
-            return xff.split(",")[0].strip()
-    return peer or "unknown"
+    try:
+        address = ip_address(peer)
+    except ValueError:
+        return peer or "unknown"
+    if any(address in network for network in _TRUSTED_PROXIES):
+        forwarded = request.headers.get("x-forwarded-for", "").strip()
+        if forwarded and "," not in forwarded:
+            try:
+                return str(ip_address(forwarded))
+            except ValueError:
+                pass
+    return str(address)
 
 
 def ip_key(request: Request) -> str:

@@ -700,7 +700,7 @@ export default function PersonalCategoryDetailPage() {
     if (!category?.can_delete_songs) return
     if (!confirm(`'${song.name}' 곡을 이 카테고리에서 삭제할까요?`)) return
     try {
-      await deleteSong(category.id, song.id)
+      await deleteSong(category.id, song.id, category.category_code)
       setSongs(prev => prev.filter(item => item.id !== song.id))
       setCategory(prev => prev ? { ...prev, song_count: Math.max(0, (prev.song_count || 1) - 1) } : prev)
     } catch (e) {

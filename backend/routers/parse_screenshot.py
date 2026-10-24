@@ -11,10 +11,12 @@ import io
 import logging
 import re
 import warnings
+import time
 from typing import Optional
 
 from fastapi import APIRouter, File, Request, UploadFile
 from PIL import Image, ImageOps
+from work_capacity import WorkCapacity, run_blocking
 import pytesseract
 
 from auth import require_user_id
@@ -27,6 +29,8 @@ router = APIRouter(prefix="/api", tags=["screenshot"])
 _MAX_BYTES = 10 * 1024 * 1024
 _ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP"}
 _TESSERACT_TIMEOUT_SEC = 5
+_OCR_CAPACITY = WorkCapacity(2)
+_OCR_BUDGET_SEC = 15
 _MAX_DIMENSION = 4000          # 가로/세로 각각의 한도
 _MAX_PIXELS = 16 * 1024 * 1024  # 16MP — decompression bomb 방지
 
@@ -78,7 +82,7 @@ def _binarize(gray: Image.Image, inverted: bool) -> Image.Image:
     else:
         threshold = 160
         bw = contrasted.point(lambda p: 255 if p > threshold else 0)
-    bw = bw.resize((bw.width * 3, bw.height * 3), Image.LANCZOS)
+    bw = bw.resize((bw.width * 3, bw.height * 3), Image.Resampling.LANCZOS)
     return bw
 
 
@@ -91,13 +95,16 @@ def _crop(img: Image.Image) -> Image.Image:
 @router.post("/parse-screenshot")
 @limiter.limit("20/hour", key_func=user_key)
 async def parse_screenshot(request: Request, image: UploadFile = File(...)):
-    # 로그인 필수 — Pillow 공격 표면 축소. 기록 업로드 흐름에서만 호출됨.
-    require_user_id(request)
+    uid = require_user_id(request)
+    with _OCR_CAPACITY.enter(uid):
+        content = await image.read(_MAX_BYTES + 1)
+        if len(content) > _MAX_BYTES:
+            return {"judgment_percent": None, "error": "파일 용량이 너무 큽니다"}
+        return await run_blocking(_parse_content, content)
 
-    content = await image.read()
-    if len(content) > _MAX_BYTES:
-        return {"judgment_percent": None, "error": "파일 용량이 너무 큽니다"}
 
+def _parse_content(content: bytes):
+    deadline = time.monotonic() + _OCR_BUDGET_SEC
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -129,11 +136,14 @@ async def parse_screenshot(request: Request, image: UploadFile = File(...)):
         except Exception:
             continue
         for cfg in _TESS_CONFIGS:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return {"judgment_percent": None, "error": "이미지 처리 시간이 초과됐습니다"}
             try:
                 text = pytesseract.image_to_string(
                     bw,
                     config=cfg,
-                    timeout=_TESSERACT_TIMEOUT_SEC,
+                    timeout=min(_TESSERACT_TIMEOUT_SEC, remaining),
                 )
             except Exception as e:
                 logger.warning("[ocr] tesseract 실패 (inv=%s cfg=%s): %s", inverted, cfg, e)

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from auth import fetch_user, require_user_id
 from database import get_conn
 from models import ManualRecordsBulk
+from work_capacity import WorkCapacity, run_blocking
 from rate_limit import limiter, user_key
 from routers.records import _extract_video_id
 from routers.songs import ensure_active_song
@@ -274,13 +275,15 @@ def get_my_comments(request: Request):
     }
 
 
-async def _verify_youtube_url(url: str) -> tuple[bool, str | None]:
+_MANUAL_CAPACITY = WorkCapacity(2)
+
+
+async def _verify_youtube_url(url: str, client: httpx.AsyncClient) -> tuple[bool, str | None]:
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            response = await client.get(
-                "https://www.youtube.com/oembed",
-                params={"url": url, "format": "json"},
-            )
+        response = await client.get(
+            "https://www.youtube.com/oembed",
+            params={"url": url, "format": "json"},
+        )
         if response.status_code != 200:
             return False, None
         title = response.json().get("title")
@@ -290,8 +293,18 @@ async def _verify_youtube_url(url: str) -> tuple[bool, str | None]:
 
 
 @router.put("/me/records/manual")
+@limiter.limit("10/minute;60/hour", key_func=user_key)
 async def save_manual_records(request: Request, body: ManualRecordsBulk):
     uid = require_user_id(request)
+    with _MANUAL_CAPACITY.enter(uid):
+        try:
+            async with asyncio.timeout(20):
+                return await _save_manual_records(uid, body)
+        except TimeoutError:
+            raise HTTPException(504, "영상 확인 시간이 초과됐습니다. 항목을 나누어 다시 시도해주세요.")
+
+
+async def _save_manual_records(uid: int, body: ManualRecordsBulk):
     user_row = fetch_user(uid)
     if not user_row:
         raise HTTPException(status_code=403, detail="로그인이 필요합니다")
@@ -319,13 +332,20 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
 
     titles: dict[int, str | None] = {}
     if to_verify:
-        async def check(item):
-            idx, sid, url = item
-            ok, title = await _verify_youtube_url(url)
-            return idx, sid, url, ok, title
-
-        results = await asyncio.gather(*[check(item) for item in to_verify])
-        for idx, sid, url, ok, title in results:
+        unique = {}
+        for _, _, url in to_verify:
+            video_id = _extract_video_id(url)
+            unique.setdefault(video_id, f"https://www.youtube.com/watch?v={video_id}")
+        slots = asyncio.Semaphore(4)
+        async with httpx.AsyncClient(timeout=3.0, limits=httpx.Limits(max_connections=4)) as client:
+            async def check(video_id, url):
+                async with slots:
+                    ok, title = await _verify_youtube_url(url, client)
+                    return video_id, ok, title
+            checked = await asyncio.gather(*[check(vid, url) for vid, url in unique.items()])
+        verified = {vid: (ok, title) for vid, ok, title in checked}
+        for idx, sid, url in to_verify:
+            ok, title = verified[_extract_video_id(url)]
             if ok:
                 titles[idx] = title
             else:
@@ -354,6 +374,10 @@ async def save_manual_records(request: Request, body: ManualRecordsBulk):
             detail={"code": "invalid_youtube_urls", "invalid": invalid_payload},
         )
 
+    return await run_blocking(_store_manual_records, uid, nickname, visibility, body, normalized_urls, titles)
+
+
+def _store_manual_records(uid, nickname, visibility, body, normalized_urls, titles):
     inserted = 0
     updated = 0
     deleted = 0

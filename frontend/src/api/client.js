@@ -232,7 +232,7 @@ export const setPersonalCategoryMemberRole = (categoryId, memberUserId, role) =>
   api.patch(apiPath(`/personal-categories/${categoryId}/members/${memberUserId}/role`, `/xyx-categories/${categoryId}/members/${memberUserId}/role`), { role }).then(r => r.data)
 export const deletePersonalCategoryMember = (categoryId, memberUserId) =>
   api.delete(apiPath(`/personal-categories/${categoryId}/members/${memberUserId}`, `/xyx-categories/${categoryId}/members/${memberUserId}`)).then(r => r.data)
-export const addSongToPersonalCategory = (categoryId, songId) =>
-  api.post(apiPath(`/personal-categories/${categoryId}/songs`, `/xyx-categories/${categoryId}/songs`), { song_id: songId }).then(r => r.data)
-export const deleteSongFromPersonalCategory = (categoryId, songId) =>
-  api.delete(apiPath(`/personal-categories/${categoryId}/songs/${songId}`, `/xyx-categories/${categoryId}/songs/${songId}`)).then(r => r.data)
+export const addSongToPersonalCategory = (categoryId, songId, accessCode = null) =>
+  api.post(apiPath(`/personal-categories/${categoryId}/songs`, `/xyx-categories/${categoryId}/songs`), { song_id: songId }, { params: { access_code: accessCode } }).then(r => r.data)
+export const deleteSongFromPersonalCategory = (categoryId, songId, accessCode = null) =>
+  api.delete(apiPath(`/personal-categories/${categoryId}/songs/${songId}`, `/xyx-categories/${categoryId}/songs/${songId}`), { params: { access_code: accessCode } }).then(r => r.data)

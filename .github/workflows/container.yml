@@ -26,6 +26,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm audit --audit-level=high
           npm test
           npm run build
 
@@ -72,6 +73,9 @@ jobs:
           docker run -d --rm --name r2archive-seo -p 127.0.0.1:8300:3000 --entrypoint caddy ghcr.io/njkim-dev/r2archive:${{ github.sha }} run --config /etc/caddy/Caddyfile
           trap 'docker rm -f r2archive-seo' EXIT
           python frontend/scripts/check-seo-http.py http://127.0.0.1:8300
+
+      - name: Test trusted proxy chain
+        run: docker run --rm --entrypoint python ghcr.io/njkim-dev/r2archive:${{ github.sha }} -m unittest discover -s /app/backend/tests -p test_proxy_chain.py -v
 
       - name: Scan image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

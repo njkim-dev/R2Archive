@@ -8,6 +8,7 @@ from urllib.parse import urlparse, parse_qs
 import httpx
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from work_capacity import WorkCapacity, run_blocking
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -22,6 +23,7 @@ _YT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{11}$')
 _ALLOWED_IMG_EXT = {"png", "jpg", "jpeg", "webp"}
 _CANONICAL_IMG_EXT = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
 _ALLOWED_IMG_FORMATS = {"PNG", "JPEG", "WEBP"}  # Pillow가 보고하는 format 명
+_UPLOAD_CAPACITY = WorkCapacity(2)
 _MAX_IMG_DIMENSION = 4000  # 메모리 폭탄 방지 — 가로/세로 각각 4000px 한도
 _SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent.parent / "record_screenshots"
 _SCREENSHOTS_DIR.mkdir(exist_ok=True)
@@ -190,8 +192,7 @@ def get_ranking(request: Request, song_id: int, limit: int = 10):
                     WHERE r.song_id = %s
                       AND r.judgment_percent IS NOT NULL
                       AND r.visibility = 'public'
-                      -- manual + URL이면 랭킹 합류 (편집모드의 영상 인증)
-                      AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
+                      AND NOT r.is_manual AND r.user_id IS NOT NULL AND r.screenshot_path IS NOT NULL
                 ) t
                 WHERE rn = 1
                 ORDER BY judgment_percent DESC NULLS LAST, created_at ASC
@@ -232,14 +233,16 @@ def get_my_records_for_song(request: Request, song_id: int):
 async def add_record(request: Request, song_id: int, body: RecordCreate):
     nickname = (body.nickname or "").strip()
     current_uid = get_current_user_id(request)
+    if body.judgment_percent is not None and current_uid is None:
+        raise HTTPException(status_code=401, detail="판정 기록 등록에는 로그인이 필요합니다")
 
     user_row = fetch_user(current_uid) if current_uid is not None else None
-    if not nickname and user_row and user_row.get("nickname"):
-        nickname = user_row["nickname"]
+    if user_row:
+        nickname = (user_row.get("nickname") or "").strip()
     if not nickname:
         raise HTTPException(status_code=422, detail="닉네임을 입력해주세요")
 
-    visibility = body.visibility or (user_row.get("default_visibility") if user_row else "public")
+    visibility = (user_row.get("default_visibility") or "public") if user_row else "public"
 
     youtube_title: str | None = None
     if body.youtube_url:
@@ -308,6 +311,11 @@ async def upload_record_screenshot(
 ):
     """기록에 스크린샷 첨부. 본인 기록만 가능. 파일은 record_screenshots/ 에 저장."""
     uid = require_user_id(request)
+    with _UPLOAD_CAPACITY.enter(uid):
+        return await _upload_record_screenshot(record_id, image, uid)
+
+
+async def _upload_record_screenshot(record_id: int, image: UploadFile, uid: int):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT user_id FROM records WHERE id = %s", (record_id,))
@@ -335,10 +343,37 @@ async def upload_record_screenshot(
                     detail=f"이미 등록한 스크린샷입니다: {original_name}",
                 )
 
-    content = await image.read()
+    content = await image.read(10 * 1024 * 1024 + 1)
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="파일 용량이 너무 큽니다 (최대 10MB)")
 
+    content, ext = await run_blocking(_canonical_image, content)
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = _SCREENSHOTS_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT screenshot_path FROM records WHERE id = %s", (record_id,))
+            prev = cur.fetchone()
+            prev_path = prev[0] if prev else None
+            cur.execute(
+                "UPDATE records SET screenshot_path = %s, screenshot_filename = %s "
+                "WHERE id = %s",
+                (filename, original_name, record_id),
+            )
+        conn.commit()
+    if prev_path:
+        try:
+            (_SCREENSHOTS_DIR / prev_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    return {"ok": True, "screenshot_path": filename}
+
+
+def _canonical_image(content: bytes):
     # 매직바이트 검증 — 확장자만 믿지 않고 실제 이미지인지 확인.
     # verify()는 픽셀 디코드를 하지 않아 메모리/CPU 부담이 작음.
     try:
@@ -371,30 +406,7 @@ async def upload_record_screenshot(
     except (UnidentifiedImageError, OSError, ValueError):
         raise HTTPException(status_code=422, detail="이미지를 안전하게 처리할 수 없습니다.")
 
-    ext = _CANONICAL_IMG_EXT[img_format]
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    filepath = _SCREENSHOTS_DIR / filename
-    with open(filepath, "wb") as f:
-        f.write(content)
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT screenshot_path FROM records WHERE id = %s", (record_id,))
-            prev = cur.fetchone()
-            prev_path = prev[0] if prev else None
-            cur.execute(
-                "UPDATE records SET screenshot_path = %s, screenshot_filename = %s "
-                "WHERE id = %s",
-                (filename, original_name, record_id),
-            )
-        conn.commit()
-    if prev_path:
-        try:
-            (_SCREENSHOTS_DIR / prev_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-
-    return {"ok": True, "screenshot_path": filename}
+    return content, _CANONICAL_IMG_EXT[img_format]
 
 
 @router.get("/records/{record_id}/screenshot")
@@ -405,7 +417,7 @@ def get_record_screenshot(request: Request, record_id: int):
             cur.execute(
                 "SELECT r.user_id, r.screenshot_path, "
                 "       COALESCE(u.show_screenshot, FALSE), "
-                "       COALESCE(u.searchable, 'public') "
+                "       r.visibility "
                 "FROM records r LEFT JOIN users u ON u.id = r.user_id "
                 "WHERE r.id = %s",
                 (record_id,),
@@ -413,14 +425,12 @@ def get_record_screenshot(request: Request, record_id: int):
             row = cur.fetchone()
     if not row or not row[1]:
         raise HTTPException(status_code=404, detail="스크린샷을 찾을 수 없습니다")
-    owner_uid, path, owner_show, owner_searchable = row
+    owner_uid, path, owner_show, visibility = row
     is_mine = (current_uid is not None and owner_uid is not None
                and int(owner_uid) == int(current_uid))
     if not is_mine:
-        allowed = False
-        if owner_show:
-            allowed = True
-        elif owner_searchable == "group" and current_uid is not None and owner_uid is not None:
+        allowed = bool(owner_show and visibility == "public")
+        if owner_show and visibility == "group" and current_uid is not None and owner_uid is not None:
             with get_conn() as conn2:
                 with conn2.cursor() as cur2:
                     cur2.execute(
@@ -445,7 +455,7 @@ def get_record_screenshot(request: Request, record_id: int):
         raise HTTPException(status_code=404, detail="스크린샷 파일이 존재하지 않습니다")
     return FileResponse(
         str(file_path),
-        headers={"Cache-Control": "private, max-age=60"},
+        headers={"Cache-Control": "private, no-store", "Vary": "Cookie"},
     )
 
 

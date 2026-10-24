@@ -264,15 +264,25 @@ def _ensure_can_manage(cur, category_id: int, uid: int) -> dict:
     return category
 
 
-def _ensure_can_add_song(cur, category_id: int, uid: int) -> dict:
+def _ensure_write_access(category: dict, access_code: str | None) -> None:
+    if category["is_public"] or category["is_owner"] or category["is_subscribed"]:
+        return
+    if access_code and secrets.compare_digest(_normalize_code(access_code), category["category_code"]):
+        return
+    raise HTTPException(status_code=403, detail="비공개 카테고리 접근 권한이 없습니다")
+
+
+def _ensure_can_add_song(cur, category_id: int, uid: int, access_code: str | None = None) -> dict:
     category = _fetch_category_summary(cur, category_id, uid)
+    _ensure_write_access(category, access_code)
     if not category["can_add_songs"]:
         raise HTTPException(status_code=403, detail="카테고리에 곡을 추가할 권한이 없습니다")
     return category
 
 
-def _ensure_can_delete_song(cur, category_id: int, uid: int) -> dict:
+def _ensure_can_delete_song(cur, category_id: int, uid: int, access_code: str | None = None) -> dict:
     category = _fetch_category_summary(cur, category_id, uid)
+    _ensure_write_access(category, access_code)
     if not category["can_delete_songs"]:
         raise HTTPException(status_code=403, detail="카테고리에서 곡을 삭제할 권한이 없습니다")
     return category
@@ -834,11 +844,12 @@ def add_song_to_personal_category(
     request: Request,
     category_id: int,
     body: PersonalCategorySongCreate,
+    access_code: str | None = None,
 ):
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            category = _ensure_can_add_song(cur, category_id, uid)
+            category = _ensure_can_add_song(cur, category_id, uid, access_code)
 
             cur.execute(
                 f"SELECT id, name FROM songs s WHERE id = %s AND {ACTIVE_SONG_ALIAS_SQL}",
@@ -870,11 +881,11 @@ def add_song_to_personal_category(
 
 
 @router.delete("/personal-categories/{category_id}/songs/{song_id}")
-def delete_song_from_personal_category(request: Request, category_id: int, song_id: int):
+def delete_song_from_personal_category(request: Request, category_id: int, song_id: int, access_code: str | None = None):
     uid = require_user_id(request)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            _ensure_can_delete_song(cur, category_id, uid)
+            _ensure_can_delete_song(cur, category_id, uid, access_code)
             cur.execute(
                 """
                 DELETE FROM personal_category_songs

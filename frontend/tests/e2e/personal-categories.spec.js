@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { watchLayout } from './layout'
 
 const user = { id: 7, nickname: 'Tester', provider: 'google', onboarded: true }
 const categoryBase = {
@@ -117,3 +118,39 @@ test('mobile category directory and song search expose the same controls', async
   await expect(page.locator('.mob-card')).toHaveCount(1)
   await expect(page.locator('.mob-card')).toContainText('Save Me')
 })
+
+for (const width of [1440, 390]) {
+  test(`private category delete sends its share code and preserves layout on denial at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await mockCategoryApi(page)
+    await page.route('**/api/personal-categories/by-code/ABCD-EFGH', route => route.fulfill({ json: {
+      category: { ...publicCategory, is_public: false, can_delete_songs: true },
+      songs: [{ id: 11, name: 'Save Me', artist: 'Artist A', level: 8, bpm: 150, combo: 500,
+        time: '2:00', aliases: [], artist_aliases: [], file_order: 1 }], members: [],
+    } }))
+    let resolveRequest
+    const pending = new Promise(resolve => { resolveRequest = resolve })
+    let submitted = null
+    await page.route('**/api/personal-categories/2/songs/11?**', async route => {
+      submitted = new URL(route.request().url())
+      await pending
+      await route.fulfill({ status: 403, json: { detail: '권한이 변경됐습니다' } })
+    })
+    page.on('dialog', dialog => dialog.accept())
+    await page.goto('/personal-categories/ABCD-EFGH')
+    const search = page.getByRole('searchbox', { name: '카테고리 음악 검색' })
+    await expect(search).toBeVisible()
+    const watch = await watchLayout(page, ['.pcat-song-search'])
+    try {
+      await page.getByRole('button', { name: '카테고리에서 삭제', exact: true }).first().click()
+      await expect.poll(() => submitted?.searchParams.get('access_code')).toBe('ABCD-EFGH')
+      await watch.expectStable()
+      resolveRequest()
+      await expect(page.getByText('Save Me', { exact: true })).toBeVisible()
+      await watch.expectStable()
+    } finally {
+      resolveRequest()
+      await watch.stop()
+    }
+  })
+}

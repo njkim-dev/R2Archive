@@ -106,8 +106,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None, speed: 
                     WHERE r.judgment_percent IS NOT NULL
                       AND r.visibility = 'public'
                       AND (%s = 'all' OR r.speed = %s)
-                      -- manual 기록도 youtube_url이 있으면 (검증된 영상 인증) 랭킹에 합류
-                      AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
+                      AND NOT r.is_manual AND r.user_id IS NOT NULL AND r.screenshot_path IS NOT NULL
                     ORDER BY r.song_id,
                              COALESCE(r.user_id::text, 'anon:' || r.anon_id),
                              r.judgment_percent DESC NULLS LAST,
@@ -151,7 +150,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None, speed: 
                                 WHERE r.judgment_percent IS NOT NULL
                                   AND r.visibility IN ('public', 'group')
                                   AND (%s = 'all' OR r.speed = %s)
-                                  AND (NOT r.is_manual OR r.youtube_url IS NOT NULL)
+                                  AND NOT r.is_manual AND r.user_id IS NOT NULL AND r.screenshot_path IS NOT NULL
                                 ORDER BY r.song_id, r.user_id,
                                          r.judgment_percent DESC NULLS LAST, r.created_at ASC
                             ),
@@ -189,7 +188,7 @@ def list_song_rankings(request: Request, group_id: Optional[int] = None, speed: 
                             WHERE r.judgment_percent IS NOT NULL
                               AND r.visibility IN ('public', 'group')
                               AND (%s = 'all' OR r.speed = %s)
-                              AND NOT r.is_manual
+                              AND NOT r.is_manual AND r.user_id IS NOT NULL AND r.screenshot_path IS NOT NULL
                             ORDER BY r.song_id, r.user_id,
                                      r.judgment_percent DESC NULLS LAST, r.created_at ASC
                         ),
@@ -275,6 +274,7 @@ def search_users(request: Request, q: str = ""):
                 JOIN records r ON r.user_id = u.id
                 WHERE u.nickname ILIKE %s
                   AND r.judgment_percent IS NOT NULL
+                  AND (u.id = %s OR (NOT r.is_manual AND r.screenshot_path IS NOT NULL))
                   AND (
                     u.id = %s
                     OR (u.searchable IN ('public', 'group')
@@ -291,7 +291,7 @@ def search_users(request: Request, q: str = ""):
                 ORDER BY record_count DESC, u.nickname ASC
                 LIMIT 50
                 """,
-                (pattern, viewer_uid, viewer_uid, viewer_uid),
+                (pattern, viewer_uid, viewer_uid, viewer_uid, viewer_uid),
             )
             rows = cur.fetchall()
     return [UserSearchHit(user_id=r[0], nickname=r[1], record_count=int(r[2])) for r in rows]
@@ -320,6 +320,7 @@ def lookup_user_by_nickname(request: Request, nickname: str = ""):
                       SELECT 1 FROM records r
                       WHERE r.user_id = u.id
                         AND r.judgment_percent IS NOT NULL
+                        AND (u.id = %s OR (NOT r.is_manual AND r.screenshot_path IS NOT NULL))
                         AND (
                           u.id = %s
                           OR (u.searchable IN ('public', 'group')
@@ -335,7 +336,7 @@ def lookup_user_by_nickname(request: Request, nickname: str = ""):
                   )
                 LIMIT 1
                 """,
-                (nick, viewer_uid, viewer_uid, viewer_uid),
+                (nick, viewer_uid, viewer_uid, viewer_uid, viewer_uid),
             )
             row = cur.fetchone()
             if not row:
@@ -402,6 +403,7 @@ def get_user_records(request: Request, user_id: int):
                 if target_searchable == "group" and not shares_group:
                     raise HTTPException(status_code=403, detail="해당 사용자의 기록은 그룹 멤버에게만 공개됩니다")
 
+    evidence_clause = "TRUE" if is_self else "r.user_id IS NOT NULL AND NOT r.is_manual AND r.screenshot_path IS NOT NULL"
     if is_self:
         visibility_clause = "r.visibility IN ('public', 'group', 'private')"
     elif shares_group:
@@ -419,6 +421,7 @@ def get_user_records(request: Request, user_id: int):
                 WHERE r.user_id = %s
                   AND r.judgment_percent IS NOT NULL
                   AND {visibility_clause}
+                  AND {evidence_clause}
                 ORDER BY r.song_id, r.speed,
                          r.judgment_percent DESC NULLS LAST,
                          r.created_at ASC

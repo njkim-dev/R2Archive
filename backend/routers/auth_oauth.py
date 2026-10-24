@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -94,10 +94,17 @@ def _safe_return_origin(origin: str | None) -> str:
         return BASE_URL
     if origin in {f"https://{host}" for host in PUBLIC_APP_HOSTS}:
         return origin
-    if origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
-        return origin
-    if origin.startswith("https://localhost:") or origin.startswith("https://127.0.0.1:"):
-        return origin
+    if not COOKIE_SECURE:
+        try:
+            parsed = urlsplit(origin)
+            if (parsed.scheme in {"http", "https"}
+                    and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+                    and not parsed.username and not parsed.password
+                    and parsed.port and not parsed.query and not parsed.fragment
+                    and parsed.path in {"", "/"}):
+                return f"{parsed.scheme}://{parsed.netloc}"
+        except ValueError:
+            pass
     return BASE_URL
 
 

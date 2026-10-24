@@ -138,8 +138,8 @@ const usePersonalCategoriesStore = create((set, get) => ({
     return result
   },
 
-  saveSong: async (categoryId, songId) => {
-    const result = await addSongToPersonalCategory(categoryId, songId)
+  saveSong: async (categoryId, songId, accessCode = null) => {
+    const result = await addSongToPersonalCategory(categoryId, songId, accessCode)
     await Promise.allSettled([
       get().fetchMyCategories(),
       get().fetchPublicCategories(),
@@ -149,8 +149,8 @@ const usePersonalCategoriesStore = create((set, get) => ({
     return result
   },
 
-  deleteSong: async (categoryId, songId) => {
-    const result = await deleteSongFromPersonalCategory(categoryId, songId)
+  deleteSong: async (categoryId, songId, accessCode = null) => {
+    const result = await deleteSongFromPersonalCategory(categoryId, songId, accessCode)
     await Promise.allSettled([
       get().fetchMyCategories(),
       get().fetchPublicCategories(),
