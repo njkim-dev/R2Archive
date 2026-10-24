@@ -75,7 +75,7 @@ jobs:
           python frontend/scripts/check-seo-http.py http://127.0.0.1:8300
 
       - name: Test trusted proxy chain
-        run: docker run --rm --entrypoint python ghcr.io/njkim-dev/r2archive:${{ github.sha }} -m unittest discover -s /app/backend/tests -p test_proxy_chain.py -v
+        run: docker run --rm --volume "$PWD/backend/tests/test_proxy_chain.py:/tmp/test_proxy_chain.py:ro" --env PYTHONPATH=/app/backend --entrypoint python ghcr.io/njkim-dev/r2archive:${{ github.sha }} /tmp/test_proxy_chain.py -v
 
       - name: Scan image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
