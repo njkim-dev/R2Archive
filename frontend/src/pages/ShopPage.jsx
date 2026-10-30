@@ -11,7 +11,7 @@ import '../styles/shop.css'
 
 const emptySlots = () => Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null]))
 const DEPARTMENTS = [['wearable', '꾸미기·펫'], ['functional', '기능성·소모품'], ['other', '장식·기타']]
-const currency = value => ({ cash: '캐시', coin: '게임머니', unknown: '표기가격' }[value] || '표기가격')
+const currency = value => value === 'cash' ? '캐시' : '알코인'
 const defaultPrice = item => item?.prices?.find(p => p.key === 'PI') || item?.prices?.find(p => p.key === 'P30') || item?.prices?.[0]
 const errorText = error => typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : Array.isArray(error?.response?.data?.detail) ? '검색어나 공유 URL을 확인해주세요.' : error?.message || '상점 정보를 불러오지 못했습니다.'
 
@@ -158,7 +158,6 @@ function ShopContent({ search }) {
     if (item.department === 'wearable' && item.slot && (!sex || !['common', sex].includes(item.sex))) return
     setDetail(item); setPriceKey(defaultPrice(item)?.key)
     if (item.department === 'wearable' && item.slot && item.preview_available && item.model) setSlots(current => ({ ...current, [item.slot]: current[item.slot]?.id === item.id ? null : item }))
-    else if (item.department === 'wearable') notify('이 아이템의 3D 미리보기는 준비 중입니다.')
   }
   function changeDepartment(next) { setDepartment(next); setSlot(''); setQuery(''); setDetail(null); setError('') }
   function preview() { if (sex && meta) { restoreScroll.current = true; setApplied({ sex, slots: { ...slots } }); setCounterparts(emptySlots()); setPair(false); setView('preview'); setError(''); window.scrollTo({ top: 0, behavior: 'instant' }) } }
@@ -168,7 +167,7 @@ function ShopContent({ search }) {
     const price = defaultPrice(item), selected = item.slot && slots[item.slot]?.id === item.id
     return <article className={`shop-card${selected || detail?.id === item.id ? ' is-selected' : ''}`} key={item.id} data-item-id={item.id}>
       <button className="shop-card-select" onClick={() => choose(item)} aria-label={`${item.name} ${item.slot && item.preview_available ? '의상 선택' : '자세히 보기'}`} aria-pressed={!!selected}>
-        <div className="shop-card-image"><ItemImage item={item} />{selected && <span className="shop-check"><Check size={13} /></span>}</div>
+        <div className="shop-card-image"><ItemImage item={item} />{(!item.preview_available || !item.model) && <span className="shop-preview-unavailable">미리보기 불가능</span>}{selected && <span className="shop-check"><Check size={13} /></span>}</div>
         <div className="shop-card-copy"><small>{item.slot ? SLOT_LABELS[item.slot] : item.department === 'functional' ? '공용 아이템' : '장식·기타'}{item.sex !== 'common' ? ` · ${item.sex === 'male' ? '남성' : '여성'}` : ''}</small><strong title={item.name}>{item.name}</strong><div className="shop-card-price">{price ? <><span>{price.amount.toLocaleString()} <small>{currency(price.currency)}</small></span><small>{price.label}</small></> : <small>가격 정보 없음</small>}</div></div>
       </button><div className="shop-card-actions"><button onClick={() => choose(item)}>{item.slot && item.preview_available ? selected ? '선택 해제' : '의상에 추가' : '자세히 보기'}</button><button aria-label={`${item.name} URL 복사`} onClick={() => copy(itemShareUrl(item, item.sex === 'common' ? sex : item.sex, defaultPrice(item)?.key))}><Copy size={12} /> URL 복사</button></div>
     </article>
@@ -202,7 +201,7 @@ function ShopContent({ search }) {
         <ShopVirtualGrid key={listKey} resetKey={listKey} scrollPosition={scrollPosition} restoreScroll={restoreScroll} items={listing.items} hasMore={listing.has_more} loading={loading} error={error} loadMore={loadMore} renderItem={renderCard} empty={<div className="shop-empty">{department === 'wearable' && !sex ? <>어떤 캐릭터로 입어볼까요?<br />위에서 성별을 선택해주세요.</> : !ready || loading ? '아이템을 불러오는 중입니다.' : error ? '목록을 불러오지 못했습니다.' : <>표시할 아이템이 없습니다.<br />다른 이름이나 분류로 검색해보세요.</>}</div>} />
       </section><aside className="shop-panel">
         {department === 'wearable' ? <><h2>선택한 의상 <small>직접 선택 {chosenCount}개</small></h2>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 보여요.<br />펫은 선택하지 않아도 괜찮아요.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
-        {detail && <section className="shop-detail" aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} /></div><h3>{detail.name}</h3><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p><button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button>{detail.department === 'wearable' && !detail.preview_available && <p className="shop-panel-note">3D 미리보기는 준비 중입니다.</p>}</section>}
+        {detail && <section className="shop-detail" aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} />{(!detail.preview_available || !detail.model) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p><button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
         {!detail && department !== 'wearable' && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
       </aside></div>
     </>}

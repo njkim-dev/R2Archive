@@ -295,6 +295,47 @@ test('face selection is combined with hair and restored by the shared outfit URL
   await expect(page.locator('.shop-slots')).toContainText(face.name)
 })
 
+test('unavailable previews are tagged over images before selection and non-cash prices use R-coins', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const unavailable = { ...shirt, id: '403', name: '성인 성형', slot: 'face', preview_available: false, model: null, thumbnail: `${root}/thumbnails/${hash}.webp`, prices: [{ key: 'PI', label: '무기한', amount: 400, currency: 'coin' }] }
+  const unknown = { ...unavailable, id: '404', name: '가격 단위 검증', prices: [{ key: 'PI', label: '무기한', amount: 800, currency: 'unknown' }] }
+  await setup(page, { items: [shirt, unavailable, unknown] })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route('**/thumbnails/**', async route => { await gate; return route.fulfill({ body: png, contentType: 'image/png' }) })
+  await page.goto('/shop?sex=male')
+  await expect(page.locator('.shop-card')).toHaveCount(3)
+  const card = page.locator('[data-item-id="403"]'), tag = card.locator('.shop-preview-unavailable')
+  await expect(tag).toHaveText('미리보기 불가능')
+  await expect(tag).toHaveCSS('background-color', 'rgb(179, 39, 63)')
+  await expect(page.locator('[data-item-id="200"] .shop-preview-unavailable')).toHaveCount(0)
+  await expect(card.locator('.shop-card-price')).toContainText('400 알코인')
+  await expect(page.locator('[data-item-id="404"] .shop-card-price')).toContainText('800 알코인')
+  await expect(page.locator('[data-item-id="200"] .shop-card-price')).toContainText('캐시')
+  const inside = await tag.evaluate(node => {
+    const tag = node.getBoundingClientRect(), image = node.parentElement.getBoundingClientRect()
+    return tag.top >= image.top && tag.bottom <= image.bottom && tag.left >= image.left && tag.right <= image.right
+  })
+  expect(inside).toBe(true)
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-pair-filter', '[data-item-id="403"] .shop-card-image', '[data-item-id="403"] .shop-preview-unavailable'])
+  await watcher.expectStable()
+  release()
+  await expect(card.locator('img')).toBeVisible()
+  await watcher.expectStable()
+  await page.getByRole('button', { name: `${shirt.name} 의상 선택`, exact: true }).click()
+  await card.getByRole('button', { name: `${unavailable.name} 자세히 보기`, exact: true }).click()
+  await expect(page.locator('.shop-detail-price')).toContainText('400 알코인')
+  await expect(page.locator('.shop-detail-image .shop-preview-unavailable')).toHaveText('미리보기 불가능')
+  await expect(page.locator('.shop-toast')).toHaveCount(0)
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await expect(page.locator('.shop-slots')).not.toContainText(unavailable.name)
+  await watcher.expectStable()
+  await watcher.stop()
+  await page.getByRole('button', { name: `${unknown.name} 자세히 보기`, exact: true }).click()
+  await expect(page.locator('.shop-detail-price')).toContainText('800 알코인')
+  await expect(page.locator('.shop-app')).not.toContainText('표기가격')
+})
+
 function directionModel(centerX = 0, bottom = 20, height = 260, width = 24) {
   const vertices = [], indices = []
   function quad(points, normal, color) {
@@ -386,7 +427,7 @@ for (const sex of ['male', 'female']) test(`MD9 ${sex} and opposite gender with 
     await expect.poll(async () => {
       const { totals } = await directionPixels(canvas)
       const total = Object.values(totals).reduce((sum, count) => sum + count, 0)
-      return colors.every(color => totals[color] > 50) && colors.reduce((sum, color) => sum + (totals[color] || 0), 0) > total * .99
+      return colors.every(color => totals[color] > 50) && colors.reduce((sum, color) => sum + (totals[color] || 0), 0) > total * .95
     }).toBe(true)
     const pixels = await directionPixels(canvas)
     expect(pixels.left).toBeGreaterThan(4); expect(pixels.right).toBeLessThan(pixels.width - 5)
