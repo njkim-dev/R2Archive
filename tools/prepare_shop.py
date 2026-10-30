@@ -23,13 +23,13 @@ from PIL import Image
 from shop_pose import read_animation, local_pose
 
 
-SCHEMA = 'shop-assets-v4-static-stand-80'
+SCHEMA = 'shop-assets-v4-static-stand-m80-f0'
 SCRIPT_FILES = ['rnr_script/shop.txt', 'rnr_script/shop.bin', 'rnr_script/item.csv',
                 'rnr_script/pet.xml', 'rnr_script/growpet.xml', 'rnr_script/face.txt',
                 'rnr_script/config/face_tbface.json', 'rnr_script/roomfx.txt']
 BASE_FILES = {'male': 'rnr_char/boy/boi.md9', 'female': 'rnr_char/girl/girl.md9'}
 POSE_FILES = {'male': 'rnr_ani/stand_boy_0.ani', 'female': 'rnr_ani/stand_girl_0.ani'}
-POSE_TIME = 80
+POSE_TIMES = {'male': 80, 'female': 0}
 SLOTS = {1: 'hair', 2: 'top', 3: 'bottom', 4: 'shoes', 6: 'face'}
 PRICE_LABELS = {'P': '단품', 'PN': '단품', 'PH': '기타 가격', 'PI': '무기한'}
 
@@ -471,6 +471,7 @@ def plan(source, output, pose_root=None):
              for path, digest in zip(ordered, hashes)]
     revision = hashlib.sha256((SCHEMA + json.dumps(files, separators=(',', ':'))).encode()).hexdigest()[:20]
     manifest = {'schema': SCHEMA, 'revision': revision, 'source_root': str(source.resolve()),
+                'pose_times': POSE_TIMES,
                 'pose_root': str(pose_root.resolve()) if pose_root else None,
                 'snapshot_root': str((output / 'source' / revision).resolve()), 'files': files,
                 'bytes': sum(file['size'] for file in files)}
@@ -507,7 +508,7 @@ class Builder:
         self.poses = {}
         for sex, base in self.bases.items():
             animation = read_animation(self.resolver.resolve(POSE_FILES[sex]))
-            locals_ = {bone['name']: np.array(local_pose(animation['tracks'][bone['name']], bone['matrix'], POSE_TIME))
+            locals_ = {bone['name']: np.array(local_pose(animation['tracks'][bone['name']], bone['matrix'], POSE_TIMES[sex]))
                        for bone in base['bones'] if bone['name'] in animation['tracks']}
             pose = {'locals': locals_}
             old = posed_meshes(base, base)
