@@ -44,6 +44,10 @@ class ShopTests(unittest.TestCase):
         self.assertEqual(response.json()['revision'], old)
         self.assertEqual(response.json()['texture_revision'], new)
         self.assertEqual(response.json()['bases']['male'], f'/api/shop/assets/{new}/models/{target}')
+        with patch.object(shop, 'require_admin'), patch.object(shop, 'catalog', return_value={'revision': new, 'bases': {'male': target}}), patch.object(shop, 'get_conn', return_value=context), patch.object(shop, 'pose_catalog', return_value=pose):
+            response = self.client().get('/api/shop/meta')
+        self.assertNotIn('texture_revision', response.json())
+        self.assertEqual(response.json()['bases']['male'], f'/api/shop/assets/{new}/models/{target}')
 
     def database(self, rows):
         cursor = MagicMock()

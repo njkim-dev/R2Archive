@@ -101,8 +101,9 @@ def meta(request: Request, version: str | None = Query(None, max_length=64)):
         cur.execute(f"SELECT ({DEPARTMENT_SQL}) AS department, count(*)::int AS count FROM shop_items WHERE revision = %s AND show GROUP BY 1", (result["revision"],))
         result["counts"] = {r["department"]: r["count"] for r in cur.fetchall()}
         pose = pose_catalog()
+        remapped = pose and any(name in pose['models'] for name in result['bases'].values())
         result["bases"] = {sex: model_url(result["revision"], name, pose) for sex, name in result["bases"].items()}
-        if pose:
+        if remapped:
             result['texture_revision'] = pose['revision']
     result["admin_only"] = True
     return JSONResponse(result, headers=PRIVATE_HEADERS)
