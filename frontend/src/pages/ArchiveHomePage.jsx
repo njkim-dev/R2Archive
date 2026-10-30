@@ -21,7 +21,7 @@ export default function ArchiveHomePage() {
         <p className="lead">좋아하는 음악을 들으며 추억을 쌓아요.</p>
       </div>
       <div className="services">
-        {isAdmin && <Link className="service repair" to="/shop"><span className="service-kicker">ADMIN PREVIEW</span><h2>아이템 상점</h2><p>아이템을 찾아보고,<br />나만의 착장을 미리 확인해보세요.</p><span className="service-cta">상점 둘러보기 →</span></Link>}
+        {isAdmin && <Link className="service repair" to="/shop"><span className="service-kicker">ADMIN PREVIEW</span><h2>아이템 상점</h2><p>아이템을 찾아보고,<br />나만의 의상을 미리 확인해보세요.</p><span className="service-cta">상점 둘러보기 →</span></Link>}
         <a className="service music" href="https://music.r2archive.com" aria-label="음악 아카이브 둘러보기">
           <span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M25 43V17l27-6v27M25 24l27-6" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/><ellipse cx="17" cy="46" rx="10" ry="8" fill="currentColor"/><ellipse cx="44" cy="40" rx="10" ry="8" fill="currentColor"/></svg><i></i></span>
           <span className="service-kicker">MUSIC ARCHIVE</span>

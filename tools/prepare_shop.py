@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import struct
 import sys
 import threading
@@ -21,11 +22,12 @@ import numpy as np
 from PIL import Image
 
 
-SCHEMA = 'shop-assets-v1'
+SCHEMA = 'shop-assets-v2-face'
 SCRIPT_FILES = ['rnr_script/shop.txt', 'rnr_script/shop.bin', 'rnr_script/item.csv',
-                'rnr_script/pet.xml', 'rnr_script/growpet.xml']
+                'rnr_script/pet.xml', 'rnr_script/growpet.xml', 'rnr_script/face.txt',
+                'rnr_script/config/face_tbface.json']
 BASE_FILES = {'male': 'rnr_char/boy/boi.md9', 'female': 'rnr_char/girl/girl.md9'}
-SLOTS = {1: 'hair', 2: 'top', 3: 'bottom', 4: 'shoes'}
+SLOTS = {1: 'hair', 2: 'top', 3: 'bottom', 4: 'shoes', 6: 'face'}
 PRICE_LABELS = {'P': '단품', 'PN': '단품', 'PH': '기타 가격', 'PI': '무기한'}
 
 
@@ -302,6 +304,26 @@ def name_key(name):
     return re.sub(r'\s+', ' ', value).casefold()
 
 
+def face_textures(root, resolver):
+    mapping = {}
+    for tag in re.findall(r'<Face\b([^>]*)>', read_text(root / 'rnr_script/face.txt')):
+        row = attributes(tag)
+        if not {'ItemEffect', 'Index'} <= row.keys():
+            continue
+        key = (row['ItemEffect'], row.get('CharType', '0'))
+        if key in mapping and mapping[key] != row['Index']:
+            raise ValueError('ambiguous face effect mapping')
+        mapping[key] = row['Index']
+    definitions = json.loads(read_text(root / 'rnr_script/config/face_tbface.json'))
+    result = {}
+    for key, index in mapping.items():
+        definition = definitions.get(index, {})
+        directory = str(definition.get('resPath', index.zfill(2)))
+        normal = definition.get('normalText', 'nor')
+        result[key] = resolver.resolve(f'rnr_char/face/{directory}/{normal}.dds')
+    return result
+
+
 def load_catalog(root, resolver):
     rows = [attributes(line) for line in read_text(root / SCRIPT_FILES[0]).splitlines() if line.strip()]
     if any(not {'Index', 'Name', 'Show'} <= row.keys() for row in rows):
@@ -323,6 +345,7 @@ def load_catalog(root, resolver):
         raise ValueError('shop.bin and shop.txt item IDs differ')
     effects = list(csv.reader(io.StringIO(read_text(root / SCRIPT_FILES[2]))))
     pets = {row['Id']: row for row in [attributes(tag) for tag in re.findall(r'<Pet\b([^>]*)>', read_text(root / SCRIPT_FILES[3]))] if 'Id' in row}
+    faces = face_textures(root, resolver)
     items = []
     for position, row in enumerate(rows):
         index = int(row['Index'])
@@ -333,7 +356,10 @@ def load_catalog(root, resolver):
         thumbnail = resolver.resolve(image_path)
         if not thumbnail:
             thumbnail = resolver.resolve(f'rnr_item/{index}.tga') or resolver.resolve(f'rnr_item/{index}.bmp')
-        model = resolver.resolve(model_path) if slot else None
+        if slot == 'face':
+            model = faces.get((row.get('ItemEffect', '0'), '1' if int(row.get('ShopIndex', '0')) < 300 else '0'))
+        else:
+            model = resolver.resolve(model_path) if slot else None
         description = row.get('Text', '').replace('\\n', '\n').strip()
         effect_value = row.get('ItemEffect', '0')
         effect_id = int(effect_value) if effect_value.isdecimal() else 0
@@ -382,7 +408,10 @@ def plan(source, output):
         if item['_thumbnail_source']:
             required.add(resolver.resolve(item['_thumbnail_source']))
         if item['_model_source']:
-            models.add(resolver.resolve(item['_model_source']))
+            if item['slot'] == 'face':
+                required.add(resolver.resolve(item['_model_source']))
+            else:
+                models.add(resolver.resolve(item['_model_source']))
     models.update(resolver.resolve(path) for path in BASE_FILES.values())
     for model in models:
         required.add(model)
@@ -406,6 +435,12 @@ def plan(source, output):
                 'snapshot_root': str((output / 'source' / revision).resolve()), 'files': files,
                 'bytes': sum(file['size'] for file in files)}
     output.mkdir(parents=True, exist_ok=True)
+    if (output / 'source-manifest.json').exists():
+        previous = json.loads((output / 'source-manifest.json').read_text(encoding='utf-8'))
+        archived = output / 'catalogs' / previous['revision'] / 'source-manifest.json'
+        if not archived.exists():
+            write_json(archived, previous)
+    write_json(output / 'catalogs' / revision / 'source-manifest.json', manifest)
     write_json(output / 'source-manifest.json', manifest)
     write_json(output / 'catalogs' / revision / 'plan.json', {'revision': revision, 'items': items,
                 'ambiguous_pair_groups': ambiguous, 'source_errors': errors})
@@ -416,17 +451,46 @@ def plan(source, output):
 
 
 class Builder:
-    def __init__(self, source, output, manifest):
+    def __init__(self, source, output, manifest, reuse_revision=None):
         self.source, self.output, self.manifest = source, output, manifest
         self.resolver = Resolver(source)
         self.revision = manifest['revision']
         self.asset_root = output / 'assets' / self.revision
         self.cache_path = output / 'catalogs' / self.revision / 'resource-cache.json'
+        if reuse_revision and not self.cache_path.exists():
+            self.reuse(reuse_revision)
         self.cache = json.loads(self.cache_path.read_text(encoding='utf-8')) if self.cache_path.exists() else {}
         self.lock = threading.RLock()
         self.hashes = {file['relative_path'].casefold(): file['sha256'] for file in manifest['files']}
         self.errors = []
         self.bases = {sex: parse_md9(self.resolver.resolve(path), self.resolver) for sex, path in BASE_FILES.items()}
+
+    def reuse(self, revision):
+        if not re.fullmatch(r'[a-f0-9]{20}', revision) or revision == self.revision:
+            raise ValueError('invalid source revision for reuse')
+        old_catalog = self.output / 'catalogs' / revision
+        previous = json.loads((old_catalog / 'source-manifest.json').read_text(encoding='utf-8'))
+        current_hashes = {f['relative_path']: f['sha256'] for f in self.manifest['files']}
+        unchanged_models = all(f['sha256'] == current_hashes.get(f['relative_path']) for f in previous['files']
+                               if not f['relative_path'].startswith('rnr_script/'))
+        cache = json.loads((old_catalog / 'resource-cache.json').read_text(encoding='utf-8'))
+        if not unchanged_models:
+            cache = {key: value for key, value in cache.items() if not key.startswith(('model:', 'face:'))}
+        count = 0
+        for path in (self.output / 'assets' / revision).rglob('*'):
+            if not path.is_file() or not re.fullmatch(r'[a-f0-9]{64}\.(?:webp|json\.gz)', path.name):
+                continue
+            target = self.asset_root / path.relative_to(self.output / 'assets' / revision)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                try:
+                    os.link(path, target)
+                except OSError:
+                    shutil.copyfile(path, target)
+                count += 1
+        write_json(self.cache_path, cache)
+        print(json.dumps({'stage': 'reused', 'revision': self.revision, 'files': count,
+                          'model_cache_reused': unchanged_models}), flush=True)
 
     def asset(self, folder, data, suffix):
         name = hashlib.sha256(data).hexdigest() + suffix
@@ -481,6 +545,28 @@ class Builder:
                 mesh['vertices'][:, 0] += -92 - center[0]
                 mesh['vertices'][:, 1] += 15 - floor
                 mesh['vertices'][:, 2] += 5 - center[2]
+        name = self.encode_meshes(meshes)
+        with self.lock:
+            self.cache[key] = name
+        return name
+
+    def face(self, relative, sex):
+        key = 'face:' + relative.casefold() + ':' + sex
+        with self.lock:
+            cached = self.cache.get(key)
+        if cached and (self.asset_root / 'models' / cached).exists():
+            return cached
+        base = self.bases[sex]
+        meshes = [mesh for mesh in posed_meshes(base, base) if mesh['name'] == 'Face']
+        if len(meshes) != 1:
+            raise ValueError('base face mesh is missing or ambiguous')
+        meshes[0]['texture_path'] = self.resolver.resolve(relative)
+        name = self.encode_meshes(meshes)
+        with self.lock:
+            self.cache[key] = name
+        return name
+
+    def encode_meshes(self, meshes):
         serial = []
         for mesh in meshes:
             vertices = mesh['vertices']
@@ -491,10 +577,7 @@ class Builder:
             serial.append({'name': mesh['name'], 'vertices': vertices.ravel().tolist(),
                            'indices': mesh['indices'].ravel().tolist(), 'texture': texture})
         raw = json.dumps({'meshes': serial}, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()
-        name = self.asset('models', gzip.compress(raw, compresslevel=6, mtime=0), '.json.gz')
-        with self.lock:
-            self.cache[key] = name
-        return name
+        return self.asset('models', gzip.compress(raw, compresslevel=6, mtime=0), '.json.gz')
 
     def item(self, original):
         item = dict(original)
@@ -510,9 +593,9 @@ class Builder:
                 try:
                     if item['slot'] != 'pet' and int(item['category']) < 300:
                         raise ValueError('adult character base is not available')
-                    item['model'] = self.model(item['_model_source'],
-                                               sex=item['sex'] if item['slot'] != 'pet' else None,
-                                               pet=item['slot'] == 'pet')
+                    item['model'] = self.face(item['_model_source'], item['sex']) if item['slot'] == 'face' else self.model(
+                        item['_model_source'], sex=item['sex'] if item['slot'] != 'pet' else None,
+                        pet=item['slot'] == 'pet')
                     item['preview_available'] = True
                 except Exception as error:
                     self.error(item, 'model', error)
@@ -574,13 +657,14 @@ def main():
     parser.add_argument('--build', action='store_true')
     parser.add_argument('--build-from-source', action='store_true')
     parser.add_argument('--workers', type=int, default=6)
+    parser.add_argument('--reuse-revision')
     args = parser.parse_args()
     if not (args.plan or args.build):
         parser.error('select --plan or --build')
     manifest = plan(args.source, args.output) if args.plan else json.loads((args.output / 'source-manifest.json').read_text(encoding='utf-8'))
     if args.build:
         source = args.source if args.build_from_source else Path(manifest['snapshot_root'])
-        Builder(source, args.output, manifest).build(max(1, min(args.workers, 16)))
+        Builder(source, args.output, manifest, args.reuse_revision).build(max(1, min(args.workers, 16)))
 
 
 if __name__ == '__main__':

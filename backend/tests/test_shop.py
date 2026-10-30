@@ -16,6 +16,16 @@ from routers import shop
 
 
 class ShopTests(unittest.TestCase):
+    def database(self, rows):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = {"count": len(rows)}
+        cursor.fetchall.return_value = rows
+        connection = MagicMock()
+        connection.cursor.return_value.__enter__.return_value = cursor
+        context = MagicMock()
+        context.__enter__.return_value = connection
+        return cursor, context
+
     def client(self):
         app = FastAPI()
         app.include_router(shop.router)
@@ -81,6 +91,43 @@ class ShopTests(unittest.TestCase):
             self.assertNotIn(query, call.args[0])
             self.assertIn("show", call.args[0])
             self.assertIn(query, call.args[1])
+
+    def test_cursor_pages_use_a_stable_tiebreaker_and_do_not_repeat_counts(self):
+        version = "a" * 20
+        rows = [{"revision": version, "id": 100, "name": "성형", "_sort_order": 10}, {"revision": version, "id": 101, "name": "성형2", "_sort_order": 10}]
+        cursor, context = self.database(rows)
+        with patch.object(shop, "require_admin"), patch.object(shop, "catalog", return_value={"revision": version}), patch.object(shop, "get_conn", return_value=context):
+            response = self.client().get("/api/shop/items", params={"cursor": "", "page_size": 1, "slot": "face"})
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["next_cursor"], "10:100")
+            self.assertTrue(data["has_more"])
+            self.assertEqual([item["id"] for item in data["items"]], ["100"])
+            self.assertNotIn("_sort_order", data["items"][0])
+            cursor.reset_mock()
+            cursor.fetchall.return_value = rows[1:]
+            response = self.client().get("/api/shop/items", params={"cursor": data["next_cursor"], "page_size": 1, "slot": "face"})
+            self.assertIsNone(response.json()["total"])
+            self.assertFalse(response.json()["has_more"])
+            self.assertEqual(response.json()["items"][0]["id"], "101")
+            cursor.fetchone.assert_not_called()
+            self.assertIn("(sort_order, item_id) > (%s, %s)", cursor.execute.call_args.args[0])
+            self.assertEqual(cursor.execute.call_args.args[1][-3:], [10, 100, 2])
+
+    def test_cursor_rejects_malformed_or_overflowing_values(self):
+        cursor, context = self.database([])
+        with patch.object(shop, "require_admin"), patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
+            for value in ["1:2 OR true", "-1:2", "2147483648:1", "1:9223372036854775808"]:
+                self.assertEqual(self.client().get("/api/shop/items", params={"cursor": value}).status_code, 400)
+        cursor.execute.assert_not_called()
+
+    def test_paired_filter_requires_a_visible_reciprocal_opposite_sex_item(self):
+        cursor, context = self.database([])
+        with patch.object(shop, "require_admin"), patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
+            self.assertEqual(self.client().get("/api/shop/items", params={"paired_only": "true", "sex": "male"}).status_code, 200)
+        sql = cursor.execute.call_args.args[0]
+        for condition in ["partner.show", "partner.counterpart_id = shop_items.item_id", "partner.slot = shop_items.slot", "partner.name_key = shop_items.name_key", "partner.sex = 'female'"]:
+            self.assertIn(condition, sql)
 
 
 if __name__ == "__main__":

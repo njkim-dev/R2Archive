@@ -127,8 +127,8 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
     return () => observer.disconnect()
   }, [angle, zoom, status])
   return <div className="shop-stage">
-    <canvas ref={canvasRef} role="img" aria-label={pair ? '남녀 캐릭터의 전신 착장 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
+    <canvas ref={canvasRef} role="img" aria-label={pair ? '남녀 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
-    <div className="shop-character-labels"><span>{sex === 'male' ? '남성' : '여성'} · 선택한 착장</span>{pair && <span>{sex === 'male' ? '여성' : '남성'} · 대응 착장</span>}</div>
+    <div className="shop-character-labels"><span>{sex === 'male' ? '남성' : '여성'} · 선택한 의상</span>{pair && <span>{sex === 'male' ? '여성' : '남성'} · 대응 의상</span>}</div>
   </div>
 }

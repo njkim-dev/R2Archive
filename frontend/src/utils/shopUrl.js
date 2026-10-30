@@ -1,6 +1,6 @@
 export const SHOP_ORIGIN = 'https://r2archive.com'
-export const SHOP_SLOTS = ['hair', 'top', 'bottom', 'shoes', 'pet']
-export const SLOT_LABELS = { hair: '머리', top: '상의', bottom: '하의', shoes: '신발', pet: '펫' }
+export const SHOP_SLOTS = ['hair', 'face', 'top', 'bottom', 'shoes', 'pet']
+export const SLOT_LABELS = { hair: '머리', face: '성형', top: '상의', bottom: '하의', shoes: '신발', pet: '펫' }
 const validId = value => /^\d{1,12}$/.test(value || '') ? value : null
 const bounded = (value, fallback, min, max) => value !== null && value !== '' && Number.isFinite(Number(value)) ? Math.min(max, Math.max(min, Number(value))) : fallback
 

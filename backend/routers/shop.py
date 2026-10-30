@@ -47,6 +47,7 @@ def asset_url(revision, kind, filename):
 
 def serialize(row):
     item = dict(row)
+    item.pop("_sort_order", None)
     revision = item.pop("revision")
     item["id"] = str(item["id"])
     if item.get("counterpart_id"):
@@ -80,8 +81,10 @@ def items(
     q: str = Query("", max_length=120),
     department: str | None = Query(None, pattern="^(wearable|functional|other)$"),
     sex: str | None = Query(None, pattern="^(male|female|common)$"),
-    slot: str | None = Query(None, pattern="^(hair|top|bottom|shoes|pet)$"),
+    slot: str | None = Query(None, pattern="^(hair|face|top|bottom|shoes|pet)$"),
     category: str | None = Query(None, max_length=20),
+    paired_only: bool = False,
+    cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(24, ge=1, le=60),
 ):
@@ -99,12 +102,43 @@ def items(
         if sex:
             conditions.append("sex IN (%s, 'common')")
             args.append(sex)
+        if paired_only:
+            conditions.append("""department = 'wearable' AND EXISTS (
+                SELECT 1 FROM shop_items AS partner
+                WHERE partner.revision = shop_items.revision
+                  AND partner.item_id = shop_items.counterpart_id
+                  AND partner.counterpart_id = shop_items.item_id
+                  AND partner.show AND partner.department = 'wearable'
+                  AND partner.slot = shop_items.slot AND partner.name_key = shop_items.name_key
+                  AND ((shop_items.sex = 'male' AND partner.sex = 'female')
+                    OR (shop_items.sex = 'female' AND partner.sex = 'male'))
+            )""")
         where = " AND ".join(conditions)
-        cur.execute(f"SELECT count(*)::int AS count FROM shop_items WHERE {where}", args)
-        total = cur.fetchone()["count"]
-        cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE {where} ORDER BY sort_order, item_id LIMIT %s OFFSET %s", [*args, page_size, (page - 1) * page_size])
-        result = [serialize(r) for r in cur.fetchall()]
-    return JSONResponse({"version": current["revision"], "items": result, "total": total, "page": page, "page_size": page_size}, headers=PRIVATE_HEADERS)
+        total = None
+        if not cursor:
+            cur.execute(f"SELECT count(*)::int AS count FROM shop_items WHERE {where}", args)
+            total = cur.fetchone()["count"]
+        if cursor is not None:
+            if cursor:
+                if not re.fullmatch(r"\d{1,10}:\d{1,19}", cursor):
+                    raise HTTPException(status_code=400, detail="목록 위치가 올바르지 않습니다")
+                order, item_id = map(int, cursor.split(":"))
+                if order > 2147483647 or item_id > 9223372036854775807:
+                    raise HTTPException(status_code=400, detail="목록 위치가 올바르지 않습니다")
+                where += " AND (sort_order, item_id) > (%s, %s)"
+                args.extend([order, item_id])
+            cur.execute(f"SELECT {ITEM_COLUMNS}, sort_order AS _sort_order FROM shop_items WHERE {where} ORDER BY sort_order, item_id LIMIT %s", [*args, page_size + 1])
+            rows = cur.fetchall()
+            has_more = len(rows) > page_size
+            rows = rows[:page_size]
+            next_cursor = f"{rows[-1]['_sort_order']}:{rows[-1]['id']}" if has_more else None
+        else:
+            cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE {where} ORDER BY sort_order, item_id LIMIT %s OFFSET %s", [*args, page_size, (page - 1) * page_size])
+            rows = cur.fetchall()
+            has_more = page * page_size < total
+            next_cursor = None
+        result = [serialize(r) for r in rows]
+    return JSONResponse({"version": current["revision"], "items": result, "total": total, "page": page, "page_size": page_size, "has_more": has_more, "next_cursor": next_cursor}, headers=PRIVATE_HEADERS)
 
 
 @router.get("/items/{item_id}")
