@@ -44,7 +44,7 @@ RUN apt-get update && apt-get upgrade -y && \
 COPY --from=backend-requirements /requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78.1.1" && \
     python -m pip install --no-cache-dir --requirement /tmp/requirements.txt && \
-    python -c "from importlib.metadata import version; assert tuple(map(int, version('msgpack').split('.'))) >= (1, 2, 1)" && \
+    python -c "from importlib.metadata import version; assert tuple(map(int, version('msgpack').split('.'))) >= (1, 2, 3)" && \
     python -m pip uninstall --yes pip setuptools && \
     rm -f /tmp/requirements.txt
 

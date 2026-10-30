@@ -19,7 +19,7 @@ python-multipart = ">=0.0.9"
 Pillow = ">=13.0.0,<14.0"
 certifi = ">=2026.10.19"
 pytesseract = ">=0.3.13"
-msgpack = ">=1.2.1"
+msgpack = ">=1.2.3"
 
 [build-system]
 requires = ["poetry-core"]
