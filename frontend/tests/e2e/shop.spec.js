@@ -29,7 +29,7 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
       const start = position ? Number(position.split(':')[0]) + 1 : 0, size = Number(params.get('page_size') || 24)
       if (start && nextGate) await nextGate
       let list = items || (params.get('department') === 'wearable' ? [params.get('sex') === 'female' ? femaleShirt : shirt] : [hero])
-      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
+      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
       const chunk = list.slice(start, start + size), more = start + size < list.length
       return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
     }
@@ -334,6 +334,67 @@ test('unavailable previews are tagged over images before selection and non-cash 
   await page.getByRole('button', { name: `${unknown.name} 자세히 보기`, exact: true }).click()
   await expect(page.locator('.shop-detail-price')).toContainText('800 알코인')
   await expect(page.locator('.shop-app')).not.toContainText('표기가격')
+})
+
+test('category filters isolate matching ring names, pet kinds and supplies without losing clothing or shifting pending lists', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const couple = { ...hero, id: '900', name: '자수정 나비링', category: '507', group: 'couple' }
+  const friend = { ...couple, id: '901', category: '508', group: 'friend' }
+  const regular = { ...pet, subgroup: 'pet_regular' }, growth = { ...pet, id: '902', name: '드래곤', subgroup: 'pet_growth' }
+  const food = { ...hero, id: '903', name: '펫 푸드', group: 'pet_supplies', subgroup: 'pet_food' }
+  await setup(page, { items: [shirt, couple, friend, regular, growth, food] })
+  await page.goto('/shop?sex=male')
+  await page.getByRole('button', { name: `${shirt.name} 의상 선택`, exact: true }).click()
+  await page.getByRole('button', { name: '펫', exact: true }).click()
+  await page.getByRole('button', { name: '일반 펫', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await page.getByRole('button', { name: `${regular.name} 의상 선택`, exact: true }).click()
+  await page.getByRole('button', { name: '성장 펫', exact: true }).click()
+  await expect(page.locator('.shop-card')).toContainText(growth.name)
+  await expect(page.locator('.shop-slots')).toContainText(regular.name)
+  let releaseCouple, releaseFriend
+  const coupleGate = new Promise(resolve => { releaseCouple = resolve }), friendGate = new Promise(resolve => { releaseFriend = resolve })
+  await page.route(/\/api\/shop\/items\?/, async route => {
+    const group = new URL(route.request().url()).searchParams.get('group')
+    if (!['couple', 'friend'].includes(group)) return route.fallback()
+    await (group === 'couple' ? coupleGate : friendGate)
+    return route.fallback()
+  })
+  await page.getByRole('tab', { name: '기능성·소모품', exact: true }).click()
+  await page.getByRole('button', { name: '커플링', exact: true }).click()
+  await page.getByRole('button', { name: '단짝링', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(0)
+  const watcher = await watchLayout(page, ['.shop-filters', '.shop-search', '.shop-grid'])
+  await watcher.expectStable()
+  releaseCouple()
+  await watcher.expectStable()
+  await expect(page.locator('.shop-card')).toHaveCount(0)
+  releaseFriend()
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await expect(page.locator('[data-item-id="901"]')).toBeAttached()
+  await expect(page.locator('[data-item-id="900"]')).toHaveCount(0)
+  await watcher.expectStable()
+  await watcher.stop()
+  await page.locator('[data-item-id="901"] .shop-card-select').click()
+  await page.getByRole('button', { name: '이 아이템 URL 복사', exact: true }).click()
+  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  await page.getByRole('button', { name: '펫 용품', exact: true }).click()
+  await page.getByRole('button', { name: '펫 먹이', exact: true }).click()
+  await expect(page.locator('.shop-card')).toContainText(food.name)
+  await page.getByRole('tab', { name: '꾸미기·펫', exact: true }).click()
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await expect(page.locator('.shop-slots')).toContainText(regular.name)
+  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const outfit = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  expect(outfit.searchParams.get('top')).toBe(shirt.id)
+  expect(outfit.searchParams.get('pet')).toBe(regular.id)
+  await page.goto(shared.pathname + shared.search)
+  await expect(page.getByRole('tab', { name: '기능성·소모품', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('button', { name: '단짝링', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-item-id="901"]')).toBeAttached()
+  await expect(page.locator('[data-item-id="900"]')).toHaveCount(0)
 })
 
 function directionModel(centerX = 0, bottom = 20, height = 260, width = 24) {

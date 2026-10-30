@@ -129,6 +129,29 @@ class ShopTests(unittest.TestCase):
         for condition in ["partner.show", "partner.counterpart_id = shop_items.item_id", "partner.slot = shop_items.slot", "partner.name_key = shop_items.name_key", "partner.sex = 'female'"]:
             self.assertIn(condition, sql)
 
+    def test_category_filters_are_bounded_and_parameterized(self):
+        cursor, context = self.database([])
+        with patch.object(shop, "require_admin"), patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
+            response = self.client().get('/api/shop/items', params={'department': 'functional', 'group': 'pet_supplies', 'subgroup': 'pet_food', 'cursor': ''})
+            self.assertEqual(response.status_code, 200)
+            for call in cursor.execute.call_args_list:
+                self.assertIn('pet_supplies', call.args[1])
+                self.assertIn('pet_food', call.args[1])
+                self.assertIn('show', call.args[0])
+            cursor.reset_mock()
+            for params in [{'group': "friend' OR true --"}, {'subgroup': 'unknown'}, {'group': 'x' * 33}]:
+                self.assertEqual(self.client().get('/api/shop/items', params=params).status_code, 422)
+            cursor.execute.assert_not_called()
+
+    def test_serialized_categories_preserve_item_identity_and_shared_asset_urls(self):
+        item = shop.serialize({'revision': 'a' * 20, 'id': 1200090, 'category': '508', 'department': 'functional', 'item_group': 'friend', 'item_subgroup': None, 'thumbnail': 'b' * 64 + '.webp'})
+        self.assertEqual(item['id'], '1200090')
+        self.assertEqual(item['category'], '508')
+        self.assertEqual(item['group'], 'friend')
+        self.assertIsNone(item['subgroup'])
+        self.assertIn('/assets/' + 'a' * 20 + '/thumbnails/', item['thumbnail'])
+        self.assertNotIn('item_group', item)
+
 
 if __name__ == "__main__":
     unittest.main()

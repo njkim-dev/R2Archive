@@ -10,6 +10,7 @@ from psycopg2.extras import RealDictCursor
 
 from auth import require_admin
 from database import get_conn
+from shop_categories import DEPARTMENT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 SHOP_DIR = Path(os.environ.get("SHOP_DIR", Path(__file__).resolve().parents[2] / "shop"))
@@ -48,6 +49,9 @@ def asset_url(revision, kind, filename):
 def serialize(row):
     item = dict(row)
     item.pop("_sort_order", None)
+    if 'item_group' in item:
+        item['group'] = item.pop('item_group')
+        item['subgroup'] = item.pop('item_subgroup', None)
     revision = item.pop("revision")
     item["id"] = str(item["id"])
     if item.get("counterpart_id"):
@@ -58,7 +62,7 @@ def serialize(row):
     return item
 
 
-ITEM_COLUMNS = "revision, item_id AS id, name, category, department, slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id"
+ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
 
 
 @router.get("/meta")
@@ -66,7 +70,7 @@ ITEM_COLUMNS = "revision, item_id AS id, name, category, department, slot, sex, 
 def meta(request: Request, version: str | None = Query(None, max_length=64)):
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         result = catalog(cur, version)
-        cur.execute("SELECT department, count(*)::int AS count FROM shop_items WHERE revision = %s AND show GROUP BY department", (result["revision"],))
+        cur.execute(f"SELECT ({DEPARTMENT_SQL}) AS department, count(*)::int AS count FROM shop_items WHERE revision = %s AND show GROUP BY 1", (result["revision"],))
         result["counts"] = {r["department"]: r["count"] for r in cur.fetchall()}
         result["bases"] = {sex: asset_url(result["revision"], "models", name) for sex, name in result["bases"].items()}
     result["admin_only"] = True
@@ -83,6 +87,8 @@ def items(
     sex: str | None = Query(None, pattern="^(male|female|common)$"),
     slot: str | None = Query(None, pattern="^(hair|face|top|bottom|shoes|pet)$"),
     category: str | None = Query(None, max_length=20),
+    group: str | None = Query(None, max_length=32, pattern='^(' + '|'.join(GROUPS) + ')$'),
+    subgroup: str | None = Query(None, max_length=32, pattern='^(' + '|'.join(SUBGROUPS) + ')$'),
     paired_only: bool = False,
     cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
@@ -95,7 +101,7 @@ def items(
         if q.strip():
             conditions.append("position(lower(%s) in lower(name)) > 0")
             args.append(q.strip())
-        for column, value in [("department", department), ("slot", slot), ("category", category)]:
+        for column, value in [(f"({DEPARTMENT_SQL})", department), ("slot", slot), ("category", category), (f"({GROUP_SQL})", group), (f"({SUBGROUP_SQL})", subgroup)]:
             if value:
                 conditions.append(f"{column} = %s")
                 args.append(value)
