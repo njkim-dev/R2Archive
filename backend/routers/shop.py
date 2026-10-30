@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from psycopg2.extras import RealDictCursor
 
-from auth import require_admin
+from auth import fetch_user, require_user_id
 from database import get_conn
 from shop_categories import DEPARTMENT_SQL, SLOT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS, department_sql, slot_sql
 
@@ -25,9 +25,22 @@ def bounded_shop_read(handler):
     @wraps(handler)
     def run(request, *args, **kwargs):
         with _shop_reads:
-            require_admin(request)
             return handler(request, *args, **kwargs)
     return run
+
+
+def favorite_user(request):
+    uid = require_user_id(request)
+    if fetch_user(uid) is None:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다")
+    return uid
+
+
+def favorite_storage(cur):
+    cur.execute("SELECT to_regclass('public.shop_favorites') AS storage")
+    row = cur.fetchone()
+    if (row.get('storage') if isinstance(row, dict) else row[0]) is None:
+        raise HTTPException(status_code=503, detail="즐겨찾기 저장소를 준비 중입니다")
 
 
 def catalog(cur, version=None):
@@ -105,7 +118,7 @@ def meta(request: Request, version: str | None = Query(None, max_length=64)):
         result["bases"] = {sex: model_url(result["revision"], name, pose) for sex, name in result["bases"].items()}
         if remapped:
             result['texture_revision'] = pose['revision']
-    result["admin_only"] = True
+    result["admin_only"] = False
     return JSONResponse(result, headers=PRIVATE_HEADERS)
 
 
@@ -123,10 +136,12 @@ def items(
     subgroup: str | None = Query(None, max_length=32, pattern='^(' + '|'.join(SUBGROUPS) + ')$'),
     paired_only: bool = False,
     preview_only: bool = False,
+    favorites_only: bool = False,
     cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(24, ge=1, le=60),
 ):
+    uid = favorite_user(request) if favorites_only else None
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         current = catalog(cur, version)
         conditions = ["revision = %s", "show"]
@@ -143,6 +158,9 @@ def items(
             args.append(sex)
         if preview_only:
             conditions.append('preview_available AND model IS NOT NULL')
+        if favorites_only:
+            conditions.append('EXISTS (SELECT 1 FROM shop_favorites AS favorite WHERE favorite.user_id = %s AND favorite.item_id = shop_items.item_id)')
+            args.append(uid)
         if paired_only:
             partner_preview = 'AND partner.preview_available AND partner.model IS NOT NULL' if preview_only else ''
             conditions.append(f"""({department_sql('shop_items')}) = 'wearable' AND (
@@ -186,6 +204,47 @@ def items(
     return JSONResponse({"version": current["revision"], "items": result, "total": total, "page": page, "page_size": page_size, "has_more": has_more, "next_cursor": next_cursor}, headers=PRIVATE_HEADERS)
 
 
+@router.get("/favorites")
+@bounded_shop_read
+def favorites(request: Request):
+    uid = favorite_user(request)
+    with get_conn() as conn, conn.cursor() as cur:
+        favorite_storage(cur)
+        cur.execute('SELECT item_id FROM shop_favorites WHERE user_id = %s ORDER BY item_id', (uid,))
+        ids = [str(row[0]) for row in cur.fetchall()]
+    return JSONResponse({'ids': ids}, headers=PRIVATE_HEADERS)
+
+
+@router.post("/favorites/{item_id}")
+@bounded_shop_read
+def add_favorite(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
+    uid = favorite_user(request)
+    if not 0 < item_id <= 9223372036854775807:
+        raise HTTPException(status_code=422, detail="아이템 번호가 올바르지 않습니다")
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+        favorite_storage(cur)
+        current = catalog(cur, version)
+        cur.execute(f"SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND show AND ({DEPARTMENT_SQL}) = 'wearable'", (current['revision'], item_id))
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail="즐겨찾기에 추가할 수 없는 아이템입니다")
+        cur.execute('INSERT INTO shop_favorites (user_id, item_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (uid, item_id))
+        conn.commit()
+    return JSONResponse({'id': str(item_id), 'favorite': True}, headers=PRIVATE_HEADERS)
+
+
+@router.delete("/favorites/{item_id}")
+@bounded_shop_read
+def remove_favorite(request: Request, item_id: int):
+    uid = favorite_user(request)
+    if not 0 < item_id <= 9223372036854775807:
+        raise HTTPException(status_code=422, detail="아이템 번호가 올바르지 않습니다")
+    with get_conn() as conn, conn.cursor() as cur:
+        favorite_storage(cur)
+        cur.execute('DELETE FROM shop_favorites WHERE user_id = %s AND item_id = %s', (uid, item_id))
+        conn.commit()
+    return JSONResponse({'id': str(item_id), 'favorite': False}, headers=PRIVATE_HEADERS)
+
+
 @router.get("/items/{item_id}")
 @bounded_shop_read
 def item(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
@@ -212,4 +271,5 @@ def asset(request: Request, version: str, kind: str, filename: str):
     headers = dict(PRIVATE_HEADERS)
     if kind == "models":
         headers["Content-Encoding"] = "gzip"
+    headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     return FileResponse(target, media_type="application/json" if kind == "models" else "image/webp", headers=headers)

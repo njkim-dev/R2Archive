@@ -13,7 +13,7 @@ function posedBounds(bounds, pose) {
   return result
 }
 async function model(url) {
-  if (!modelCache.has(url)) modelCache.set(url, fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async response => {
+  if (!modelCache.has(url)) modelCache.set(url, fetch(url, { credentials: 'same-origin', cache: 'force-cache' }).then(async response => {
     if (!response.ok) throw new Error('3D 모델을 불러오지 못했습니다.')
     return response.json()
   }).catch(error => { modelCache.delete(url); throw error }))
@@ -78,7 +78,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       const textureNames = [...new Set(Object.values(models).flatMap(m => m.meshes.map(mesh => mesh.texture)))]
       await Promise.all(textureNames.map(async name => {
         if (!/^[a-f0-9]{64}\.webp$/.test(name)) throw new Error('텍스처 자료가 올바르지 않습니다.')
-        const response = await fetch(`/api/shop/assets/${meta.texture_revision || meta.revision}/textures/${name}`, { credentials: 'same-origin', cache: 'no-store' })
+        const response = await fetch(`/api/shop/assets/${meta.texture_revision || meta.revision}/textures/${name}`, { credentials: 'same-origin', cache: 'force-cache' })
         if (!response.ok) throw new Error('3D 텍스처를 불러오지 못했습니다.')
         const bitmap = await createImageBitmap(await response.blob())
         if (cancelled) { bitmap.close(); return }

@@ -16,7 +16,7 @@ export function createShopImageCache({ maxEntries = 160, maxBytes = 12 * 1024 * 
     try {
       let response
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        response = await fetcher(entry.key, { credentials: 'same-origin', cache: 'no-store', signal: entry.controller.signal })
+        response = await fetcher(entry.key, { credentials: 'same-origin', cache: 'force-cache', signal: entry.controller.signal })
         if (![429, 503].includes(response.status) || attempt === maxRetries) break
         if (!entry.refs || entry.generation !== generation) throw aborted()
         await new Promise((resolve, reject) => {

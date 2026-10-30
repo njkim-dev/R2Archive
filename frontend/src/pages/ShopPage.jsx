@@ -8,6 +8,9 @@ import { SHOP_GROUPS, PET_GROUPS, PET_SUPPLY_GROUPS } from '../utils/shopCategor
 import ShopViewer from '../components/shop/ShopViewer'
 import ItemImage, { ShopImageSession } from '../components/shop/ShopImage'
 import ShopVirtualGrid from '../components/shop/ShopVirtualGrid'
+import ShopFavoriteButton from '../components/shop/ShopFavoriteButton'
+import ShopFavoritePicker from '../components/shop/ShopFavoritePicker'
+import useShopFavorites from '../components/shop/useShopFavorites'
 import '../styles/shop.css'
 
 const emptySlots = () => Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null]))
@@ -17,20 +20,16 @@ const defaultPrice = item => item?.prices?.find(p => p.key === 'PI') || item?.pr
 const errorText = error => typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : Array.isArray(error?.response?.data?.detail) ? '검색어나 공유 URL을 확인해주세요.' : error?.message || '상점 정보를 불러오지 못했습니다.'
 
 export default function ShopPage() {
-  const { authLoaded, adminLoaded, isAdmin, user, openLogin } = useStore()
   const location = useLocation()
-  const waiting = !authLoaded || (!!user && !adminLoaded)
-  return <div className="shop-app">
-    <header className="shop-header"><Link to="/" className="shop-brand"><b>R2</b> ARCHIVE</Link><nav><a href="https://music.r2archive.com">음악</a><span aria-current="page">상점</span><Link to="/game-repair">게임 복구</Link></nav><span className="shop-admin-label">관리자 전용</span></header>
-    {user && authLoaded && isAdmin && adminLoaded ? <ShopImageSession key={user.id}><ShopContent key={location.search} search={location.search} /></ShopImageSession> : <main className="shop-access">
-      <h1>{waiting ? '관리자 권한을 확인 중입니다.' : '관리자 전용 상점입니다.'}</h1>
-      <p>{waiting ? '잠시만 기다려주세요.' : '관리자 계정으로 로그인한 뒤 이용할 수 있습니다.'}</p>
-      {!waiting && !user && <button className="shop-primary" onClick={() => { rememberShopReturn(); openLogin() }}>로그인</button>}
-    </main>}
-  </div>
+  return <div className="shop-app"><ShopImageSession><ShopContent key={location.search} search={location.search} /></ShopImageSession></div>
 }
 
 function ShopContent({ search }) {
+  const { authLoaded, user, openLogin, logout } = useStore()
+  const favorites = useShopFavorites(authLoaded ? user?.id : null)
+  const authenticated = authLoaded && !!user
+  const [favoriteSlot, setFavoriteSlot] = useState(null)
+  useEffect(() => { setFavoriteSlot(null) }, [user?.id])
   const initial = useRef(readShopUrl(search)).current
   const [meta, setMeta] = useState(null)
   const [ready, setReady] = useState(false)
@@ -72,7 +71,7 @@ function ShopContent({ search }) {
         const catalog = await getShopMeta(initial.version)
         if (cancelled) return
         setMeta(catalog)
-        if (initial.preview) {
+        if (initial.preview || SHOP_SLOTS.some(key => initial.slots[key])) {
           const gender = initial.sex || 'male'
           const chosen = emptySlots()
           await Promise.all(SHOP_SLOTS.map(async key => {
@@ -82,7 +81,8 @@ function ShopContent({ search }) {
             chosen[key] = item
           }))
           if (cancelled) return
-          setSex(gender); setSlots(chosen); setApplied({ sex: gender, slots: chosen }); setView('preview')
+          setSex(gender); setSlots(chosen)
+          if (initial.preview) { setApplied({ sex: gender, slots: chosen }); setView('preview') }
         } else if (initial.item) {
           const item = await getShopItem(initial.item, catalog.revision)
           if (cancelled) return
@@ -171,12 +171,34 @@ function ShopContent({ search }) {
   }
   function changeDepartment(next) { setDepartment(next); setSlot(''); setGroup(''); setSubgroup(''); setQuery(''); setDetail(null); setError('') }
   function preview() { if (sex && meta) { restoreScroll.current = true; setApplied({ sex, slots: { ...slots } }); setCounterparts(emptySlots()); setPair(false); setView('preview'); setError(''); window.scrollTo({ top: 0, behavior: 'instant' }) } }
+  function login() {
+    let target = location.pathname + location.search
+    if (detail && department !== 'wearable') {
+      const url = new URL(itemShareUrl(detail, sex, selectedPrice?.key))
+      target = url.pathname + url.search
+    } else if (sex && meta) {
+      const url = new URL(outfitShareUrl({ version: meta.revision, sex, slots, pair, angle, zoom }))
+      if (view !== 'preview') url.searchParams.delete('view')
+      target = url.pathname + url.search
+    } else if (detail) {
+      const url = new URL(itemShareUrl(detail, sex, selectedPrice?.key))
+      target = url.pathname + url.search
+    }
+    rememberShopReturn(target); openLogin()
+  }
+  function equipFavorite(item) {
+    const key = favoriteSlot
+    setFavoriteSlot(null)
+    setSlots(current => ({ ...current, [key]: item }))
+    setApplied(current => current.slots[key]?.id === item?.id ? current : ({ ...current, slots: { ...current.slots, [key]: item } }))
+  }
   const chosenCount = Object.values(slots).filter(Boolean).length
   const selectedPrice = detail?.prices.find(p => p.key === priceKey) || defaultPrice(detail)
   const renderCard = item => {
     const price = defaultPrice(item), selected = item.slot && slots[item.slot]?.id === item.id
     const categoryLabel = [...PET_GROUPS, ...PET_SUPPLY_GROUPS, ...(SHOP_GROUPS[item.department] || [])].find(([key]) => key === item.subgroup || key === item.group)?.[1] || SLOT_LABELS[item.slot] || (item.department === 'functional' ? '공용 아이템' : '장식ㆍ기타')
     return <article className={`shop-card${selected || detail?.id === item.id ? ' is-selected' : ''}`} key={item.id} data-item-id={item.id}>
+      {item.department === 'wearable' && <ShopFavoriteButton item={item} saved={favorites.ids.has(item.id)} authenticated={authenticated} ready={favorites.ready} pending={favorites.pending.has(item.id)} onToggle={favorites.toggle} />}
       <button className="shop-card-select" onClick={() => choose(item)} aria-label={`${item.name} ${item.slot && item.preview_available ? '의상 선택' : '자세히 보기'}`} aria-pressed={!!selected}>
         <div className="shop-card-image"><ItemImage item={item} />{(!item.preview_available || !item.model) && <span className="shop-preview-unavailable">미리보기 불가능</span>}{selected && <span className="shop-check"><Check size={13} /></span>}</div>
         <div className="shop-card-copy"><small>{categoryLabel}{item.sex !== 'common' ? ` ㆍ ${item.sex === 'male' ? '남성' : '여성'}` : ''}</small><strong title={item.name}>{item.name}</strong><div className="shop-card-price">{price ? <><span>{price.amount.toLocaleString()} <small>{currency(price.currency)}</small></span><small>{price.label}</small></> : <small>가격 정보 없음</small>}</div></div>
@@ -185,13 +207,14 @@ function ShopContent({ search }) {
   }
   const wardrobe = (chosen, removable = true) => <div className="shop-slots">{SHOP_SLOTS.map(key => <div className="shop-slot" key={key}>
     <div className="shop-slot-thumb">{chosen[key] ? <ItemImage item={chosen[key]} /> : OPTIONAL_SLOT_LABELS[key] ? '없음' : '기본'}</div>
-    <div><small>{SLOT_LABELS[key]}</small><span>{chosen[key]?.name || OPTIONAL_SLOT_LABELS[key] || (key === 'face' ? '기본 얼굴' : `기본 ${SLOT_LABELS[key]} 착용`)}</span></div>
+    <div><small>{SLOT_LABELS[key]}</small><span title={chosen[key]?.name}>{chosen[key]?.name || OPTIONAL_SLOT_LABELS[key] || (key === 'face' ? '기본 얼굴' : `기본 ${SLOT_LABELS[key]} 착용`)}</span></div>
     {chosen[key] && removable && <button aria-label={`${SLOT_LABELS[key]} 선택 해제`} onClick={() => setSlots(current => ({ ...current, [key]: null }))}><X size={15} /></button>}
+    {!removable && <button className="shop-slot-favorites" disabled={!authenticated || !favorites.ready} aria-label={`${SLOT_LABELS[key]} 즐겨찾기 열기`} title={!authenticated ? '로그인 후 사용할 수 있습니다.' : '즐겨찾기에서 의상 바꾸기'} onClick={() => setFavoriteSlot(key)}>즐겨찾기</button>}
   </div>)}</div>
 
-  return <main className="shop-main">
-    <div className="shop-title"><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : '아이템 상점'}</h1></div><small>관리자 테스트 운영</small></div>
-    <div className="shop-feedback" aria-live="polite"><span role={error ? 'alert' : undefined}>{error}</span></div>
+  return <><header className="shop-header"><Link to="/" className="shop-brand"><b>R2</b> ARCHIVE</Link><nav><a href="https://music.r2archive.com">음악</a><span aria-current="page">상점</span><Link to="/game-repair">게임 복구</Link></nav><button className="shop-login" disabled={!authLoaded} onClick={user ? logout : login}>{!authLoaded ? '확인 중' : user ? '로그아웃' : '로그인'}</button></header><main className="shop-main">
+    <div className="shop-title"><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : '아이템 상점'}</h1></div></div>
+    <div className="shop-feedback" aria-live="polite"><span role={error || favorites.error ? 'alert' : undefined}>{error || favorites.error}</span>{favorites.error && <button disabled={favorites.pending.size > 0} onClick={favorites.reload}>즐겨찾기 다시 불러오기</button>}</div>
     {view === 'preview' && applied && meta ? <>
       <div className="shop-preview-toolbar"><button onClick={() => setView('browse')}><ArrowLeft size={16} /> 아이템 다시 고르기</button><button className="shop-primary" onClick={() => copy(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom }))}><Copy size={16} /> 의상 URL 복사</button></div>
       <div className="shop-preview-grid"><section>
@@ -219,7 +242,8 @@ function ShopContent({ search }) {
       </aside></div>
     </>}
     {toast && <div className="shop-toast" role="status" aria-live="polite"><Check size={16} />{toast}</div>}
+    {favoriteSlot && authenticated && applied && meta && <ShopFavoritePicker key={`${user.id}:${favoriteSlot}:${applied.sex}`} slot={favoriteSlot} sex={applied.sex} version={meta.revision} selected={applied.slots[favoriteSlot]} favorites={favorites} onChoose={equipFavorite} onClose={() => setFavoriteSlot(null)} />}
     {copyFallback && <div className="shop-copy-fallback" role="dialog" aria-label="URL 직접 복사"><div><b>URL 직접 복사</b><button aria-label="URL 직접 복사 닫기" onClick={() => setCopyFallback('')}><X size={16} /></button></div><input aria-label="공유 URL" value={copyFallback} readOnly onFocus={event => event.target.select()} /></div>}
     <footer className="shop-footer"><span>R2 ARCHIVE ㆍ 비공식 아이템 미리보기</span><span>가격ㆍ효과는 게임 클라이언트 자료 기준입니다.</span></footer>
-  </main>
+  </main></>
 }

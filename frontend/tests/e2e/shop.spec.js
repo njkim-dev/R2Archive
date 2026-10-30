@@ -13,23 +13,26 @@ const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 2
 const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertices: [-130, 30, 0, 0, 0, 1, 0, 0, -30, 30, 0, 0, 0, 1, 1, 0, -80, 140, 0, 0, 0, 1, .5, 1] }] }
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
-async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate, textureRevision } = {}) {
+async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate, textureRevision, favoriteIds = [], favoriteGate, authGate } = {}) {
   const requests = []
+  const savedFavorites = new Set(favoriteIds.map(String))
   await page.addInitScript(() => { window.__copiedShopUrl = ''; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => { window.__copiedShopUrl = value } } }) })
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname
     if (!path.startsWith('/api/')) return route.continue()
     if (path.startsWith('/api/shop/')) requests.push(path)
-    if (path === '/api/auth/me') return route.fulfill({ json: { user: loggedIn ? { id: 1, provider: 'google', nickname: '관리자', onboarded: true } : null } })
+    if (path === '/api/auth/me') { if (authGate) await authGate; return route.fulfill({ json: { user: loggedIn ? { id: 1, provider: 'google', nickname: '관리자', onboarded: true } : null } }) }
     if (path === '/api/auth/admin-status') return route.fulfill({ json: { is_admin: admin } })
-    if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, texture_revision: textureRevision, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: true } }) }
+    if (path === '/api/shop/favorites') { if (favoriteGate) await favoriteGate; return route.fulfill({ json: { ids: [...savedFavorites] } }) }
+    if (path.startsWith('/api/shop/favorites/')) { const id = path.split('/').at(-1); if (route.request().method() === 'POST') savedFavorites.add(id); else savedFavorites.delete(id); return route.fulfill({ json: { id, favorite: savedFavorites.has(id) } }) }
+    if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, texture_revision: textureRevision, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: false } }) }
     if (path === '/api/shop/items') {
       if (listGate) await listGate
       const params = url.searchParams, position = params.get('cursor') || ''
       const start = position ? Number(position.split(':')[0]) + 1 : 0, size = Number(params.get('page_size') || 24)
       if (start && nextGate) await nextGate
       let list = items || (params.get('department') === 'wearable' ? [params.get('sex') === 'female' ? femaleShirt : shirt] : [hero])
-      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
+      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('favorites_only') !== 'true' || savedFavorites.has(item.id)) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
       const chunk = list.slice(start, start + size), more = start + size < list.length
       return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
     }
@@ -42,11 +45,131 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
   return requests
 }
 
-test('shop data is never requested before a real admin session is confirmed', async ({ page }) => {
-  const requests = await setup(page, { admin: false })
-  await page.goto('/shop')
-  await expect(page.getByRole('heading', { name: '관리자 전용 상점입니다.' })).toBeVisible()
-  expect(requests).toEqual([])
+test('the public shop browses and shares outfits anonymously while favorite actions remain disabled', async ({ page }) => {
+  const requests = await setup(page, { admin: false, loggedIn: false })
+  await page.goto('/shop?sex=male')
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: shirt.name + ' 즐겨찾기 추가', exact: true })).toBeDisabled()
+  await expect(page.locator('.shop-app')).not.toContainText('관리자 전용')
+  await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: shirt.name + ' 의상 선택', exact: true }).click()
+  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  const favorites = page.locator('.shop-slot-favorites')
+  await expect(favorites).toHaveCount(8)
+  for (const button of await favorites.all()) await expect(button).toBeDisabled()
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  await page.goto(copied.pathname + copied.search)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  expect(requests.some(path => path.startsWith('/api/shop/favorites'))).toBe(false)
+})
+
+test('public items load while authentication is pending and favorite readiness never shifts the catalog', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  let resolveAuth, resolveFavorites
+  const authGate = new Promise(resolve => { resolveAuth = resolve }), favoriteGate = new Promise(resolve => { resolveFavorites = resolve })
+  await setup(page, { admin: false, authGate, favoriteGate, favoriteIds: [shirt.id] })
+  await page.goto('/shop?sex=male')
+  const star = page.getByRole('button', { name: shirt.name + ' 즐겨찾기 추가', exact: true })
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await expect(star).toBeDisabled()
+  const watcher = await watchLayout(page, ['.shop-header','.shop-search','.shop-pair-filter','.shop-grid','.shop-panel'])
+  resolveAuth()
+  await expect(page.getByRole('button',{name:'로그아웃',exact:true})).toBeEnabled()
+  await expect(star).toBeDisabled(); await watcher.expectStable()
+  resolveFavorites()
+  const saved = page.getByRole('button', { name: shirt.name + ' 즐겨찾기 해제', exact: true })
+  await expect(saved).toBeEnabled(); await expect(saved).toHaveAttribute('aria-pressed','true')
+  await watcher.expectStable(); await watcher.stop()
+})
+
+test('favorite stars persist for members and failed parallel saves restore only the affected item', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const other = { ...shirt, id:'202', name:'다른 셔츠(남)', counterpart_id:null }
+  await setup(page, { admin:false, items:[shirt,other] })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route('**/api/shop/favorites/200*', async route => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    await gate
+    return route.fulfill({status:500,json:{detail:'즐겨찾기 저장 실패. 다시 시도해주세요.'}})
+  })
+  await page.goto('/shop?sex=male')
+  const first = page.locator('[data-item-id="200"] .shop-favorite-button'), second = page.locator('[data-item-id="202"] .shop-favorite-button')
+  await expect(first).toBeEnabled()
+  const watcher = await watchLayout(page, ['.shop-search','.shop-pair-filter','.shop-grid','.shop-panel'])
+  await first.click(); await expect(first).toBeDisabled(); await expect(first).toHaveAttribute('aria-pressed','true')
+  await second.click(); await expect(second).toBeEnabled(); await expect(second).toHaveAttribute('aria-pressed','true')
+  await watcher.expectStable(); release()
+  await expect(first).toBeEnabled(); await expect(first).toHaveAttribute('aria-pressed','false')
+  await expect(second).toHaveAttribute('aria-pressed','true')
+  await expect(page.locator('.shop-feedback')).toContainText('즐겨찾기 저장 실패')
+  await expect(page.locator('.shop-slots')).not.toContainText(other.name)
+  await watcher.expectStable(); await watcher.stop()
+  await page.reload()
+  await expect(second).toHaveAttribute('aria-pressed','true'); await expect(first).toHaveAttribute('aria-pressed','false')
+  await second.click(); await expect(second).toHaveAttribute('aria-pressed','false')
+  await page.reload(); await expect(second).toHaveAttribute('aria-pressed','false')
+})
+
+test('the favorite picker changes only the requested slot and preserves both characters camera and shared outfit', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const alternate = { ...shirt,id:'202',name:'새로운 셔츠(남)',counterpart_id:'203',model:`${root}/models/${'f'.repeat(64)}.json.gz` }
+  const femaleAlternate = { ...alternate,id:'203',name:'새로운 셔츠(여)',sex:'female',counterpart_id:'202' }
+  const hair = { ...shirt,id:'204',name:'즐겨찾기 머리',slot:'hair' }
+  const unavailable = { ...shirt,id:'205',name:'미지원 상의',preview_available:false,model:null }
+  await setup(page, { admin:false, items:[shirt,femaleShirt,pet,alternate,femaleAlternate,hair,unavailable], favoriteIds:['202','203','204','205'], models:{[alternate.model]:directionModel()} })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route(/\/api\/shop\/items\?/, async route => {
+    if (new URL(route.request().url()).searchParams.get('favorites_only') === 'true') await gate
+    return route.fallback()
+  })
+  await page.goto(`/shop?view=preview&v=${version}&sex=male&top=200&pet=300&pair=1&angle=237&zoom=119`)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  const open = page.getByRole('button',{name:'상의 즐겨찾기 열기',exact:true})
+  await expect(open).toBeEnabled(); await open.scrollIntoViewIfNeeded()
+  const before = await page.locator('canvas').evaluate(canvas=>canvas.toDataURL())
+  const watcher = await watchLayout(page,['.shop-stage','.shop-preview-toolbar','.shop-view-controls','.shop-panel'])
+  await open.click()
+  const dialog = page.getByRole('dialog',{name:'상의 즐겨찾기',exact:true})
+  await expect(dialog).toBeVisible(); await expect(dialog.locator('.shop-favorite-status')).toContainText('불러오는 중')
+  await watcher.expectStable(); release()
+  await expect(dialog.getByRole('button',{name:alternate.name+' 착용',exact:true})).toBeVisible()
+  await expect(dialog.locator('.shop-favorite-choose')).toHaveCount(1)
+  await expect(dialog).not.toContainText(hair.name); await expect(dialog).not.toContainText(femaleAlternate.name); await expect(dialog).not.toContainText(unavailable.name)
+  await watcher.expectStable()
+  await dialog.getByRole('button',{name:alternate.name+' 착용',exact:true}).click()
+  await expect(dialog).toHaveCount(0); await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await watcher.expectStable(); await watcher.stop()
+  await expect(page.locator('.shop-slots')).toContainText(alternate.name); await expect(page.locator('.shop-slots')).toContainText(pet.name)
+  await expect(page.getByLabel('캐릭터 회전')).toHaveValue('237'); await expect(page.getByLabel('캐릭터 확대')).toHaveValue('119')
+  await expect(page.locator('.shop-pair')).toHaveAttribute('aria-pressed','true')
+  expect(await page.locator('canvas').evaluate(canvas=>canvas.toDataURL())).not.toBe(before)
+  await page.getByRole('button',{name:'의상 URL 복사',exact:true}).click()
+  const copied = new URL(await page.evaluate(()=>window.__copiedShopUrl))
+  for(const [key,value] of Object.entries({top:'202',pet:'300',pair:'1',angle:'237',zoom:'119'}))expect(copied.searchParams.get(key)).toBe(value)
+  await page.goto(copied.pathname+copied.search); await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await expect(page.locator('.shop-slots')).toContainText(alternate.name)
+  await open.click(); await expect(dialog).toBeVisible(); await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0)
+  await expect(page.locator('.shop-slots')).toContainText(alternate.name)
+})
+
+test('login returns to the public catalog with already selected clothing intact', async ({ page }) => {
+  await setup(page,{loggedIn:false,admin:false})
+  await page.goto('/shop?sex=male')
+  await page.getByRole('button',{name:shirt.name+' 의상 선택',exact:true}).click()
+  await page.getByRole('button',{name:'로그인',exact:true}).click()
+  const saved = await page.evaluate(()=>JSON.parse(sessionStorage.getItem('r2_shop_return')))
+  expect(new URL(saved.url,'https://r2archive.com').searchParams.get('top')).toBe(shirt.id)
+  await page.route('**/api/auth/me',route=>route.fulfill({json:{user:{id:1,provider:'google',nickname:'회원',onboarded:true}}}))
+  await page.goto('/?auth=ok')
+  await expect(page).toHaveURL(/\/shop\?/)
+  await expect(page.getByRole('heading',{name:'아이템 상점',exact:true})).toBeVisible()
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await expect(page.getByRole('button',{name:shirt.name+' 즐겨찾기 추가',exact:true})).toBeEnabled()
 })
 
 test('functional item links restore selected item and price without adding it to the outfit', async ({ page }) => {

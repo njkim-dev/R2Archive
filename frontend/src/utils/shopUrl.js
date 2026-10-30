@@ -33,8 +33,8 @@ export function outfitShareUrl({ version, sex, slots, pair, angle, zoom }) {
   return url.href
 }
 
-export function rememberShopReturn() {
-  try { sessionStorage.setItem('r2_shop_return', JSON.stringify({ url: location.pathname + location.search, at: Date.now() })) } catch {}
+export function rememberShopReturn(url = location.pathname + location.search) {
+  try { if (/^\/shop(?:\?|$)/.test(url) && url.length < 4096) sessionStorage.setItem('r2_shop_return', JSON.stringify({ url, at: Date.now() })) } catch {}
 }
 
 export function takeShopReturn() {

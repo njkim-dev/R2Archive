@@ -98,3 +98,5 @@
 }
 @media (max-width: 360px) { .archive-portal .service-cta { font-size: 10px; padding-inline: 7px; } .archive-portal .service-cta svg { display: none; } }
 @media (prefers-reduced-motion: reduce) { .archive-portal * { transition: none !important; } }
+
+.archive-portal .shop-service{grid-column:1 / -1}

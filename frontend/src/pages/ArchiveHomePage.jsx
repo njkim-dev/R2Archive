@@ -1,12 +1,10 @@
 import { Link } from 'react-router-dom'
-import useStore from '../store/useStore'
 import wideBackground from '../assets/archive-home/r2beat-aquarium-wide.png'
 import portraitBackground from '../assets/archive-home/r2beat-aquarium-portrait.png'
 import logoImage from '../assets/archive-home/r2beat-logo-transparent.png'
 import '../styles/archive-home.css'
 
 export default function ArchiveHomePage() {
-  const isAdmin = useStore(state => state.isAdmin)
   return <main className="archive-portal">
     <picture className="artwork" aria-hidden="true"><source media="(max-aspect-ratio: 4/3)" srcSet={portraitBackground} /><img src={wideBackground} alt="" width="1672" height="941" /></picture>
     <svg className="game-logo" viewBox="40 55 2120 595" role="img" aria-label="R2Beat" xmlns="http://www.w3.org/2000/svg"><image href={logoImage} width="2172" height="724"/></svg>
@@ -21,7 +19,7 @@ export default function ArchiveHomePage() {
         <p className="lead">좋아하는 음악을 들으며 추억을 쌓아요.</p>
       </div>
       <div className="services">
-        {isAdmin && <Link className="service repair" to="/shop"><span className="service-kicker">ADMIN PREVIEW</span><h2>아이템 상점</h2><p>아이템을 찾아보고,<br />나만의 의상을 미리 확인해보세요.</p><span className="service-cta">상점 둘러보기 →</span></Link>}
+        <Link className="service shop-service" to="/shop" aria-label="아이템 상점 둘러보기"><span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M16 23h32l4 32H12l4-32ZM23 24V16a9 9 0 0 1 18 0v8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/></svg><i /></span><span className="service-kicker">ITEM SHOP</span><h2>아이템 상점</h2><p>아이템을 찾아보고,<br />나만의 의상을 미리 확인해보세요.</p><span className="service-cta">상점 둘러보기 →</span></Link>
         <a className="service music" href="https://music.r2archive.com" aria-label="음악 아카이브 둘러보기">
           <span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M25 43V17l27-6v27M25 24l27-6" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/><ellipse cx="17" cy="46" rx="10" ry="8" fill="currentColor"/><ellipse cx="44" cy="40" rx="10" ry="8" fill="currentColor"/></svg><i></i></span>
           <span className="service-kicker">MUSIC ARCHIVE</span>

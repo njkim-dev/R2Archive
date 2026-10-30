@@ -28,6 +28,8 @@ for (const portrait of [false, true]) {
     await watcher.expectStable()
     await watcher.stop()
     await expect(page.locator('.music p')).toHaveText('예전 서비스 음악부터 새로운 음악까지,알투비트 곡들을 만나보세요.')
+    await expect(page.getByRole('link', { name: '아이템 상점 둘러보기', exact: true })).toHaveAttribute('href', '/shop')
+    await expect(page.locator('.shop-service')).not.toContainText('ADMIN')
     await expect(page.locator('.repair p')).toHaveText('게임이 튕기시나요?게임 파일을 검사하고 복구하세요.')
     await expect(page.locator('.game-logo image')).toHaveAttribute('href', /r2beat-logo-transparent/)
     const official = page.getByRole('link', { name: '공식 홈페이지 ↗' })
