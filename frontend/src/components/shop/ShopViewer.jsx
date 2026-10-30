@@ -37,7 +37,24 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       }
       const program = gl.createProgram()
       resources.push(() => gl.deleteProgram(program))
-      gl.attachShader(program, shader(gl.VERTEX_SHADER, `attribute vec3 position;attribute vec3 normal;attribute vec2 uv;uniform float angle;uniform float aspect;uniform float halfHeight;uniform float halfDepth;uniform float centerX;uniform float centerY;uniform float centerZ;uniform float offsetX;varying vec2 texcoord;varying float lighting;void main(){float c=cos(angle),s=sin(angle);vec3 p=position-vec3(0.,148.,0.);vec3 q=vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);q.x+=offsetX;vec3 n=vec3(c*normal.x+s*normal.z,normal.y,-s*normal.x+c*normal.z);gl_Position=vec4((q.x-centerX)/(halfHeight*aspect),(q.y-centerY)/halfHeight,-(q.z-centerZ)/halfDepth,1.);texcoord=uv;lighting=.76+.24*max(dot(normalize(n),normalize(vec3(-.35,.65,1.))),0.);}`))
+      // MD9의 좌우 방향을 화면 좌표에 맞춘다. 아래 bounds 계산에도 같은 변환이 필요하다.
+      gl.attachShader(program, shader(gl.VERTEX_SHADER, `
+        attribute vec3 position;
+        attribute vec3 normal;
+        attribute vec2 uv;
+        uniform float angle,aspect,halfHeight,halfDepth,centerX,centerY,centerZ,offsetX;
+        varying vec2 texcoord;
+        varying float lighting;
+        void main(){
+          float c=cos(angle),s=sin(angle);
+          vec3 p=position-vec3(0.,148.,0.);
+          vec3 q=vec3(-c*p.x-s*p.z+offsetX,p.y,-s*p.x+c*p.z);
+          vec3 n=vec3(-c*normal.x-s*normal.z,normal.y,-s*normal.x+c*normal.z);
+          gl_Position=vec4((q.x-centerX)/(halfHeight*aspect),(q.y-centerY)/halfHeight,-(q.z-centerZ)/halfDepth,1.);
+          texcoord=uv;
+          lighting=.76+.24*max(dot(normalize(n),normalize(vec3(-.35,.65,1.))),0.);
+        }
+      `))
       gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `precision mediump float;uniform sampler2D map;varying vec2 texcoord;varying float lighting;void main(){vec4 t=texture2D(map,texcoord);if(t.a<.43)discard;gl_FragColor=vec4(t.rgb*lighting,1.);}`))
       gl.linkProgram(program)
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('3D 화면 초기화에 실패했습니다.')
@@ -91,14 +108,20 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         if (!rect.width || !rect.height) return
         canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr)
         const aspect = rect.width / rect.height
+        const radians = rotation * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians)
         const scene = [{ meshes: figure(sex, slots), offset: pair ? -65 : 0 }]
         if (pair) scene.push({ meshes: figure(sex === 'male' ? 'female' : 'male', counterparts), offset: 65 })
-        if (slots.pet) scene.push({ meshes: gpu[slots.pet.model], offset: pair ? 92 : 0 })
+        if (slots.pet) {
+          const meshes = gpu[slots.pet.model]
+          const centerX = (Math.min(...meshes.map(mesh => mesh.bounds[0][0])) + Math.max(...meshes.map(mesh => mesh.bounds[1][0]))) / 2
+          const centerZ = (Math.min(...meshes.map(mesh => mesh.bounds[0][2])) + Math.max(...meshes.map(mesh => mesh.bounds[1][2]))) / 2
+          // 펫 형상은 보정하되 기존 회전 각도별 배치 중심은 유지한다.
+          scene.push({ meshes, offset: (pair ? 92 : 0) + 2 * (c * centerX + s * centerZ) })
+        }
         const bounds = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
-        const radians = rotation * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians)
         for (const group of scene) for (const mesh of group.meshes) {
           for (const x of [mesh.bounds[0][0], mesh.bounds[1][0]]) for (const y of [mesh.bounds[0][1], mesh.bounds[1][1]]) for (const z of [mesh.bounds[0][2], mesh.bounds[1][2]]) {
-            const point = [c * x + s * z + group.offset, y - 148, -s * x + c * z]
+            const point = [-c * x - s * z + group.offset, y - 148, -s * x + c * z]
             for (let axis = 0; axis < 3; axis++) { bounds[0][axis] = Math.min(bounds[0][axis], point[axis]); bounds[1][axis] = Math.max(bounds[1][axis], point[axis]) }
           }
         }

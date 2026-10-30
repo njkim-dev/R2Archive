@@ -13,7 +13,7 @@ const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 2
 const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertices: [-130, 30, 0, 0, 0, 1, 0, 0, -30, 30, 0, 0, 0, 1, 1, 0, -80, 140, 0, 0, 0, 1, .5, 1] }] }
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
-async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate } = {}) {
+async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate } = {}) {
   const requests = []
   await page.addInitScript(() => { window.__copiedShopUrl = ''; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => { window.__copiedShopUrl = value } } }) })
   await page.route('**/api/**', async route => {
@@ -34,8 +34,8 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
       return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
     }
     if (path.startsWith('/api/shop/items/')) return route.fulfill({ json: items?.find(item => path.endsWith('/' + item.id)) || (path.endsWith('/201') ? femaleShirt : path.endsWith('/200') ? shirt : path.endsWith('/300') ? pet : hero) })
-    if (path.includes('/models/')) return route.fulfill({ json: path.includes('c'.repeat(64)) ? petMesh : mesh })
-    if (path.includes('/textures/') || path.includes('/thumbnails/')) return route.fulfill({ body: png, contentType: 'image/png' })
+    if (path.includes('/models/')) { if (modelGate) await modelGate; return route.fulfill({ json: models?.[path] || (path.includes('c'.repeat(64)) ? petMesh : mesh) }) }
+    if (path.includes('/textures/') || path.includes('/thumbnails/')) return route.fulfill({ body: texture, contentType: 'image/png' })
     if (path.endsWith('/flags')) return route.fulfill({ json: { favorites: [], played: [], played_all: [] } })
     return route.fulfill({ json: [] })
   })
@@ -293,4 +293,116 @@ test('face selection is combined with hair and restored by the shared outfit URL
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await expect(page.locator('.shop-slots')).toContainText(hair.name)
   await expect(page.locator('.shop-slots')).toContainText(face.name)
+})
+
+function directionModel(centerX = 0, bottom = 20, height = 260, width = 24) {
+  const vertices = [], indices = []
+  function quad(points, normal, color) {
+    const start = vertices.length / 8
+    for (const point of points) vertices.push(...point, ...normal, (color + .5) / 6, .5)
+    indices.push(start, start + 1, start + 2, start, start + 2, start + 3)
+  }
+  const left = centerX - width, right = centerX + width, tall = bottom + height, short = bottom + height * .8
+  // 정면의 왼쪽 형상은 더 높다. UV만 뒤집는 수정으로는 이 기준을 통과할 수 없다.
+  for (const [z, normal, colors] of [[-12, [0, 0, -1], [0, 1]], [12, [0, 0, 1], [2, 3]]]) {
+    quad([[left, bottom, z], [centerX, bottom, z], [centerX, tall, z], [left, tall, z]], normal, colors[0])
+    quad([[centerX, bottom, z], [right, bottom, z], [right, short, z], [centerX, short, z]], normal, colors[1])
+  }
+  quad([[left, bottom, -12], [left, bottom, 12], [left, tall, 12], [left, tall, -12]], [-1, 0, 0], 4)
+  quad([[right, bottom, -12], [right, bottom, 12], [right, short, 12], [right, short, -12]], [1, 0, 0], 5)
+  return { meshes: [{ name: 'Waist', vertices, indices, texture: `${hash}.webp` }] }
+}
+
+async function directionPixels(canvas) {
+  return canvas.evaluate(canvas => {
+    const gl = canvas.getContext('webgl'), data = new Uint8Array(canvas.width * canvas.height * 4)
+    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    const columns = new Set(), totals = {}, samples = []
+    let left = canvas.width, right = -1, bottom = canvas.height, top = -1
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      const i = (y * canvas.width + x) * 4
+      if (data[i + 3] < 200) continue
+      const color = (data[i] > 100 ? 1 : 0) + (data[i + 1] > 100 ? 2 : 0) + (data[i + 2] > 100 ? 4 : 0)
+      columns.add(x); totals[color] = (totals[color] || 0) + 1; samples.push({ x, y, color })
+      left = Math.min(left, x); right = Math.max(right, x); bottom = Math.min(bottom, y); top = Math.max(top, y)
+    }
+    const groups = []
+    for (const x of [...columns].sort((a, b) => a - b)) {
+      if (!groups.length || x > groups.at(-1).right + 1) groups.push({ left: x, right: x, colors: {} })
+      else groups.at(-1).right = x
+    }
+    for (const { x, y, color } of samples) {
+      const group = groups.find(group => x >= group.left && x <= group.right)
+      const stats = group.colors[color] ||= { count: 0, x: 0, top: -1 }
+      stats.count++; stats.x += x; stats.top = Math.max(stats.top, y)
+    }
+    for (const group of groups) for (const stats of Object.values(group.colors)) stats.x /= stats.count
+    return { groups, totals, left, right, bottom, top, width: canvas.width, height: canvas.height }
+  })
+}
+
+for (const sex of ['male', 'female']) test(`MD9 ${sex} and opposite gender with a pet keep game orientation and shared selection`, async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const female = { ...femaleShirt, counterpart_id: shirt.id, model: `${root}/models/${'f'.repeat(64)}.json.gz` }
+  const models = {
+    [`${root}/models/${'d'.repeat(64)}.json.gz`]: directionModel(),
+    [`${root}/models/${'e'.repeat(64)}.json.gz`]: directionModel(0, 20, 240, 20),
+    [shirt.model]: directionModel(), [female.model]: directionModel(0, 20, 240, 20),
+    [pet.model]: directionModel(-80, 30, 110, 18),
+  }
+  let release
+  const modelGate = new Promise(resolve => { release = resolve })
+  const texture = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAIAAAByq0inAAAAE0lEQVR4nGP4z8DAAMb//0OI/wBHywj4QWpCgAAAAABJRU5ErkJggg==', 'base64')
+  await setup(page, { items: [shirt, female, pet], models, texture, modelGate })
+  await page.goto(`/shop?sex=${sex}`)
+  const selected = sex === 'male' ? shirt : female
+  await page.getByRole('button', { name: `${selected.name} 의상 선택`, exact: true }).click()
+  await page.getByRole('button', { name: `${pet.name} 의상 선택`, exact: true }).click()
+  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await page.getByRole('button', { name: '이성 아이템 함께 보기', exact: true }).click()
+  await expect(page.locator('.shop-character-labels span')).toHaveCount(2)
+  await expect(page.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  const watcher = await watchLayout(page, ['.shop-stage', '.shop-view-controls', '.shop-preview-toolbar'])
+  await watcher.expectStable()
+  release()
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await watcher.expectStable()
+  await watcher.stop()
+  const canvas = page.locator('.shop-stage canvas')
+  const front = await directionPixels(canvas)
+  expect(front.groups).toHaveLength(3)
+  for (const group of front.groups) {
+    expect(group.colors[1].x).toBeLessThan(group.colors[2].x)
+    expect(group.colors[1].top).toBeGreaterThan(group.colors[2].top + 5)
+  }
+  expect(front.groups[2].colors[1].top).toBeLessThan(Math.min(front.groups[0].colors[1].top, front.groups[1].colors[1].top))
+  if (sex === 'male') expect(front.groups[0].colors[1].top).toBeGreaterThan(front.groups[1].colors[1].top)
+  else expect(front.groups[0].colors[1].top).toBeLessThan(front.groups[1].colors[1].top)
+  const labels = await page.locator('.shop-character-labels span').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().x + node.getBoundingClientRect().width / 2))
+  expect(labels[0]).toBeLessThan(labels[1])
+  const sideColors = { 0: [3, 4], 90: [6], 270: [5, 6] }
+  for (const [angle, colors] of Object.entries(sideColors)) {
+    await page.getByLabel('캐릭터 회전').fill(angle)
+    await expect.poll(async () => {
+      const { totals } = await directionPixels(canvas)
+      const total = Object.values(totals).reduce((sum, count) => sum + count, 0)
+      return colors.every(color => totals[color] > 50) && colors.reduce((sum, color) => sum + (totals[color] || 0), 0) > total * .99
+    }).toBe(true)
+    const pixels = await directionPixels(canvas)
+    expect(pixels.left).toBeGreaterThan(4); expect(pixels.right).toBeLessThan(pixels.width - 5)
+    expect(pixels.bottom).toBeGreaterThan(4); expect(pixels.top).toBeLessThan(pixels.height - 5)
+    if (angle === '0') for (const group of pixels.groups) expect(group.colors[3].x).toBeLessThan(group.colors[4].x)
+    if (angle === '270') expect(pixels.totals[5]).toBeGreaterThan(pixels.totals[6] * 2)
+  }
+  await page.getByLabel('캐릭터 회전').fill('237')
+  await page.getByLabel('캐릭터 확대').fill('119')
+  const image = await canvas.evaluate(canvas => canvas.toDataURL())
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  for (const [key, value] of Object.entries({ sex, top: selected.id, pet: pet.id, pair: '1', angle: '237', zoom: '119', v: version })) expect(copied.searchParams.get(key)).toBe(value)
+  await page.goto(copied.pathname + copied.search)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await expect(page.locator('.shop-slots')).toContainText(selected.name)
+  await expect(page.locator('.shop-slots')).toContainText(pet.name)
+  expect(await canvas.evaluate(canvas => canvas.toDataURL())).toBe(image)
 })
