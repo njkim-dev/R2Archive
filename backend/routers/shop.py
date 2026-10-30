@@ -1,6 +1,8 @@
 import os
 import re
+from functools import wraps
 from pathlib import Path
+from threading import BoundedSemaphore
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -14,6 +16,16 @@ SHOP_DIR = Path(os.environ.get("SHOP_DIR", Path(__file__).resolve().parents[2] /
 PRIVATE_HEADERS = {"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow"}
 VERSION_PATTERN = re.compile(r"^[a-f0-9]{12,64}$")
 ASSET_PATTERN = re.compile(r"^[a-f0-9]{64}\.(?:webp|json\.gz)$")
+_shop_reads = BoundedSemaphore(4)
+
+
+def bounded_shop_read(handler):
+    @wraps(handler)
+    def run(request, *args, **kwargs):
+        with _shop_reads:
+            require_admin(request)
+            return handler(request, *args, **kwargs)
+    return run
 
 
 def catalog(cur, version=None):
@@ -49,8 +61,8 @@ ITEM_COLUMNS = "revision, item_id AS id, name, category, department, slot, sex, 
 
 
 @router.get("/meta")
+@bounded_shop_read
 def meta(request: Request, version: str | None = Query(None, max_length=64)):
-    require_admin(request)
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         result = catalog(cur, version)
         cur.execute("SELECT department, count(*)::int AS count FROM shop_items WHERE revision = %s AND show GROUP BY department", (result["revision"],))
@@ -61,6 +73,7 @@ def meta(request: Request, version: str | None = Query(None, max_length=64)):
 
 
 @router.get("/items")
+@bounded_shop_read
 def items(
     request: Request,
     version: str | None = Query(None, max_length=64),
@@ -72,7 +85,6 @@ def items(
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(24, ge=1, le=60),
 ):
-    require_admin(request)
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         current = catalog(cur, version)
         conditions = ["revision = %s", "show"]
@@ -96,8 +108,8 @@ def items(
 
 
 @router.get("/items/{item_id}")
+@bounded_shop_read
 def item(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
-    require_admin(request)
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         current = catalog(cur, version)
         cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision = %s AND item_id = %s AND show", (current["revision"], item_id))
@@ -108,8 +120,8 @@ def item(request: Request, item_id: int, version: str | None = Query(None, max_l
 
 
 @router.get("/assets/{version}/{kind}/{filename}")
+@bounded_shop_read
 def asset(request: Request, version: str, kind: str, filename: str):
-    require_admin(request)
     if not VERSION_PATTERN.fullmatch(version) or kind not in {"models", "textures", "thumbnails"} or not ASSET_PATTERN.fullmatch(filename):
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
     if (kind == "models") != filename.endswith(".json.gz"):

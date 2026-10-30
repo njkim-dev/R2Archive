@@ -8,7 +8,9 @@ const root = `/api/shop/assets/${version}`
 const hero = { id: '1000208', version, name: '돌발모드(영웅)', category: '503', department: 'functional', sex: 'common', slot: null, preview_available: false, description: '장애물이 갑자기 출현합니다.', prices: [{ key: 'P1', label: '1일', amount: 1000, currency: 'cash' }, { key: 'P7', label: '7일', amount: 2000, currency: 'cash' }, { key: 'P30', label: '30일', amount: 4000, currency: 'cash' }], thumbnail: null }
 const shirt = { ...hero, id: '200', name: '검증 셔츠(남)', department: 'wearable', sex: 'male', slot: 'top', preview_available: true, model: `${root}/models/${'b'.repeat(64)}.json.gz`, counterpart_id: '201' }
 const femaleShirt = { ...shirt, id: '201', name: '검증 셔츠(여)', sex: 'female' }
+const pet = { ...shirt, id: '300', name: '검증 펫', sex: 'common', slot: 'pet', model: `${root}/models/${'c'.repeat(64)}.json.gz`, counterpart_id: null }
 const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 20, 20, 0, 0, 0, 1, 1, 0, 0, 280, 0, 0, 0, 1, .5, 1], indices: [0, 1, 2], texture: `${hash}.webp` }] }
+const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertices: [-130, 30, 0, 0, 0, 1, 0, 0, -30, 30, 0, 0, 0, 1, 1, 0, -80, 140, 0, 0, 0, 1, .5, 1] }] }
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
 async function setup(page, { admin = true, loggedIn = true, metaGate, listGate } = {}) {
@@ -22,8 +24,8 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate }
     if (path === '/api/auth/admin-status') return route.fulfill({ json: { is_admin: admin } })
     if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: true } }) }
     if (path === '/api/shop/items') { if (listGate) await listGate; return route.fulfill({ json: { version, items: url.searchParams.get('department') === 'wearable' ? [shirt] : [hero], total: 1, page: 1, page_size: 12 } }) }
-    if (path.startsWith('/api/shop/items/')) return route.fulfill({ json: path.endsWith('/201') ? femaleShirt : path.endsWith('/200') ? shirt : hero })
-    if (path.includes('/models/')) return route.fulfill({ json: mesh })
+    if (path.startsWith('/api/shop/items/')) return route.fulfill({ json: path.endsWith('/201') ? femaleShirt : path.endsWith('/200') ? shirt : path.endsWith('/300') ? pet : hero })
+    if (path.includes('/models/')) return route.fulfill({ json: path.includes('c'.repeat(64)) ? petMesh : mesh })
     if (path.includes('/textures/')) return route.fulfill({ body: png, contentType: 'image/png' })
     if (path.endsWith('/flags')) return route.fulfill({ json: { favorites: [], played: [], played_all: [] } })
     return route.fulfill({ json: [] })
@@ -110,6 +112,23 @@ test('pending catalog and search responses never move the item toolbar or grid',
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await watcher.expectStable()
   await watcher.stop()
+})
+
+test('a narrow preview frames both characters and their pet without clipping the edges', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 1000 })
+  await setup(page)
+  await page.goto(`/shop?view=preview&v=${version}&sex=male&pet=300&pair=1&angle=180&zoom=100`)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  const pixels = await page.locator('.shop-stage canvas').evaluate(canvas => {
+    const gl = canvas.getContext('webgl'), data = new Uint8Array(canvas.width * canvas.height * 4)
+    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    let left = canvas.width, right = -1, count = 0
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) if (data[(y * canvas.width + x) * 4 + 3]) { left = Math.min(left, x); right = Math.max(right, x); count++ }
+    return { left, right, width: canvas.width, count }
+  })
+  expect(pixels.count).toBeGreaterThan(2000)
+  expect(pixels.left).toBeGreaterThan(4)
+  expect(pixels.right).toBeLessThan(pixels.width - 5)
 })
 
 test('switching gender cannot select a stale card while the new list is pending', async ({ page }) => {
