@@ -198,7 +198,7 @@ function ShopContent({ search }) {
         {pairLoading ? <div className="shop-stage"><div className="shop-stage-status">이성 아이템을 확인 중입니다.</div></div> : <ShopViewer meta={meta} sex={applied.sex} slots={applied.slots} counterparts={counterparts} pair={pair} angle={angle} zoom={zoom} />}
         <div className="shop-view-controls"><label>회전 <input aria-label="캐릭터 회전" type="range" min="0" max="360" value={angle} onChange={event => setAngle(Number(event.target.value))} /></label><label>확대 <input aria-label="캐릭터 확대" type="range" min="75" max="135" value={zoom} onChange={event => setZoom(Number(event.target.value))} /></label></div>
         <button className="shop-pair" aria-pressed={pair} disabled={pairLoading} onClick={() => setPair(value => !value)}><Users size={17} /> 이성 아이템 함께 보기</button>
-        <div className="shop-pair-note">{pair && !pairLoading && SHOP_SLOTS.filter(key => key !== 'pet' && applied.slots[key] && !counterparts[key]).length > 0 ? '대응 아이템이 없는 부위는 상대 캐릭터의 기본 의상으로 표시합니다.' : '선택하지 않은 부위는 기본 의상으로 표시합니다.'}</div>
+        <div className="shop-pair-note">{pair && !pairLoading && SHOP_SLOTS.filter(key => key !== 'pet' && applied.slots[key] && !counterparts[key]).length > 0 ? '대응 아이템이 없는 부위는 상대 캐릭터의 기본 의상으로 표시합니다.' : '선택하지 않은 부위는 기본 의상으로 표시됩니다.'}</div>
         {applied.slots.summon && <p className="shop-panel-note">소환물ㆍ날개는 정적인 3D 모습으로 표시합니다.</p>}
       </section><aside className="shop-panel"><h2>현재 의상</h2>{wardrobe(applied.slots, false)}<p className="shop-panel-note">공유 URL은 선택한 아이템, 캐릭터, 회전ㆍ확대와 이성 함께 보기 상태를 포함합니다.</p></aside></div>
     </> : <>

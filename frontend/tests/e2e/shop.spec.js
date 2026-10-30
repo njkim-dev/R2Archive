@@ -79,6 +79,7 @@ test('the shop first asks for gender and can preview the default outfit without 
   await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
   await expect(page.locator('.shop-stage canvas')).toBeVisible()
   await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await expect(page.locator('.shop-pair-note')).toHaveText('선택하지 않은 부위는 기본 의상으로 표시됩니다.')
 })
 
 test('full outfit links restore camera, gender, both characters and default unselected slots', async ({ page }) => {
