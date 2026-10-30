@@ -20,13 +20,16 @@ import unicodedata
 
 import numpy as np
 from PIL import Image
+from shop_pose import read_animation, local_pose
 
 
-SCHEMA = 'shop-assets-v3-attachments'
+SCHEMA = 'shop-assets-v4-static-stand-80'
 SCRIPT_FILES = ['rnr_script/shop.txt', 'rnr_script/shop.bin', 'rnr_script/item.csv',
                 'rnr_script/pet.xml', 'rnr_script/growpet.xml', 'rnr_script/face.txt',
                 'rnr_script/config/face_tbface.json', 'rnr_script/roomfx.txt']
 BASE_FILES = {'male': 'rnr_char/boy/boi.md9', 'female': 'rnr_char/girl/girl.md9'}
+POSE_FILES = {'male': 'rnr_ani/stand_boy_0.ani', 'female': 'rnr_ani/stand_girl_0.ani'}
+POSE_TIME = 80
 SLOTS = {1: 'hair', 2: 'top', 3: 'bottom', 4: 'shoes', 6: 'face'}
 PRICE_LABELS = {'P': '단품', 'PN': '단품', 'PH': '기타 가격', 'PI': '무기한'}
 
@@ -59,15 +62,20 @@ def attributes(text):
 
 
 class Resolver:
-    def __init__(self, root):
+    def __init__(self, root, pose_root=None):
         self.root = root.resolve()
         self.paths = {}
-        for directory in ['rnr_char', 'rnr_item', 'rnr_item_mip', 'rnr_script', 'rnr_room_fx']:
+        for directory in ['rnr_char', 'rnr_item', 'rnr_item_mip', 'rnr_script', 'rnr_room_fx', 'rnr_ani']:
             base = self.root / directory
             if base.exists():
                 for path in base.rglob('*'):
                     if path.is_file():
                         self.paths[path.relative_to(self.root).as_posix().casefold()] = path
+        if pose_root:
+            for relative in POSE_FILES.values():
+                path = pose_root / relative
+                if path.is_file():
+                    self.paths[relative.casefold()] = path.resolve()
 
     def resolve(self, relative):
         if not relative:
@@ -78,7 +86,10 @@ class Resolver:
         return self.paths.get(value.casefold())
 
     def relative(self, path):
-        return path.relative_to(self.root).as_posix()
+        try:
+            return path.relative_to(self.root).as_posix()
+        except ValueError:
+            return next(key for key, value in self.paths.items() if value == path)
 
     def texture(self, model, name):
         relative = (model.parent / name).relative_to(self.root).as_posix()
@@ -154,7 +165,7 @@ def parse_md9(path, resolver):
     return {'bones': bones, 'materials': materials, 'path': path, 'modern': modern}
 
 
-def posed_meshes(model, base=None):
+def bone_worlds(model, base=None, pose=None):
     model_bones = {b['name']: b for b in model['bones']}
     base_bones = {b['name']: b for b in base['bones']} if base else {}
     all_bones = {**base_bones, **model_bones}
@@ -168,7 +179,11 @@ def posed_meshes(model, base=None):
         active = active | {name}
         bone = all_bones[name]
         local = bone['matrix'].copy()
-        if base and name in ['LeftArm1', 'RightArm1']:
+        if pose and name in base_bones:
+            bind = base_bones[name]['matrix']
+            target = pose['locals'].get(name, bind)
+            local = local @ np.linalg.inv(bind) @ target
+        elif base and not pose and name in ['LeftArm1', 'RightArm1']:
             angle = math.radians(-72 if name == 'LeftArm1' else 72)
             c, s = math.cos(angle), math.sin(angle)
             local[:3, :3] = np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]]) @ local[:3, :3]
@@ -182,11 +197,22 @@ def posed_meshes(model, base=None):
         worlds[name] = local @ world(parent, active) if parent else local
         return worlds[name]
 
+    for name in all_bones:
+        world(name, set())
+    if pose:
+        worlds = {name: matrix.copy() for name, matrix in worlds.items()}
+        for matrix in worlds.values():
+            matrix[3, 1] += pose.get('floor_offset', 0)
+    return worlds
+
+
+def posed_meshes(model, base=None, pose=None):
+    worlds = bone_worlds(model, base, pose)
     meshes = []
     for bone in model['bones']:
         if not bone['nf']:
             continue
-        matrix = world(bone['name'], set())
+        matrix = worlds[bone['name']]
         vertices = bone['vertices'].astype(float)
         vertices[:, :3] = vertices[:, :3] @ matrix[:3, :3] + matrix[3, :3]
         vertices[:, 3:6] = vertices[:, 3:6] @ matrix[:3, :3]
@@ -407,10 +433,10 @@ def load_catalog(root, resolver):
     return items, ambiguous
 
 
-def plan(source, output):
-    resolver = Resolver(source)
+def plan(source, output, pose_root=None):
+    resolver = Resolver(source, pose_root)
     items, ambiguous = load_catalog(source, resolver)
-    required = {resolver.resolve(path) for path in SCRIPT_FILES + list(BASE_FILES.values())}
+    required = {resolver.resolve(path) for path in SCRIPT_FILES + list(BASE_FILES.values()) + list(POSE_FILES.values())}
     if None in required:
         raise ValueError('required script or base model missing')
     errors = []
@@ -445,6 +471,7 @@ def plan(source, output):
              for path, digest in zip(ordered, hashes)]
     revision = hashlib.sha256((SCHEMA + json.dumps(files, separators=(',', ':'))).encode()).hexdigest()[:20]
     manifest = {'schema': SCHEMA, 'revision': revision, 'source_root': str(source.resolve()),
+                'pose_root': str(pose_root.resolve()) if pose_root else None,
                 'snapshot_root': str((output / 'source' / revision).resolve()), 'files': files,
                 'bytes': sum(file['size'] for file in files)}
     output.mkdir(parents=True, exist_ok=True)
@@ -466,7 +493,7 @@ def plan(source, output):
 class Builder:
     def __init__(self, source, output, manifest, reuse_revision=None):
         self.source, self.output, self.manifest = source, output, manifest
-        self.resolver = Resolver(source)
+        self.resolver = Resolver(source, Path(manifest['pose_root']) if source.resolve() == Path(manifest['source_root']).resolve() and manifest.get('pose_root') else None)
         self.revision = manifest['revision']
         self.asset_root = output / 'assets' / self.revision
         self.cache_path = output / 'catalogs' / self.revision / 'resource-cache.json'
@@ -477,6 +504,17 @@ class Builder:
         self.hashes = {file['relative_path'].casefold(): file['sha256'] for file in manifest['files']}
         self.errors = []
         self.bases = {sex: parse_md9(self.resolver.resolve(path), self.resolver) for sex, path in BASE_FILES.items()}
+        self.poses = {}
+        for sex, base in self.bases.items():
+            animation = read_animation(self.resolver.resolve(POSE_FILES[sex]))
+            locals_ = {bone['name']: np.array(local_pose(animation['tracks'][bone['name']], bone['matrix'], POSE_TIME))
+                       for bone in base['bones'] if bone['name'] in animation['tracks']}
+            pose = {'locals': locals_}
+            old = posed_meshes(base, base)
+            new = posed_meshes(base, base, pose)
+            pose['floor_offset'] = min(m['vertices'][:, 1].min() for m in old) - min(m['vertices'][:, 1].min() for m in new)
+            pose['attachment_pose'] = np.linalg.inv(bone_worlds(base, base)['Waist']) @ bone_worlds(base, base, pose)['Waist']
+            self.poses[sex] = pose
 
     def reuse(self, revision):
         if not re.fullmatch(r'[a-f0-9]{20}', revision) or revision == self.revision:
@@ -487,11 +525,14 @@ class Builder:
         unchanged_models = all(f['sha256'] == current_hashes.get(f['relative_path']) for f in previous['files']
                                if not f['relative_path'].startswith('rnr_script/'))
         cache = json.loads((old_catalog / 'resource-cache.json').read_text(encoding='utf-8'))
+        unchanged_models = unchanged_models and previous['schema'] == self.manifest['schema']
         if not unchanged_models:
-            cache = {key: value for key, value in cache.items() if not key.startswith(('model:', 'face:'))}
+            cache = {key: value for key, value in cache.items() if not key.startswith(('model:', 'face:', 'attachment:', 'summon:'))}
         count = 0
         for path in (self.output / 'assets' / revision).rglob('*'):
             if not path.is_file() or not re.fullmatch(r'[a-f0-9]{64}\.(?:webp|json\.gz)', path.name):
+                continue
+            if not unchanged_models and path.name.endswith('.json.gz'):
                 continue
             target = self.asset_root / path.relative_to(self.output / 'assets' / revision)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -548,7 +589,7 @@ class Builder:
             base_names = {bone['name'] for bone in base['bones']}
             if any(bone['parent'] == -1 and bone['name'] not in base_names for bone in model['bones']):
                 raise ValueError('unmapped attachment root')
-        meshes = posed_meshes(model, base)
+        meshes = posed_meshes(model, base, self.poses.get(sex))
         if attachment:
             for mesh in meshes:
                 if mesh['name'] not in ['LeftHand', 'RightHand']:
@@ -568,7 +609,7 @@ class Builder:
                 mesh['vertices'][:, 0] += -92 - center[0]
                 mesh['vertices'][:, 1] += 15 - floor
                 mesh['vertices'][:, 2] += 5 - center[2]
-        name = self.encode_meshes(meshes)
+        name = self.encode_meshes(meshes, self.poses[sex]['attachment_pose'] if sex and relative == BASE_FILES[sex] else None)
         with self.lock:
             self.cache[key] = name
         return name
@@ -580,7 +621,7 @@ class Builder:
         if cached and (self.asset_root / 'models' / cached).exists():
             return cached
         base = self.bases[sex]
-        meshes = [mesh for mesh in posed_meshes(base, base) if mesh['name'] == 'Face']
+        meshes = [mesh for mesh in posed_meshes(base, base, self.poses[sex]) if mesh['name'] == 'Face']
         if len(meshes) != 1:
             raise ValueError('base face mesh is missing or ambiguous')
         meshes[0]['texture_path'] = self.resolver.resolve(relative)
@@ -589,7 +630,7 @@ class Builder:
             self.cache[key] = name
         return name
 
-    def encode_meshes(self, meshes):
+    def encode_meshes(self, meshes, attachment_pose=None):
         serial = []
         for mesh in meshes:
             vertices = mesh['vertices']
@@ -599,7 +640,10 @@ class Builder:
             texture = self.image(self.resolver.relative(mesh['texture_path']), 'textures')
             serial.append({'name': mesh['name'], 'vertices': vertices.ravel().tolist(),
                            'indices': mesh['indices'].ravel().tolist(), 'texture': texture})
-        raw = json.dumps({'meshes': serial}, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()
+        payload = {'meshes': serial}
+        if attachment_pose is not None:
+            payload['attachment_pose'] = attachment_pose.ravel().tolist()
+        raw = json.dumps(payload, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()
         return self.asset('models', gzip.compress(raw, compresslevel=6, mtime=0), '.json.gz')
 
     def item(self, original):
@@ -682,10 +726,11 @@ def main():
     parser.add_argument('--build-from-source', action='store_true')
     parser.add_argument('--workers', type=int, default=6)
     parser.add_argument('--reuse-revision')
+    parser.add_argument('--pose-source', type=Path)
     args = parser.parse_args()
     if not (args.plan or args.build):
         parser.error('select --plan or --build')
-    manifest = plan(args.source, args.output) if args.plan else json.loads((args.output / 'source-manifest.json').read_text(encoding='utf-8'))
+    manifest = plan(args.source, args.output, args.pose_source) if args.plan else json.loads((args.output / 'source-manifest.json').read_text(encoding='utf-8'))
     if args.build:
         source = args.source if args.build_from_source else Path(manifest['snapshot_root'])
         Builder(source, args.output, manifest, args.reuse_revision).build(max(1, min(args.workers, 16)))

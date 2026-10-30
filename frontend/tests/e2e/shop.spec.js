@@ -13,7 +13,7 @@ const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 2
 const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertices: [-130, 30, 0, 0, 0, 1, 0, 0, -30, 30, 0, 0, 0, 1, 1, 0, -80, 140, 0, 0, 0, 1, .5, 1] }] }
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
-async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate } = {}) {
+async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate, textureRevision } = {}) {
   const requests = []
   await page.addInitScript(() => { window.__copiedShopUrl = ''; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => { window.__copiedShopUrl = value } } }) })
   await page.route('**/api/**', async route => {
@@ -22,7 +22,7 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
     if (path.startsWith('/api/shop/')) requests.push(path)
     if (path === '/api/auth/me') return route.fulfill({ json: { user: loggedIn ? { id: 1, provider: 'google', nickname: '관리자', onboarded: true } : null } })
     if (path === '/api/auth/admin-status') return route.fulfill({ json: { is_admin: admin } })
-    if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: true } }) }
+    if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, texture_revision: textureRevision, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: true } }) }
     if (path === '/api/shop/items') {
       if (listGate) await listGate
       const params = url.searchParams, position = params.get('cursor') || ''
@@ -465,6 +465,50 @@ test('all eight outfit slots and common wings restore in both characters with un
   expect(await canvas.evaluate(canvas => canvas.toDataURL())).toBe(image)
   await expect(page.locator('.shop-slots')).toContainText(accessory.name)
   await expect(page.locator('.shop-slots')).toContainText(summon.name)
+})
+
+test('static standing poses anchor common wings separately for both genders while preserving hands and legacy shared URLs', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const accessory = { ...shirt, id: '610', name: '손 장식(남)', slot: 'accessory', model: `${root}/models/${'1'.repeat(64)}.json.gz`, counterpart_id: '611' }
+  const other = { ...accessory, id: '611', sex: 'female', name: '손 장식(여)', counterpart_id: '610' }
+  const wings = { ...pet, id: '620', name: '정지 날개', slot: 'summon', model: `${root}/models/${'2'.repeat(64)}.json.gz` }
+  const rectangle = (name, left, right, bottom, top, z, color) => ({ name, vertices: [[left,bottom],[right,bottom],[right,top],[left,top]].flatMap(([x,y]) => [x,y,z,0,0,-1,(color+.5)/6,.5]), indices: [0,1,2,0,2,3], texture: `${hash}.webp` })
+  const pose = (x, y) => [1,0,0,0,0,1,0,0,0,0,1,0,x,y,0,1]
+  const textureRevision = '9'.repeat(20)
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const requests = await setup(page, { items: [accessory,other,wings], textureRevision, modelGate: gate,
+    texture: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAIAAAByq0inAAAAE0lEQVR4nGP4z8DAAMb//0OI/wBHywj4QWpCgAAAAABJRU5ErkJggg==', 'base64'), models: {
+      [`${root}/models/${'d'.repeat(64)}.json.gz`]: { attachment_pose: pose(120,40), meshes: [rectangle('Waist',-24,24,20,280,-10,0)] },
+      [`${root}/models/${'e'.repeat(64)}.json.gz`]: { attachment_pose: pose(-120,-40), meshes: [rectangle('Waist',-24,24,20,280,-10,1)] },
+      [accessory.model]: { meshes: [rectangle('RightHand',15,35,100,130,-20,2)] },
+      [wings.model]: { meshes: [rectangle('Summon-wing',-25,25,100,150,25,4)] },
+    } })
+  await page.goto(`/shop?view=preview&v=${version}&sex=male&accessory=610&summon=620&pair=1&angle=180&zoom=100`)
+  await expect(page.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  const watcher = await watchLayout(page, ['.shop-stage','.shop-preview-toolbar','.shop-view-controls'])
+  await watcher.expectStable(); release()
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await watcher.expectStable(); await watcher.stop()
+  const canvas = page.locator('.shop-stage canvas'), pixels = await directionPixels(canvas)
+  const red = pixels.groups.find(group => group.colors[1]), green = pixels.groups.find(group => group.colors[2])
+  const blue = pixels.groups.filter(group => (group.colors[6]?.count || 0) > 100)
+  expect(blue).toHaveLength(2)
+  expect(red.colors[1].x).toBeLessThan(blue[0].colors[6].x)
+  expect(blue[1].colors[6].x).toBeLessThan(green.colors[2].x)
+  expect(blue[0].colors[6].top).toBeGreaterThan(blue[1].colors[6].top + 5)
+  for (const body of [red,green]) expect(body.colors[4]?.count || 0).toBeGreaterThan(10)
+  expect(pixels.left).toBeGreaterThan(4); expect(pixels.right).toBeLessThan(pixels.width-5)
+  expect(requests.some(p => p.startsWith(`/api/shop/assets/${textureRevision}/textures/`))).toBe(true)
+  const frame = await canvas.evaluate(c => c.toDataURL())
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  expect(copied.searchParams.get('v')).toBe(version)
+  expect(copied.searchParams.get('accessory')).toBe('610')
+  expect(copied.searchParams.get('summon')).toBe('620')
+  await page.goto(copied.pathname+copied.search)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  expect(await canvas.evaluate(c => c.toDataURL())).toBe(frame)
 })
 
 function directionModel(centerX = 0, bottom = 20, height = 260, width = 24) {

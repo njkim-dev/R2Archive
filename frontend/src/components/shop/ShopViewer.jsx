@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
 const modelCache = new Map()
+const identityPose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+function posedBounds(bounds, pose) {
+  const result = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
+  for (const x of [bounds[0][0], bounds[1][0]]) for (const y of [bounds[0][1], bounds[1][1]]) for (const z of [bounds[0][2], bounds[1][2]]) {
+    for (let axis = 0; axis < 3; axis++) {
+      const value = x * pose[axis] + y * pose[4 + axis] + z * pose[8 + axis] + pose[12 + axis]
+      result[0][axis] = Math.min(result[0][axis], value); result[1][axis] = Math.max(result[1][axis], value)
+    }
+  }
+  return result
+}
 async function model(url) {
   if (!modelCache.has(url)) modelCache.set(url, fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async response => {
     if (!response.ok) throw new Error('3D 모델을 불러오지 못했습니다.')
@@ -43,13 +54,15 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         attribute vec3 normal;
         attribute vec2 uv;
         uniform float angle,aspect,halfHeight,halfDepth,centerX,centerY,centerZ,offsetX;
+        uniform mat4 attachmentPose;
         varying vec2 texcoord;
         varying float lighting;
         void main(){
           float c=cos(angle),s=sin(angle);
-          vec3 p=position-vec3(0.,148.,0.);
+          vec3 p=(attachmentPose*vec4(position,1.)).xyz-vec3(0.,148.,0.);
+          vec3 posedNormal=mat3(attachmentPose)*normal;
           vec3 q=vec3(-c*p.x-s*p.z+offsetX,p.y,-s*p.x+c*p.z);
-          vec3 n=vec3(-c*normal.x-s*normal.z,normal.y,-s*normal.x+c*normal.z);
+          vec3 n=vec3(-c*posedNormal.x-s*posedNormal.z,posedNormal.y,-s*posedNormal.x+c*posedNormal.z);
           gl_Position=vec4((q.x-centerX)/(halfHeight*aspect),(q.y-centerY)/halfHeight,-(q.z-centerZ)/halfDepth,1.);
           texcoord=uv;
           lighting=.76+.24*max(dot(normalize(n),normalize(vec3(-.35,.65,1.))),0.);
@@ -60,12 +73,12 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('3D 화면 초기화에 실패했습니다.')
       gl.useProgram(program); gl.enable(gl.DEPTH_TEST)
       const attrs = Object.fromEntries(['position', 'normal', 'uv'].map(key => [key, gl.getAttribLocation(program, key)]))
-      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX'].map(key => [key, gl.getUniformLocation(program, key)]))
+      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose'].map(key => [key, gl.getUniformLocation(program, key)]))
       const textures = {}
       const textureNames = [...new Set(Object.values(models).flatMap(m => m.meshes.map(mesh => mesh.texture)))]
       await Promise.all(textureNames.map(async name => {
         if (!/^[a-f0-9]{64}\.webp$/.test(name)) throw new Error('텍스처 자료가 올바르지 않습니다.')
-        const response = await fetch(`/api/shop/assets/${meta.revision}/textures/${name}`, { credentials: 'same-origin', cache: 'no-store' })
+        const response = await fetch(`/api/shop/assets/${meta.texture_revision || meta.revision}/textures/${name}`, { credentials: 'same-origin', cache: 'no-store' })
         if (!response.ok) throw new Error('3D 텍스처를 불러오지 못했습니다.')
         const bitmap = await createImageBitmap(await response.blob())
         if (cancelled) { bitmap.close(); return }
@@ -92,11 +105,14 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       function figure(gender, chosen) {
         const result = new Map(gpu[meta.bases[gender]].map(mesh => [mesh.name, mesh]))
         Object.entries(chosen).filter(([slot, item]) => slot !== 'pet' && item).forEach(([, item]) => gpu[item.model].forEach(mesh => result.set(mesh.name, mesh)))
-        return [...result.values()]
+        const pose = models[meta.bases[gender]].attachment_pose
+        if (pose && (pose.length !== 16 || !pose.every(Number.isFinite))) throw new Error('캐릭터 자세 자료가 올바르지 않습니다.')
+        return [...result.values()].map(mesh => pose && mesh.name.startsWith('Summon-') ? { ...mesh, pose, bounds: posedBounds(mesh.bounds, pose) } : mesh)
       }
       function paint(meshes, offset) {
         gl.uniform1f(uniforms.offsetX, offset)
         for (const mesh of meshes) {
+          gl.uniformMatrix4fv(uniforms.attachmentPose, false, mesh.pose || identityPose)
           gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vb)
           for (const [key, size, byte] of [['position', 3, 0], ['normal', 3, 12], ['uv', 2, 24]]) { gl.enableVertexAttribArray(attrs[key]); gl.vertexAttribPointer(attrs[key], size, gl.FLOAT, false, 32, byte) }
           gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib); gl.bindTexture(gl.TEXTURE_2D, mesh.texture)

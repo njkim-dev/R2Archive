@@ -1,6 +1,7 @@
 import os
 import re
-from functools import wraps
+import json
+from functools import lru_cache, wraps
 from pathlib import Path
 from threading import BoundedSemaphore
 
@@ -46,6 +47,33 @@ def asset_url(revision, kind, filename):
     return f"/api/shop/assets/{revision}/{kind}/{filename}" if filename else None
 
 
+@lru_cache(maxsize=1)
+def _pose_catalog(path, modified, size):
+    if size > 8 * 1024 * 1024:
+        return None
+    data = json.loads(Path(path).read_text(encoding='utf8'))
+    if data.get('schema') != 'shop-static-pose-v1' or not VERSION_PATTERN.fullmatch(data.get('revision', '')):
+        return None
+    models = data.get('models')
+    if not isinstance(models, dict) or any(not isinstance(k, str) or not isinstance(v, str) or not re.fullmatch(r'[a-f0-9]{64}\.json\.gz', k) or not re.fullmatch(r'[a-f0-9]{64}\.json\.gz', v) for k, v in models.items()):
+        return None
+    return data
+
+
+def pose_catalog():
+    path = SHOP_DIR / 'pose-catalog.json'
+    try:
+        stat = path.stat()
+        return _pose_catalog(str(path), stat.st_mtime_ns, stat.st_size)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def model_url(revision, filename, pose):
+    replacement = pose['models'].get(filename) if pose and filename else None
+    return asset_url(pose['revision'] if replacement else revision, 'models', replacement or filename)
+
+
 def serialize(row):
     item = dict(row)
     item.pop("_sort_order", None)
@@ -57,7 +85,7 @@ def serialize(row):
     if item.get("counterpart_id"):
         item["counterpart_id"] = str(item["counterpart_id"])
     item["thumbnail"] = asset_url(revision, "thumbnails", item.get("thumbnail"))
-    item["model"] = asset_url(revision, "models", item.get("model"))
+    item["model"] = model_url(revision, item.get("model"), pose_catalog())
     item["version"] = revision
     return item
 
@@ -72,7 +100,10 @@ def meta(request: Request, version: str | None = Query(None, max_length=64)):
         result = catalog(cur, version)
         cur.execute(f"SELECT ({DEPARTMENT_SQL}) AS department, count(*)::int AS count FROM shop_items WHERE revision = %s AND show GROUP BY 1", (result["revision"],))
         result["counts"] = {r["department"]: r["count"] for r in cur.fetchall()}
-        result["bases"] = {sex: asset_url(result["revision"], "models", name) for sex, name in result["bases"].items()}
+        pose = pose_catalog()
+        result["bases"] = {sex: model_url(result["revision"], name, pose) for sex, name in result["bases"].items()}
+        if pose:
+            result['texture_revision'] = pose['revision']
     result["admin_only"] = True
     return JSONResponse(result, headers=PRIVATE_HEADERS)
 

@@ -16,6 +16,35 @@ from routers import shop
 
 
 class ShopTests(unittest.TestCase):
+    def test_static_pose_updates_old_models_without_changing_item_identity_price_or_version(self):
+        old, new = 'a' * 20, 'b' * 20
+        original, replacement = 'c' * 64 + '.json.gz', 'd' * 64 + '.json.gz'
+        with tempfile.TemporaryDirectory() as folder, patch.object(shop, 'SHOP_DIR', Path(folder)):
+            path = Path(folder)/'pose-catalog.json'
+            path.write_text(json.dumps({'schema': 'shop-static-pose-v1', 'revision': new, 'models': {original: replacement}}), encoding='utf8')
+            row = {'revision': old, 'id': 123, 'name': '의상', 'model': original, 'prices': [{'key': 'P7', 'amount': 100}], 'counterpart_id': 124}
+            result = shop.serialize(row)
+            self.assertEqual(result['version'], old)
+            self.assertEqual(result['id'], '123')
+            self.assertEqual(result['counterpart_id'], '124')
+            self.assertEqual(result['prices'], row['prices'])
+            self.assertEqual(result['model'], f'/api/shop/assets/{new}/models/{replacement}')
+            self.assertEqual(shop.model_url(old, 'e'*64+'.json.gz', shop.pose_catalog()), f'/api/shop/assets/{old}/models/'+'e'*64+'.json.gz')
+            path.write_text('{invalid', encoding='utf8')
+            self.assertEqual(shop.serialize(row)['model'], f'/api/shop/assets/{old}/models/{original}')
+
+    def test_static_pose_metadata_keeps_legacy_catalog_and_uses_matching_texture_revision(self):
+        old, new = 'a'*20, 'b'*20
+        source, target = 'c'*64+'.json.gz', 'd'*64+'.json.gz'
+        cursor, context = self.database([{'department': 'wearable', 'count': 3}])
+        pose = {'revision': new, 'models': {source: target}}
+        with patch.object(shop, 'require_admin'), patch.object(shop, 'catalog', return_value={'revision': old, 'bases': {'male': source}}), patch.object(shop, 'get_conn', return_value=context), patch.object(shop, 'pose_catalog', return_value=pose):
+            response = self.client().get('/api/shop/meta', params={'version': old})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['revision'], old)
+        self.assertEqual(response.json()['texture_revision'], new)
+        self.assertEqual(response.json()['bases']['male'], f'/api/shop/assets/{new}/models/{target}')
+
     def database(self, rows):
         cursor = MagicMock()
         cursor.fetchone.return_value = {"count": len(rows)}
