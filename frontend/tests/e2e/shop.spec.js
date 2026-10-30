@@ -9,7 +9,7 @@ const hero = { id: '1000208', version, name: '돌발모드(영웅)', category: '
 const shirt = { ...hero, id: '200', name: '검증 셔츠(남)', department: 'wearable', sex: 'male', slot: 'top', preview_available: true, model: `${root}/models/${'b'.repeat(64)}.json.gz`, counterpart_id: '201' }
 const femaleShirt = { ...shirt, id: '201', name: '검증 셔츠(여)', sex: 'female' }
 const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 20, 20, 0, 0, 0, 1, 1, 0, 0, 280, 0, 0, 0, 1, .5, 1], indices: [0, 1, 2], texture: `${hash}.webp` }] }
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j9WQAAAAASUVORK5CYII=', 'base64')
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
 async function setup(page, { admin = true, loggedIn = true, metaGate, listGate } = {}) {
   const requests = []
@@ -53,6 +53,23 @@ test('functional item links restore selected item and price without adding it to
   expect(copied.searchParams.get('price')).toBe('P7')
 })
 
+test('the shop first asks for gender and can preview the default outfit without selecting items', async ({ page }) => {
+  const requests = await setup(page)
+  await page.goto('/shop')
+  await expect(page.locator('.shop-list-status')).toContainText('성별을 먼저 선택해주세요.')
+  expect(requests).not.toContain('/api/shop/items')
+  await expect(page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '남성', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await expect(page.locator('.shop-slots')).toContainText('기본 머리 착용')
+  await expect(page.locator('.shop-slots')).toContainText('기본 상의 착용')
+  await expect(page.locator('.shop-slots')).toContainText('기본 하의 착용')
+  await expect(page.locator('.shop-slots')).toContainText('기본 신발 착용')
+  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await expect(page.locator('.shop-stage canvas')).toBeVisible()
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+})
+
 test('full outfit links restore camera, gender, both characters and default unselected slots', async ({ page }) => {
   await setup(page)
   await page.goto(`/shop?view=preview&v=${version}&sex=male&top=200&pair=1&angle=237&zoom=119`)
@@ -61,6 +78,7 @@ test('full outfit links restore camera, gender, both characters and default unse
   await expect(page.getByLabel('캐릭터 확대')).toHaveValue('119')
   await expect(page.getByRole('button', { name: '이성 아이템 함께 보기' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.shop-character-labels span')).toHaveCount(2)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
   await expect(page.locator('.shop-slots')).toContainText('기본 머리 착용')
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await page.getByRole('button', { name: '착장 URL 복사' }).click()
@@ -80,6 +98,7 @@ test('pending catalog and search responses never move the item toolbar or grid',
   await setup(page, { metaGate, listGate })
   await page.goto('/shop')
   await expect(page.locator('.shop-grid')).toBeVisible()
+  await page.getByRole('button', { name: '남성', exact: true }).click()
   const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-pagination'])
   releaseMeta()
   await expect(page.locator('.shop-list-status')).toContainText('아이템을 불러오는 중입니다.')
@@ -120,6 +139,7 @@ test('structured search errors remain readable and the search field is bounded',
     return route.fulfill({ status: 422, json: { detail: [{ type: 'string_too_long', msg: 'invalid query' }] } })
   })
   await page.goto('/shop')
+  await page.getByRole('tab', { name: '기능성·소모품', exact: true }).click()
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(page.getByLabel('아이템 이름으로 검색')).toHaveAttribute('maxlength', '120')
   await page.getByLabel('아이템 이름으로 검색').fill('실패 검증')

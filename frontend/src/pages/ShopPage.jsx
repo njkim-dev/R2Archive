@@ -37,7 +37,7 @@ function ShopContent({ search }) {
   const initial = useRef(readShopUrl(search)).current
   const [meta, setMeta] = useState(null)
   const [ready, setReady] = useState(false)
-  const [department, setDepartment] = useState(initial.preview ? 'wearable' : 'functional')
+  const [department, setDepartment] = useState('wearable')
   const [sex, setSex] = useState(initial.sex)
   const [slot, setSlot] = useState('')
   const [query, setQuery] = useState('')
