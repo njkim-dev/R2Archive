@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
+import { Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import useStore from './store/useStore'
 import { isXyxMode } from './utils/serverMode'
 import { clearRestoreListParam, readRestorableListState, shouldRestoreListState } from './utils/listState'
 import { replaceCatalogHash, songCatalogHash } from './utils/catalogUrl'
 import { categoryFromLevel } from './utils/helpers'
+import { takeShopReturn } from './utils/shopUrl'
 import LoginModal from './components/LoginModal'
 import OnboardingModal from './components/OnboardingModal'
 import FeedbackModal from './components/FeedbackModal'
@@ -31,6 +32,7 @@ const UpdateHistoryPage = lazy(() => import('./pages/UpdateHistoryPage'))
 const GameRepairPage = lazy(() => import('./pages/GameRepairPage'))
 const RepairAdminPage = lazy(() => import('./pages/RepairAdminPage'))
 const ArchiveHomePage = lazy(() => import('./pages/ArchiveHomePage'))
+const ShopPage = lazy(() => import('./pages/ShopPage'))
 
 function CloseModalOnCataloglessRoutes() {
   const location = useLocation()
@@ -40,6 +42,7 @@ function CloseModalOnCataloglessRoutes() {
     const shouldClose =
       path === '/feedback' ||
       path === '/analytics' ||
+      path.startsWith('/shop') ||
       path.startsWith('/game-repair') ||
       path === '/groups' ||
       path.startsWith('/groups/') ||
@@ -76,6 +79,7 @@ function openSongFromHash(song) {
 }
 
 export default function App() {
+  const navigate = useNavigate()
   const appLocation = useLocation()
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
@@ -102,6 +106,10 @@ export default function App() {
       const cleaned = location.pathname + location.hash
       history.replaceState(null, '', cleaned)
       refreshUser()
+      if (!fail) {
+        const shopReturn = takeShopReturn()
+        if (shopReturn) navigate(shopReturn, { replace: true })
+      }
     }
   }, [])  // eslint-disable-line
 
@@ -130,7 +138,7 @@ export default function App() {
   }, [songs])
 
   useEffect(() => {
-    if (portalHost || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
+    if (portalHost || appLocation.pathname.startsWith('/shop') || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
     let cancelled = false
     loadCatalog().then(success => {
       if (!success || cancelled) return
@@ -156,6 +164,7 @@ export default function App() {
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
+          {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
           <Route path="/removed-songs" element={<RemovedSongsPage />} />
           {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}
           {!xyxMode && <Route path="/rankings" element={<RankingsPage />} />}

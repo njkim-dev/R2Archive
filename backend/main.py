@@ -13,6 +13,7 @@ from database import check_database, close_pool, init_pool
 from rate_limit import limiter
 from security_middleware import BrowserCSRFMiddleware
 from routers import game_repair
+from routers import shop
 from routers import songs, comments, perceived, feedback, records, parse_screenshot, auth_oauth, users, rankings, groups, personal_categories, feedback_items, pmang_songs, pmang_user, youtube_candidates, xyx_songs, xyx_categories, xyx_detail, analytics, practice_sections, release_history
 
 STATIC_DIR = Path(__file__).parent.parent / "rnr_image"
@@ -87,6 +88,7 @@ app.include_router(analytics.router)
 app.include_router(practice_sections.router)
 app.include_router(release_history.router)
 app.include_router(game_repair.router)
+app.include_router(shop.router)
 
 if STATIC_DIR.exists():
     app.mount("/static/rnr_image", StaticFiles(directory=str(STATIC_DIR)), name="rnr_image")

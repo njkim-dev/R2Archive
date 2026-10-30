@@ -31,3 +31,4 @@ deploy/k8s/secrets/*.yaml
 deploy/backups/
 rnr_image/
 game_repair/
+/shop/
