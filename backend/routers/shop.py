@@ -10,7 +10,7 @@ from psycopg2.extras import RealDictCursor
 
 from auth import require_admin
 from database import get_conn
-from shop_categories import DEPARTMENT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS
+from shop_categories import DEPARTMENT_SQL, SLOT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS, department_sql, slot_sql
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 SHOP_DIR = Path(os.environ.get("SHOP_DIR", Path(__file__).resolve().parents[2] / "shop"))
@@ -62,7 +62,7 @@ def serialize(row):
     return item
 
 
-ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
+ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
 
 
 @router.get("/meta")
@@ -85,11 +85,12 @@ def items(
     q: str = Query("", max_length=120),
     department: str | None = Query(None, pattern="^(wearable|functional|other)$"),
     sex: str | None = Query(None, pattern="^(male|female|common)$"),
-    slot: str | None = Query(None, pattern="^(hair|face|top|bottom|shoes|pet)$"),
+    slot: str | None = Query(None, pattern="^(hair|face|top|bottom|shoes|pet|accessory|summon)$"),
     category: str | None = Query(None, max_length=20),
     group: str | None = Query(None, max_length=32, pattern='^(' + '|'.join(GROUPS) + ')$'),
     subgroup: str | None = Query(None, max_length=32, pattern='^(' + '|'.join(SUBGROUPS) + ')$'),
     paired_only: bool = False,
+    preview_only: bool = False,
     cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(24, ge=1, le=60),
@@ -101,24 +102,30 @@ def items(
         if q.strip():
             conditions.append("position(lower(%s) in lower(name)) > 0")
             args.append(q.strip())
-        for column, value in [(f"({DEPARTMENT_SQL})", department), ("slot", slot), ("category", category), (f"({GROUP_SQL})", group), (f"({SUBGROUP_SQL})", subgroup)]:
+        for column, value in [(f"({DEPARTMENT_SQL})", department), (f"({SLOT_SQL})", slot), ("category", category), (f"({GROUP_SQL})", group), (f"({SUBGROUP_SQL})", subgroup)]:
             if value:
                 conditions.append(f"{column} = %s")
                 args.append(value)
         if sex:
             conditions.append("sex IN (%s, 'common')")
             args.append(sex)
+        if preview_only:
+            conditions.append('preview_available AND model IS NOT NULL')
         if paired_only:
-            conditions.append("""department = 'wearable' AND EXISTS (
+            partner_preview = 'AND partner.preview_available AND partner.model IS NOT NULL' if preview_only else ''
+            conditions.append(f"""({department_sql('shop_items')}) = 'wearable' AND (
+              (shop_items.category = '1007' AND shop_items.sex = 'common' AND shop_items.preview_available)
+              OR EXISTS (
                 SELECT 1 FROM shop_items AS partner
                 WHERE partner.revision = shop_items.revision
                   AND partner.item_id = shop_items.counterpart_id
                   AND partner.counterpart_id = shop_items.item_id
-                  AND partner.show AND partner.department = 'wearable'
-                  AND partner.slot = shop_items.slot AND partner.name_key = shop_items.name_key
+                  AND partner.show AND ({department_sql('partner')}) = 'wearable'
+                  AND ({slot_sql('partner')}) = ({slot_sql('shop_items')}) AND partner.name_key = shop_items.name_key
+                  {partner_preview}
                   AND ((shop_items.sex = 'male' AND partner.sex = 'female')
                     OR (shop_items.sex = 'female' AND partner.sex = 'male'))
-            )""")
+            ))""")
         where = " AND ".join(conditions)
         total = None
         if not cursor:

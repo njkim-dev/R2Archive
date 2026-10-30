@@ -9,7 +9,18 @@ def member(group):
     return 'item_id IN (' + ','.join(str(int(value)) for value in _items[group]) + ')'
 
 
-DEPARTMENT_SQL = "CASE WHEN category IN ('502','504','507','508') THEN 'functional' ELSE department END"
+def department_sql(alias=''):
+    prefix = alias + '.' if alias else ''
+    return f"CASE WHEN {prefix}category IN ('105','205','305','405','1007') THEN 'wearable' WHEN {prefix}category IN ('502','504','507','508') THEN 'functional' ELSE {prefix}department END"
+
+
+def slot_sql(alias=''):
+    prefix = alias + '.' if alias else ''
+    return f"CASE WHEN {prefix}category IN ('105','205','305','405') THEN 'accessory' WHEN {prefix}category = '1007' THEN 'summon' ELSE {prefix}slot END"
+
+
+DEPARTMENT_SQL = department_sql()
+SLOT_SQL = slot_sql()
 GROUP_SQL = f"""CASE
     WHEN category = '502' THEN 'theme'
     WHEN category = '503' THEN 'buff'

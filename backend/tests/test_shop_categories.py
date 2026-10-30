@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from shop_categories import DEPARTMENT_SQL, GROUP_SQL, SUBGROUP_SQL
+from shop_categories import DEPARTMENT_SQL, GROUP_SQL, SUBGROUP_SQL, SLOT_SQL
 
 
 class ShopCategoryTests(unittest.TestCase):
@@ -38,7 +38,13 @@ class ShopCategoryTests(unittest.TestCase):
 
     def test_ornaments_summons_characters_and_wedding_are_independent(self):
         for item_id, category, group in [(910707, '305', 'accessory'), (1000558, '1007', 'summon'), (140022, '501', 'character'), (11000421, '0', 'wedding')]:
-            self.assertEqual(self.classify(item_id, category), ('other', group, None))
+            self.assertEqual(self.classify(item_id, category), ('wearable' if group in ['accessory', 'summon'] else 'other', group, None))
+
+    def test_legacy_null_attachment_slots_are_exposed_without_changing_storage(self):
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute('CREATE TABLE shop_items(category TEXT,slot TEXT)')
+            conn.executemany('INSERT INTO shop_items VALUES(?,NULL)', [('305',), ('405',), ('1007',)])
+            self.assertEqual(conn.execute(f'SELECT {SLOT_SQL},slot FROM shop_items').fetchall(), [('accessory', None), ('accessory', None), ('summon', None)])
 
 
 if __name__ == '__main__':

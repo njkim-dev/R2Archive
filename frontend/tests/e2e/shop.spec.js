@@ -29,7 +29,7 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
       const start = position ? Number(position.split(':')[0]) + 1 : 0, size = Number(params.get('page_size') || 24)
       if (start && nextGate) await nextGate
       let list = items || (params.get('department') === 'wearable' ? [params.get('sex') === 'female' ? femaleShirt : shirt] : [hero])
-      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
+      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
       const chunk = list.slice(start, start + size), more = start + size < list.length
       return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
     }
@@ -304,6 +304,7 @@ test('unavailable previews are tagged over images before selection and non-cash 
   const gate = new Promise(resolve => { release = resolve })
   await page.route('**/thumbnails/**', async route => { await gate; return route.fulfill({ body: png, contentType: 'image/png' }) })
   await page.goto('/shop?sex=male')
+  await page.getByRole('button', { name: '미리보기 불가능 아이템 가리기', exact: true }).click()
   await expect(page.locator('.shop-card')).toHaveCount(3)
   const card = page.locator('[data-item-id="403"]'), tag = card.locator('.shop-preview-unavailable')
   await expect(tag).toHaveText('미리보기 불가능')
@@ -395,6 +396,75 @@ test('category filters isolate matching ring names, pet kinds and supplies witho
   await expect(page.getByRole('button', { name: '단짝링', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('[data-item-id="901"]')).toBeAttached()
   await expect(page.locator('[data-item-id="900"]')).toHaveCount(0)
+})
+
+test('unavailable items are hidden by default and the toggle keeps selection and pending list geometry stable', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const unavailable = { ...shirt, id: '700', name: '미지원 장식', slot: 'accessory', preview_available: false, model: null }
+  await setup(page, { items: [shirt, unavailable] })
+  await page.goto('/shop?sex=male')
+  const toggle = page.getByRole('button', { name: '미리보기 불가능 아이템 가리기', exact: true })
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await page.getByRole('button', { name: `${shirt.name} 의상 선택`, exact: true }).click()
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route(/\/api\/shop\/items\?/, async route => {
+    if (new URL(route.request().url()).searchParams.get('preview_only') !== 'false') return route.fallback()
+    await gate; return route.fallback()
+  })
+  await toggle.scrollIntoViewIfNeeded()
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-filters', '.shop-pair-filter', '.shop-grid'])
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
+  await watcher.expectStable()
+  release()
+  await expect(page.locator('.shop-card')).toHaveCount(2)
+  await expect(page.locator('[data-item-id="700"] .shop-preview-unavailable')).toHaveText('미리보기 불가능')
+  await watcher.expectStable()
+  await toggle.click()
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await watcher.expectStable(); await watcher.stop()
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await page.goto(`/shop?item=700&v=${version}`)
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('[data-item-id="700"]')).toBeVisible()
+  await expect(page.locator('.shop-detail h3')).toHaveText(unavailable.name)
+})
+
+test('all eight outfit slots and common wings restore in both characters with unclipped pets', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const accessory = { ...shirt, id: '510', name: '검증 장식(남)', slot: 'accessory', model: `${root}/models/${'1'.repeat(64)}.json.gz`, counterpart_id: '511' }
+  const otherAccessory = { ...accessory, id: '511', name: '검증 장식(여)', sex: 'female', counterpart_id: '510' }
+  const summon = { ...pet, id: '520', name: '공용 날개', slot: 'summon', model: `${root}/models/${'2'.repeat(64)}.json.gz` }
+  const extras = [['hair', '530'], ['face', '531'], ['bottom', '532'], ['shoes', '533']].map(([slot, id]) => ({ ...shirt, id, name: `검증 ${slot}`, slot, counterpart_id: null }))
+  const texture = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAYAAAABCAIAAAByq0inAAAAE0lEQVR4nGP4z8DAAMb//0OI/wBHywj4QWpCgAAAAABJRU5ErkJggg==', 'base64')
+  const rectangle = (name, left, right, bottom, top, z, color) => ({ meshes: [{ name, vertices: [[left, bottom], [right, bottom], [right, top], [left, top]].flatMap(([x, y]) => [x, y, z, 0, 0, -1, (color + .5) / 6, .5]), indices: [0, 1, 2, 0, 2, 3], texture: `${hash}.webp` }] })
+  await setup(page, { items: [shirt, femaleShirt, pet, accessory, otherAccessory, summon, ...extras], texture, models: {
+    [`${root}/models/${'d'.repeat(64)}.json.gz`]: directionModel(), [`${root}/models/${'e'.repeat(64)}.json.gz`]: directionModel(),
+    [shirt.model]: directionModel(), [accessory.model]: rectangle('Accessory-prop', 28, 48, 80, 135, -20, 2),
+    [summon.model]: rectangle('Summon-wings', -140, 140, 40, 220, 25, 4),
+  } })
+  const values = { top: shirt.id, pet: pet.id, accessory: accessory.id, summon: summon.id, ...Object.fromEntries(extras.map(item => [item.slot, item.id])) }
+  const params = new URLSearchParams({ view: 'preview', v: version, sex: 'male', pair: '1', angle: '180', zoom: '100', ...values })
+  await page.goto('/shop?' + params)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  const canvas = page.locator('.shop-stage canvas')
+  const pixels = await directionPixels(canvas)
+  expect(pixels.groups).toHaveLength(3)
+  for (const group of pixels.groups.slice(0, 2)) for (const color of [1, 2, 4, 6]) expect(group.colors[color]?.count || 0).toBeGreaterThan(10)
+  expect(pixels.left).toBeGreaterThan(4); expect(pixels.right).toBeLessThan(pixels.width - 5)
+  expect(pixels.bottom).toBeGreaterThan(4); expect(pixels.top).toBeLessThan(pixels.height - 5)
+  const image = await canvas.evaluate(canvas => canvas.toDataURL())
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  for (const [key, value] of Object.entries(values)) expect(shared.searchParams.get(key)).toBe(value)
+  await page.goto(shared.pathname + shared.search)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  expect(await canvas.evaluate(canvas => canvas.toDataURL())).toBe(image)
+  await expect(page.locator('.shop-slots')).toContainText(accessory.name)
+  await expect(page.locator('.shop-slots')).toContainText(summon.name)
 })
 
 function directionModel(centerX = 0, bottom = 20, height = 260, width = 24) {

@@ -22,10 +22,10 @@ import numpy as np
 from PIL import Image
 
 
-SCHEMA = 'shop-assets-v2-face'
+SCHEMA = 'shop-assets-v3-attachments'
 SCRIPT_FILES = ['rnr_script/shop.txt', 'rnr_script/shop.bin', 'rnr_script/item.csv',
                 'rnr_script/pet.xml', 'rnr_script/growpet.xml', 'rnr_script/face.txt',
-                'rnr_script/config/face_tbface.json']
+                'rnr_script/config/face_tbface.json', 'rnr_script/roomfx.txt']
 BASE_FILES = {'male': 'rnr_char/boy/boi.md9', 'female': 'rnr_char/girl/girl.md9'}
 SLOTS = {1: 'hair', 2: 'top', 3: 'bottom', 4: 'shoes', 6: 'face'}
 PRICE_LABELS = {'P': '단품', 'PN': '단품', 'PH': '기타 가격', 'PI': '무기한'}
@@ -62,7 +62,7 @@ class Resolver:
     def __init__(self, root):
         self.root = root.resolve()
         self.paths = {}
-        for directory in ['rnr_char', 'rnr_item', 'rnr_item_mip', 'rnr_script']:
+        for directory in ['rnr_char', 'rnr_item', 'rnr_item_mip', 'rnr_script', 'rnr_room_fx']:
             base = self.root / directory
             if base.exists():
                 for path in base.rglob('*'):
@@ -346,6 +346,11 @@ def load_catalog(root, resolver):
     effects = list(csv.reader(io.StringIO(read_text(root / SCRIPT_FILES[2]))))
     pets = {row['Id']: row for row in [attributes(tag) for tag in re.findall(r'<Pet\b([^>]*)>', read_text(root / SCRIPT_FILES[3]))] if 'Id' in row}
     faces = face_textures(root, resolver)
+    summons = collections.defaultdict(set)
+    for tag in re.findall(r'<Fx\b([^>]*)>', re.sub(r'<!--.*?-->', '', read_text(root / 'rnr_script/roomfx.txt'), flags=re.S)):
+        effect = attributes(tag)
+        for index in re.findall(r'(?<!\d)(\d{6,12})(?!\d)', effect.get('File', '')):
+            summons[int(index)].add(effect['File'])
     items = []
     for position, row in enumerate(rows):
         index = int(row['Index'])
@@ -353,13 +358,21 @@ def load_catalog(root, resolver):
         if 600000 <= index < 700000:
             model_path = pets.get(str(index - 600000), {}).get('Model', model_path)
         department, slot, sex = classify(row, model_path)
+        preview_slot = 'accessory' if int(row.get('ShopIndex', '0')) in [105, 205, 305, 405] else 'summon' if row.get('ShopIndex') == '1007' else slot
+        if preview_slot == 'accessory':
+            sex = 'male' if int(row['ShopIndex']) in [105, 305] else 'female'
+        if preview_slot == 'summon':
+            candidates = summons.get(index, set())
+            model_path = next(iter(candidates)) if len(candidates) == 1 else ''
         thumbnail = resolver.resolve(image_path)
         if not thumbnail:
             thumbnail = resolver.resolve(f'rnr_item/{index}.tga') or resolver.resolve(f'rnr_item/{index}.bmp')
         if slot == 'face':
             model = faces.get((row.get('ItemEffect', '0'), '1' if int(row.get('ShopIndex', '0')) < 300 else '0'))
         else:
-            model = resolver.resolve(model_path) if slot else None
+            model = resolver.resolve(model_path) if preview_slot else None
+            if preview_slot == 'accessory' and int(row.get('ShopIndex', '0')) < 300:
+                model = None
         description = row.get('Text', '').replace('\\n', '\n').strip()
         effect_value = row.get('ItemEffect', '0')
         effect_id = int(effect_value) if effect_value.isdecimal() else 0
@@ -378,12 +391,12 @@ def load_catalog(root, resolver):
                       'prices': prices, 'thumbnail': None, 'model': None, 'preview_available': False,
                       'counterpart_id': None, 'attributes': row, 'sort': position,
                       '_thumbnail_source': resolver.relative(thumbnail) if thumbnail else None,
-                      '_model_source': resolver.relative(model) if model else None})
+                      '_model_source': resolver.relative(model) if model else None, '_preview_slot': preview_slot})
     groups = collections.defaultdict(lambda: {'male': [], 'female': []})
     for item in items:
-        if item['show'] and item['slot'] in SLOTS.values() and item['sex'] in ['male', 'female']:
+        if item['show'] and item['_preview_slot'] in [*SLOTS.values(), 'accessory'] and item['sex'] in ['male', 'female']:
             family = 'adult' if int(item['category']) < 300 else 'standard'
-            groups[(family, item['slot'], item['name_key'])][item['sex']].append(item)
+            groups[(family, item['_preview_slot'], item['name_key'])][item['sex']].append(item)
     ambiguous = 0
     for group in groups.values():
         if len(group['male']) == len(group['female']) == 1:
@@ -522,8 +535,8 @@ class Builder:
             self.cache[key] = name
         return name
 
-    def model(self, relative, sex=None, pet=False):
-        key = 'model:' + relative.casefold() + ':' + str(sex) + ':' + str(pet)
+    def model(self, relative, sex=None, pet=False, attachment=False, summon=False):
+        key = ('summon:' if summon else 'attachment:' if attachment else 'model:') + relative.casefold() + ':' + str(sex) + ':' + str(pet)
         with self.lock:
             cached = self.cache.get(key)
         if cached and (self.asset_root / 'models' / cached).exists():
@@ -531,11 +544,21 @@ class Builder:
         path = self.resolver.resolve(relative)
         model = parse_md9(path, self.resolver)
         base = self.bases.get(sex)
-        if base:
+        if base and not attachment:
             base_names = {bone['name'] for bone in base['bones']}
             if any(bone['parent'] == -1 and bone['name'] not in base_names for bone in model['bones']):
                 raise ValueError('unmapped attachment root')
         meshes = posed_meshes(model, base)
+        if attachment:
+            for mesh in meshes:
+                if mesh['name'] not in ['LeftHand', 'RightHand']:
+                    mesh['name'] = 'Accessory-' + mesh['name']
+        if summon:
+            positions = np.concatenate([mesh['vertices'][:, :3] for mesh in meshes])
+            if np.abs(positions).max() > 1000:
+                raise ValueError('summon exceeds character preview bounds')
+            for mesh in meshes:
+                mesh['name'] = 'Summon-' + mesh['name']
         if pet:
             positions = np.concatenate([m['vertices'][:, :3] for m in meshes])
             center = (positions.min(0) + positions.max(0)) / 2
@@ -581,6 +604,7 @@ class Builder:
 
     def item(self, original):
         item = dict(original)
+        preview_slot = item.pop('_preview_slot', item['slot'])
         if item['show']:
             if item['_thumbnail_source']:
                 try:
@@ -589,17 +613,17 @@ class Builder:
                     self.error(item, 'thumbnail', error)
             else:
                 self.error(item, 'thumbnail', ValueError('missing thumbnail'))
-            if item['slot'] and item['_model_source']:
+            if preview_slot and item['_model_source']:
                 try:
-                    if item['slot'] != 'pet' and int(item['category']) < 300:
+                    if preview_slot != 'pet' and int(item['category']) < 300:
                         raise ValueError('adult character base is not available')
                     item['model'] = self.face(item['_model_source'], item['sex']) if item['slot'] == 'face' else self.model(
-                        item['_model_source'], sex=item['sex'] if item['slot'] != 'pet' else None,
-                        pet=item['slot'] == 'pet')
+                        item['_model_source'], sex=item['sex'] if preview_slot not in ['pet', 'summon'] else None,
+                        pet=preview_slot == 'pet', attachment=preview_slot == 'accessory', summon=preview_slot == 'summon')
                     item['preview_available'] = True
                 except Exception as error:
                     self.error(item, 'model', error)
-            elif item['slot']:
+            elif preview_slot:
                 self.error(item, 'model', ValueError('missing model'))
         item.pop('_thumbnail_source', None)
         item.pop('_model_source', None)

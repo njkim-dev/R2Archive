@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { itemShareUrl, outfitShareUrl, readShopUrl, SHOP_SLOTS, takeShopReturn } from '../src/utils/shopUrl.js'
 
-test('outfit shares preserve version, all six slots including face, gender, camera and counterpart state', () => {
+test('outfit shares preserve all eight slots, gender, camera and counterpart state', () => {
   const slots = Object.fromEntries(SHOP_SLOTS.map((slot, i) => [slot, { id: String(100 + i) }]))
   const url = new URL(outfitShareUrl({ version: 'a'.repeat(20), sex: 'female', slots, pair: true, angle: 237, zoom: 119 }))
   assert.equal(url.origin, 'https://r2archive.com')
@@ -20,7 +20,7 @@ test('outfit shares preserve version, all six slots including face, gender, came
 
 test('existing five-slot outfit links keep their clothing and use the default face', () => {
   const restored = readShopUrl('?view=preview&v=' + 'a'.repeat(20) + '&sex=male&hair=200&top=201&bottom=202&shoes=203&pet=204')
-  assert.deepEqual(restored.slots, { hair: '200', face: null, top: '201', bottom: '202', shoes: '203', pet: '204' })
+  assert.deepEqual(restored.slots, { hair: '200', face: null, top: '201', bottom: '202', shoes: '203', pet: '204', accessory: null, summon: null })
 })
 
 test('item URLs restore a single selected item and its price option', () => {

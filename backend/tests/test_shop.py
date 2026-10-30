@@ -126,8 +126,19 @@ class ShopTests(unittest.TestCase):
         with patch.object(shop, "require_admin"), patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
             self.assertEqual(self.client().get("/api/shop/items", params={"paired_only": "true", "sex": "male"}).status_code, 200)
         sql = cursor.execute.call_args.args[0]
-        for condition in ["partner.show", "partner.counterpart_id = shop_items.item_id", "partner.slot = shop_items.slot", "partner.name_key = shop_items.name_key", "partner.sex = 'female'"]:
+        for condition in ["partner.show", "partner.counterpart_id = shop_items.item_id", "partner.category IN ('105','205','305','405')", "partner.name_key = shop_items.name_key", "partner.sex = 'female'"]:
             self.assertIn(condition, sql)
+
+    def test_preview_filter_excludes_missing_models_and_accepts_attachment_slots(self):
+        cursor, context = self.database([])
+        with patch.object(shop, 'require_admin'), patch.object(shop, 'catalog', return_value={'revision': 'a' * 20}), patch.object(shop, 'get_conn', return_value=context):
+            for slot in ['accessory', 'summon']:
+                response = self.client().get('/api/shop/items', params={'slot': slot, 'preview_only': True, 'paired_only': True})
+                self.assertEqual(response.status_code, 200)
+                sql, params = cursor.execute.call_args.args
+                self.assertIn('preview_available AND model IS NOT NULL', sql)
+                self.assertIn('partner.preview_available', sql)
+                self.assertIn(slot, params)
 
     def test_category_filters_are_bounded_and_parameterized(self):
         cursor, context = self.database([])

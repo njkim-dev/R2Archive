@@ -109,14 +109,30 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr)
         const aspect = rect.width / rect.height
         const radians = rotation * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians)
-        const scene = [{ meshes: figure(sex, slots), offset: pair ? -65 : 0 }]
-        if (pair) scene.push({ meshes: figure(sex === 'male' ? 'female' : 'male', counterparts), offset: 65 })
+        function horizontalBounds(meshes) {
+          let left = Infinity, right = -Infinity
+          for (const mesh of meshes) for (const x of [mesh.bounds[0][0], mesh.bounds[1][0]]) for (const z of [mesh.bounds[0][2], mesh.bounds[1][2]]) {
+            const projected = -c * x - s * z
+            left = Math.min(left, projected); right = Math.max(right, projected)
+          }
+          return [left, right]
+        }
+        const primary = figure(sex, slots), secondary = pair ? figure(sex === 'male' ? 'female' : 'male', counterparts) : null
+        const hasAttachments = !!(slots.accessory || slots.summon || pair && (counterparts.accessory || counterparts.summon))
+        const spacing = pair && hasAttachments ? Math.max(65, (horizontalBounds(primary)[1] - horizontalBounds(secondary)[0] + 20) / 2) : 65
+        const scene = [{ meshes: primary, offset: pair ? -spacing : 0 }]
+        if (pair) scene.push({ meshes: secondary, offset: spacing })
         if (slots.pet) {
           const meshes = gpu[slots.pet.model]
           const centerX = (Math.min(...meshes.map(mesh => mesh.bounds[0][0])) + Math.max(...meshes.map(mesh => mesh.bounds[1][0]))) / 2
           const centerZ = (Math.min(...meshes.map(mesh => mesh.bounds[0][2])) + Math.max(...meshes.map(mesh => mesh.bounds[1][2]))) / 2
           // 펫 형상은 보정하되 기존 회전 각도별 배치 중심은 유지한다.
-          scene.push({ meshes, offset: (pair ? 92 : 0) + 2 * (c * centerX + s * centerZ) })
+          let offset = (pair ? 92 : 0) + 2 * (c * centerX + s * centerZ)
+          if (hasAttachments) {
+            const figureRight = Math.max(...scene.map(group => horizontalBounds(group.meshes)[1] + group.offset))
+            offset += Math.max(0, figureRight + 15 - (horizontalBounds(meshes)[0] + offset))
+          }
+          scene.push({ meshes, offset })
         }
         const bounds = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
         for (const group of scene) for (const mesh of group.meshes) {
