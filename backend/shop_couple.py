@@ -31,6 +31,8 @@ def _load(path, modified, size):
         for effect in [*effects, *([item['ornament']] if 'ornament' in item else [])]:
             if not isinstance(effect, dict) or not MOTION.fullmatch(effect.get('model', '')) or not MOTION.fullmatch(effect.get('animation', '')):
                 return None
+            if 'particles' in effect and not MOTION.fullmatch(effect.get('particles', '')):
+                return None
         if any(effect.get('sex') not in ['male', 'female'] for effect in effects):
             return None
     return data
@@ -53,7 +55,10 @@ def preview(shop_dir, item_id):
     prefix = f"/api/shop/assets/{data['revision']}"
     result = {'motion': f"{prefix}/motions/{item['motion']}", 'bindings': f"{prefix}/motions/{data['bindings']}", 'audio': f"{prefix}/audio/{item['audio']}", 'duration': item['duration']}
     def effect_urls(effect):
-        return {'model': f"{prefix}/models/{effect['model']}", 'animation': f"{prefix}/motions/{effect['animation']}"}
+        urls = {'model': f"{prefix}/models/{effect['model']}", 'animation': f"{prefix}/motions/{effect['animation']}"}
+        if effect.get('particles'):
+            urls['particles'] = f"{prefix}/motions/{effect['particles']}"
+        return urls
     if 'ornament' in item:
         result['ornament'] = effect_urls(item['ornament'])
     if item.get('effects'):

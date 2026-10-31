@@ -50,12 +50,17 @@ class CouplePreviewTests(unittest.TestCase):
             data = self.manifest(folder)
             model = 'e' * 64 + '.json.gz'
             animation = 'f' * 64 + '.json.gz'
-            data['rings']['30120'].update(ornament={'model': model, 'animation': animation}, effects=[{'model': model, 'animation': animation, 'sex': 'male'}])
+            data['rings']['30120'].update(ornament={'model': model, 'animation': animation, 'particles': animation}, effects=[{'model': model, 'animation': animation, 'particles': animation, 'sex': 'male'}])
             path = Path(folder) / 'couple-catalog.json'
             path.write_text(json.dumps(data), encoding='utf8')
             result = preview(folder, 30120)
             self.assertEqual(result['ornament']['model'], '/api/shop/assets/' + data['revision'] + '/models/' + model)
             self.assertEqual(result['effects'][0]['sex'], 'male')
+            self.assertEqual(result['ornament']['particles'], '/api/shop/assets/' + data['revision'] + '/motions/' + animation)
+            data['rings']['30120']['effects'][0]['particles'] = '../../private'
+            path.write_text(json.dumps(data), encoding='utf8')
+            self.assertIsNone(catalog(folder))
+            data['rings']['30120']['effects'][0]['particles'] = animation
             for invalid in [None, {'model': '../../secret', 'animation': animation}, {'model': model, 'animation': '../other'}]:
                 data['rings']['30120']['ornament'] = invalid
                 path.write_text(json.dumps(data), encoding='utf8')

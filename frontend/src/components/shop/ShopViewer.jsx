@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { multiplyPose, extraLocal } from '../../utils/shopMotion'
 import { effectAnimation } from '../../utils/shopEffect'
+import { ornamentPlacement, particleBatches, particleSystem } from '../../utils/shopParticles'
 
 const modelCache = new Map()
 const motionCache = new Map()
 async function motionData(url) {
   if (!motionCache.has(url)) {
-    if (motionCache.size >= 4) motionCache.delete(motionCache.keys().next().value)
+    if (motionCache.size >= 8) motionCache.delete(motionCache.keys().next().value)
     motionCache.set(url, fetch(url, { credentials: 'same-origin', cache: 'force-cache' }).then(response => {
       if (!response.ok) throw new Error('커플 모션을 불러오지 못했습니다.')
       return response.json()
@@ -80,11 +81,14 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       }
       if (cancelled) return
       const effects = await Promise.all(effectSpecs.map(async effect => ({ ...effect, data: effectAnimation(await motionData(effect.animation), models[effect.model].meshes, effect.kind === 'scene' ? clip?.frame_count : null) })))
+      await Promise.all(effects.map(async effect => { if (effect.particles) effect.particleData = particleSystem(await motionData(effect.particles), effect.data.frame_count) }))
       if (cancelled) return
       const ornament = effects.find(effect => effect.kind === 'ornament')
       const sceneEffects = effects.filter(effect => effect.kind === 'scene')
+      const ornamentPose = ornament ? ornamentPlacement(ornament.data.bounds) : null
       canvas.dataset.coupleSceneModels = String(sceneEffects.length)
       canvas.dataset.coupleOrnament = ornament ? '1' : '0'
+      canvas.dataset.coupleModelPlacement = ornament ? 'main' : 'none'
       const previewStartedAt = performance.now()
       function shader(type, source) {
         const item = gl.createShader(type)
@@ -100,10 +104,12 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         attribute vec3 position;
         attribute vec3 normal;
         attribute vec2 uv;
+        attribute vec4 color;
         uniform float angle,aspect,halfHeight,halfDepth,centerX,centerY,centerZ,offsetX;
         uniform mat4 attachmentPose;
         varying vec2 texcoord;
         varying float lighting;
+        varying vec4 tint;
         void main(){
           float c=cos(angle),s=sin(angle);
           vec3 p=(attachmentPose*vec4(position,1.)).xyz-vec3(0.,148.,0.);
@@ -112,22 +118,23 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           vec3 n=vec3(-c*posedNormal.x-s*posedNormal.z,posedNormal.y,-s*posedNormal.x+c*posedNormal.z);
           gl_Position=vec4((q.x-centerX)/(halfHeight*aspect),(q.y-centerY)/halfHeight,-(q.z-centerZ)/halfDepth,1.);
           texcoord=uv;
+          tint=color;
           lighting=.76+.24*max(dot(normalize(n),normalize(vec3(-.35,.65,1.))),0.);
         }
       `))
-      gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `precision mediump float;uniform sampler2D map;uniform float effect;varying vec2 texcoord;varying float lighting;void main(){vec4 t=texture2D(map,texcoord);if(t.a<(effect>.5?.03:.43))discard;gl_FragColor=effect>.5?t:vec4(t.rgb*lighting,1.);}`))
+      gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `precision mediump float;uniform sampler2D map;uniform float effect,particleAdditive;varying vec2 texcoord;varying float lighting;varying vec4 tint;void main(){vec4 t=texture2D(map,texcoord)*tint;if(t.a<(effect>1.5?.005:effect>.5?.03:.43))discard;float a=t.a*(particleAdditive>.5?max(t.r,max(t.g,t.b)):1.);gl_FragColor=effect>1.5?vec4(t.rgb*t.a,a):effect>.5?t:vec4(t.rgb*lighting,1.);}`))
       gl.linkProgram(program)
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('3D 화면 초기화에 실패했습니다.')
       gl.useProgram(program); gl.enable(gl.DEPTH_TEST)
-      const attrs = Object.fromEntries(['position', 'normal', 'uv'].map(key => [key, gl.getAttribLocation(program, key)]))
-      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose', 'effect'].map(key => [key, gl.getUniformLocation(program, key)]))
+      const attrs = Object.fromEntries(['position', 'normal', 'uv', 'color'].map(key => [key, gl.getAttribLocation(program, key)]))
+      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose', 'effect', 'particleAdditive'].map(key => [key, gl.getUniformLocation(program, key)]))
       const textures = {}
       function textureUrl(payload, mesh) {
         const revision = payload.texture_revision || meta.texture_revision || meta.revision
         if (!/^[a-f0-9]{12,64}$/.test(revision) || !/^[a-f0-9]{64}\.webp$/.test(mesh.texture)) throw new Error('텍스처 자료가 올바르지 않습니다.')
         return `/api/shop/assets/${revision}/textures/${mesh.texture}`
       }
-      const textureNames = [...new Set(Object.values(models).flatMap(payload => payload.meshes.map(mesh => textureUrl(payload, mesh))))]
+      const textureNames = [...new Set([...Object.values(models).flatMap(payload => payload.meshes.map(mesh => textureUrl(payload, mesh))), ...effects.flatMap(effect => effect.particleData ? effect.particleData.emitters.map(emitter => textureUrl(effect.particleData, emitter)) : [])])]
       await Promise.all(textureNames.map(async name => {
         const response = await fetch(name, { credentials: 'same-origin', cache: 'force-cache' })
         if (!response.ok) throw new Error('3D 텍스처를 불러오지 못했습니다.')
@@ -178,13 +185,15 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       }
       function effectMeshes(effect, frame) {
         return gpu[effect.model].map(mesh => {
-          const pose = effect.data.tracks.get(mesh.name).subarray(frame * 16, frame * 16 + 16)
+          const original = effect.data.tracks.get(mesh.name).subarray(frame * 16, frame * 16 + 16)
+          const pose = effect.kind === 'ornament' ? multiplyPose(original, ornamentPose) : original
           return { ...mesh, pose, bounds: posedBounds(mesh.bounds, pose) }
         })
       }
       function paint(meshes, offset, effect = false) {
         gl.uniform1f(uniforms.offsetX, offset)
         gl.uniform1f(uniforms.effect, effect ? 1 : 0)
+        gl.disableVertexAttribArray(attrs.color); gl.vertexAttrib4f(attrs.color, 1, 1, 1, 1)
         for (const mesh of meshes) {
           if (effect && mesh.blend) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false) }
           gl.uniformMatrix4fv(uniforms.attachmentPose, false, mesh.pose || identityPose)
@@ -194,6 +203,31 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0)
           if (effect && mesh.blend) { gl.disable(gl.BLEND); gl.depthMask(true) }
         }
+      }
+      const particleBuffer = effects.some(effect => effect.particleData) ? gl.createBuffer() : null
+      if (particleBuffer) {
+        resources.push(() => gl.deleteBuffer(particleBuffer))
+        gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer); gl.bufferData(gl.ARRAY_BUFFER, 512 * 6 * 36, gl.DYNAMIC_DRAW)
+      }
+      function paintParticles(effect, elapsed, period, radians, offset, budget) {
+        if (!effect.particleData || !particleBuffer) return 0
+        const batches = particleBatches(effect.particleData, elapsed, period, radians, effect.kind === 'ornament' ? ornamentPose : null, budget)
+        gl.uniform1f(uniforms.effect, 2); gl.uniform1f(uniforms.offsetX, offset)
+        gl.uniformMatrix4fv(uniforms.attachmentPose, false, identityPose)
+        gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer)
+        gl.disableVertexAttribArray(attrs.normal); gl.vertexAttrib3f(attrs.normal, 0, 0, 1)
+        for (const [key, size, byte] of [['position', 3, 0], ['uv', 2, 12], ['color', 4, 20]]) { gl.enableVertexAttribArray(attrs[key]); gl.vertexAttribPointer(attrs[key], size, gl.FLOAT, false, 36, byte) }
+        gl.enable(gl.BLEND); gl.depthMask(false)
+        let count = 0
+        for (const batch of batches) {
+          gl.uniform1f(uniforms.particleAdditive, batch.additive ? 1 : 0)
+          gl.blendFuncSeparate(gl.ONE, batch.additive ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+          gl.bindTexture(gl.TEXTURE_2D, textures[textureUrl(effect.particleData, batch)])
+          gl.bufferSubData(gl.ARRAY_BUFFER, 0, batch.vertices); gl.drawArrays(gl.TRIANGLES, 0, batch.vertices.length / 9)
+          count += batch.vertices.length / 54
+        }
+        gl.disable(gl.BLEND); gl.depthMask(true)
+        return count
       }
       let envelope, envelopeAngle, previousFrame = -1, previousRotation, previousScale
       rendererRef.current = (rotation, scale) => {
@@ -217,7 +251,8 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         const frame = clip ? Math.min(clip.frame_count - 1, Math.floor(elapsed % buffer.duration / buffer.duration * clip.frame_count)) : 0
         const ornamentDuration = ornament ? (clip ? buffer.duration : couplePreview.duration) * (ornament.data.relative_duration || 1) : 1
         const ornamentFrame = ornament ? Math.floor(elapsed % ornamentDuration / ornamentDuration * ornament.data.frame_count) : 0
-        const activeFrame = `${frame}:${ornamentFrame}`
+        const particleFrame = particleBuffer ? Math.floor(elapsed * 30) : 0
+        const activeFrame = `${frame}:${ornamentFrame}:${particleFrame}`
         if ((clip || ornament) && activeFrame === previousFrame && rotation === previousRotation && scale === previousScale && !resized) return
         previousFrame = activeFrame; previousRotation = rotation; previousScale = scale
         if (clip) canvas.dataset.motionFrame = String(frame)
@@ -227,6 +262,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         const scene = [{ meshes: primary, offset: pair ? -spacing : 0 }]
         if (pair) scene.push({ meshes: secondary, offset: spacing })
         for (const effect of sceneEffects) scene.push({ meshes: effectMeshes(effect, frame), offset: effect.sex === sex ? -spacing : spacing, effect: true })
+        if (ornament) scene.push({ meshes: effectMeshes(ornament, ornamentFrame), offset: 0, effect: true })
         if (clip && (!envelope || envelopeAngle !== rotation)) {
           envelopeAngle = rotation
           envelope = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
@@ -256,6 +292,14 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           scene.push({ meshes, offset })
         }
         const bounds = envelope ? envelope.map(values => [...values]) : [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
+        if (ornament) {
+          const framing = posedBounds(ornament.data.bounds, ornamentPose)
+          framing[1][1] += effects.some(effect => effect.particleData) ? 80 : 0
+          for (const x of [framing[0][0], framing[1][0]]) for (const y of [framing[0][1], framing[1][1]]) for (const z of [framing[0][2], framing[1][2]]) {
+            const point = [-c * x - s * z, y - 148, -s * x + c * z]
+            for (let axis = 0; axis < 3; axis++) { bounds[0][axis] = Math.min(bounds[0][axis], point[axis]); bounds[1][axis] = Math.max(bounds[1][axis], point[axis]) }
+          }
+        }
         for (const group of scene) for (const mesh of group.meshes) {
           for (const x of [mesh.bounds[0][0], mesh.bounds[1][0]]) for (const y of [mesh.bounds[0][1], mesh.bounds[1][1]]) for (const z of [mesh.bounds[0][2], mesh.bounds[1][2]]) {
             const point = [-c * x - s * z + group.offset, y - 148, -s * x + c * z]
@@ -276,21 +320,12 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           canvas.parentElement.style.setProperty(index ? '--shop-secondary-label' : '--shop-primary-label', `${Math.min(88, Math.max(12, position))}%`)
         }
         for (const group of scene) paint(group.meshes, group.offset, group.effect)
-        if (ornament) {
-          const size = Math.round(Math.min(150, rect.width * .3) * dpr), margin = Math.round(12 * dpr)
-          const x = width - size - margin, y = height - size - margin
-          gl.enable(gl.SCISSOR_TEST); gl.scissor(x, y, size, size)
-          gl.clearColor(.065, .09, .14, .94); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.disable(gl.SCISSOR_TEST)
-          gl.viewport(x, y, size, size); gl.uniform1f(uniforms.angle, Math.PI); gl.uniform1f(uniforms.aspect, 1)
-          const bounds = ornament.data.bounds
-          gl.uniform1f(uniforms.centerX, (bounds[0][0] + bounds[1][0]) / 2)
-          gl.uniform1f(uniforms.centerY, (bounds[0][1] + bounds[1][1]) / 2 - 148)
-          gl.uniform1f(uniforms.centerZ, -(bounds[0][2] + bounds[1][2]) / 2)
-          gl.uniform1f(uniforms.halfHeight, Math.max(bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1], 1) * .6)
-          gl.uniform1f(uniforms.halfDepth, Math.max(500, bounds[1][2] - bounds[0][2]))
-          paint(effectMeshes(ornament, ornamentFrame), 0, true)
-          canvas.dataset.ornamentFrame = String(ornamentFrame)
-        }
+        if (ornament) canvas.dataset.ornamentFrame = String(ornamentFrame)
+        const particleGroups = effects.filter(effect => effect.particleData)
+        let particleCount = 0
+        for (const effect of particleGroups) particleCount += paintParticles(effect, elapsed, effect.kind === 'ornament' ? ornamentDuration : buffer.duration, radians, effect.kind === 'ornament' ? 0 : effect.sex === sex ? -spacing : spacing, Math.floor(320 / particleGroups.length))
+        canvas.dataset.particleCount = String(particleCount)
+        if (particleBuffer) canvas.dataset.particleFrame = String(particleFrame)
       }
       if (clip) {
         rendererRef.current(angle, zoom)
@@ -319,7 +354,6 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
   }, [angle, zoom, status, motion, couplePreview])
   return <div className="shop-stage">
     <canvas ref={canvasRef} role="img" aria-label={pair ? '남녀 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
-    {couplePreview?.ornament && <span className="shop-couple-model-caption">커플링 모델</span>}
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
     <div className="shop-character-labels"><span>{sex === 'male' ? '남성' : '여성'} ㆍ 선택한 의상</span>{pair && <span>{sex === 'male' ? '여성' : '남성'} ㆍ 대응 의상</span>}</div>
   </div>

@@ -476,8 +476,9 @@ for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '
 const coupleRoot = `${root}/motions/`
 const coupleRing = { ...hero, id: '30120', name: '하트 주얼링', category: '507', group: 'couple', couple_preview: { motion: coupleRoot + '1'.repeat(64) + '.json.gz', bindings: coupleRoot + '2'.repeat(64) + '.json.gz', audio: `${root}/audio/${'3'.repeat(64)}.mp3`, duration: .5 } }
 const missingCoupleRing = { ...coupleRing, id: '30845', name: '흐르는 등불(공용)', couple_preview: null }
-async function coupleFixture(page, { motionGate, actorRoles = true, effects = false, effectGate, ornamentCycle = 1, sharedEffectModel = false } = {}) {
-  const effectDescriptor = (model, animation) => ({ model: `${root}/models/${model.repeat(64)}.json.gz`, animation: coupleRoot + animation.repeat(64) + '.json.gz' })
+async function coupleFixture(page, { motionGate, actorRoles = true, effects = false, effectGate, ornamentCycle = 1, sharedEffectModel = false, particles = false, particleGate, blackParticles = false } = {}) {
+  effects ||= particles
+  const effectDescriptor = (model, animation) => ({ model: `${root}/models/${model.repeat(64)}.json.gz`, animation: coupleRoot + animation.repeat(64) + '.json.gz', ...(particles && model === '4' ? { particles: coupleRoot + 'a'.repeat(64) + '.json.gz' } : {}) })
   const ring = effects ? { ...coupleRing, couple_preview: { ...coupleRing.couple_preview, ornament: effectDescriptor('4', '5'), effects: [{ ...effectDescriptor(sharedEffectModel ? '4' : '6', '7'), sex: 'male' }] } } : coupleRing
   const requests = await setup(page, { items: [shirt, { ...femaleShirt, counterpart_id: '200' }, pet, { ...pet, id: '400', slot: 'accessory', model: `${root}/models/${'8'.repeat(64)}.json.gz` }, { ...pet, id: '500', slot: 'summon', model: `${root}/models/${'9'.repeat(64)}.json.gz` }, ring, missingCoupleRing] })
   const wave = Buffer.alloc(44 + 22050 * 2)
@@ -495,6 +496,14 @@ async function coupleFixture(page, { motionGate, actorRoles = true, effects = fa
     return route.fulfill({ json: bindings ? { schema: 'shop-couple-motion-v1', bindings: {} } : { schema: 'shop-couple-motion-v1', frame_count: 15, duration: .5, actors: { male: actor('male'), female: actor('female') } } })
   })
   if (effects) for (const digit of ['4', '6']) await page.route(`**/models/${digit.repeat(64)}.json.gz`, route => route.fulfill({ json: { ...mesh, texture_revision: 'f'.repeat(20) } }))
+  if (particles) {
+    await page.route(`**/motions/${'a'.repeat(64)}.json.gz`, async route => {
+      if (particleGate) await particleGate
+      return route.fulfill({ json: { schema: 'shop-particles-v1', texture_revision: 'f'.repeat(20), frame_count: 15 * ornamentCycle, source_duration: 15, anchors: { '': Array.from({ length: ornamentCycle }, () => matrices).flat() }, emitters: [{ anchor: '', texture: '9'.repeat(64) + '.webp', format: 'binary-v3', count: 8, interval: .1, seed: 42, start_tick: 0, end_tick: 0, midpoint: .5, uv_fps: 10, lifetime: [50, 50], velocity: [0, 0], position: [0, 0, -2], attachment_position: [0, 0, 0], attachment_rotation: [0, 0, 0], min_position: [0, 0, 0], max_position: [0, 0, 0], position_scale: [1, 1, 1], min_direction: [0, 0, 0], max_direction: [0, 0, 0], gravity: [0, 0, 0], acceleration: [0, 0, 0], colors: Array.from({ length: 3 }, () => [1, 1, 1, 1]), sizes: Array.from({ length: 3 }, () => [.25, .25, .25, .25]), uv: [[0, 0, 1, 1]], additive: true, angular_velocity: 0 }] } })
+    })
+    const black = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGNkYGD4z8DAwMAEIkAYAA4oAQOSwUJsAAAAAElFTkSuQmCC', 'base64')
+    await page.route(`**/textures/${'9'.repeat(64)}.webp`, route => route.fulfill({ body: blackParticles ? black : png, contentType: 'image/png' }))
+  }
   await page.route('**/api/shop/assets/*/audio/*', route => route.fulfill({ body: wave, contentType: 'audio/mpeg' }))
   await page.addInitScript(() => {
     const Native = window.AudioContext
@@ -693,7 +702,8 @@ test('couple models share the audio clock while selected pets decorations and wi
   await expect(dialog.locator('.shop-stage-status')).toHaveText('')
   await expect(dialog.locator('canvas')).toHaveAttribute('data-couple-ornament', '1')
   await expect(dialog.locator('canvas')).toHaveAttribute('data-couple-scene-models', '1')
-  await expect(dialog.locator('.shop-couple-model-caption')).toHaveText('커플링 모델')
+  await expect(dialog.locator('.shop-couple-model-caption')).toHaveCount(0)
+  await expect(dialog.locator('canvas')).toHaveAttribute('data-couple-model-placement', 'main')
   await expect.poll(() => dialog.locator('canvas').evaluate(canvas => Number(canvas.dataset.ornamentFrame) >= 15 && Number(canvas.dataset.motionFrame) < 15), { intervals: [17, 41, 83, 127], timeout: 10000 }).toBe(true)
   const frame = await dialog.locator('canvas').getAttribute('data-ornament-frame')
   await expect.poll(() => dialog.locator('canvas').getAttribute('data-ornament-frame'), { intervals: [17, 41, 83, 127], timeout: 10000 }).not.toBe(frame)
@@ -716,7 +726,7 @@ test('couple models share the audio clock while selected pets decorations and wi
   expect(Object.fromEntries(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams)).toMatchObject({ pet: '300', accessory: '400', summon: '500', view: 'preview' })
 })
 
-test('a lobby model reused by an action is shown once in the model area', async ({ page }) => {
+test('a lobby model reused by an action is shown once in the main scene', async ({ page }) => {
   const requests = []
   await coupleFixture(page, { effects: true, sharedEffectModel: true })
   page.on('request', request => requests.push(request.url()))
@@ -729,6 +739,66 @@ test('a lobby model reused by an action is shown once in the model area', async 
   expect(requests.some(url => url.includes('7'.repeat(64) + '.json.gz'))).toBe(false)
   expect(await page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(1)
   await page.keyboard.press('Escape'); await expect(dialog).not.toBeVisible()
+})
+
+test('source particles render in the main scene without dark additive rectangles and pending particle loading keeps layout stable', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await coupleFixture(page, { particles: true, particleGate: gate, blackParticles: true })
+  await page.addInitScript(() => {
+    window.__particleDraws = 0; window.__insetViewport = false
+    const draw = WebGLRenderingContext.prototype.drawArrays, viewport = WebGLRenderingContext.prototype.viewport
+    WebGLRenderingContext.prototype.drawArrays = function (...args) { window.__particleDraws++; return draw.apply(this, args) }
+    WebGLRenderingContext.prototype.viewport = function (...args) { if (args[0] || args[1]) window.__insetViewport = true; return viewport.apply(this, args) }
+  })
+  await page.goto(`/shop?view=couple&item=30120&v=${version}&sex=male&top=200&pet=300&accessory=400&summon=500`)
+  const dialog = page.getByRole('dialog', { name: '커플 모션 미리보기', exact: true })
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  const watcher = await watchLayout(page, ['.shop-couple-heading', '.shop-couple-dialog .shop-stage', '.shop-couple-note', '.shop-couple-purchase-note', '.shop-header'])
+  await watcher.expectStable()
+  await dialog.getByRole('button', { name: '커플 모션 시작', exact: true }).click()
+  await watcher.expectStable()
+  expect(await page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(0)
+  release(); await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  await expect.poll(async () => Number(await dialog.locator('canvas').getAttribute('data-particle-count'))).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => window.__particleDraws)).toBeGreaterThan(0)
+  expect(await page.evaluate(() => window.__insetViewport)).toBe(false)
+  const dark = await dialog.locator('canvas').evaluate(canvas => {
+    const gl = canvas.getContext('webgl'), pixels = new Uint8Array(canvas.width * canvas.height * 4)
+    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
+    let count = 0
+    for (let index = 0; index < pixels.length; index += 4) if (!pixels[index] && !pixels[index + 1] && !pixels[index + 2] && pixels[index + 3] > 10) count++
+    return count
+  })
+  expect(dark).toBe(0)
+  const frame = await dialog.locator('canvas').getAttribute('data-particle-frame')
+  await expect.poll(() => dialog.locator('canvas').getAttribute('data-particle-frame'), { intervals: [17, 41, 83, 127] }).not.toBe(frame)
+  await dialog.getByRole('button', { name: 'URL 복사', exact: true }).click()
+  expect(Object.fromEntries(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams)).toMatchObject({ item: '30120', top: '200', pet: '300', accessory: '400', summon: '500', view: 'couple' })
+  await watcher.expectStable(); await watcher.stop()
+  await page.goBack(); await expect(dialog).not.toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('closed')
+  expect(await page.evaluate(() => window.__coupleAudio.at(-1).stops)).toBe(1)
+})
+
+test('closing while particle definitions are pending prevents late audio and particle draws', async ({ page }) => {
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await coupleFixture(page, { particles: true, particleGate: gate })
+  await page.goto(`/shop?item=30120&v=${version}`)
+  await expect(page.locator('.shop-detail h3')).toHaveText(coupleRing.name)
+  if (page.viewportSize().width <= 800) {
+    await expect(page.getByRole('dialog', { name: '아이템 현황', exact: true })).toBeVisible()
+    await page.getByRole('tab', { name: '아이템 정보', exact: true }).click()
+  }
+  await page.getByRole('button', { name: '선택한 커플링 미리보기', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '커플 모션 미리보기', exact: true })
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  await page.keyboard.press('Escape'); await expect(dialog).not.toBeVisible()
+  release()
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('closed')
+  expect(await page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(0)
 })
 
 test('full outfit links restore camera, gender, both characters and default unselected slots', async ({ page }) => {
