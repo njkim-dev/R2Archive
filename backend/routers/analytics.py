@@ -104,6 +104,7 @@ def _domain_summary(cur, start):
           AND (referrer IN ('https://r2archive.com', 'http://r2archive.com')
                OR referrer LIKE 'https://r2archive.com/%%'
                OR referrer LIKE 'http://r2archive.com/%%')
+          AND referrer !~ '^https?://r2archive[.]com/(music|xyx)(/|[?#]|$)'
         """,
         (start,),
     )

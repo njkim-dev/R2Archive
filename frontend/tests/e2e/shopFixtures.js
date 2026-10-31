@@ -27,6 +27,7 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
   await page.addInitScript(()=>{window.__copiedShopUrl='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copiedShopUrl=value}}})})
   await page.route('**/api/**',async route=>{
     const url=new URL(route.request().url()),path=url.pathname,method=route.request().method()
+    if(!path.startsWith('/api/'))return route.continue()
     if(path.startsWith('/api/shop/'))requests.push(path)
     if(path==='/api/auth/me'){if(authGate)await authGate;return route.fulfill({json:{user:loggedIn?{id:1,provider:'google',nickname:'관리자',onboarded:true}:null}})}
     if(path==='/api/auth/admin-status')return route.fulfill({json:{is_admin:admin}})
