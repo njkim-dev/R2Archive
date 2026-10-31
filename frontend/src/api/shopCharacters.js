@@ -8,3 +8,5 @@ export const saveCharacterItems=(id,ids,version)=>api.post(`/${id}/items`,{ids},
 export const removeCharacterItem=(id,item,version)=>api.delete(`/${id}/items/${item}`,{params:{version}}).then(r=>r.data)
 export const setCharacterMain=(id,item,version)=>api.put(`/${id}/mains/${item}`,null,{params:{version}}).then(r=>r.data)
 export const saveCharacterThumbnail=(id,key,blob,version)=>api.put(`/${id}/thumbnail`,blob,{params:{key,version},headers:{'Content-Type':'image/webp'}})
+
+export const setCharacterPrivacy=(id,item,is_private,version)=>api.put(`/${id}/items/${item}/privacy`,{is_private},{params:{version}}).then(r=>r.data)

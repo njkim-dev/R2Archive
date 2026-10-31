@@ -26,16 +26,16 @@ class SaveItems(BaseModel):
     ids:list[int]=Field(min_length=1,max_length=8)
 
 
-def character_state(cur,character,revision):
+def character_state(cur,character,revision,public=False):
     cid=character['id']
-    cur.execute('SELECT item_id FROM shop_character_items WHERE character_id=%s ORDER BY item_id',(cid,))
-    ids=[str(row['item_id']) for row in cur.fetchall()]
-    cur.execute(f'SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision=%s AND {ACCESSIBLE} AND item_id IN (SELECT item_id FROM shop_character_mains WHERE character_id=%s)',(revision,cid))
+    cur.execute('SELECT item_id,is_private FROM shop_character_items WHERE character_id=%s'+(' AND NOT is_private' if public else '')+' ORDER BY item_id',(cid,))
+    rows=cur.fetchall();ids=[str(row['item_id']) for row in rows];private_ids=[str(row['item_id']) for row in rows if row.get('is_private')]
+    cur.execute(f'SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision=%s AND {ACCESSIBLE} AND item_id IN (SELECT item_id FROM shop_character_mains WHERE character_id=%s)'+(' AND item_id IN (SELECT item_id FROM shop_character_items WHERE character_id=%s AND NOT is_private)' if public else ''),(revision,cid,cid) if public else (revision,cid))
     items={row['id']:serialize(row) for row in cur.fetchall()}
     cur.execute('SELECT slot,item_id FROM shop_character_mains WHERE character_id=%s ORDER BY slot',(cid,))
     mains=[{'sex':character['sex'],'slot':row['slot'],'item':items[row['item_id']]} for row in cur.fetchall() if row['item_id'] in items]
     key=thumbnail_key(revision,character['sex'],mains)
-    return {'character':{'id':str(cid),'name':character['name'],'sex':character['sex']},'ids':ids,'mains':mains,'thumbnail_key':key,'thumbnail':f'/api/shop/characters/{cid}/thumbnail?key={key}' if character.get('thumbnail_key')==key else None}
+    return {'character':{'id':str(cid),'name':character['name'],'sex':character['sex']},'ids':ids,'mains':mains,'thumbnail_key':key,'thumbnail':f'/api/shop/characters/{cid}/thumbnail?key={key}' if character.get('thumbnail_key')==key else None,**({'private_ids':private_ids} if not public else {})}
 
 
 @router.get('')
@@ -80,10 +80,29 @@ def read_character(request:Request,character_id:int,version:str|None=Query(None,
 def delete_character(request:Request,character_id:int):
     uid=favorite_user(request)
     with get_conn() as conn,conn.cursor(cursor_factory=RealDictCursor) as cur:
+        from shop_couples import lock_couple_changes
+        lock_couple_changes(cur)
         require_character(cur,uid,character_id,True)
         cur.execute('UPDATE shop_myhome_links SET active=false WHERE character_id=%s',(character_id,))
         cur.execute('DELETE FROM shop_characters WHERE id=%s AND user_id=%s',(character_id,uid));conn.commit()
     return Response(status_code=204,headers=PRIVATE_HEADERS)
+
+
+class ItemPrivacy(BaseModel):
+    is_private:bool
+
+
+@router.put('/{character_id}/items/{item_id}/privacy')
+@bounded_shop_read
+def set_item_privacy(request:Request,character_id:int,item_id:int,payload:ItemPrivacy,version:str|None=Query(None,max_length=64)):
+    uid=favorite_user(request)
+    if not 0 < item_id <= 9223372036854775807:raise HTTPException(422,'아이템 번호가 올바르지 않습니다')
+    with get_conn() as conn,conn.cursor(cursor_factory=RealDictCursor) as cur:
+        character=require_character(cur,uid,character_id,True);revision=catalog(cur,version)['revision']
+        cur.execute('UPDATE shop_character_items SET is_private=%s WHERE character_id=%s AND item_id=%s RETURNING item_id',(payload.is_private,character_id,item_id))
+        if not cur.fetchone():raise HTTPException(404,'저장한 아이템을 찾을 수 없습니다')
+        result=character_state(cur,character,revision);conn.commit()
+    return JSONResponse(result,headers=PRIVATE_HEADERS)
 
 
 @router.post('/{character_id}/items')

@@ -173,6 +173,7 @@ export default function App() {
           <Route path="/myhome" element={<MyHomePage/>}/>
           <Route path="/myhome/characters/all" element={<ShopPage allCharacters/>}/>
           <Route path="/myhome/characters/:characterId" element={<ShopPage/>}/>
+          <Route path="/myhome/partners/:characterId" element={<ShopPage partnerHome/>}/>
           <Route path="/myhome/:handle" element={<ShopPage />} />
           <Route path="/removed-songs" element={<RemovedSongsPage />} />
           {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}

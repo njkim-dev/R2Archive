@@ -3,9 +3,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 const ROW_HEIGHT = 260
 const OVERSCAN = 2
 
-export default function ShopVirtualGrid({ items, hasMore, loading, error, loadMore, renderItem, empty, resetKey, scrollPosition, restoreScroll }) {
+export default function ShopVirtualGrid({ items, hasMore, loading, error, loadMore, renderItem, empty, resetKey, scrollPosition, restoreScroll,minCardWidth }) {
   const rootRef = useRef(null)
-  const [windowState, setWindowState] = useState({ first: 0, last: 5, columns: window.innerWidth <= 550 ? 2 : 3 })
+  const [windowState, setWindowState] = useState({ first: 0, last: 5, columns: minCardWidth?1:window.innerWidth <= 550 ? 2 : 3 })
   const callback = useRef(loadMore)
   callback.current = loadMore
   const rows = Math.ceil(items.length / windowState.columns)
@@ -17,7 +17,7 @@ export default function ShopVirtualGrid({ items, hasMore, loading, error, loadMo
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         const rect = rootRef.current.getBoundingClientRect()
-        const columns = window.innerWidth <= 550 ? 2 : 3
+        const columns = minCardWidth?Math.max(1,Math.min(3,Math.floor((rect.width+14)/(minCardWidth+14)))):window.innerWidth <= 550 ? 2 : 3
         const offset = Math.max(0, -rect.top)
         const first = Math.max(0, Math.floor(offset / ROW_HEIGHT) - OVERSCAN)
         const last = Math.max(first, Math.ceil((window.innerHeight - rect.top) / ROW_HEIGHT) + OVERSCAN)
@@ -31,7 +31,7 @@ export default function ShopVirtualGrid({ items, hasMore, loading, error, loadMo
     window.addEventListener('scroll', measure, { passive: true })
     window.addEventListener('resize', measure)
     return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('scroll', measure); window.removeEventListener('resize', measure) }
-  }, [resetKey, scrollPosition, restoreScroll])
+  }, [resetKey, scrollPosition, restoreScroll,minCardWidth])
   useEffect(() => {
     if (hasMore && !loading && !error && windowState.last >= rows - 1) callback.current()
   }, [hasMore, loading, error, rows, windowState.last])

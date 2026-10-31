@@ -5,7 +5,7 @@ export default function ShopCharacterCards({items,onChoose,onCreate,onAll,onDele
     {items.map(entry=><article className="shop-character-card" key={entry.character.id}>
       <button className="shop-character-open" disabled={busy} onClick={()=>onChoose(entry)} aria-label={`${entry.character.name} 캐릭터 선택`}>
         <div className="shop-character-picture">{entry.thumbnail?<img src={entry.thumbnail} alt="" loading="lazy"/>:<UserRound aria-hidden="true"/>}</div>
-        <strong>{entry.character.name}</strong><small>{entry.character.sex==='female'?'여성':'남성'}</small>
+        <strong>{entry.character.name}</strong><small>{entry.character.sex==='female'?'여성':'남성'}{entry.privacyLabel?' ㆍ '+entry.privacyLabel:''}</small>
       </button>
       {onDelete&&<button className="shop-character-delete" disabled={busy} aria-label={`${entry.character.name} 캐릭터 삭제`} onClick={()=>onDelete(entry)}>삭제</button>}
     </article>)}

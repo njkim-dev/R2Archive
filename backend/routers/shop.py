@@ -150,20 +150,25 @@ def items(
     owned_only: bool = False,
     home: str | None = Query(None, max_length=20),
     character_id: int | None = Query(None,gt=0,le=9223372036854775807),
+    partner_of: int | None = Query(None,gt=0,le=9223372036854775807),
     include_unreleased: bool = False,
     cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(24, ge=1, le=60),
 ):
-    if home and (favorites_only or owned_only):
+    if home and (favorites_only or owned_only or character_id or partner_of):
         raise HTTPException(422, '공개 마이홈은 공개 목록 조건으로 조회해주세요')
-    uid = favorite_user(request) if favorites_only or owned_only or character_id else None
+    if partner_of and (favorites_only or owned_only or character_id):raise HTTPException(422,'커플 마이홈 조회 조건을 확인해주세요')
+    uid = favorite_user(request) if favorites_only or owned_only or character_id or partner_of else None
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         if home:
             owner=public_home_owner(cur,home)
             uid=owner['user_id'];character_id=owner['character_id'];sex=owner['sex']
             owned_only = True
             include_unreleased = True
+        elif partner_of:
+            from shop_couples import partner_character
+            peer=partner_character(cur,uid,partner_of);uid=peer['user_id'];character_id=peer['id'];sex=peer['sex'];owned_only=True;include_unreleased=True
         elif character_id:
             from shop_characters import require_character
             character=require_character(cur,uid,character_id)
@@ -188,7 +193,7 @@ def items(
             args.append(uid)
         if owned_only:
             conditions.append(f"(({DEPARTMENT_SQL})='wearable' OR category='507' OR category='508' AND ({GROUP_SQL})='friend')")
-            conditions.append('EXISTS (SELECT 1 FROM shop_character_items owned JOIN shop_characters c ON c.id=owned.character_id WHERE c.user_id=%s AND owned.item_id=shop_items.item_id'+(' AND c.id=%s' if character_id else '')+')')
+            conditions.append('EXISTS (SELECT 1 FROM shop_character_items owned JOIN shop_characters c ON c.id=owned.character_id WHERE c.user_id=%s AND owned.item_id=shop_items.item_id'+(' AND c.id=%s' if character_id else '')+(' AND NOT owned.is_private' if home or partner_of else '')+')')
             args.append(uid)
             if character_id:args.append(character_id)
         if paired_only:
@@ -235,11 +240,13 @@ def items(
             has_more = page * page_size < total
             next_cursor = None
         result = [serialize(r) for r in rows]
-        if owned_only and not home and not character_id and result:
-            cur.execute('SELECT ci.item_id,c.id,c.name FROM shop_character_items ci JOIN shop_characters c ON c.id=ci.character_id WHERE c.user_id=%s AND ci.item_id=ANY(%s) ORDER BY c.id',(uid,[int(item['id']) for item in result]))
+        if owned_only and not home and not partner_of and result:
+            cur.execute('SELECT ci.item_id,ci.is_private,c.id,c.name FROM shop_character_items ci JOIN shop_characters c ON c.id=ci.character_id WHERE c.user_id=%s AND ci.item_id=ANY(%s)'+(' AND c.id=%s' if character_id else '')+' ORDER BY c.id',(uid,[int(item['id']) for item in result],character_id) if character_id else (uid,[int(item['id']) for item in result]))
             owners={}
-            for row in cur.fetchall():owners.setdefault(str(row['item_id']),[]).append({'id':str(row['id']),'name':row['name']})
-            for item in result:item['owners']=owners.get(item['id'],[])
+            for row in cur.fetchall():owners.setdefault(str(row['item_id']),[]).append({'id':str(row['id']),'name':row['name'],'is_private':row.get('is_private',False)})
+            for item in result:
+                item['owners']=owners.get(item['id'],[])
+                item['is_private']=bool(item['owners']) and all(owner['is_private'] for owner in item['owners'])
     return JSONResponse({"version": current["revision"], "items": result, "total": total, "page": page, "page_size": page_size, "has_more": has_more, "next_cursor": next_cursor}, headers=PRIVATE_HEADERS)
 
 

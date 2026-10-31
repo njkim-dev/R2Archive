@@ -15,11 +15,11 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
   const allItems=()=>items||[shirt,femaleShirt,pet,hero]
   let characters=(initialCharacters||[{id:'1',name:'남성캐릭터',sex:'male'},{id:'2',name:'여성캐릭터',sex:'female'}]).map(source=>{
     const character=source.character||source
-    return {character:{id:String(character.id),name:character.name,sex:character.sex},ids:new Set((source.ids||wardrobeIds.filter(id=>allItems().some(item=>item.id===String(id)&&[character.sex,'common'].includes(item.sex)))).map(String)),mains:new Map((source.mains||wardrobeMains.filter(main=>main.sex===character.sex)).map(main=>[main.slot,main])),image:source.image!==false}
+    return {character:{id:String(character.id),name:character.name,sex:character.sex},ids:new Set((source.ids||wardrobeIds.filter(id=>allItems().some(item=>item.id===String(id)&&[character.sex,'common'].includes(item.sex)))).map(String)),privateIds:new Set((source.private_ids||[]).map(String)),mains:new Map((source.mains||wardrobeMains.filter(main=>main.sex===character.sex)).map(main=>[main.slot,main])),image:source.image!==false}
   })
   const state=entry=>{
     const key=(entry.character.id+[...entry.mains.values()].map(main=>main.item.id).sort().join('')).padEnd(24,'0').slice(0,24)
-    return {character:entry.character,ids:[...entry.ids],mains:[...entry.mains.values()],thumbnail_key:key,thumbnail:entry.image?`/api/shop/characters/${entry.character.id}/thumbnail?key=${key}`:null}
+    return {character:entry.character,ids:[...entry.ids],private_ids:[...entry.privateIds],mains:[...entry.mains.values()],thumbnail_key:key,thumbnail:entry.image?`/api/shop/characters/${entry.character.id}/thumbnail?key=${key}`:null}
   }
   const union=()=>[...new Set(characters.flatMap(entry=>[...entry.ids]))]
   requests.wardrobe=()=>characters[0]?state(characters[0]):{ids:[],mains:[]}
@@ -50,14 +50,14 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
     }
     if(path.startsWith('/api/share/homes/')){
       const handle=decodeURIComponent(path.split('/').at(-1)),entry=characters.find(entry=>entry.character.id===links.get(handle))
-      return entry?route.fulfill({json:{...state(entry),handle}}):route.fulfill({status:404,json:{detail:'존재하지 않거나 공유가 해제된 마이홈입니다'}})
+      return entry?route.fulfill({json:{...state(entry),ids:[...entry.ids].filter(id=>!entry.privateIds.has(id)),mains:[...entry.mains.values()].filter(main=>!entry.privateIds.has(main.item.id)),private_ids:undefined,handle}}):route.fulfill({status:404,json:{detail:'존재하지 않거나 공유가 해제된 마이홈입니다'}})
     }
     if(path==='/api/shop/characters'){
       if(method==='POST'){
         const body=route.request().postDataJSON()
         if(characters.length>=17)return route.fulfill({status:409,json:{detail:'캐릭터는 최대 17개까지 생성할 수 있습니다'}})
         if(characters.some(entry=>entry.character.name.toLowerCase()===body.name.toLowerCase()))return route.fulfill({status:409,json:{detail:'이미 사용 중인 캐릭터 이름입니다'}})
-        const id=String(Math.max(0,...characters.map(entry=>Number(entry.character.id)))+1),entry={character:{id,name:body.name,sex:body.sex},ids:new Set(),mains:new Map(),image:false};characters.push(entry)
+        const id=String(Math.max(0,...characters.map(entry=>Number(entry.character.id)))+1),entry={character:{id,name:body.name,sex:body.sex},ids:new Set(),privateIds:new Set(),mains:new Map(),image:false};characters.push(entry)
         return route.fulfill({status:201,json:state(entry)})
       }
       return route.fulfill({json:{characters:characters.map(state),limit:17}})
@@ -70,6 +70,7 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
       if(method==='DELETE'&&!parts[5]){characters=characters.filter(item=>item!==entry);for(const [handle,id]of links)if(id===entry.character.id)links.delete(handle);return route.fulfill({status:204})}
       if(wardrobeSaveGate)await wardrobeSaveGate
       if(parts[5]==='items'&&method==='POST')for(const id of route.request().postDataJSON().ids)save(entry,String(id))
+      if(parts[5]==='items'&&parts[7]==='privacy'&&method==='PUT'){const id=parts[6];if(route.request().postDataJSON().is_private)entry.privateIds.add(id);else entry.privateIds.delete(id)}
       if(parts[5]==='items'&&method==='DELETE'){
         const id=parts[6];entry.ids.delete(id)
         for(const [slot,main]of entry.mains)if(main.item.id===id){entry.mains.delete(slot);const next=allItems().find(item=>item.slot===slot&&entry.ids.has(item.id));if(next)entry.mains.set(slot,{sex:entry.character.sex,slot,item:next})}
@@ -92,8 +93,8 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
       if(start&&nextGate)await nextGate
       const character=characters.find(entry=>entry.character.id===(params.get('character_id')||links.get(params.get('home')))),owned=character?[...character.ids]:union()
       let list=items||(params.get('department')==='wearable'?[params.get('sex')==='female'?femaleShirt:shirt]:[hero])
-      list=list.filter(item=>(!item.is_unreleased||params.get('include_unreleased')==='true'&&(item.department==='wearable'||['couple','friend'].includes(item.group)))&&(!params.get('department')||item.department===params.get('department'))&&(!params.get('sex')||item.sex===params.get('sex')||item.sex==='common')&&(!params.get('slot')||item.slot===params.get('slot'))&&(!params.get('group')||item.group===params.get('group'))&&(!params.get('subgroup')||item.subgroup===params.get('subgroup'))&&(!params.get('q')||item.name.includes(params.get('q')))&&(!(params.get('owned_only')==='true'||params.get('home'))||owned.includes(item.id))&&(params.get('favorites_only')!=='true'||savedFavorites.has(item.id))&&(params.get('preview_only')!=='true'||!!item.preview_available&&!!item.model)&&(params.get('paired_only')!=='true'||!!item.counterpart_id||item.slot==='pet'&&item.sex==='common'))
-      const chunk=list.slice(start,start+size).map(item=>({...item,owners:characters.filter(entry=>entry.ids.has(item.id)).map(entry=>entry.character)})),more=start+size<list.length
+      list=list.filter(item=>(!item.is_unreleased||params.get('include_unreleased')==='true'&&(item.department==='wearable'||['couple','friend'].includes(item.group)))&&(!params.get('department')||item.department===params.get('department'))&&(!params.get('sex')||item.sex===params.get('sex')||item.sex==='common')&&(!params.get('slot')||item.slot===params.get('slot'))&&(!params.get('group')||item.group===params.get('group'))&&(!params.get('subgroup')||item.subgroup===params.get('subgroup'))&&(!params.get('q')||item.name.includes(params.get('q')))&&(!(params.get('owned_only')==='true'||params.get('home'))||owned.includes(item.id))&&(!params.get('home')||!character?.privateIds.has(item.id))&&(params.get('favorites_only')!=='true'||savedFavorites.has(item.id))&&(params.get('preview_only')!=='true'||!!item.preview_available&&!!item.model)&&(params.get('paired_only')!=='true'||!!item.counterpart_id||item.slot==='pet'&&item.sex==='common'))
+      const chunk=list.slice(start,start+size).map(item=>{const owners=characters.filter(entry=>entry.ids.has(item.id)&&(!params.get('character_id')||entry===character)).map(entry=>({...entry.character,is_private:entry.privateIds.has(item.id)}));return {...item,is_private:!!owners.length&&owners.every(owner=>owner.is_private),owners}}),more=start+size<list.length
       return route.fulfill({json:{version,items:chunk,total:start?null:list.length,page_size:size,has_more:more,next_cursor:more?`${start+size-1}:${chunk.at(-1).id}`:null}})
     }
     if(path.startsWith('/api/shop/items/'))return route.fulfill({json:items?.find(item=>path.endsWith('/'+item.id))||(path.endsWith('/201')?femaleShirt:path.endsWith('/200')?shirt:path.endsWith('/300')?pet:hero)})

@@ -2,6 +2,8 @@ import { useEffect,useLayoutEffect,useMemo,useRef,useState } from 'react'
 import { Check,Copy,X } from 'lucide-react'
 import { lockShopScroll } from './shopModalScroll'
 import { createShortUrl } from '../../api/shopSharing'
+import {getCouples,getCoupleHome} from '../../api/shopCouples'
+import {useCouples} from './ShopCouplesContext'
 import { getShopItem } from '../../api/shop'
 import { coupleShareUrl,SHOP_SLOTS } from '../../utils/shopUrl'
 import useStore from '../../store/useStore'
@@ -18,15 +20,27 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
   const dialog=useRef(null),[camera,setCamera]=useState({angle:selection.angle??180,zoom:selection.zoom??100,panX:selection.panX??0,panY:selection.panY??0}),[mode,setMode]=useState('rotate')
   const [actors,setActors]=useState(null),[error,setError]=useState(''),[toast,setToast]=useState(''),[fallback,setFallback]=useState(''),[urlPicker,setUrlPicker]=useState(false),[ownPicker,setOwnPicker]=useState(false)
   const timer=useRef(null),fallbackInput=useRef(null),active=useRef(true)
+  const couples=useCouples(),partnerReads=useRef(new Map())
+  function readPartnerOnce(key,load){if(!partnerReads.current.has(key))partnerReads.current.set(key,load());return partnerReads.current.get(key)}
   const {user,authLoaded}=useStore(),characters=useCharacters(ownPicker&&authLoaded?user?.id:null,meta.revision)
   useEffect(()=>{active.current=true;return()=>{active.current=false;clearTimeout(timer.current)}},[])
   useEffect(()=>{if(fallback){fallbackInput.current?.focus();fallbackInput.current?.select()}},[fallback])
   useLayoutEffect(()=>{const node=dialog.current,release=lockShopScroll();node.showModal();return()=>{node.close();release()}},[])
   useEffect(()=>{
     let cancelled=false
+    if(!selection.shared&&!selection.disableAutoPartner&&!authLoaded)return
     async function restore(){
-      const partner=selection.partner?{sex:selection.partner.sex,slots:{...selection.partner.slots}}:{sex:selection.sex==='male'?'female':'male',slots:empty()}
-      if(!selection.partner)await Promise.all(SHOP_SLOTS.map(async key=>{
+      let savedPartner=null
+      if(!selection.shared&&!selection.disableAutoPartner&&!selection.partner&&user){
+        try{
+          const relationships=couples.ready?couples.items:(await readPartnerOnce('relationships',()=>getCouples())).relationships||[]
+          const candidates=relationships.filter(row=>row.status==='accepted'&&row.character.sex===selection.sex)
+          const id=selection.characterId||(candidates.length===1?candidates[0].character.id:null)
+          if(id){const entry=await readPartnerOnce(id+':'+meta.revision,()=>getCoupleHome(id,meta.revision));if(entry.character.sex===selection.sex&&!selection.item.couple_preview.same_sex_motions?.[selection.sex]){if(!cancelled)notify('동성 커플이 불가능한 반지입니다. 대응 의상으로 표시합니다.')}else savedPartner={sex:entry.character.sex,slots:Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,entry.mains.find(main=>main.slot===slot&&main.item.preview_available&&main.item.model)?.item||null]))}}
+        }catch(e){if(e.response?.status!==404&&!cancelled)notify('커플 의상을 불러오지 못해 대응 의상으로 표시합니다.')}
+      }
+      const partner=selection.partner?{sex:selection.partner.sex,slots:{...selection.partner.slots}}:savedPartner||{sex:selection.sex==='male'?'female':'male',slots:empty()}
+      if(!selection.partner&&!savedPartner)await Promise.all(SHOP_SLOTS.map(async key=>{
         const item=selection.slots[key];if(!item)return
         if(item.sex==='common'){partner.slots[key]=item;return}
         if(!item.counterpart_id)return
@@ -38,7 +52,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
     }
     restore().catch(e=>{if(!cancelled)setError(e.message||'선택한 의상을 불러오지 못했습니다.')})
     return()=>{cancelled=true}
-  },[selection.slots,selection.sex,selection.partner,selection.item,meta])
+  },[selection.slots,selection.sex,selection.partner,selection.item,meta,authLoaded])
   const figures=useMemo(()=>actors?{primary:renderSlots(actors.primary.slots),partner:renderSlots(actors.partner.slots)}:null,[actors])
   const motion=useMemo(()=>{
     if(!actors||!selection.started)return null

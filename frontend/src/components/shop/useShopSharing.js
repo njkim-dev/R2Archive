@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getMyHomeLink, getPublicHome, removeMyHomeLink } from '../../api/shopSharing'
+import { getCoupleHome } from '../../api/shopCouples'
 
 export function useMyHomeLink(userId,characterId) {
   const [state, setState] = useState({ owner: null, handle: null, ready: false, busy: false, error: '' })
@@ -31,7 +32,7 @@ export function usePublicHome(handle, version) {
       if (busy || document.hidden) return
       busy = true
       try {
-        const data = await getPublicHome(handle,version,controller.signal)
+        const data = await (handle.startsWith('partner:')?getCoupleHome(handle.slice(8),version,controller.signal):getPublicHome(handle,version,controller.signal))
         if (controller.signal.aborted) return
         const next = JSON.stringify([data.ids,data.mains.map(main => [main.sex,main.slot,main.item.id])])
         const changed = signature !== undefined && signature !== next

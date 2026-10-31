@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App'
 import { ARCHIVE_BASE } from './utils/serverMode'
+import ShopCouplesProvider from './components/shop/ShopCouplesContext'
 
 const PRELOAD_RELOAD_KEY = 'r2archive:preload-reload'
 
@@ -20,7 +21,7 @@ window.setTimeout(() => sessionStorage.removeItem(PRELOAD_RELOAD_KEY), 10_000)
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter basename={ARCHIVE_BASE||'/'}>
-      <App />
+      <ShopCouplesProvider><App /></ShopCouplesProvider>
     </BrowserRouter>
   </StrictMode>
 )

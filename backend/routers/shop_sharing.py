@@ -127,6 +127,6 @@ def read_public_home(request:Request,handle:str,version:str|None=Query(None,max_
     from routers.shop_characters import character_state
     with get_conn() as conn,conn.cursor(cursor_factory=RealDictCursor) as cur:
         owner=public_home_owner(cur,handle);revision=catalog(cur,version)['revision']
-        state=character_state(cur,{**owner,'id':owner['character_id']},revision)
+        state=character_state(cur,{**owner,'id':owner['character_id']},revision,public=True)
         state.pop('thumbnail',None)
     return JSONResponse({**state,'handle':owner['handle']},headers=PRIVATE_HEADERS)
