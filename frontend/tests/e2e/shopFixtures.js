@@ -65,7 +65,7 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
     if(path.startsWith('/api/shop/characters/')){
       const parts=path.split('/'),entry=characters.find(entry=>entry.character.id===parts[4])
       if(!entry)return route.fulfill({status:404,json:{detail:'캐릭터를 찾을 수 없습니다'}})
-      if(parts[5]==='thumbnail'){if(method==='PUT'){entry.image=true;return route.fulfill({status:204})}return route.fulfill({body:png,contentType:'image/png'})}
+      if(parts[5]==='thumbnail'){if(method==='PUT'){entry.image=true;entry.imageBody=route.request().postDataBuffer();return route.fulfill({status:204})}return route.fulfill({body:entry.imageBody||png,contentType:entry.imageBody?'image/webp':'image/png'})}
       if(method==='GET'){if(wardrobeGate)await wardrobeGate;return route.fulfill({json:state(entry)})}
       if(method==='DELETE'&&!parts[5]){characters=characters.filter(item=>item!==entry);for(const [handle,id]of links)if(id===entry.character.id)links.delete(handle);return route.fulfill({status:204})}
       if(wardrobeSaveGate)await wardrobeSaveGate

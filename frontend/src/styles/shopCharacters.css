@@ -8,3 +8,5 @@
 .shop-character-card,.shop-character-special{aspect-ratio:2/3.5;min-height:150px}.shop-character-picture{aspect-ratio:auto;flex:1;height:0;min-height:0}.shop-storage-target select{color:#edf5ff}
 
 .shop-title>div{min-width:0;max-width:100%}.shop-title h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.shop-storage-target{display:grid;grid-template-columns:auto 180px max-content;justify-content:start}.shop-storage-target select{min-width:0;width:100%}@media(max-width:550px){.shop-storage-target{grid-template-columns:minmax(0,1fr) max-content}.shop-storage-target label{grid-column:1/-1}}
