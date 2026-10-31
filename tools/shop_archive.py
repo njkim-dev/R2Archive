@@ -3,29 +3,57 @@ import re
 import struct
 
 
+def archive_index(pak):
+    size = pak.stat().st_size
+    if size < 9:
+        return []
+    with pak.open('rb') as stream:
+        stream.seek(-9, 2)
+        hint, _, marker = struct.unpack('<IIB', stream.read())
+        if marker != 18 or hint >= size:
+            raise ValueError('Unsupported game archive footer')
+        origin = max(0, hint - 256)
+        stream.seek(origin)
+        data = stream.read(size - 9 - origin)
+    roots = re.finditer(rb'([\x01-\xff])\x02\x00{12}([A-Za-z0-9_]+)\x00', data)
+    root = next((entry for entry in roots if entry[1][0] == len(entry[2])), None)
+    if root is None:
+        if size <= 32:
+            return []
+        raise ValueError('Game archive directory missing')
+    cursor, entries = root.start(), []
+    while cursor < len(data):
+        length, kind, start, packed, unpacked = struct.unpack_from('<BBIII', data, cursor)
+        cursor += 14
+        name = data[cursor:cursor + length]
+        if not length or cursor + length >= len(data) or data[cursor + length] != 0:
+            raise ValueError('Invalid game archive filename')
+        cursor += length + 1
+        try:
+            relative = name.decode('cp949').replace('\\', '/')
+        except UnicodeError:
+            relative = name.decode('cp936').replace('\\', '/')
+        if relative.startswith('/') or '..' in relative.split('/') or ':' in relative or kind not in (0, 1, 2):
+            raise ValueError('Invalid game archive entry')
+        if kind == 2:
+            continue
+        if start + packed > origin + root.start() or unpacked > 256 * 1024 * 1024:
+            raise ValueError('Invalid game archive data bounds')
+        entries.append((pak, relative, kind, start, packed, unpacked))
+    return entries
+
+
 class ArchiveSource:
     def __init__(self, root, output):
         self.root, self.output = Path(root), Path(output)
         self.entries = {}
-        for pak in sorted(self.root.glob('rnr_*.pak')):
-            size = pak.stat().st_size
-            with pak.open('rb') as stream:
-                stream.seek(max(0, size - 2 * 1024 * 1024))
-                data = stream.read()
-            for match in re.finditer(rb'rnr_[A-Za-z0-9_]+/[^\x00\r\n]{1,230}\x00', data):
-                if match.start() < 14:
-                    continue
-                name = match.group()[:-1]
-                length, kind, start, packed, unpacked = struct.unpack_from('<BBIII', data, match.start() - 14)
-                if length != len(name) or kind not in (0, 1) or not 0 < packed or not 0 < unpacked < 100_000_000 or start + packed > size:
-                    continue
-                try:
-                    relative = name.decode('cp949').replace('\\', '/')
-                except UnicodeError:
-                    continue
-                if '..' in relative.split('/') or ':' in relative:
-                    continue
-                self.entries[relative.casefold()] = (pak, relative, kind, start, packed, unpacked)
+        self.archive_errors = {}
+        for pak in sorted(self.root.rglob('*.pak')):
+            try:
+                for entry in archive_index(pak):
+                    self.entries[entry[1].casefold()] = entry
+            except (ValueError, UnicodeError, OSError, struct.error) as error:
+                self.archive_errors[pak.relative_to(self.root).as_posix()] = str(error)
 
     def resolve(self, relative):
         relative = relative.replace('\\', '/')

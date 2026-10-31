@@ -15,6 +15,7 @@ from database import get_conn
 from shop_categories import DEPARTMENT_SQL, SLOT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS, department_sql, slot_sql
 from shop_counterparts import counterpart_sql, reviewed_pair_sql
 from shop_couple import preview as couple_preview
+from shop_asset_store import find_asset
 from shop_sharing import public_home_owner
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
@@ -364,9 +365,8 @@ def asset(request: Request, version: str, kind: str, filename: str):
     expected = 'json' if kind in {'models', 'motions'} else 'audio' if kind == 'audio' else 'image'
     if suffix != expected:
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
-    target = SHOP_DIR / "assets" / version / kind / filename
-    root = (SHOP_DIR / "assets").resolve()
-    if not target.resolve().is_relative_to(root) or not target.is_file():
+    target = find_asset(SHOP_DIR, version, kind, filename)
+    if target is None:
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
     headers = dict(PRIVATE_HEADERS)
     if suffix == 'json':

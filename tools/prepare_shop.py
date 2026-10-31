@@ -62,11 +62,14 @@ def attributes(text):
 
 
 class Resolver:
-    def __init__(self, root, pose_root=None):
+    def __init__(self, root, pose_root=None, texture_aliases=None):
         self.root = root.resolve()
         self.paths = {}
-        for directory in ['rnr_char', 'rnr_item', 'rnr_item_mip', 'rnr_script', 'rnr_room_fx', 'rnr_ani']:
-            base = self.root / directory
+        self.texture_aliases = {(entry['model'].casefold(), entry['name'].casefold()): entry['resolved'] for entry in (texture_aliases or [])}
+        self.resolved_texture_aliases = {}
+        for base in sorted(self.root.iterdir()):
+            if not base.name.casefold().startswith('rnr_') or not base.is_dir():
+                continue
             if base.exists():
                 for path in base.rglob('*'):
                     if path.is_file():
@@ -98,7 +101,11 @@ class Resolver:
             found = self.resolve(candidate)
             if found:
                 return found
-        return None
+        target = self.texture_aliases.get((self.relative(model).casefold(), name.casefold()))
+        found = self.resolve(target) if target else None
+        if found:
+            self.resolved_texture_aliases[(self.relative(model), name)] = self.relative(found)
+        return found
 
 
 def md9_materials(path):
@@ -118,8 +125,26 @@ def md9_materials(path):
     return data, modern, offset, materials
 
 
-def parse_md9(path, resolver, allow_duplicate_names=False, allow_missing_textures=False):
+def unique_bone_names(bones, allow_duplicates=False):
+    parents = {bone['parent'] for bone in bones}
+    names = set()
+    for index in sorted(range(len(bones)), key=lambda index: (not bones[index]['nf'] and index not in parents, index)):
+        bone = bones[index]
+        original, suffix = bone['name'], 2
+        while bone['name'] in names:
+            if not allow_duplicates:
+                raise ValueError('duplicate bone names')
+            bone['name'] = f'{original}#{suffix}'
+            suffix += 1
+        names.add(bone['name'])
+
+
+def parse_md9(path, resolver, allow_duplicate_names=False, allow_missing_textures=False, allow_solid_materials=False):
     data, modern, offset, names = md9_materials(path)
+    colors = []
+    for index, name in enumerate(names):
+        color = struct.unpack_from('<4f', data, (8 if modern else 4) + index * (116 if modern else 100))
+        colors.append(list(color) if allow_solid_materials and not name.strip() and np.isfinite(color).all() and all(0 <= value <= 1 for value in color) else None)
     materials = []
     for name in names:
         texture = resolver.texture(path, name)
@@ -139,17 +164,9 @@ def parse_md9(path, resolver, allow_duplicate_names=False, allow_missing_texture
             raise ValueError('invalid bone geometry or parent')
         bones.append({'name': name, 'matrix': matrix, 'nv': nv, 'nf': nf,
                       'material': material, 'parent': parent})
-    bone_names = set()
+    unique_bone_names(bones, allow_duplicate_names)
     for bone in bones:
-        name, suffix = bone['name'], 2
-        while bone['name'] in bone_names:
-            if not allow_duplicate_names:
-                raise ValueError('duplicate bone names')
-            bone['name'] = f'{name}#{suffix}'
-            suffix += 1
-        bone_names.add(bone['name'])
-    for bone in bones:
-        if bone['nf'] and materials[bone['material']] is None and not allow_missing_textures:
+        if bone['nf'] and materials[bone['material']] is None and colors[bone['material']] is None and not allow_missing_textures:
             raise ValueError('missing texture: ' + names[bone['material']])
     offset += count * 136 + 8
     vertex_count = sum(b['nv'] for b in bones)
@@ -169,7 +186,7 @@ def parse_md9(path, resolver, allow_duplicate_names=False, allow_missing_texture
             raise ValueError('face index out of bounds')
         offset += nf * 6
         bone['indices'] = faces
-    return {'bones': bones, 'materials': materials, 'path': path, 'modern': modern}
+    return {'bones': bones, 'materials': materials, 'material_colors': colors, 'path': path, 'modern': modern}
 
 
 def bone_worlds(model, base=None, pose=None):
@@ -226,7 +243,8 @@ def posed_meshes(model, base=None, pose=None):
         if not np.isfinite(vertices).all():
             raise ValueError('invalid transformed vertices')
         meshes.append({'name': bone['name'], 'vertices': vertices, 'indices': bone['indices'],
-                       'texture_path': model['materials'][bone['material']]})
+                       'texture_path': model['materials'][bone['material']],
+                       'material_color': model.get('material_colors', [None] * len(model['materials']))[bone['material']]})
     if not meshes:
         raise ValueError('empty mesh')
     if base:
@@ -293,9 +311,24 @@ def load_image(path):
         with Image.open(path) as source:
             image = source.convert('RGBA')
     except (ValueError, OSError):
-        if path.suffix.lower() != '.tga':
+        data = path.read_bytes()
+        if data[:4] == b'DDS ' and len(data) >= 128 and struct.unpack_from('<I', data, 4)[0] == 24:
+            height, width, mip_count = struct.unpack_from('<II', data, 12) + (struct.unpack_from('<I', data, 28)[0] or 1,)
+            fourcc = data[84:88]
+            if not (struct.unpack_from('<I', data, 76)[0] == 32 and fourcc in [b'DXT1', b'DXT3', b'DXT5'] and 0 < width <= 8192 and 0 < height <= 8192 and 1 <= mip_count <= 14):
+                raise
+            expected = sum(max(1, (max(1, width >> level) + 3) // 4) * max(1, (max(1, height >> level) + 3) // 4) * (8 if fourcc == b'DXT1' else 16) for level in range(mip_count))
+            if len(data) != 128 + expected:
+                raise
+            # 일부 게임 DDS는 픽셀 자료가 정상이어도 DDS_HEADER 크기를 124 대신 24로 기록한다.
+            repaired = bytearray(data)
+            struct.pack_into('<I', repaired, 4, 124)
+            with Image.open(io.BytesIO(repaired)) as source:
+                image = source.convert('RGBA')
+        elif path.suffix.lower() == '.tga':
+            image = indexed_tga(data)
+        else:
             raise
-        image = indexed_tga(path.read_bytes())
     if path.suffix.lower() == '.bmp':
         pixels = np.asarray(image).copy()
         mask = np.all(pixels[:, :, :3] == [255, 0, 255], axis=2)
@@ -501,7 +534,7 @@ def plan(source, output, pose_root=None):
 class Builder:
     def __init__(self, source, output, manifest, reuse_revision=None):
         self.source, self.output, self.manifest = source, output, manifest
-        self.resolver = Resolver(source, Path(manifest['pose_root']) if source.resolve() == Path(manifest['source_root']).resolve() and manifest.get('pose_root') else None)
+        self.resolver = Resolver(source, Path(manifest['pose_root']) if source.resolve() == Path(manifest['source_root']).resolve() and manifest.get('pose_root') else None, manifest.get('texture_aliases'))
         self.revision = manifest['revision']
         self.asset_root = output / 'assets' / self.revision
         self.cache_path = output / 'catalogs' / self.revision / 'resource-cache.json'
@@ -591,11 +624,13 @@ class Builder:
         if cached and (self.asset_root / 'models' / cached).exists():
             return cached
         path = self.resolver.resolve(relative)
-        model = parse_md9(path, self.resolver)
+        model = parse_md9(path, self.resolver, allow_duplicate_names=True, allow_solid_materials=True)
         base = self.bases.get(sex)
         if base and not attachment:
             base_names = {bone['name'] for bone in base['bones']}
-            if any(bone['parent'] == -1 and bone['name'] not in base_names for bone in model['bones']):
+            parents = {bone['parent'] for bone in model['bones']}
+            if any(bone['parent'] == -1 and bone['name'] not in base_names and (bone['nf'] or index in parents)
+                   for index, bone in enumerate(model['bones'])):
                 raise ValueError('unmapped attachment root')
         meshes = posed_meshes(model, base, self.poses.get(sex))
         if attachment:
@@ -645,7 +680,12 @@ class Builder:
             vertices[:, :3] = np.round(vertices[:, :3], 3)
             vertices[:, 3:6] = np.round(vertices[:, 3:6], 4)
             vertices[:, 6:8] = np.round(vertices[:, 6:8], 5)
-            texture = self.image(self.resolver.relative(mesh['texture_path']), 'textures')
+            if mesh['texture_path'] is None and mesh.get('material_color') is not None:
+                stream = io.BytesIO()
+                Image.new('RGBA', (1, 1), tuple(round(value * 255) for value in mesh['material_color'])).save(stream, format='WEBP', lossless=True, method=3)
+                texture = self.asset('textures', stream.getvalue(), '.webp')
+            else:
+                texture = self.image(self.resolver.relative(mesh['texture_path']), 'textures')
             serial.append({'name': mesh['name'], 'vertices': vertices.ravel().tolist(),
                            'indices': mesh['indices'].ravel().tolist(), 'texture': texture})
         payload = {'meshes': serial}

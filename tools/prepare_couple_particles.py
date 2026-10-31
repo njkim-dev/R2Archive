@@ -50,8 +50,8 @@ def build(game, shop, base_path):
     groups, notes = {}, {}
     for item_id, item in base['rings'].items():
         groups[item_id], notes[item_id] = [], []
-        specs = [('ornament', item['ornament'], audit[item_id]['ornament'])]
-        specs += [('effect', effect, path) for effect, path in zip(item.get('effects', []), audit[item_id]['action_models'])]
+        specs = [('ornament', item['ornament'], audit[item_id]['ornament'])] if item.get('ornament') and audit[item_id].get('ornament') else []
+        specs += [('effect', effect, path) for effect, path in zip(item.get('effects', []), audit[item_id].get('action_models', []))]
         for kind, descriptor, model_path in specs:
             attachment = source.resolve(str(Path(model_path).with_suffix('.aif')).replace('\\', '/')) or source.resolve('rnr_effect/' + Path(model_path).with_suffix('.aif').name)
             entries = read_aif(attachment) if attachment else [{'file': Path(model_path).with_suffix('.pfx').name, 'animation': '', 'bone': '', 'start': 0, 'end': 0, 'position': [0, 0, 0], 'rotation': [0, 0, 0], 'flags': []}]

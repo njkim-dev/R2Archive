@@ -10,13 +10,28 @@ import struct
 
 import numpy as np
 
-from prepare_shop import Builder, BASE_FILES, bone_worlds, md9_materials, write_json
+from prepare_shop import Builder, BASE_FILES, bone_worlds, md9_materials, unique_bone_names, write_json
 from shop_archive import ArchiveSource
 from shop_pose import read_animation, local_pose, couple_scene_pose, couple_actor_side
 
 
 SCHEMA = 'shop-couple-motion-v1'
 NO_MOTION = {30080, 30090, 30030, 30078, 30005, 30006, 30007}
+BODY_BONES = {'Hip', 'Waist', 'Neck', 'Face', 'Hair'} | {side + part for side in ['Left', 'Right'] for part in ['Arm1', 'Arm2', 'Hand', 'Leg1', 'Leg2', 'Foot', 'Shoe']}
+
+
+def read_actor_animation(path):
+    animation = read_animation(path, allow_duplicate_names=True)
+    tracks = animation['tracks']
+    for name in list(tracks):
+        original = re.sub(r'#\d+$', '', name)
+        if original == name or original not in tracks:
+            continue
+        if tracks[name] == tracks[original]:
+            del tracks[name]
+        elif original in BODY_BONES:
+            raise ValueError('Conflicting duplicate actor bone: ' + original)
+    return animation
 
 
 def script(root, name):
@@ -45,7 +60,7 @@ def collect(game, shop, catalog):
     commands = tags(game, 'emoticon2.txt', 'Emoticon')
     records, unavailable = {}, {}
     for item in catalog['items']:
-        if not item['show'] or item['category'] != '507':
+        if str(item['category']) != '507':
             continue
         item_id = item['id']
         if item_id in NO_MOTION:
@@ -55,19 +70,23 @@ def collect(game, shop, catalog):
             if command.get('ItemCode') != str(item_id):
                 continue
             name = command['Ani'].casefold()
-            actors = {sex: source.resolve(aliases[name + '_' + actor]) if name + '_' + actor in aliases else None for sex, actor in [('male', 'boy'), ('female', 'girl')]}
+            actors = {}
+            for sex, actor in [('male', 'boy'), ('female', 'girl')]:
+                default = aliases.get(name + '_' + actor)
+                role = aliases.get(name + ('_l_' if sex == 'male' else '_r_') + actor)
+                actors[sex] = (source.resolve(default) if default else None) or (source.resolve(role) if role else None)
             sound_id = sounds.get(name, int(effects.get(name, {}).get('SndBoy1', -1)))
             audio = source.resolve(soundpaths[sound_id]) if sound_id in soundpaths else None
             if audio and all(actors.values()):
                 sides = {}
                 for sex, actor in [('male', 'boy'), ('female', 'girl')]:
-                    animation = read_animation(actors[sex])
+                    animation = read_actor_animation(actors[sex])
                     variants = {}
                     for side, letter in [('left', 'l'), ('right', 'r')]:
                         alias = name + '_' + letter + '_' + actor
                         path = source.resolve(aliases[alias]) if alias in aliases else None
                         if path:
-                            variants[side] = read_animation(path)
+                            variants[side] = read_actor_animation(path)
                     sides[sex] = couple_actor_side(animation, variants, 'left' if sex == 'male' else 'right')
                 if len(set(sides.values())) != 2:
                     raise ValueError(f'Conflicting couple actor roles: {item_id}')
@@ -102,11 +121,14 @@ def bindings(builder):
             start = offset + i * 136
             name = data[start:start + 32].split(b'\0')[0].decode('cp949')
             parent = struct.unpack_from('<i', data, start + 108)[0]
-            nodes.append((name, parent))
-            skeleton.append({'name': name, 'parent': parent, 'matrix': np.frombuffer(data, dtype='<f4', count=16, offset=start + 32).reshape(4, 4).astype(float)})
+            skeleton.append({'name': name, 'parent': parent, 'nf': struct.unpack_from('<i', data, start + 100)[0], 'matrix': np.frombuffer(data, dtype='<f4', count=16, offset=start + 32).reshape(4, 4).astype(float)})
+        unique_bone_names(skeleton, allow_duplicates=True)
+        nodes = [(bone['name'], bone['parent']) for bone in skeleton]
         custom = {}
         worlds = None
         for index, (name, _) in enumerate(nodes):
+            if not skeleton[index]['nf']:
+                continue
             displayed = 'Accessory-' + name if kind == 'attachment' and name not in ['LeftHand', 'RightHand'] else name
             if displayed in base_names[sex]:
                 continue
@@ -180,11 +202,12 @@ def main():
     supported = {}
     for item_id, record in records.items():
         duration = float(audio_info[item_id]['duration'])
+        print(json.dumps({'stage':'encoding-motion','item':item_id,'duration':duration}),flush=True)
         if not 0 < duration <= 180:
             raise ValueError('Invalid couple audio duration')
         frames = max(2, math.ceil(duration * 30))
         payload = {'schema': SCHEMA, 'duration': duration, 'frame_count': frames, 'bases': catalog['bases'], 'actors': {}}
-        animations = {sex: read_animation(Path(path)) for sex, path in record['actors'].items()}
+        animations = {sex: read_actor_animation(Path(path)) for sex, path in record['actors'].items()}
         shared_duration = max(animation['duration'] for animation in animations.values())
         for sex, base in builder.bases.items():
             animation = animations[sex]
