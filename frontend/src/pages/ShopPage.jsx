@@ -21,6 +21,12 @@ const DEPARTMENTS = [['wearable', '꾸미기ㆍ펫'], ['functional', '기능성�
 const currency = value => value === 'cash' ? '캐시' : '알코인'
 const defaultPrice = item => item?.prices?.find(p => p.key === 'PI') || item?.prices?.find(p => p.key === 'P30') || item?.prices?.[0]
 const errorText = error => typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : Array.isArray(error?.response?.data?.detail) ? '검색어나 공유 URL을 확인해주세요.' : error?.message || '상점 정보를 불러오지 못했습니다.'
+function coupleAudio() {
+  const Audio = window.AudioContext || window.webkitAudioContext
+  let audioContext, audioReady
+  try { audioContext = new Audio(); audioReady = audioContext.resume().then(() => true, () => false) } catch { audioReady = Promise.resolve(false) }
+  return { audioContext, audioReady, started: true }
+}
 
 export default function ShopPage() {
   const location = useLocation()
@@ -87,11 +93,11 @@ function ShopContent({ search }) {
   }, [couple])
   function openCouple() {
     if (!detail?.couple_preview) return
-    const Audio = window.AudioContext || window.webkitAudioContext
-    let audioContext, audioReady
-    try { audioContext = new Audio(); audioReady = audioContext.resume().then(() => true, () => false) } catch { audioReady = Promise.resolve(false) }
-    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, audioContext, audioReady })
+    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, ...coupleAudio() })
     navigate(location.pathname + location.search, { state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
+  }
+  function startCouple() {
+    if (couple && !couple.started) setCouple({ ...couple, ...coupleAudio() })
   }
   const listRequest = useRef(null)
   const scrollPosition = useRef(0)
@@ -141,7 +147,7 @@ function ShopContent({ search }) {
         const catalog = await getShopMeta(initial.version)
         if (cancelled) return
         setMeta(catalog)
-        if (initial.preview || SHOP_SLOTS.some(key => initial.slots[key])) {
+        if (initial.couple || initial.preview || SHOP_SLOTS.some(key => initial.slots[key])) {
           const gender = initial.sex || 'male'
           const chosen = emptySlots()
           await Promise.all(SHOP_SLOTS.map(async key => {
@@ -153,6 +159,15 @@ function ShopContent({ search }) {
           if (cancelled) return
           setSex(gender); setSlots(chosen)
           if (initial.preview) setApplied({ sex: gender, slots: chosen })
+          if (initial.couple) {
+            if (!initial.item) throw new Error('공유된 커플링 정보를 확인해주세요.')
+            const item = await getShopItem(initial.item, catalog.revision)
+            if (cancelled) return
+            if (item.category !== '507' || !item.couple_preview) throw new Error('공유된 커플링은 모션 미리보기를 지원하지 않습니다.')
+            setDepartment('functional'); setGroup('couple'); setDetail(item); setQuery(item.name.slice(0, 120))
+            setCouple({ item, sex: gender, slots: chosen, started: false })
+            navigate(location.pathname + location.search, { replace: !!location.state?.shopCoupleMotion, state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
+          }
         } else if (initial.item) {
           const item = await getShopItem(initial.item, catalog.revision)
           if (cancelled) return
@@ -342,7 +357,7 @@ function ShopContent({ search }) {
     {mobile && awayFromTop && !panelOpen && <button className="shop-floating-top" aria-label="페이지 맨 위로 이동" onClick={top}><ArrowUp size={18} /><span>맨 위로</span></button>}
     {(!mobile || !panelOpen) && copyTools}
     {favoriteSlot && authenticated && applied && meta && <ShopFavoritePicker key={`${user.id}:${favoriteSlot}:${applied.sex}`} slot={favoriteSlot} sex={applied.sex} version={meta.revision} selected={applied.slots[favoriteSlot]} favorites={favorites} onChoose={equipFavorite} onClose={() => setFavoriteSlot(null)} />}
-    {coupleOpen && <ShopCouplePreview selection={couple} meta={meta} onClose={() => navigate(-1)} />}
+    {coupleOpen && <ShopCouplePreview selection={couple} meta={meta} onStart={startCouple} onClose={() => navigate(-1)} />}
     <footer className="shop-footer"><span>R2 ARCHIVE ㆍ 아이템 미리보기</span></footer>
   </main></>
 }

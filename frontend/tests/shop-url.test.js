@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { itemShareUrl, outfitShareUrl, readShopUrl, SHOP_SLOTS, takeShopReturn } from '../src/utils/shopUrl.js'
+import { coupleShareUrl, itemShareUrl, outfitShareUrl, readShopUrl, SHOP_SLOTS, takeShopReturn } from '../src/utils/shopUrl.js'
 
 test('outfit shares preserve all eight slots, gender, camera and counterpart state', () => {
   const slots = Object.fromEntries(SHOP_SLOTS.map((slot, i) => [slot, { id: String(100 + i) }]))
@@ -10,6 +10,7 @@ test('outfit shares preserve all eight slots, gender, camera and counterpart sta
   const restored = readShopUrl(url.search)
   assert.equal(restored.version, 'a'.repeat(20))
   assert.equal(restored.preview, true)
+  assert.equal(restored.couple, false)
   assert.equal(restored.pair, true)
   assert.equal(restored.sex, 'female')
   assert.equal(restored.angle, 237)
@@ -29,7 +30,33 @@ test('item URLs restore a single selected item and its price option', () => {
   assert.equal(state.item, '1000208')
   assert.equal(state.price, 'P7')
   assert.equal(state.preview, false)
+  assert.equal(state.couple, false)
   assert.deepEqual(state.slots, Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null])))
+})
+
+test('couple motion shares preserve the ring, catalog, gender and all eight selected slots', () => {
+  const slots = Object.fromEntries(SHOP_SLOTS.map((slot, index) => [slot, { id: String(100 + index) }]))
+  const url = new URL(coupleShareUrl({ version: 'b'.repeat(20), sex: 'female', slots, item: { id: '30846' } }))
+  assert.equal(url.origin, 'https://r2archive.com')
+  assert.equal(url.pathname, '/shop')
+  const restored = readShopUrl(url.search)
+  assert.equal(restored.couple, true)
+  assert.equal(restored.preview, false)
+  assert.equal(restored.item, '30846')
+  assert.equal(restored.version, 'b'.repeat(20))
+  assert.equal(restored.sex, 'female')
+  assert.equal(restored.pair, true)
+  assert.equal(restored.angle, 180)
+  assert.equal(restored.zoom, 100)
+  assert.deepEqual(restored.slots, Object.fromEntries(SHOP_SLOTS.map((slot, index) => [slot, String(100 + index)])))
+})
+
+test('couple shares support default clothing and reject malformed ring identifiers', () => {
+  const slots = Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null]))
+  const url = new URL(coupleShareUrl({ version: 'a'.repeat(20), sex: 'male', slots, item: '30120' }))
+  assert.deepEqual(readShopUrl(url.search).slots, slots)
+  url.searchParams.set('item', '../../secret')
+  assert.equal(readShopUrl(url.search).item, null)
 })
 
 test('unselected slots remain defaults and invalid inputs never become model identifiers', () => {
