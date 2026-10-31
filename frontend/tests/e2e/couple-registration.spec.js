@@ -7,12 +7,12 @@ test.beforeEach(async({page})=>{if(test.info().project.use.viewport.width<=768)a
 const own={id:'1',name:'내캐릭터',sex:'female',ids:['201','300'],mains:[{sex:'female',slot:'top',item:femaleShirt}]}
 const relation=(incoming=false,status='pending')=>({id:'41',status,incoming,requester_name:'요청사용자',character:{id:'1',name:'내캐릭터',sex:'female'},partner:{id:'80',name:'커플캐릭터',sex:'male'},url:'/myhome/partners/1'})
 const peer={character:{id:'80',name:'커플캐릭터',sex:'male'},ids:['200'],mains:[{sex:'male',slot:'top',item:shirt}],thumbnail_key:'f'.repeat(24)}
-async function connections(page,{initial=[],gate,partner=peer}={}){
+async function connections(page,{initial=[],gate,homeGate,partner=peer}={}){
   let rows=initial;const calls=[]
   await page.route('**/api/shop/couples**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname,method=request.method();calls.push({path,method,relationship_id:new URL(request.url()).searchParams.get('relationship_id'),expected_status:new URL(request.url()).searchParams.get('expected_status')})
     if(method!=='GET'&&gate)await gate
-    if(path.endsWith('/home'))return route.fulfill({json:partner})
+    if(path.endsWith('/home')){if(homeGate)await homeGate;return route.fulfill({json:partner})}
     if(method==='GET')return route.fulfill({json:{relationships:rows}})
     if(method==='DELETE'){rows=[];return route.fulfill({status:204})}
     if(path.endsWith('/accept')){rows=rows.map(row=>({...row,status:'accepted'}));return route.fulfill({json:{ok:true}})}
@@ -74,9 +74,11 @@ test('accepted partner home has live readonly inventory and its own major naviga
 })
 
 for(const sameSex of [false,true])test(`registered partner automatically loads public mains and shared snapshot stays fixed sameSex=${sameSex}`,async({page})=>{
+  const alerts=[];page.on('dialog',async prompt=>{alerts.push(prompt.message());await prompt.accept()})
   const item={...(sameSex?femaleShirt:shirt),id:'202',name:'커플 메인 상의'},partner={...peer,character:{...peer.character,sex:item.sex},mains:[{sex:item.sex,slot:'top',item}]};await coupleFixture(page,{sameSex,characters:[own],extraItems:[item]});const api=await connections(page,{initial:[relation(false,'accepted')],partner});await page.goto('/shop?sex=female');await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('1');await page.getByRole('button',{name:femaleShirt.name+' 의상 선택',exact:true}).click();await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click();await page.locator(`[data-item-id="${sameSex?'30854':'30120'}"] .shop-card-select`).click();await page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true}).click()
   const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect(dialog.locator('.shop-stage-status')).toHaveText('');await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page);expect(url.searchParams.get('partner_top')).toBe('202');expect(url.searchParams.get('partnerSex')).toBe(item.sex);expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
   partner.mains=[];await page.goto(url.pathname+url.search);await page.getByRole('button',{name:'커플 모션 시작',exact:true}).click();await expect(page.locator('.shop-stage-status')).toHaveText('');await page.getByRole('button',{name:'URL 복사',exact:true}).click();expect((await copiedShopUrl(page)).searchParams.get('partner_top')).toBe('202');expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
+  expect(alerts).toEqual([])
 })
 
 test('delayed incoming request appears without moving the loaded myhome controls',async({page})=>{
@@ -84,7 +86,11 @@ test('delayed incoming request appears without moving the loaded myhome controls
   await expect(page.getByRole('button',{name:'커플 등록',exact:true})).toBeDisabled();const watcher=await watchLayout(page,['.shop-header','.shop-home-share','.shop-grid']);release();await expect(page.getByRole('dialog',{name:'커플 등록 요청',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
 })
 
-test('unsupported same sex registered partner falls back to opposite sex counterparts',async({page})=>{
-  const partner={...peer,character:{...peer.character,sex:'female'},mains:[{sex:'female',slot:'top',item:femaleShirt}]};await coupleFixture(page,{characters:[own]});await connections(page,{initial:[relation(false,'accepted')],partner});await page.goto('/shop?sex=female');await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('1');await page.getByRole('button',{name:femaleShirt.name+' 의상 선택',exact:true}).click();await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click();await page.locator('[data-item-id="30120"] .shop-card-select').click();await page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true}).click()
-  const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect(dialog.locator('.shop-toast')).toContainText('동성 커플이 불가능한 반지입니다.');await expect(dialog.locator('.shop-stage-status')).toHaveText('');await expect(dialog.locator('[data-actor="partner"]')).toContainText('남성');await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();expect((await copiedShopUrl(page)).searchParams.get('partnerSex')).toBe('male')
+for(const sex of ['female','male'])test(`unsupported same sex registered partner alerts once and falls back to opposite sex counterparts sex=${sex}`,async({page})=>{
+  const chosen=sex==='female'?femaleShirt:shirt,opposite=sex==='female'?shirt:femaleShirt,character={...own,sex,ids:[chosen.id],mains:[{sex,slot:'top',item:chosen}]},partner={...peer,character:{...peer.character,sex},mains:[{sex,slot:'top',item:chosen}]}
+  let release;const gate=new Promise(resolve=>{release=resolve}),alerts=[];page.on('dialog',async prompt=>{expect(prompt.type()).toBe('alert');alerts.push(prompt.message());await prompt.accept()})
+  await coupleFixture(page,{characters:[character]});const relationship={...relation(false,'accepted'),character:{...relation().character,sex},partner:{...relation().partner,sex}};const api=await connections(page,{initial:[relationship],partner,homeGate:gate});await page.goto('/shop?sex='+sex);await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('1');await page.getByRole('button',{name:chosen.name+' 의상 선택',exact:true}).click();await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click();await page.locator('[data-item-id="30120"] .shop-card-select').click();await page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true}).click()
+  const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect(dialog).toBeVisible();await expect(dialog.locator('.shop-stage-status')).toHaveText('선택한 의상을 준비 중입니다.');const watcher=await watchLayout(page,['.shop-couple-heading','.shop-couple-viewport','.shop-couple-note','.shop-header','.shop-search']);await watcher.expectStable();release()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('');await expect(dialog.locator('[data-actor="partner"]')).toContainText(sex==='female'?'남성':'여성');await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page);expect(url.searchParams.get('partnerSex')).toBe(opposite.sex);expect(url.searchParams.get('partner_top')).toBe(opposite.id);expect(url.searchParams.get('top')).toBe(chosen.id);await watcher.expectStable();await watcher.stop();expect(alerts).toEqual(['동성 커플은 이성 커플 정보를 볼 수 없어, 동일한 이성 의상으로 대체합니다.'])
+  await page.goto(url.pathname+url.search);await page.getByRole('button',{name:'커플 모션 시작',exact:true}).click();await expect(page.locator('.shop-stage-status')).toHaveText('');expect(alerts).toHaveLength(1);expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
 })
