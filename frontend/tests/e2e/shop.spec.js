@@ -335,6 +335,7 @@ test('NEW and unavailable badges leave room for hover favorites without moving t
   await page.getByRole('checkbox', { name: '미리보기 불가능 아이템 가리기', exact: true }).uncheck()
   await expect(page.locator('.shop-card')).toHaveCount(2)
   await expect(page.locator('.shop-footer')).toHaveText('R2 ARCHIVE ㆍ 아이템 미리보기')
+  await page.locator('.shop-card').last().scrollIntoViewIfNeeded()
   const watcher = await watchLayout(page, ['.shop-departments', '.shop-search', '.shop-grid', '.shop-panel'])
   for (const item of [fresh, missing]) {
     const card = page.locator(`[data-item-id="${item.id}"]`), star = card.locator('.shop-favorite-button')
