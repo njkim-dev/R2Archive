@@ -30,12 +30,6 @@ jobs:
           npm test
           npm run build
 
-      - name: Test UI layout stability
-        working-directory: frontend
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:e2e
-
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
@@ -47,7 +41,14 @@ jobs:
           cd backend
           poetry config virtualenvs.create false
           poetry install --only main --no-interaction
+          python -m pip install "numpy==2.5.3"
           python -m unittest discover -s tests -v
+
+      - name: Test UI layout stability
+        working-directory: frontend
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
 
   build-scan:
     needs: test
