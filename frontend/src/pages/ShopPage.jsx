@@ -185,8 +185,8 @@ function ShopContent({ search }) {
         } else if (initial.item) {
           const item = await getShopItem(initial.item, catalog.revision)
           if (cancelled) return
-          const gender = item.sex === 'common' ? initial.sex || 'male' : item.sex
-          setDepartment(item.department); setSex(gender); setDetail(item)
+          const gender = item.sex === 'common' ? initial.sex || saved?.sex || 'male' : item.sex
+          setDepartment(item.department); setSex(gender); setSlots(remembered[gender]); setDetail(item)
           if (item.department === 'wearable' && (!item.preview_available || !item.model)) setHideUnavailable(false)
           if (item.department !== 'wearable' && SHOP_GROUPS[item.department]?.some(([key]) => key === item.group)) {
             setGroup(item.group)
