@@ -35,7 +35,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
         try{
           const relationships=couples.ready?couples.items:(await readPartnerOnce('relationships',()=>getCouples())).relationships||[]
           const candidates=relationships.filter(row=>row.status==='accepted'&&row.character.sex===selection.sex)
-          const id=selection.characterId||(candidates.length===1?candidates[0].character.id:null)
+          const id=selection.characterId?relationships.find(row=>row.status==='accepted'&&row.character.id===selection.characterId)?.character.id:candidates.length===1?candidates[0].character.id:null
           if(id){const entry=await readPartnerOnce(id+':'+meta.revision,()=>getCoupleHome(id,meta.revision));if(entry.character.sex===selection.sex&&!selection.item.couple_preview.same_sex_motions?.[selection.sex]){if(!cancelled)notify('동성 커플이 불가능한 반지입니다. 대응 의상으로 표시합니다.')}else savedPartner={sex:entry.character.sex,slots:Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,entry.mains.find(main=>main.slot===slot&&main.item.preview_available&&main.item.model)?.item||null]))}}
         }catch(e){if(e.response?.status!==404&&!cancelled)notify('커플 의상을 불러오지 못해 대응 의상으로 표시합니다.')}
       }
