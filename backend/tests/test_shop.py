@@ -189,7 +189,7 @@ class ShopTests(unittest.TestCase):
         with patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
             self.assertEqual(self.client().get("/api/shop/items", params={"paired_only": "true", "sex": "male"}).status_code, 200)
         sql = cursor.execute.call_args.args[0]
-        for condition in ["partner.show", "partner.counterpart_id = shop_items.item_id", "partner.category IN ('105','205','305','405')", "partner.name_key = shop_items.name_key", "partner.sex = 'female'"]:
+        for condition in ["partner.show", shop.counterpart_sql('partner') + " = shop_items.item_id", "partner.category IN ('105','205','305','405')", "partner.name_key = shop_items.name_key", "partner.sex = 'female'", shop.reviewed_pair_sql()]:
             self.assertIn(condition, sql)
 
     def test_preview_filter_excludes_missing_models_and_accepts_attachment_slots(self):

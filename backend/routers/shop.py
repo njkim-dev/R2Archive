@@ -12,6 +12,7 @@ from psycopg2.extras import RealDictCursor
 from auth import fetch_user, require_user_id
 from database import get_conn
 from shop_categories import DEPARTMENT_SQL, SLOT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS, department_sql, slot_sql
+from shop_counterparts import counterpart_sql, reviewed_pair_sql
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 SHOP_DIR = Path(os.environ.get("SHOP_DIR", Path(__file__).resolve().parents[2] / "shop"))
@@ -103,7 +104,7 @@ def serialize(row):
     return item
 
 
-ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
+ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, {counterpart_sql()} AS counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
 
 
 @router.get("/meta")
@@ -169,10 +170,11 @@ def items(
               OR EXISTS (
                 SELECT 1 FROM shop_items AS partner
                 WHERE partner.revision = shop_items.revision
-                  AND partner.item_id = shop_items.counterpart_id
-                  AND partner.counterpart_id = shop_items.item_id
+                  AND partner.item_id = {counterpart_sql()}
+                  AND {counterpart_sql('partner')} = shop_items.item_id
                   AND partner.show AND ({department_sql('partner')}) = 'wearable'
-                  AND ({slot_sql('partner')}) = ({slot_sql('shop_items')}) AND partner.name_key = shop_items.name_key
+                  AND ({slot_sql('partner')}) = ({slot_sql('shop_items')})
+                  AND (partner.name_key = shop_items.name_key OR {reviewed_pair_sql()})
                   {partner_preview}
                   AND ((shop_items.sex = 'male' AND partner.sex = 'female')
                     OR (shop_items.sex = 'female' AND partner.sex = 'male'))

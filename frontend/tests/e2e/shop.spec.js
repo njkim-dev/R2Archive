@@ -421,6 +421,58 @@ test('the shop first asks for gender and can preview the default outfit without 
   await expect(page.locator('.shop-pair-note')).toHaveText('선택하지 않은 부위는 기본 의상으로 표시됩니다.')
 })
 
+for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '샤프한 소년', '귀여운 소녀'], ['1010042', '1020043', '꼬마 인큐버스', '꼬마 서큐버스']]) {
+  for (const sex of ['male', 'female']) {
+    test(`different-named counterparts preserve ${maleName} ${sex} filtering preview and shared selection`, async ({ page }) => {
+      await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+      const male = { ...shirt, id: maleId, name: maleName, slot: 'face', counterpart_id: femaleId }
+      const female = { ...male, id: femaleId, name: femaleName, sex: 'female', counterpart_id: maleId }
+      const selected = sex === 'male' ? male : female, partner = sex === 'male' ? female : male
+      const unpaired = { ...selected, id: '777', name: '한쪽 전용 성형', counterpart_id: null }
+      const requests = await setup(page, { items: [male, female, unpaired] })
+      let releaseList
+      const listGate = new Promise(resolve => { releaseList = resolve })
+      await page.route(/\/api\/shop\/items\?/, async route => {
+        if (new URL(route.request().url()).searchParams.get('paired_only') === 'true') await listGate
+        return route.fallback()
+      })
+      await page.goto(`/shop?sex=${sex}`)
+      await page.getByRole('button', { name: '성형', exact: true }).click()
+      await expect(page.locator('.shop-card')).toHaveCount(2)
+      const listWatcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-pair-filter'])
+      await page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만', exact: true }).check()
+      await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
+      await listWatcher.expectStable(); releaseList()
+      await expect(page.locator('.shop-card')).toHaveCount(1)
+      await listWatcher.expectStable(); await listWatcher.stop()
+      await page.getByRole('button', { name: `${selected.name} 의상 선택`, exact: true }).click()
+      await openOutfitPanel(page); await previewSelection(page)
+      await expect(page.locator('.shop-stage-status')).toHaveText('')
+      let releasePartner
+      const partnerGate = new Promise(resolve => { releasePartner = resolve })
+      await page.route(`**/api/shop/items/${partner.id}?*`, async route => { await partnerGate; return route.fallback() })
+      const previewWatcher = await watchLayout(page, ['.shop-stage', '.shop-preview-toolbar', '.shop-pair', '.shop-pair-note'])
+      await page.getByRole('button', { name: '이성 아이템 함께 보기', exact: true }).click()
+      await expect(page.locator('.shop-stage-status')).toHaveText('이성 아이템을 확인 중입니다.')
+      await previewWatcher.expectStable(); releasePartner()
+      await expect(page.locator('.shop-stage-status')).toHaveText('')
+      await expect(page.locator('.shop-character-labels span')).toHaveCount(2)
+      await expect(page.locator('.shop-pair-note')).toHaveText('선택하지 않은 부위는 기본 의상으로 표시됩니다.')
+      await previewWatcher.expectStable(); await previewWatcher.stop()
+      expect(requests).toContain(`/api/shop/items/${partner.id}`)
+      await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+      const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+      expect(shared.searchParams.get('face')).toBe(selected.id)
+      expect(shared.searchParams.get('sex')).toBe(sex)
+      expect(shared.searchParams.get('pair')).toBe('1')
+      await page.goto(shared.href)
+      await expect(page.locator('.shop-stage-status')).toHaveText('')
+      await expect(page.locator('.shop-character-labels span')).toHaveCount(2)
+      await expect(page.locator('.shop-slots')).toContainText(selected.name)
+    })
+  }
+}
+
 test('full outfit links restore camera, gender, both characters and default unselected slots', async ({ page }) => {
   await setup(page)
   await page.goto(`/shop?view=preview&v=${version}&sex=male&top=200&pair=1&angle=237&zoom=119`)
