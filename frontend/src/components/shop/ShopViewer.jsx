@@ -317,13 +317,19 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         canvas.dataset.viewAngle = String(rotation); canvas.dataset.viewZoom = String(scale)
         gl.uniform1f(uniforms.halfHeight, halfHeight)
         gl.uniform1f(uniforms.halfDepth, Math.max(500, (bounds[1][2] - bounds[0][2]) / 2 + 10))
+        const labelPositions = []
         for (const [index, group] of scene.slice(0, pair ? 2 : 1).entries()) {
           const gender = index ? (sex === 'male' ? 'female' : 'male') : sex
           const side = clip?.actors[gender].side
           const labelOffset = side ? -c * (side === 'left' ? -65 : 65) : group.offset
           const position = 50 + (labelOffset - (bounds[0][0] + bounds[1][0]) / 2) / (halfHeight * aspect) * 50
-          canvas.parentElement.style.setProperty(index ? '--shop-secondary-label' : '--shop-primary-label', `${Math.min(88, Math.max(12, position))}%`)
+          labelPositions.push(Math.min(88, Math.max(12, position)))
         }
+        if (labelPositions.length === 2) {
+          const gap = Math.min(170 / rect.width * 100, 45), middle = Math.min(88 - gap / 2, Math.max(12 + gap / 2, (labelPositions[0] + labelPositions[1]) / 2))
+          if (Math.abs(labelPositions[0] - labelPositions[1]) < gap) { const direction = labelPositions[0] <= labelPositions[1] ? -1 : 1; labelPositions[0] = middle + direction * gap / 2; labelPositions[1] = middle - direction * gap / 2 }
+        }
+        labelPositions.forEach((position, index) => canvas.parentElement.style.setProperty(index ? '--shop-secondary-label' : '--shop-primary-label', `${position}%`))
         for (const group of scene) paint(group.meshes, group.offset, group.effect)
         if (ornament) canvas.dataset.ornamentFrame = String(ornamentFrame)
         const particleGroups = effects.filter(effect => effect.particleData)

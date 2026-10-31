@@ -1407,6 +1407,8 @@ test('couple camera gestures reuse poses and motion bounds without reloading ass
   let assetRequests = 0
   page.on('request', request => { if (request.url().includes('/api/shop/assets/')) assetRequests++ })
   await setViewerAngle(page, 307); await setViewerZoom(page, 105)
+  const labels = dialog.locator('.shop-character-labels span'), labelA = await labels.nth(0).boundingBox(), labelB = await labels.nth(1).boundingBox()
+  expect(labelA.x + labelA.width <= labelB.x || labelB.x + labelB.width <= labelA.x).toBe(true)
   await expect(canvas).toHaveAttribute('data-envelope-builds', '1')
   expect(assetRequests).toBe(0)
   await expect(canvas).toHaveAttribute('data-pose-builds', poses)
