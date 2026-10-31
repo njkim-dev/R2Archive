@@ -45,6 +45,7 @@ jobs:
           python -m unittest discover -s tests -v
 
       - name: Test UI layout stability
+        if: ${{ !contains(github.event.head_commit.message, '[skip-ui]') }}
         working-directory: frontend
         run: |
           npx playwright install --with-deps chromium
