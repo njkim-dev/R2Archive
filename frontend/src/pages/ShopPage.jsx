@@ -12,6 +12,8 @@ import ShopFavoriteButton from '../components/shop/ShopFavoriteButton'
 import ShopFavoritePicker from '../components/shop/ShopFavoritePicker'
 import useShopFavorites from '../components/shop/useShopFavorites'
 import ShopMobilePanel from '../components/shop/ShopMobilePanel'
+import ShopCouplePreview from '../components/shop/ShopCouplePreview'
+import { canPreviewItem } from '../utils/shopPreview'
 import '../styles/shop.css'
 
 const emptySlots = () => Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null]))
@@ -68,6 +70,29 @@ function ShopContent({ search }) {
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [copyFallback, setCopyFallback] = useState('')
+  const [couple, setCouple] = useState(null)
+  const coupleWasOpen = useRef(false)
+  const previousCoupleNavigation = useRef(false)
+  const coupleOpen = !!couple && location.state?.shopCoupleMotion === navigationOwner
+  useEffect(() => {
+    if (coupleOpen) coupleWasOpen.current = true
+    else if (coupleWasOpen.current && couple) {
+      coupleWasOpen.current = false
+      if (couple.audioContext && couple.audioContext.state !== 'closed') couple.audioContext.close().catch(() => {})
+      setCouple(null)
+    }
+  }, [coupleOpen, couple])
+  useEffect(() => () => {
+    if (couple?.audioContext && couple.audioContext.state !== 'closed') couple.audioContext.close().catch(() => {})
+  }, [couple])
+  function openCouple() {
+    if (!detail?.couple_preview) return
+    const Audio = window.AudioContext || window.webkitAudioContext
+    let audioContext, audioReady
+    try { audioContext = new Audio(); audioReady = audioContext.resume().then(() => true, () => false) } catch { audioReady = Promise.resolve(false) }
+    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, audioContext, audioReady })
+    navigate(location.pathname + location.search, { state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
+  }
   const listRequest = useRef(null)
   const scrollPosition = useRef(0)
   const restoreScroll = useRef(false)
@@ -92,7 +117,11 @@ function ShopContent({ search }) {
     window.addEventListener('scroll', scroll, { passive: true })
     return () => { media.removeEventListener('change', resize); window.removeEventListener('scroll', scroll); cancelAnimationFrame(frame); history.scrollRestoration = previous }
   }, [])
-  useLayoutEffect(() => { setPanelOpen(false); setFavoriteSlot(null) }, [location.key])
+  useLayoutEffect(() => {
+    const active = location.state?.shopCoupleMotion === navigationOwner
+    if (!active && !previousCoupleNavigation.current) { setPanelOpen(false); setFavoriteSlot(null) }
+    previousCoupleNavigation.current = active
+  }, [location.key, location.state, navigationOwner])
   useLayoutEffect(() => {
     if (view === 'preview') { restoreScroll.current = true; window.scrollTo({ top: 0, behavior: 'instant' }) }
   }, [view])
@@ -262,7 +291,7 @@ function ShopContent({ search }) {
     return <article className={`shop-card${selected || detail?.id === item.id ? ' is-selected' : ''}`} key={item.id} data-item-id={item.id}>
       <ShopFavoriteButton item={item} saved={favorites.ids.has(item.id)} authenticated={authenticated} ready={favorites.ready} pending={favorites.pending.has(item.id)} onToggle={favorites.toggle} />
       <button className="shop-card-select" onClick={() => choose(item)} aria-label={`${item.name} ${item.slot && item.preview_available ? '의상 선택' : '자세히 보기'}`} aria-pressed={!!selected}>
-        <div className="shop-card-image"><ItemImage item={item} />{item.is_new && <span className="shop-new-tag">NEW</span>}{(!item.preview_available || !item.model) && <span className="shop-preview-unavailable">미리보기 불가능</span>}{selected && <span className="shop-check"><Check size={13} /></span>}</div>
+        <div className="shop-card-image"><ItemImage item={item} />{item.is_new && <span className="shop-new-tag">NEW</span>}{!canPreviewItem(item) && <span className="shop-preview-unavailable">미리보기 불가능</span>}{selected && <span className="shop-check"><Check size={13} /></span>}</div>
         <div className="shop-card-copy"><small>{categoryLabel}{item.sex !== 'common' ? ` ㆍ ${item.sex === 'male' ? '남성' : '여성'}` : ''}</small><strong title={item.name}>{item.name}</strong><div className="shop-card-price">{price ? <><span>{price.amount.toLocaleString()} <small>{currency(price.currency)}</small></span><small>{price.label}</small></> : <small>가격 정보 없음</small>}</div></div>
       </button><div className="shop-card-actions"><button onClick={() => choose(item)}>{item.slot && item.preview_available ? selected ? '선택 해제' : '의상에 추가' : '자세히 보기'}</button><button aria-label={`${item.name} URL 복사`} onClick={() => copy(itemShareUrl(item, item.sex === 'common' ? sex : item.sex, defaultPrice(item)?.key))}><Copy size={12} /> URL 복사</button></div>
     </article>
@@ -306,13 +335,14 @@ function ShopContent({ search }) {
       </section>{framePanel(<aside className="shop-panel">
         {panelHeading(mobile && panelMode === 'outfit' || !mobile && showWardrobe ? '선택한 의상' : '아이템 정보')}{panelTabs}
         {(mobile ? panelMode === 'outfit' : showWardrobe) ? <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
-        {detail && <section className="shop-detail" hidden={mobile && panelMode !== 'detail'} aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} />{detail.is_new && <span className="shop-new-tag">NEW</span>}{(!detail.preview_available || !detail.model) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p><button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
+        {detail && <section className="shop-detail" hidden={mobile && panelMode !== 'detail'} aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} />{detail.is_new && <span className="shop-new-tag">NEW</span>}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p>{detail.category === '507' && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>선택한 커플링 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
         {!detail && !(mobile ? panelMode === 'outfit' : showWardrobe) && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
       </aside>)}</div>
     </>}
     {mobile && awayFromTop && !panelOpen && <button className="shop-floating-top" aria-label="페이지 맨 위로 이동" onClick={top}><ArrowUp size={18} /><span>맨 위로</span></button>}
     {(!mobile || !panelOpen) && copyTools}
     {favoriteSlot && authenticated && applied && meta && <ShopFavoritePicker key={`${user.id}:${favoriteSlot}:${applied.sex}`} slot={favoriteSlot} sex={applied.sex} version={meta.revision} selected={applied.slots[favoriteSlot]} favorites={favorites} onChoose={equipFavorite} onClose={() => setFavoriteSlot(null)} />}
+    {coupleOpen && <ShopCouplePreview selection={couple} meta={meta} onClose={() => navigate(-1)} />}
     <footer className="shop-footer"><span>R2 ARCHIVE ㆍ 아이템 미리보기</span></footer>
   </main></>
 }

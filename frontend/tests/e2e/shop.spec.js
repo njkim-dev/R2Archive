@@ -473,6 +473,121 @@ for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '
   }
 }
 
+const coupleRoot = `${root}/motions/`
+const coupleRing = { ...hero, id: '30120', name: '하트 주얼링', category: '507', group: 'couple', couple_preview: { motion: coupleRoot + '1'.repeat(64) + '.json.gz', bindings: coupleRoot + '2'.repeat(64) + '.json.gz', audio: `${root}/audio/${'3'.repeat(64)}.mp3`, duration: .5 } }
+const missingCoupleRing = { ...coupleRing, id: '30845', name: '흐르는 등불(공용)', couple_preview: null }
+async function coupleFixture(page, { motionGate } = {}) {
+  const requests = await setup(page, { items: [shirt, femaleShirt, coupleRing, missingCoupleRing] })
+  const wave = Buffer.alloc(44 + 22050 * 2)
+  wave.write('RIFF'); wave.writeUInt32LE(wave.length - 8, 4); wave.write('WAVEfmt ', 8); wave.writeUInt32LE(16, 16); wave.writeUInt16LE(1, 20); wave.writeUInt16LE(1, 22); wave.writeUInt32LE(44100, 24); wave.writeUInt32LE(88200, 28); wave.writeUInt16LE(2, 32); wave.writeUInt16LE(16, 34); wave.write('data', 36); wave.writeUInt32LE(wave.length - 44, 40)
+  const matrices = Array.from({ length: 15 }, (_, frame) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, Math.sin(frame * Math.PI * 2 / 15) * 15, 0, 0, 1]).flat()
+  const actor = { bones: ['Waist'], frames: matrices }
+  await page.route('**/api/shop/assets/*/motions/*', async route => {
+    if (motionGate) await motionGate
+    const bindings = route.request().url().includes('2'.repeat(64))
+    return route.fulfill({ json: bindings ? { schema: 'shop-couple-motion-v1', bindings: {} } : { schema: 'shop-couple-motion-v1', frame_count: 15, duration: .5, actors: { male: actor, female: actor } } })
+  })
+  await page.route('**/api/shop/assets/*/audio/*', route => route.fulfill({ body: wave, contentType: 'audio/mpeg' }))
+  await page.addInitScript(() => {
+    const Native = window.AudioContext
+    window.__coupleAudio = []
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args)
+        const record = { context: this, starts: 0, stops: 0, loop: false }
+        window.__coupleAudio.push(record)
+        const original = this.createBufferSource.bind(this)
+        this.createBufferSource = () => {
+          const node = original(), start = node.start.bind(node), stop = node.stop.bind(node)
+          node.start = (...values) => { record.starts++; record.loop = node.loop; return start(...values) }
+          node.stop = (...values) => { record.stops++; return stop(...values) }
+          return node
+        }
+      }
+    }
+  })
+  return requests
+}
+
+test('couple preview loops selected outfits and audio without controls and keeps pending dialog and catalog geometry stable', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const requests = await coupleFixture(page, { motionGate: gate })
+  await page.goto(`/shop?v=${version}&sex=male&top=200`)
+  await page.getByRole('tab', { name: '기능성ㆍ소모품', exact: true }).click()
+  await page.getByRole('button', { name: '커플링', exact: true }).click()
+  await expect(page.locator('[data-item-id="30120"] .shop-preview-unavailable')).toHaveCount(0)
+  await expect(page.locator('[data-item-id="30845"] .shop-preview-unavailable')).toHaveText('미리보기 불가능')
+  await page.getByRole('button', { name: missingCoupleRing.name + ' 자세히 보기', exact: true }).click()
+  await expect(page.getByRole('button', { name: '선택한 커플링 미리보기', exact: true })).toBeDisabled()
+  await closeMobilePanel(page)
+  await page.getByRole('button', { name: coupleRing.name + ' 자세히 보기', exact: true }).click()
+  const open = page.getByRole('button', { name: '선택한 커플링 미리보기', exact: true })
+  await open.scrollIntoViewIfNeeded()
+  expect(await open.evaluate(button => !!(button.compareDocumentPosition(button.parentElement.querySelector('.shop-copy-item')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+  const openingWatcher = await watchLayout(page, ['.shop-header', '.shop-search'])
+  await open.click()
+  const dialog = page.getByRole('dialog', { name: '커플 모션 미리보기', exact: true })
+  await expect(dialog).toBeVisible()
+  await openingWatcher.expectStable(); await openingWatcher.stop()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  const watcher = await watchLayout(page, ['.shop-couple-heading', '.shop-couple-dialog .shop-stage', '.shop-couple-note', '.shop-header', '.shop-search'])
+  await watcher.expectStable(); release()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  await expect(dialog.getByRole('button')).toHaveCount(1)
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('running')
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(1)
+  expect(await page.evaluate(() => window.__coupleAudio.at(-1).loop)).toBe(true)
+  const first = await dialog.locator('canvas').getAttribute('data-motion-frame')
+  await expect.poll(() => dialog.locator('canvas').getAttribute('data-motion-frame')).not.toBe(first)
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.currentTime)).toBeGreaterThan(1)
+  await watcher.expectStable(); await watcher.stop()
+  expect(requests).toContain('/api/shop/items/201')
+  await dialog.getByRole('button', { name: '커플 모션 미리보기 닫기' }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('closed')
+  expect(await page.evaluate(() => window.__coupleAudio.at(-1).stops)).toBe(1)
+  await closeMobilePanel(page)
+  await page.getByRole('tab', { name: '꾸미기ㆍ펫', exact: true }).click()
+  await openOutfitPanel(page)
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await previewSelection(page)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  expect(shared.searchParams.get('top')).toBe('200')
+  expect(shared.searchParams.get('view')).toBe('preview')
+})
+
+test('back and Escape close couple audio and preserve the original item URL while pending assets cannot start after close', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await coupleFixture(page, { motionGate: gate })
+  await page.goto(`/shop?item=30120&v=${version}`)
+  await expect(page.locator('.shop-detail h3')).toHaveText(coupleRing.name)
+  if (page.viewportSize().width <= 800) {
+    if (!await page.getByRole('dialog', { name: '아이템 현황', exact: true }).isVisible()) await page.getByRole('button', { name: '아이템 현황', exact: true }).click()
+    await page.getByRole('tab', { name: '아이템 정보', exact: true }).click()
+  }
+  const open = page.getByRole('button', { name: '선택한 커플링 미리보기', exact: true })
+  await open.click()
+  const dialog = page.getByRole('dialog', { name: '커플 모션 미리보기', exact: true })
+  await expect(dialog).toBeVisible()
+  await page.goBack()
+  await expect(dialog).not.toBeVisible()
+  expect(new URL(page.url()).searchParams.get('item')).toBe('30120')
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('closed')
+  release()
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(0)
+  await open.click()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('closed')
+})
+
 test('full outfit links restore camera, gender, both characters and default unselected slots', async ({ page }) => {
   await setup(page)
   await page.goto(`/shop?view=preview&v=${version}&sex=male&top=200&pair=1&angle=237&zoom=119`)

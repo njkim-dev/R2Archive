@@ -13,12 +13,13 @@ from auth import fetch_user, require_user_id
 from database import get_conn
 from shop_categories import DEPARTMENT_SQL, SLOT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS, department_sql, slot_sql
 from shop_counterparts import counterpart_sql, reviewed_pair_sql
+from shop_couple import preview as couple_preview
 
 router = APIRouter(prefix="/api/shop", tags=["shop"])
 SHOP_DIR = Path(os.environ.get("SHOP_DIR", Path(__file__).resolve().parents[2] / "shop"))
 PRIVATE_HEADERS = {"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow"}
 VERSION_PATTERN = re.compile(r"^[a-f0-9]{12,64}$")
-ASSET_PATTERN = re.compile(r"^[a-f0-9]{64}\.(?:webp|json\.gz)$")
+ASSET_PATTERN = re.compile(r"^[a-f0-9]{64}\.(?:webp|json\.gz|mp3|ogg)$")
 _shop_reads = BoundedSemaphore(4)
 
 
@@ -101,6 +102,8 @@ def serialize(row):
     item["thumbnail"] = asset_url(revision, "thumbnails", item.get("thumbnail"))
     item["model"] = model_url(revision, item.get("model"), pose_catalog())
     item["version"] = revision
+    if item.get('category') == '507':
+        item['couple_preview'] = couple_preview(SHOP_DIR, item['id'])
     return item
 
 
@@ -265,16 +268,19 @@ def item(request: Request, item_id: int, version: str | None = Query(None, max_l
 @router.get("/assets/{version}/{kind}/{filename}")
 @bounded_shop_read
 def asset(request: Request, version: str, kind: str, filename: str):
-    if not VERSION_PATTERN.fullmatch(version) or kind not in {"models", "textures", "thumbnails"} or not ASSET_PATTERN.fullmatch(filename):
+    if not VERSION_PATTERN.fullmatch(version) or kind not in {"models", "textures", "thumbnails", "motions", "audio"} or not ASSET_PATTERN.fullmatch(filename):
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
-    if (kind == "models") != filename.endswith(".json.gz"):
+    suffix = 'json' if filename.endswith('.json.gz') else 'audio' if filename.endswith(('.mp3', '.ogg')) else 'image'
+    expected = 'json' if kind in {'models', 'motions'} else 'audio' if kind == 'audio' else 'image'
+    if suffix != expected:
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
     target = SHOP_DIR / "assets" / version / kind / filename
     root = (SHOP_DIR / "assets").resolve()
     if not target.resolve().is_relative_to(root) or not target.is_file():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
     headers = dict(PRIVATE_HEADERS)
-    if kind == "models":
+    if suffix == 'json':
         headers["Content-Encoding"] = "gzip"
     headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-    return FileResponse(target, media_type="application/json" if kind == "models" else "image/webp", headers=headers)
+    content_type = 'application/json' if suffix == 'json' else 'audio/mpeg' if filename.endswith('.mp3') else 'audio/ogg' if suffix == 'audio' else 'image/webp'
+    return FileResponse(target, media_type=content_type, headers=headers)

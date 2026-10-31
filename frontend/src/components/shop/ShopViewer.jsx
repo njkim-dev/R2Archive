@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { multiplyPose, extraLocal } from '../../utils/shopMotion'
 
 const modelCache = new Map()
+const motionCache = new Map()
+async function motionData(url) {
+  if (!motionCache.has(url)) {
+    if (motionCache.size >= 4) motionCache.delete(motionCache.keys().next().value)
+    motionCache.set(url, fetch(url, { credentials: 'same-origin', cache: 'force-cache' }).then(response => {
+      if (!response.ok) throw new Error('커플 모션을 불러오지 못했습니다.')
+      return response.json()
+    }).catch(error => { motionCache.delete(url); throw error }))
+  }
+  return motionCache.get(url)
+}
 const identityPose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 function posedBounds(bounds, pose) {
   const result = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
@@ -20,7 +32,7 @@ async function model(url) {
   return modelCache.get(url)
 }
 
-export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom }) {
+export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, audioContext = null, audioReady = null }) {
   const canvasRef = useRef(null)
   const rendererRef = useRef(null)
   const [status, setStatus] = useState('3D 모델을 준비 중입니다.')
@@ -28,6 +40,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
   useEffect(() => {
     let cancelled = false
     const resources = []
+    const abort = new AbortController()
     const canvas = canvasRef.current
     setStatus('3D 모델을 준비 중입니다.')
     setFailed(false)
@@ -38,6 +51,28 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       const sources = [meta.bases[sex], ...Object.values(slots).filter(Boolean).map(item => item.model)]
       if (pair) sources.push(meta.bases[sex === 'male' ? 'female' : 'male'], ...Object.values(counterparts).filter(Boolean).map(item => item.model))
       const models = Object.fromEntries(await Promise.all([...new Set(sources)].map(async url => [url, await model(url)])))
+      if (cancelled) return
+      let clip, binding, buffer, startedAt = Infinity
+      if (motion) {
+        const [data, bindings, response] = await Promise.all([motionData(motion.motion), motionData(motion.bindings), fetch(motion.audio, { credentials: 'same-origin', cache: 'force-cache', signal: abort.signal })])
+        if (!response.ok || data.schema !== 'shop-couple-motion-v1' || bindings.schema !== data.schema || !Number.isInteger(data.frame_count) || data.frame_count < 2 || data.frame_count > 5400) throw new Error('커플 미리보기 자료가 올바르지 않습니다.')
+        clip = { ...data, actors: {} }; binding = bindings.bindings || {}
+        for (const gender of ['male', 'female']) {
+          if (data.bases && data.bases[gender] !== meta.bases[gender].split('/').at(-1)) throw new Error('캐릭터 자세 자료를 갱신 중입니다. 잠시 후 다시 열어주세요.')
+          const actor = data.actors?.[gender]
+          if (!Array.isArray(actor?.bones) || !actor.bones.length || actor.bones.length > 100 || actor.frames?.length !== data.frame_count * actor.bones.length * 16 || !actor.frames.every(Number.isFinite)) throw new Error('커플 동작 자료가 올바르지 않습니다.')
+          const extras = {}
+          for (const [name, track] of Object.entries(actor.extras || {})) {
+            if (track.frames?.length !== data.frame_count * 16 || !track.frames.every(Number.isFinite)) throw new Error('의상 동작 자료가 올바르지 않습니다.')
+            extras[name] = { ...track, frames: new Float32Array(track.frames) }
+          }
+          clip.actors[gender] = { bones: actor.bones, frames: new Float32Array(actor.frames), extras }
+        }
+        if (!audioContext) throw new Error('이 브라우저에서 소리를 재생할 수 없습니다.')
+        if (!await audioReady) throw new Error('소리를 시작하지 못했습니다. 창을 닫고 다시 열어주세요.')
+        buffer = await audioContext.decodeAudioData(await response.arrayBuffer())
+        if (audioContext.state !== 'running') throw new Error('소리를 시작하지 못했습니다. 창을 닫고 다시 열어주세요.')
+      }
       if (cancelled) return
       function shader(type, source) {
         const item = gl.createShader(type)
@@ -100,14 +135,30 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           bounds[0][axis] = Math.min(bounds[0][axis], mesh.vertices[i + axis])
           bounds[1][axis] = Math.max(bounds[1][axis], mesh.vertices[i + axis])
         }
-        return { name: mesh.name, vb, ib, count: mesh.indices.length, texture: textures[mesh.texture], bounds }
+        return { name: mesh.name, modelKey: url.split('/').at(-1), vb, ib, count: mesh.indices.length, texture: textures[mesh.texture], bounds }
       })]))
-      function figure(gender, chosen) {
+      function figure(gender, chosen, frame = 0) {
         const result = new Map(gpu[meta.bases[gender]].map(mesh => [mesh.name, mesh]))
         Object.entries(chosen).filter(([slot, item]) => slot !== 'pet' && item).forEach(([, item]) => gpu[item.model].forEach(mesh => result.set(mesh.name, mesh)))
         const pose = models[meta.bases[gender]].attachment_pose
         if (pose && (pose.length !== 16 || !pose.every(Number.isFinite))) throw new Error('캐릭터 자세 자료가 올바르지 않습니다.')
-        return [...result.values()].map(mesh => pose && mesh.name.startsWith('Summon-') ? { ...mesh, pose, bounds: posedBounds(mesh.bounds, pose) } : mesh)
+        return [...result.values()].map(mesh => {
+          const anchor = pose && mesh.name.startsWith('Summon-') ? pose : null
+          if (!clip) return anchor ? { ...mesh, pose: anchor, bounds: posedBounds(mesh.bounds, anchor) } : mesh
+          const actor = clip.actors[gender]
+          const target = binding[mesh.modelKey]?.[mesh.name]
+          const name = mesh.name.startsWith('Summon-') ? 'Waist' : (typeof target === 'object' ? target.bone : target) || mesh.name
+          const index = Math.max(0, actor.bones.indexOf(name) < 0 ? actor.bones.indexOf('Waist') : actor.bones.indexOf(name))
+          const offset = (frame * actor.bones.length + index) * 16
+          let delta = actor.frames.subarray(offset, offset + 16)
+          if (target?.chain?.some(node => actor.extras[node.name])) {
+            let chain = identityPose
+            for (const node of target.chain) chain = multiplyPose(extraLocal(node.bind, actor.extras[node.name], frame), chain)
+            delta = multiplyPose(target.inverse, multiplyPose(chain, multiplyPose(target.parent, delta)))
+          }
+          const animated = anchor ? multiplyPose(anchor, delta) : delta
+          return { ...mesh, pose: animated, bounds: posedBounds(mesh.bounds, animated) }
+        })
       }
       function paint(meshes, offset) {
         gl.uniform1f(uniforms.offsetX, offset)
@@ -119,10 +170,14 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0)
         }
       }
+      let envelope, envelopeAngle, previousFrame = -1, previousRotation, previousScale
       rendererRef.current = (rotation, scale) => {
         const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2)
         if (!rect.width || !rect.height) return
-        canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr)
+        const width = Math.round(rect.width * dpr), height = Math.round(rect.height * dpr)
+        const resized = canvas.width !== width || canvas.height !== height
+        if (canvas.width !== width) canvas.width = width
+        if (canvas.height !== height) canvas.height = height
         const aspect = rect.width / rect.height
         const radians = rotation * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians)
         function horizontalBounds(meshes) {
@@ -133,24 +188,38 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           }
           return [left, right]
         }
-        const primary = figure(sex, slots), secondary = pair ? figure(sex === 'male' ? 'female' : 'male', counterparts) : null
+        const frame = clip ? Math.min(clip.frame_count - 1, Math.floor(Math.max(0, audioContext.currentTime - startedAt) % buffer.duration / buffer.duration * clip.frame_count)) : 0
+        if (clip && frame === previousFrame && rotation === previousRotation && scale === previousScale && !resized) return
+        previousFrame = frame; previousRotation = rotation; previousScale = scale
+        if (clip) canvas.dataset.motionFrame = String(frame)
+        const primary = figure(sex, slots, frame), secondary = pair ? figure(sex === 'male' ? 'female' : 'male', counterparts, frame) : null
         const hasAttachments = !!(slots.accessory || slots.summon || pair && (counterparts.accessory || counterparts.summon))
-        const spacing = pair && hasAttachments ? Math.max(65, (horizontalBounds(primary)[1] - horizontalBounds(secondary)[0] + 20) / 2) : 65
+        const spacing = pair && hasAttachments && !clip ? Math.max(65, (horizontalBounds(primary)[1] - horizontalBounds(secondary)[0] + 20) / 2) : 65
         const scene = [{ meshes: primary, offset: pair ? -spacing : 0 }]
         if (pair) scene.push({ meshes: secondary, offset: spacing })
+        if (clip && (!envelope || envelopeAngle !== rotation)) {
+          envelopeAngle = rotation
+          envelope = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
+          for (let sample = 0; sample < clip.frame_count; sample++) for (const [gender, chosen, offset] of [[sex, slots, -spacing], [sex === 'male' ? 'female' : 'male', counterparts, spacing]]) for (const mesh of figure(gender, chosen, sample)) {
+            for (const x of [mesh.bounds[0][0], mesh.bounds[1][0]]) for (const y of [mesh.bounds[0][1], mesh.bounds[1][1]]) for (const z of [mesh.bounds[0][2], mesh.bounds[1][2]]) {
+              const point = [-c * x - s * z + offset, y - 148, -s * x + c * z]
+              for (let axis = 0; axis < 3; axis++) { envelope[0][axis] = Math.min(envelope[0][axis], point[axis]); envelope[1][axis] = Math.max(envelope[1][axis], point[axis]) }
+            }
+          }
+        }
         if (slots.pet) {
           const meshes = gpu[slots.pet.model]
           const centerX = (Math.min(...meshes.map(mesh => mesh.bounds[0][0])) + Math.max(...meshes.map(mesh => mesh.bounds[1][0]))) / 2
           const centerZ = (Math.min(...meshes.map(mesh => mesh.bounds[0][2])) + Math.max(...meshes.map(mesh => mesh.bounds[1][2]))) / 2
           // 펫 형상은 보정하되 기존 회전 각도별 배치 중심은 유지한다.
           let offset = (pair ? 92 : 0) + 2 * (c * centerX + s * centerZ)
-          if (hasAttachments) {
-            const figureRight = Math.max(...scene.map(group => horizontalBounds(group.meshes)[1] + group.offset))
+          if (hasAttachments || clip) {
+            const figureRight = envelope ? envelope[1][0] : Math.max(...scene.map(group => horizontalBounds(group.meshes)[1] + group.offset))
             offset += Math.max(0, figureRight + 15 - (horizontalBounds(meshes)[0] + offset))
           }
           scene.push({ meshes, offset })
         }
-        const bounds = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
+        const bounds = envelope ? envelope.map(values => [...values]) : [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
         for (const group of scene) for (const mesh of group.meshes) {
           for (const x of [mesh.bounds[0][0], mesh.bounds[1][0]]) for (const y of [mesh.bounds[0][1], mesh.bounds[1][1]]) for (const z of [mesh.bounds[0][2], mesh.bounds[1][2]]) {
             const point = [-c * x - s * z + group.offset, y - 148, -s * x + c * z]
@@ -169,18 +238,31 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         }
         for (const group of scene) paint(group.meshes, group.offset)
       }
+      if (clip) {
+        rendererRef.current(angle, zoom)
+        const source = audioContext.createBufferSource(), gain = audioContext.createGain()
+        source.buffer = buffer; source.loop = true; gain.gain.value = .7
+        source.connect(gain); gain.connect(audioContext.destination)
+        resources.push(() => { try { source.stop() } catch {} source.disconnect(); gain.disconnect() })
+        startedAt = audioContext.currentTime + .05; source.start(startedAt)
+      }
       setStatus('')
     }
     load().catch(error => { if (!cancelled) { setStatus(error.message); setFailed(true) } })
-    return () => { cancelled = true; rendererRef.current = null; resources.forEach(dispose => dispose()) }
-  }, [meta, sex, slots, counterparts, pair])
+    return () => { cancelled = true; abort.abort(); rendererRef.current = null; resources.forEach(dispose => dispose()) }
+  }, [meta, sex, slots, counterparts, pair, motion, audioContext, audioReady])
   useEffect(() => {
     const draw = () => rendererRef.current?.(angle, zoom)
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(canvasRef.current)
-    return () => observer.disconnect()
-  }, [angle, zoom, status])
+    let frame
+    if (motion && !status) {
+      const tick = () => { draw(); frame = requestAnimationFrame(tick) }
+      frame = requestAnimationFrame(tick)
+    }
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+  }, [angle, zoom, status, motion])
   return <div className="shop-stage">
     <canvas ref={canvasRef} role="img" aria-label={pair ? '남녀 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
