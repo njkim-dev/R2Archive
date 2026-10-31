@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Star, X } from 'lucide-react'
 import { getShopItems } from '../../api/shop'
 import { OPTIONAL_SLOT_LABELS, SLOT_LABELS } from '../../utils/shopUrl'
@@ -11,7 +11,7 @@ export default function ShopFavoritePicker({ slot, sex, version, selected, favor
   const [page, setPage] = useState({ items: [], more: false, next: '', total: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = dialog.current
     const body = document.body, previousOverflow = body.style.overflow, previousPadding = body.style.paddingRight
     const gutter = window.innerWidth - document.documentElement.clientWidth

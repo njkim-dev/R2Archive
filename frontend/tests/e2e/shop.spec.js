@@ -32,7 +32,7 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
       const start = position ? Number(position.split(':')[0]) + 1 : 0, size = Number(params.get('page_size') || 24)
       if (start && nextGate) await nextGate
       let list = items || (params.get('department') === 'wearable' ? [params.get('sex') === 'female' ? femaleShirt : shirt] : [hero])
-      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('favorites_only') !== 'true' || savedFavorites.has(item.id)) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id))
+      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('favorites_only') !== 'true' || savedFavorites.has(item.id)) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id || item.slot === 'pet' && item.sex === 'common'))
       const chunk = list.slice(start, start + size), more = start + size < list.length
       return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
     }
@@ -45,6 +45,121 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
   return requests
 }
 
+async function openOutfitPanel(page) {
+  if (!await page.evaluate(() => matchMedia('(max-width:800px)').matches)) return
+  const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
+  if (!await panel.isVisible()) await page.getByRole('button', { name: '아이템 현황', exact: true }).click()
+  const outfit = panel.getByRole('tab', { name: '선택한 의상', exact: true })
+  if (await outfit.count()) await outfit.click()
+}
+
+async function closeMobilePanel(page) {
+  const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
+  if (await panel.isVisible()) await panel.getByRole('button', { name: '아이템 현황 닫기', exact: true }).click()
+}
+
+async function previewSelection(page) {
+  const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
+  if (await panel.isVisible()) {
+    await openOutfitPanel(page)
+    await panel.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  } else await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+}
+
+test('browser back restores the loaded catalog filters selection and scroll and forward restores preview', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const items = Array.from({ length: 120 }, (_, i) => ({ ...shirt, id: String(2000 + i), name: `검증 의상 ${i}` }))
+  await setup(page, { items, nextGate: gate })
+  await page.route('**/previous-page', route => route.fulfill({ contentType: 'text/html', body: '<p>Previous page</p>' }))
+  await page.goto('/previous-page'); await page.goto('/shop?sex=male')
+  await page.getByRole('button', { name: '상의', exact: true }).click()
+  await page.getByRole('button', { name: items[0].name + ' 의상 선택', exact: true }).click()
+  await page.evaluate(() => scrollTo(0, 1800))
+  await expect(page.locator('.shop-list-status')).toContainText('더 불러오는 중')
+  const y = await page.evaluate(() => scrollY)
+  await openOutfitPanel(page); await previewSelection(page)
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await page.goBack()
+  await expect(page.locator('.shop-search')).toBeAttached()
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(y, 0)
+  await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '24')
+  await expect(page.getByRole('button', { name: '상의', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.shop-slots')).toContainText(items[0].name)
+  const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-pair-filter'])
+  release(); await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '48')
+  await watcher.expectStable(); await watcher.stop()
+  await page.goForward(); await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await expect(page.locator('.shop-slots')).toContainText(items[0].name)
+  await page.getByRole('button', { name: '아이템 다시 고르기', exact: true }).click()
+  await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '48')
+  await page.goBack(); await expect(page).toHaveURL(/\/previous-page$/)
+})
+
+test('item status and top controls preserve catalog geometry and mobile header stays available during long scrolls', async ({ page }) => {
+  const mobile = test.info().project.use.viewport.width <= 768
+  await page.setViewportSize({ width: mobile ? 390 : 1440, height: 1000 })
+  await setup(page, { items: Array.from({ length: 100 }, (_, i) => ({ ...shirt, id: String(2000 + i), name: `의상 ${i}` })) })
+  await page.goto('/shop?sex=male')
+  await expect(page.locator('.shop-card').first()).toBeVisible()
+  await page.evaluate(() => scrollTo(0, 1600))
+  if (mobile) {
+    await expect.poll(async () => (await page.locator('.shop-header').boundingBox()).y).toBe(0)
+    const status = await page.getByRole('button', { name: '아이템 현황', exact: true }).boundingBox()
+    const logout = await page.getByRole('button', { name: '로그아웃', exact: true }).boundingBox()
+    expect(status.x + status.width).toBeLessThanOrEqual(logout.x)
+    const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-pair-filter'])
+    await openOutfitPanel(page)
+    const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
+    await expect(panel.getByRole('heading', { name: '선택한 의상', exact: true })).toBeVisible()
+    await watcher.expectStable(); await closeMobilePanel(page); await watcher.expectStable(); await watcher.stop()
+    await expect(page.locator('.shop-floating-top')).toBeVisible()
+    await page.locator('.shop-floating-top').click(); await expect.poll(() => page.evaluate(() => scrollY)).toBe(0)
+    await page.evaluate(() => scrollTo(0, 1600)); await openOutfitPanel(page)
+    await panel.getByRole('button', { name: '페이지 맨 위로 이동', exact: true }).click()
+    await expect(panel).not.toBeVisible()
+  } else {
+    await expect(page.getByRole('button', { name: '아이템 현황', exact: true })).not.toBeVisible()
+    await page.locator('.shop-panel').getByRole('button', { name: '페이지 맨 위로 이동', exact: true }).click()
+    await expect(page.getByRole('button', { name: '아이템 현황 닫기', exact: true })).toHaveCount(0)
+  }
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0)
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
+})
+
+test('shop uses the music aquarium background without shifting content when artwork loads', async ({ page }) => {
+  const width = test.info().project.use.viewport.width <= 768 ? 390 : 1440
+  await page.setViewportSize({ width, height: 1000 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await setup(page)
+  await page.route('**/*r2beat-aquarium*', async route => { await gate; await route.continue() })
+  await page.goto('/shop?sex=male', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  const image = await page.locator('.archive-backdrop').evaluate(el => getComputedStyle(el).backgroundImage)
+  expect(image).toContain(width / 1000 <= 4 / 3 ? 'aquarium-portrait' : 'aquarium-wide')
+  await expect(page.locator('.shop-app')).toHaveCSS('background-color', 'rgba(9, 16, 28, 0.87)')
+  const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-grid'])
+  await watcher.expectStable(); release(); await page.waitForLoadState('load'); await watcher.expectStable(); await watcher.stop()
+})
+
+test('common pets remain visible in the matching gender filter and selection is unchanged', async ({ page }) => {
+  const second = { ...pet, id: '301', name: '성장 공용 펫', subgroup: 'pet_growth' }
+  await setup(page, { items: [shirt, femaleShirt, pet, second] })
+  await page.goto('/shop?sex=male')
+  await page.getByRole('button', { name: '펫', exact: true }).click()
+  for (const sex of ['남성', '여성']) {
+    await page.getByRole('button', { name: sex, exact: true }).click()
+    await expect(page.locator('.shop-card')).toHaveCount(2)
+    await page.getByRole('button', { name: pet.name + ' 의상 선택', exact: true }).click()
+    await page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만', exact: true }).check()
+    await expect(page.locator('.shop-card')).toHaveCount(2)
+    await expect(page.locator('.shop-slots')).toContainText(pet.name)
+    await page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만', exact: true }).uncheck()
+  }
+})
+
 test('the public shop browses and shares outfits anonymously while favorite actions remain disabled', async ({ page }) => {
   const requests = await setup(page, { admin: false, loggedIn: false })
   await page.goto('/shop?sex=male')
@@ -54,7 +169,7 @@ test('the public shop browses and shares outfits anonymously while favorite acti
   await expect(page.locator('.shop-app')).not.toContainText('관리자 전용')
   await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: shirt.name + ' 의상 선택', exact: true }).click()
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   const favorites = page.locator('.shop-slot-favorites')
   await expect(favorites).toHaveCount(8)
@@ -130,10 +245,11 @@ test('the favorite picker changes only the requested slot and preserves both cha
   })
   await page.goto(`/shop?view=preview&v=${version}&sex=male&top=200&pet=300&pair=1&angle=237&zoom=119`)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await openOutfitPanel(page)
   const open = page.getByRole('button',{name:'상의 즐겨찾기 열기',exact:true})
   await expect(open).toBeEnabled(); await open.scrollIntoViewIfNeeded()
   const before = await page.locator('canvas').evaluate(canvas=>canvas.toDataURL())
-  const watcher = await watchLayout(page,['.shop-stage','.shop-preview-toolbar','.shop-view-controls','.shop-panel'])
+  const watcher = await watchLayout(page,['.shop-stage','.shop-preview-toolbar','.shop-view-controls', ...(page.viewportSize().width > 800 ? ['.shop-panel'] : [])])
   await open.click()
   const dialog = page.getByRole('dialog',{name:'상의 즐겨찾기',exact:true})
   await expect(dialog).toBeVisible(); await expect(dialog.locator('.shop-favorite-status')).toContainText('불러오는 중')
@@ -154,7 +270,7 @@ test('the favorite picker changes only the requested slot and preserves both cha
   for(const [key,value] of Object.entries({top:'202',pet:'300',pair:'1',angle:'237',zoom:'119'}))expect(copied.searchParams.get(key)).toBe(value)
   await page.goto(copied.pathname+copied.search); await expect(page.locator('.shop-stage-status')).toHaveText('')
   await expect(page.locator('.shop-slots')).toContainText(alternate.name)
-  await open.click(); await expect(dialog).toBeVisible(); await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0)
+  await openOutfitPanel(page); await open.click(); await expect(dialog).toBeVisible(); await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0)
   await expect(page.locator('.shop-slots')).toContainText(alternate.name)
 })
 
@@ -176,7 +292,7 @@ test('login returns to the public catalog with already selected clothing intact'
   await expect(star).toBeEnabled(); await star.click()
   await page.getByRole('tab', { name: '즐겨찾기', exact: true }).click()
   await page.getByRole('button', { name: hero.name + ' 자세히 보기', exact: true }).click()
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '로그아웃', exact: true }).click()
   await page.getByRole('button', { name: '로그인', exact: true }).click()
@@ -249,7 +365,7 @@ test('the favorites tab includes consumables and other items with gender categor
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await page.getByRole('button', { name: femaleShirt.name + ' 의상 선택', exact: true }).click()
   await expect(page.locator('.shop-slots')).toContainText(femaleShirt.name)
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
   const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
@@ -264,6 +380,7 @@ test('the favorites tab includes consumables and other items with gender categor
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await page.getByRole('button', { name: boost.name + ' 자세히 보기', exact: true }).click()
   await expect(page.locator('.shop-detail h3')).toHaveText(boost.name)
+  await closeMobilePanel(page)
   await categories.getByRole('button', { name: '기타', exact: true }).click()
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await page.getByRole('button', { name: '로그아웃', exact: true }).click()
@@ -298,7 +415,7 @@ test('the shop first asks for gender and can preview the default outfit without 
   await expect(page.locator('.shop-slots')).toContainText('기본 상의 착용')
   await expect(page.locator('.shop-slots')).toContainText('기본 하의 착용')
   await expect(page.locator('.shop-slots')).toContainText('기본 신발 착용')
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage canvas')).toBeVisible()
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await expect(page.locator('.shop-pair-note')).toHaveText('선택하지 않은 부위는 기본 의상으로 표시됩니다.')
@@ -471,7 +588,7 @@ test('infinite loading keeps the DOM bounded, caches images and preserves select
   expect(await page.locator('.shop-card').count()).toBeLessThan(40)
   await expect(page.locator('[data-item-id="2000"]')).toHaveCount(0)
   await expect(page.locator('.shop-slots')).toContainText(catalog[0].name)
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
   expect(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams.get('top')).toBe('2000')
@@ -506,7 +623,7 @@ test('face selection is combined with hair and restored by the shared outfit URL
   await page.getByRole('button', { name: `${face.name} 의상 선택` }).click()
   await expect(page.locator('.shop-slots')).toContainText(hair.name)
   await expect(page.locator('.shop-slots')).toContainText(face.name)
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
   const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
@@ -550,11 +667,13 @@ test('unavailable previews are tagged over images before selection and non-cash 
   await card.getByRole('button', { name: `${unavailable.name} 자세히 보기`, exact: true }).click()
   await expect(page.locator('.shop-detail-price')).toContainText('400 알코인')
   await expect(page.locator('.shop-detail-image .shop-preview-unavailable')).toHaveText('미리보기 불가능')
+  await openOutfitPanel(page)
   await expect(page.locator('.shop-toast')).toHaveCount(0)
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await expect(page.locator('.shop-slots')).not.toContainText(unavailable.name)
   await watcher.expectStable()
   await watcher.stop()
+  await closeMobilePanel(page)
   await page.getByRole('button', { name: `${unknown.name} 자세히 보기`, exact: true }).click()
   await expect(page.locator('.shop-detail-price')).toContainText('800 알코인')
   await expect(page.locator('.shop-app')).not.toContainText('표기가격')
@@ -602,13 +721,15 @@ test('category filters isolate matching ring names, pet kinds and supplies witho
   await page.locator('[data-item-id="901"] .shop-card-select').click()
   await page.getByRole('button', { name: '이 아이템 URL 복사', exact: true }).click()
   const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  await closeMobilePanel(page)
   await page.getByRole('button', { name: '펫 용품', exact: true }).click()
   await page.getByRole('button', { name: '펫 먹이', exact: true }).click()
   await expect(page.locator('.shop-card')).toContainText(food.name)
   await page.getByRole('tab', { name: '꾸미기ㆍ펫', exact: true }).click()
+  await openOutfitPanel(page)
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await expect(page.locator('.shop-slots')).toContainText(regular.name)
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
   const outfit = new URL(await page.evaluate(() => window.__copiedShopUrl))
@@ -820,7 +941,7 @@ for (const sex of ['male', 'female']) test(`MD9 ${sex} and opposite gender with 
   const selected = sex === 'male' ? shirt : female
   await page.getByRole('button', { name: `${selected.name} 의상 선택`, exact: true }).click()
   await page.getByRole('button', { name: `${pet.name} 의상 선택`, exact: true }).click()
-  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await previewSelection(page)
   await page.getByRole('button', { name: '이성 아이템 함께 보기', exact: true }).click()
   await expect(page.locator('.shop-character-labels span')).toHaveCount(2)
   await expect(page.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')

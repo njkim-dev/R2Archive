@@ -203,6 +203,18 @@ class ShopTests(unittest.TestCase):
                 self.assertIn('partner.preview_available', sql)
                 self.assertIn(slot, params)
 
+    def test_paired_filter_keeps_common_pets_without_requiring_a_counterpart(self):
+        cursor,context=self.database([])
+        with patch.object(shop,'catalog',return_value={'revision':'a'*20}),patch.object(shop,'get_conn',return_value=context):
+            for preview in [False,True]:
+                for sex in ['male','female']:
+                    response=self.client().get('/api/shop/items',params={'slot':'pet','sex':sex,'paired_only':True,'preview_only':preview})
+                    self.assertEqual(response.status_code,200)
+                    sql,args=cursor.execute.call_args.args
+                    self.assertIn("= 'pet' AND shop_items.sex = 'common'",sql)
+                    self.assertIn('pet',args)
+                    self.assertEqual('preview_available AND model IS NOT NULL' in sql,preview)
+
     def test_category_filters_are_bounded_and_parameterized(self):
         cursor, context = self.database([])
         with patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):

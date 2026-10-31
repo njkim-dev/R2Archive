@@ -165,6 +165,7 @@ def items(
             partner_preview = 'AND partner.preview_available AND partner.model IS NOT NULL' if preview_only else ''
             conditions.append(f"""({department_sql('shop_items')}) = 'wearable' AND (
               (shop_items.category = '1007' AND shop_items.sex = 'common' AND shop_items.preview_available)
+              OR (({slot_sql('shop_items')}) = 'pet' AND shop_items.sex = 'common')
               OR EXISTS (
                 SELECT 1 FROM shop_items AS partner
                 WHERE partner.revision = shop_items.revision
