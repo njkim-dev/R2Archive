@@ -3,6 +3,14 @@ import math
 import struct
 
 
+def couple_scene_pose(item_id, sex):
+    # 이 두 모션은 서로 마주 보는 캐릭터의 로컬 좌표로 이동과 회전을 기록한다.
+    if str(item_id) not in {'30854', '30855'}:
+        return None
+    turn = 1 if sex == 'male' else -1
+    return [[0, 0, turn, 0], [0, 1, 0, 0], [-turn, 0, 0, 0], [0, 0, 0, 1]]
+
+
 def read_animation(path):
     data = path.read_bytes()
     if len(data) < 8:

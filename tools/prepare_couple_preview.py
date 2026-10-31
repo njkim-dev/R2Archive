@@ -12,7 +12,7 @@ import numpy as np
 
 from prepare_shop import Builder, BASE_FILES, bone_worlds, md9_materials, write_json
 from shop_archive import ArchiveSource
-from shop_pose import read_animation, local_pose
+from shop_pose import read_animation, local_pose, couple_scene_pose
 
 
 SCHEMA = 'shop-couple-motion-v1'
@@ -148,6 +148,7 @@ def main():
     generation = hashlib.sha256(SCHEMA.encode() + b':30fps-audio-normalized-v2-skirt:' + encoded)
     for item_id, record in sorted(records.items()):
         generation.update(item_id.encode())
+        generation.update(json.dumps({sex: couple_scene_pose(item_id, sex) for sex in record['actors']}, sort_keys=True).encode())
         for path in [record['audio'], *record['actors'].values()]:
             generation.update(Path(path).read_bytes())
         generation.update(str(audio_info[item_id]['duration']).encode())
@@ -175,6 +176,7 @@ def main():
         payload = {'schema': SCHEMA, 'duration': duration, 'frame_count': frames, 'bases': catalog['bases'], 'actors': {}}
         for sex, base in builder.bases.items():
             animation = read_animation(Path(record['actors'][sex]))
+            scene_pose = couple_scene_pose(item_id, sex)
             names = [bone['name'] for bone in base['bones']]
             static = bone_worlds(base, base, builder.poses[sex])
             inverse = {name: np.linalg.inv(static[name]) for name in names}
@@ -184,7 +186,8 @@ def main():
                 locals_ = {bone['name']: np.array(local_pose(animation['tracks'][bone['name']], bone['matrix'], time)) for bone in base['bones'] if bone['name'] in animation['tracks']}
                 worlds = bone_worlds(base, base, {'locals': locals_, 'floor_offset': builder.poses[sex]['floor_offset']})
                 for name in names:
-                    matrices.extend(np.round(inverse[name] @ worlds[name], 6).ravel().tolist())
+                    world = worlds[name] @ np.array(scene_pose) if scene_pose is not None else worlds[name]
+                    matrices.extend(np.round(inverse[name] @ world, 6).ravel().tolist())
             extras = {}
             for name, track in animation['tracks'].items():
                 if name in names:

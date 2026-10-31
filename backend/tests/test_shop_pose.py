@@ -6,10 +6,30 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
-from shop_pose import local_pose, read_animation, sample_channel
+from shop_pose import local_pose, read_animation, sample_channel, couple_scene_pose
 
 
 class ShopPoseTests(unittest.TestCase):
+    def test_face_to_face_couple_motion_places_translation_and_facing_together(self):
+        def multiply(left, right):
+            return [[sum(left[row][k] * right[k][column] for k in range(4)) for column in range(4)] for row in range(4)]
+        for item_id in (30854, 30855):
+            with self.subTest(item_id=item_id):
+                boy = [[0,0,-1,0],[0,1,0,0],[1,0,0,0],[55,170,75,1]]
+                girl = [[0,0,1,0],[0,1,0,0],[-1,0,0,0],[-91,170,-14,1]]
+                boy = multiply(boy, couple_scene_pose(item_id, 'male'))
+                girl = multiply(girl, couple_scene_pose(str(item_id), 'female'))
+                self.assertEqual(boy[:3], girl[:3])
+                self.assertEqual(boy[2][:3], [0,0,1])
+                self.assertEqual(boy[3], [-75,170,55,1])
+                self.assertEqual(girl[3], [-14,170,91,1])
+                self.assertGreater(girl[3][0] + 65 - (boy[3][0] - 65), 150)
+
+    def test_other_couple_motions_keep_their_original_scene_coordinates(self):
+        for item_id in (30120, 30162, 30494, 30645, 30830, 30852):
+            for sex in ('male', 'female'):
+                self.assertIsNone(couple_scene_pose(item_id, sex))
+
     def animation(self, position, rotation, suffix=b''):
         data = struct.pack('<If', 1, 100) + b'\x03Hip' + struct.pack('<3I', len(position), len(rotation), 0)
         data += b''.join(struct.pack('<4f', *key) for key in position)
