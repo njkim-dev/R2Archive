@@ -1514,6 +1514,8 @@ test('male and female clothing selections survive gender switches and reload wit
   await closeMobilePanel(page)
   await page.getByRole('dialog', { name: '의상 미리보기', exact: true }).getByRole('button', { name: '의상 미리보기 닫기', exact: true }).click()
   await page.goto('/shop?item=1000208')
+  await expect(page.locator('.shop-detail h3')).toHaveText(hero.name)
+  if (page.viewportSize().width <= 800) await expect(page.getByRole('dialog', { name: '아이템 현황', exact: true })).toBeVisible()
   await closeMobilePanel(page)
   await page.getByRole('tab', { name: '꾸미기ㆍ펫', exact: true }).click()
   await expect(page.getByRole('button', { name: '여성', exact: true })).toHaveAttribute('aria-pressed', 'true')
