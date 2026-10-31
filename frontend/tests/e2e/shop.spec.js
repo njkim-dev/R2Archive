@@ -465,7 +465,7 @@ for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '
       expect(shared.searchParams.get('face')).toBe(selected.id)
       expect(shared.searchParams.get('sex')).toBe(sex)
       expect(shared.searchParams.get('pair')).toBe('1')
-      await page.goto(shared.href)
+      await page.goto(shared.pathname + shared.search)
       await expect(page.locator('.shop-stage-status')).toHaveText('')
       await expect(page.locator('.shop-character-labels span')).toHaveCount(2)
       await expect(page.locator('.shop-slots')).toContainText(selected.name)
