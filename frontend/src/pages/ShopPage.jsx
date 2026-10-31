@@ -7,6 +7,7 @@ import { itemShareUrl, outfitShareUrl, readShopUrl, rememberShopReturn, SHOP_SLO
 import { SHOP_GROUPS, PET_GROUPS, PET_SUPPLY_GROUPS } from '../utils/shopCategories'
 import ShopOutfitPreview from '../components/shop/ShopOutfitPreview'
 import { readWardrobeSession, saveWardrobeSession } from '../utils/shopWardrobeSession'
+import ShopViewModes from '../components/shop/ShopViewModes'
 import ShopViewer from '../components/shop/ShopViewer'
 import ItemImage, { ShopImageSession } from '../components/shop/ShopImage'
 import ShopVirtualGrid from '../components/shop/ShopVirtualGrid'
@@ -76,6 +77,8 @@ function ShopContent({ search }) {
   const [pairLoading, setPairLoading] = useState(false)
   const [angle, setAngle] = useState(initial.angle)
   const [zoom, setZoom] = useState(initial.zoom)
+  const [pan, setPan] = useState({ panX: initial.panX, panY: initial.panY })
+  const [viewMode, setViewMode] = useState('rotate')
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [copyFallback, setCopyFallback] = useState('')
@@ -179,7 +182,7 @@ function ShopContent({ search }) {
             if (cancelled) return
             if (item.category !== '507' || !item.couple_preview) throw new Error('공유된 커플링은 모션 미리보기를 지원하지 않습니다.')
             setDepartment('functional'); setGroup('couple'); setDetail(item); setQuery(item.name.slice(0, 120))
-            setCouple({ item, sex: gender, slots: chosen, angle: initial.angle, zoom: initial.zoom, started: false })
+            setCouple({ item, sex: gender, slots: chosen, angle: initial.angle, zoom: initial.zoom, panX: initial.panX, panY: initial.panY, started: false })
             navigate(location.pathname + location.search, { replace: !!location.state?.shopCoupleMotion, state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
           }
         } else if (initial.item) {
@@ -299,13 +302,13 @@ function ShopContent({ search }) {
   function login() {
     let target = location.pathname + location.search
     if (view === 'preview' && applied && meta) {
-      const url = new URL(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom }))
+      const url = new URL(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))
       target = url.pathname + url.search
     } else if (detail && department !== 'wearable') {
       const url = new URL(itemShareUrl(detail, sex, selectedPrice?.key))
       target = url.pathname + url.search
     } else if (sex && meta) {
-      const url = new URL(outfitShareUrl({ version: meta.revision, sex, slots, pair, angle, zoom }))
+      const url = new URL(outfitShareUrl({ version: meta.revision, sex, slots, pair, angle, zoom, ...pan }))
       if (view !== 'preview') url.searchParams.delete('view')
       target = url.pathname + url.search
     } else if (detail) {
@@ -349,14 +352,13 @@ function ShopContent({ search }) {
     <div className="shop-title" aria-hidden={view === 'preview' || undefined}><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : '아이템 상점'}</h1></div></div>
     <div className="shop-feedback" aria-live="polite"><span role={error || favorites.error ? 'alert' : undefined}>{error || favorites.error}</span>{favorites.error && <button disabled={favorites.pending.size > 0} onClick={favorites.reload}>즐겨찾기 다시 불러오기</button>}</div>
     {view === 'preview' && applied && meta ? <>
-      <ShopOutfitPreview onClose={browse} onCopy={() => copy(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom }))} tools={!panelOpen && copyTools} headerTools={<>{mobile && <button onClick={() => openPanel()}>아이템 현황</button>}{<button disabled={!authLoaded} onClick={user ? logout : login}>{user ? '로그아웃' : '로그인'}</button>}</>}>
+      <ShopOutfitPreview onClose={browse} onCopy={() => copy(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))} tools={!panelOpen && copyTools} headerTools={<>{mobile && <button onClick={() => openPanel()}>아이템 현황</button>}{!user && <button disabled={!authLoaded} onClick={login}>로그인</button>}</>}>
       <div className="shop-preview-grid"><section>
-        {pairLoading ? <div className="shop-stage"><div className="shop-stage-status">이성 아이템을 확인 중입니다.</div></div> : <ShopViewer meta={meta} sex={applied.sex} slots={applied.slots} counterparts={counterparts} pair={pair} angle={angle} zoom={zoom} onViewChange={next => { setAngle(next.angle); setZoom(next.zoom) }} />}
-        <div className="shop-view-controls">휠로 확대ㆍ축소 / 드래그로 회전</div>
+        {pairLoading ? <div className="shop-stage"><div className="shop-stage-status">이성 아이템을 확인 중입니다.</div></div> : <ShopViewer meta={meta} sex={applied.sex} slots={applied.slots} counterparts={counterparts} pair={pair} angle={angle} zoom={zoom} panX={pan.panX} panY={pan.panY} mode={viewMode} onViewChange={next => { setAngle(next.angle); setZoom(next.zoom); setPan({ panX: next.panX, panY: next.panY }) }} />}
+        <ShopViewModes mode={viewMode} onChange={setViewMode} />
         <button className="shop-pair" aria-pressed={pair} disabled={pairLoading} onClick={() => setPair(value => !value)}><Users size={17} /> 이성 아이템 함께 보기</button>
         <div className="shop-pair-note">{pair && !pairLoading && SHOP_SLOTS.filter(key => key !== 'pet' && applied.slots[key] && !counterparts[key]).length > 0 ? '대응 아이템이 없는 부위는 상대 캐릭터의 기본 의상으로 표시합니다.' : '선택하지 않은 부위는 기본 의상으로 표시됩니다.'}</div>
-        {applied.slots.summon && <p className="shop-panel-note">소환물ㆍ날개는 정적인 3D 모습으로 표시합니다.</p>}
-      </section>{framePanel(<aside className="shop-panel">{panelHeading('선택한 의상')}{wardrobe(applied.slots, false)}<p className="shop-panel-note">공유 URL은 선택한 아이템, 캐릭터, 회전ㆍ확대와 이성 함께 보기 상태를 포함합니다.</p></aside>)}</div>
+      </section>{framePanel(<aside className="shop-panel">{panelHeading('선택한 의상')}{wardrobe(applied.slots, false)}</aside>)}</div>
       <p className="shop-couple-purchase-note">게임 내 아이템과는 차이가 있을 수 있습니다. 반드시 인 게임에서 상세히 확인 후 구매하시기 바랍니다.</p>
       </ShopOutfitPreview>
     </> : <>

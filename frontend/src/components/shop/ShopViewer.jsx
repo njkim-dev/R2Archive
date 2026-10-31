@@ -35,10 +35,10 @@ async function model(url) {
   return modelCache.get(url)
 }
 
-export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, audioContext = null, audioReady = null, selectedSex = sex, onViewChange }) {
+export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange }) {
   const canvasRef = useRef(null)
   const rendererRef = useRef(null)
-  usePreviewInteraction(canvasRef, angle, zoom, onViewChange)
+  usePreviewInteraction(canvasRef, angle, zoom, panX, panY, mode, onViewChange)
   const [status, setStatus] = useState('3D 모델을 준비 중입니다.')
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         attribute vec3 normal;
         attribute vec2 uv;
         attribute vec4 color;
-        uniform float angle,aspect,halfHeight,halfDepth,centerX,centerY,centerZ,offsetX,worldOffsets;
+        uniform float angle,aspect,halfHeight,halfDepth,centerX,centerY,centerZ,offsetX,worldOffsets,panX,panY;
         uniform mat4 attachmentPose;
         varying vec2 texcoord;
         varying float lighting;
@@ -119,7 +119,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           vec3 posedNormal=mat3(attachmentPose)*normal;
           vec3 q=vec3(-c*p.x-s*p.z+offsetX*(1.-worldOffsets),p.y,-s*p.x+c*p.z);
           vec3 n=vec3(-c*posedNormal.x-s*posedNormal.z,posedNormal.y,-s*posedNormal.x+c*posedNormal.z);
-          gl_Position=vec4((q.x-centerX)/(halfHeight*aspect),(q.y-centerY)/halfHeight,-(q.z-centerZ)/halfDepth,1.);
+          gl_Position=vec4((q.x-centerX)/(halfHeight*aspect)+panX,(q.y-centerY)/halfHeight+panY,-(q.z-centerZ)/halfDepth,1.);
           texcoord=uv;
           tint=color;
           lighting=.76+.24*max(dot(normalize(n),normalize(vec3(-.35,.65,1.))),0.);
@@ -130,7 +130,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('3D 화면 초기화에 실패했습니다.')
       gl.useProgram(program); gl.enable(gl.DEPTH_TEST)
       const attrs = Object.fromEntries(['position', 'normal', 'uv', 'color'].map(key => [key, gl.getAttribLocation(program, key)]))
-      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose', 'effect', 'particleAdditive', 'worldOffsets'].map(key => [key, gl.getUniformLocation(program, key)]))
+      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose', 'effect', 'particleAdditive', 'worldOffsets', 'panX', 'panY'].map(key => [key, gl.getUniformLocation(program, key)]))
       gl.uniform1f(uniforms.worldOffsets, clip ? 1 : 0)
       const textures = {}
       function textureUrl(payload, mesh) {
@@ -234,8 +234,8 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         return count
       }
       let cachedFrame = -1, cachedPrimary, cachedSecondary, poseBuilds = 0
-      let envelopes, previousFrame = -1, previousRotation, previousScale
-      rendererRef.current = (rotation, scale) => {
+      let envelopes, previousFrame = -1, previousRotation, previousScale, previousPanX, previousPanY
+      rendererRef.current = (rotation, scale, offsetX = 0, offsetY = 0) => {
         const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2)
         if (!rect.width || !rect.height) return
         const width = Math.round(rect.width * dpr), height = Math.round(rect.height * dpr)
@@ -258,8 +258,8 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         const ornamentFrame = ornament ? Math.floor(elapsed % ornamentDuration / ornamentDuration * ornament.data.frame_count) : 0
         const particleFrame = particleBuffer ? Math.floor(elapsed * 30) : 0
         const activeFrame = `${frame}:${ornamentFrame}:${particleFrame}`
-        if ((clip || ornament) && activeFrame === previousFrame && rotation === previousRotation && scale === previousScale && !resized) return
-        previousFrame = activeFrame; previousRotation = rotation; previousScale = scale
+        if ((clip || ornament) && activeFrame === previousFrame && rotation === previousRotation && scale === previousScale && offsetX === previousPanX && offsetY === previousPanY && !resized) return
+        previousFrame = activeFrame; previousRotation = rotation; previousScale = scale; previousPanX = offsetX; previousPanY = offsetY
         if (clip) canvas.dataset.motionFrame = String(frame)
         if (cachedFrame !== frame) { cachedFrame = frame; cachedPrimary = figure(sex, slots, frame); cachedSecondary = pair ? figure(sex === 'male' ? 'female' : 'male', counterparts, frame) : null; canvas.dataset.poseBuilds = String(++poseBuilds) }
         const primary = cachedPrimary, secondary = cachedSecondary
@@ -313,8 +313,10 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
         gl.uniform1f(uniforms.angle, radians); gl.uniform1f(uniforms.aspect, aspect)
         const halfHeight = Math.max((bounds[1][1] - bounds[0][1]) / 2, (bounds[1][0] - bounds[0][0]) / (2 * aspect), 1) * 1.12 * 100 / scale
-        for (const [axis, key] of ['centerX', 'centerY', 'centerZ'].entries()) gl.uniform1f(uniforms[key], (bounds[0][axis] + bounds[1][axis]) / 2 + (axis === 1 && couplePreview ? halfHeight * .06 : 0))
+        for (const [axis, key] of ['centerX', 'centerY', 'centerZ'].entries()) gl.uniform1f(uniforms[key], (bounds[0][axis] + bounds[1][axis]) / 2 + (axis === 1 && couplePreview ? halfHeight * .02 : 0))
         canvas.dataset.viewAngle = String(rotation); canvas.dataset.viewZoom = String(scale)
+        gl.uniform1f(uniforms.panX, offsetX / 50); gl.uniform1f(uniforms.panY, -offsetY / 50)
+        canvas.dataset.viewPanX = String(offsetX); canvas.dataset.viewPanY = String(offsetY)
         gl.uniform1f(uniforms.halfHeight, halfHeight)
         gl.uniform1f(uniforms.halfDepth, Math.max(500, (bounds[1][2] - bounds[0][2]) / 2 + 10))
         const labelPositions = []
@@ -339,7 +341,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         if (particleBuffer) canvas.dataset.particleFrame = String(particleFrame)
       }
       if (clip) {
-        rendererRef.current(angle, zoom)
+        rendererRef.current(angle, zoom, panX, panY)
         const source = audioContext.createBufferSource(), gain = audioContext.createGain()
         source.buffer = buffer; source.loop = true; gain.gain.value = .7
         source.connect(gain); gain.connect(audioContext.destination)
@@ -352,7 +354,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
     return () => { cancelled = true; abort.abort(); rendererRef.current = null; resources.forEach(dispose => dispose()) }
   }, [meta, sex, slots, counterparts, pair, motion, couplePreview, audioContext, audioReady])
   useEffect(() => {
-    const draw = () => rendererRef.current?.(angle, zoom)
+    const draw = () => rendererRef.current?.(angle, zoom, panX, panY)
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(canvasRef.current)
@@ -362,9 +364,9 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       frame = requestAnimationFrame(tick)
     }
     return () => { observer.disconnect(); cancelAnimationFrame(frame) }
-  }, [angle, zoom, status, motion, couplePreview])
+  }, [angle, zoom, panX, panY, status, motion, couplePreview])
   return <div className="shop-stage">
-    <canvas ref={canvasRef} tabIndex={0} title="휠로 확대ㆍ축소 / 드래그로 회전" role="img" aria-label={pair ? '남녀 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
+    <canvas ref={canvasRef} tabIndex={0} data-view-mode={mode} role="img" aria-label={pair ? '남녀 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
     <div className="shop-character-labels"><span>{sex === 'male' ? '남성' : '여성'} ㆍ {sex === selectedSex ? '선택한 의상' : '대응 의상'}</span>{pair && <span>{sex === 'male' ? '여성' : '남성'} ㆍ {sex !== selectedSex ? '선택한 의상' : '대응 의상'}</span>}</div>
   </div>

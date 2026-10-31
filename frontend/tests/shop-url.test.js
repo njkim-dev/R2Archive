@@ -82,3 +82,17 @@ test('login restoration retains only recent local shop URLs and rejects redirect
     }
   } finally { if (original === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = original }
 })
+
+
+test('outfit and couple links retain bounded screen movement without changing legacy defaults', () => {
+  for (const create of [outfitShareUrl, coupleShareUrl]) {
+    const url = new URL(create({ version: 'a'.repeat(20), sex: 'female', slots: { top: { id: '200' } }, item: '30120', angle: 237, zoom: 119, panX: 12.5, panY: -8.25 }))
+    const restored = readShopUrl(url.search)
+    assert.equal(restored.panX, 12.5); assert.equal(restored.panY, -8.25)
+    assert.equal(restored.slots.top, '200'); assert.equal(restored.angle, 237); assert.equal(restored.zoom, 119)
+  }
+  assert.equal(readShopUrl('?panX=Infinity&panY=invalid').panX, 0)
+  assert.equal(readShopUrl('?panX=999&panY=-999').panX, 75)
+  assert.equal(readShopUrl('?panX=999&panY=-999').panY, -75)
+  assert.equal(readShopUrl('?view=preview&top=200').panY, 0)
+})

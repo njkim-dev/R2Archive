@@ -13,7 +13,7 @@ export function readShopUrl(search) {
     sex: ['male', 'female'].includes(params.get('sex')) ? params.get('sex') : null,
     slots: Object.fromEntries(SHOP_SLOTS.map(slot => [slot, validId(params.get(slot))])),
     pair: params.get('pair') === '1', angle: bounded(params.get('angle'), 180, 0, 360),
-    zoom: bounded(params.get('zoom'), 100, 75, 135), price: /^[A-Z0-9]{1,8}$/.test(params.get('price') || '') ? params.get('price') : null,
+    zoom: bounded(params.get('zoom'), 100, 75, 135), panX: bounded(params.get('panX'), 0, -75, 75), panY: bounded(params.get('panY'), 0, -75, 75), price: /^[A-Z0-9]{1,8}$/.test(params.get('price') || '') ? params.get('price') : null,
   }
 }
 
@@ -26,15 +26,17 @@ export function itemShareUrl(item, sex, price) {
   return url.href
 }
 
-export function outfitShareUrl({ version, sex, slots, pair, angle, zoom }) {
+export function outfitShareUrl({ version, sex, slots, pair, angle, zoom, panX = 0, panY = 0 }) {
   const url = new URL('/shop', SHOP_ORIGIN)
   for (const [key, value] of Object.entries({ view: 'preview', v: version, sex, pair: pair ? '1' : '0', angle: String(angle), zoom: String(zoom) })) url.searchParams.set(key, value)
+  if (panX) url.searchParams.set('panX', String(panX))
+  if (panY) url.searchParams.set('panY', String(panY))
   for (const slot of SHOP_SLOTS) if (slots[slot]) url.searchParams.set(slot, String(slots[slot].id || slots[slot]))
   return url.href
 }
 
-export function coupleShareUrl({ version, sex, slots, item, angle = 180, zoom = 100 }) {
-  const url = new URL(outfitShareUrl({ version, sex, slots, pair: true, angle, zoom }))
+export function coupleShareUrl({ version, sex, slots, item, angle = 180, zoom = 100, panX = 0, panY = 0 }) {
+  const url = new URL(outfitShareUrl({ version, sex, slots, pair: true, angle, zoom, panX, panY }))
   url.searchParams.set('view', 'couple')
   url.searchParams.set('item', String(item.id || item))
   return url.href
