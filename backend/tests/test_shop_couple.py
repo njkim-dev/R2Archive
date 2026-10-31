@@ -45,6 +45,26 @@ class CouplePreviewTests(unittest.TestCase):
             (Path(folder) / 'couple-catalog.json').write_text(json.dumps(data), encoding='utf8')
             self.assertIsNone(catalog(folder))
 
+    def test_optional_lobby_and_action_models_have_versioned_public_urls(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data = self.manifest(folder)
+            model = 'e' * 64 + '.json.gz'
+            animation = 'f' * 64 + '.json.gz'
+            data['rings']['30120'].update(ornament={'model': model, 'animation': animation}, effects=[{'model': model, 'animation': animation, 'sex': 'male'}])
+            path = Path(folder) / 'couple-catalog.json'
+            path.write_text(json.dumps(data), encoding='utf8')
+            result = preview(folder, 30120)
+            self.assertEqual(result['ornament']['model'], '/api/shop/assets/' + data['revision'] + '/models/' + model)
+            self.assertEqual(result['effects'][0]['sex'], 'male')
+            for invalid in [None, {'model': '../../secret', 'animation': animation}, {'model': model, 'animation': '../other'}]:
+                data['rings']['30120']['ornament'] = invalid
+                path.write_text(json.dumps(data), encoding='utf8')
+                self.assertIsNone(catalog(folder))
+            data['rings']['30120'].pop('ornament')
+            data['rings']['30120']['effects'][0]['sex'] = 'other'
+            path.write_text(json.dumps(data), encoding='utf8')
+            self.assertIsNone(catalog(folder))
+
     def test_hashed_motion_and_audio_assets_are_public_and_audio_supports_ranges(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(shop, 'SHOP_DIR', Path(folder)):
             data = self.manifest(folder)

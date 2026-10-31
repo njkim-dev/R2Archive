@@ -20,7 +20,7 @@ def couple_scene_pose(side, sex):
     return [[0, 0, turn, 0], [0, 1, 0, 0], [-turn, 0, 0, 0], [-65 * turn - origin, 0, 0, 1]]
 
 
-def read_animation(path):
+def read_animation(path, allow_duplicate_names=False):
     data = path.read_bytes()
     if len(data) < 8:
         raise ValueError('truncated animation header')
@@ -39,8 +39,12 @@ def read_animation(path):
         offset += length
         counts = struct.unpack_from('<3I', data, offset)
         offset += 12
-        if name in tracks:
-            raise ValueError('duplicate animation bone')
+        original, suffix = name, 2
+        while name in tracks:
+            if not allow_duplicate_names:
+                raise ValueError('duplicate animation bone')
+            name = f'{original}#{suffix}'
+            suffix += 1
         channels = {}
         for label, size, number in zip(['position', 'rotation', 'scale'], [4, 5, 4], counts):
             if number > 100000 or offset + number * size * 4 > len(data):

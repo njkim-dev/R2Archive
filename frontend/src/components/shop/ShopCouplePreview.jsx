@@ -38,6 +38,7 @@ export default function ShopCouplePreview({ selection, meta, onStart, onClose })
     let cancelled = false
     const chosen = { ...selection.slots }, partner = Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null]))
     Promise.all(SHOP_SLOTS.map(async slot => {
+      if (['pet', 'accessory', 'summon'].includes(slot)) { chosen[slot] = null; return }
       const item = chosen[slot]
       if (!item) return
       if (item.sex === 'common') { partner[slot] = item; return }
@@ -52,7 +53,7 @@ export default function ShopCouplePreview({ selection, meta, onStart, onClose })
   return <dialog ref={dialog} className="shop-couple-dialog" aria-label="커플 모션 미리보기" onCancel={event => { event.preventDefault(); onClose() }}>
     <div className="shop-couple-heading"><div><h2>커플 모션 미리보기</h2><p>{selection.item.name || `커플링 ${selection.item.id}`}</p></div><div className="shop-couple-actions"><button onClick={copy}><Copy size={16} /><span>URL 복사</span></button><button aria-label="커플 모션 미리보기 닫기" onClick={onClose}><X size={22} /><span>닫기</span></button></div></div>
     <div className="shop-couple-viewport">
-      {actors && !error ? <ShopViewer meta={meta} sex="male" slots={actors.male} counterparts={actors.female} pair angle={180} zoom={100} motion={selection.started ? selection.item.couple_preview : null} audioContext={selection.audioContext} audioReady={selection.audioReady} /> : <div className="shop-stage"><div className="shop-stage-status" role={error ? 'alert' : 'status'}>{error || '선택한 의상을 준비 중입니다.'}</div></div>}
+      {actors && !error ? <ShopViewer meta={meta} sex="male" slots={actors.male} counterparts={actors.female} pair angle={180} zoom={100} couplePreview={selection.item.couple_preview} motion={selection.started ? selection.item.couple_preview : null} audioContext={selection.audioContext} audioReady={selection.audioReady} /> : <div className="shop-stage"><div className="shop-stage-status" role={error ? 'alert' : 'status'}>{error || '선택한 의상을 준비 중입니다.'}</div></div>}
       {!selection.started && actors && !error && <div className="shop-couple-start"><button onClick={onStart}>커플 모션 시작</button><p>버튼을 누르면 모션과 소리가 함께 재생됩니다.</p></div>}
     </div>
     <p className="shop-couple-note">선택하지 않은 부위와 대응 아이템이 없는 부위는 기본 의상으로 표시됩니다.</p>

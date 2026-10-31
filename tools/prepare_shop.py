@@ -118,7 +118,7 @@ def md9_materials(path):
     return data, modern, offset, materials
 
 
-def parse_md9(path, resolver):
+def parse_md9(path, resolver, allow_duplicate_names=False, allow_missing_textures=False):
     data, modern, offset, names = md9_materials(path)
     materials = []
     for name in names:
@@ -139,10 +139,17 @@ def parse_md9(path, resolver):
             raise ValueError('invalid bone geometry or parent')
         bones.append({'name': name, 'matrix': matrix, 'nv': nv, 'nf': nf,
                       'material': material, 'parent': parent})
-    if len({b['name'] for b in bones}) != len(bones):
-        raise ValueError('duplicate bone names')
+    bone_names = set()
     for bone in bones:
-        if bone['nf'] and materials[bone['material']] is None:
+        name, suffix = bone['name'], 2
+        while bone['name'] in bone_names:
+            if not allow_duplicate_names:
+                raise ValueError('duplicate bone names')
+            bone['name'] = f'{name}#{suffix}'
+            suffix += 1
+        bone_names.add(bone['name'])
+    for bone in bones:
+        if bone['nf'] and materials[bone['material']] is None and not allow_missing_textures:
             raise ValueError('missing texture: ' + names[bone['material']])
     offset += count * 136 + 8
     vertex_count = sum(b['nv'] for b in bones)
