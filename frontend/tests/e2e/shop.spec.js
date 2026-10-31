@@ -1316,7 +1316,7 @@ test('unavailable items are hidden by default and the toggle keeps selection and
     const box = getComputedStyle(input), label = getComputedStyle(input.parentElement)
     return [input.type, box.width, box.height, box.accentColor, label.fontSize, label.fontWeight, label.minHeight, label.gap, label.color]
   }))
-  expect(styles).toHaveLength(2); expect(styles[0]).toEqual(styles[1])
+  expect(styles).toHaveLength(3); for (const style of styles) expect(style).toEqual(styles[0])
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await page.getByRole('button', { name: `${shirt.name} 의상 선택`, exact: true }).click()
   let release
