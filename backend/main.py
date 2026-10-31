@@ -14,6 +14,7 @@ from rate_limit import limiter
 from security_middleware import BrowserCSRFMiddleware
 from routers import game_repair
 from routers import shop
+from routers import shop_sharing
 from routers import songs, comments, perceived, feedback, records, parse_screenshot, auth_oauth, users, rankings, groups, personal_categories, feedback_items, pmang_songs, pmang_user, youtube_candidates, xyx_songs, xyx_categories, xyx_detail, analytics, practice_sections, release_history
 
 STATIC_DIR = Path(__file__).parent.parent / "rnr_image"
@@ -73,6 +74,7 @@ app.include_router(feedback.router)
 app.include_router(records.router)
 app.include_router(parse_screenshot.router)
 app.include_router(auth_oauth.router)
+app.include_router(shop_sharing.router)
 app.include_router(users.router)
 app.include_router(rankings.router)
 app.include_router(groups.router)

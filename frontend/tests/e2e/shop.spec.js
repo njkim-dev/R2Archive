@@ -2,70 +2,7 @@ import { expect, test } from '@playwright/test'
 import { watchLayout } from './layout.js'
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } })
-const version = 'a'.repeat(20)
-const hash = 'c'.repeat(64)
-const root = `/api/shop/assets/${version}`
-const hero = { id: '1000208', version, name: '돌발모드(영웅)', category: '503', department: 'functional', sex: 'common', slot: null, preview_available: false, description: '장애물이 갑자기 출현합니다.', prices: [{ key: 'P1', label: '1일', amount: 1000, currency: 'cash' }, { key: 'P7', label: '7일', amount: 2000, currency: 'cash' }, { key: 'P30', label: '30일', amount: 4000, currency: 'cash' }], thumbnail: null }
-const shirt = { ...hero, id: '200', name: '검증 셔츠(남)', department: 'wearable', sex: 'male', slot: 'top', preview_available: true, model: `${root}/models/${'b'.repeat(64)}.json.gz`, counterpart_id: '201' }
-const femaleShirt = { ...shirt, id: '201', name: '검증 셔츠(여)', sex: 'female' }
-const pet = { ...shirt, id: '300', name: '검증 펫', sex: 'common', slot: 'pet', model: `${root}/models/${'c'.repeat(64)}.json.gz`, counterpart_id: null }
-const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 20, 20, 0, 0, 0, 1, 1, 0, 0, 280, 0, 0, 0, 1, .5, 1], indices: [0, 1, 2], texture: `${hash}.webp` }] }
-const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertices: [-130, 30, 0, 0, 0, 1, 0, 0, -30, 30, 0, 0, 0, 1, 1, 0, -80, 140, 0, 0, 0, 1, .5, 1] }] }
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
-
-async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate, textureRevision, favoriteIds = [], favoriteGate, authGate, wardrobeIds = [], wardrobeMains = [], wardrobeGate, wardrobeSaveGate } = {}) {
-  const requests = []
-  const savedFavorites = new Set(favoriteIds.map(String))
-  const savedOwned = new Set(wardrobeIds.map(String))
-  const mains = new Map(wardrobeMains.map(main => [`${main.sex}:${main.slot}`, main]))
-  const ownedResponse = () => ({ ids: [...savedOwned], mains: [...mains.values()] })
-  await page.addInitScript(() => { window.__copiedShopUrl = ''; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => { window.__copiedShopUrl = value } } }) })
-  await page.route('**/api/**', async route => {
-    const url = new URL(route.request().url()), path = url.pathname
-    if (!path.startsWith('/api/')) return route.continue()
-    if (path.startsWith('/api/shop/')) requests.push(path)
-    if (path === '/api/auth/me') { if (authGate) await authGate; return route.fulfill({ json: { user: loggedIn ? { id: 1, provider: 'google', nickname: '관리자', onboarded: true } : null } }) }
-    if (path === '/api/auth/admin-status') return route.fulfill({ json: { is_admin: admin } })
-    if (path === '/api/shop/favorites' && route.request().method() === 'DELETE') { const slot = url.searchParams.get('slot'), removed = [...savedFavorites].filter(id => !slot || (items || [shirt,femaleShirt,pet,hero]).some(item => item.id === id && item.slot === slot)); removed.forEach(id => savedFavorites.delete(id)); return route.fulfill({ json: { removed_ids: removed, count: removed.length } }) }
-    if (path === '/api/shop/favorites') { if (favoriteGate) await favoriteGate; return route.fulfill({ json: { ids: [...savedFavorites] } }) }
-    if (path.startsWith('/api/shop/favorites/')) { const id = path.split('/').at(-1); if (route.request().method() === 'POST') savedFavorites.add(id); else savedFavorites.delete(id); return route.fulfill({ json: { id, favorite: savedFavorites.has(id) } }) }
-    if (path === '/api/shop/wardrobe') { if (wardrobeGate) await wardrobeGate; return route.fulfill({ json: ownedResponse() }) }
-    if (path.startsWith('/api/shop/wardrobe/')) {
-      if (wardrobeSaveGate) await wardrobeSaveGate
-      const id = path.split('/')[4], item = (items || [shirt, femaleShirt, pet]).find(item => item.id === id)
-      if (!item) return route.fulfill({ status: 404, json: { detail: '아이템 없음' } })
-      if (route.request().method() === 'POST') {
-        savedOwned.add(id)
-        for (const gender of item.sex === 'common' ? ['male', 'female'] : [item.sex]) {
-          const key = `${gender}:${item.slot}`
-          if (!mains.has(key)) mains.set(key, { sex: gender, slot: item.slot, item: { ...item, version } })
-        }
-      } else {
-        const sex = url.searchParams.get('sex')
-        if (!savedOwned.has(id)) return route.fulfill({ status: 404, json: { detail: '저장되지 않은 의상' } })
-        mains.set(`${sex}:${item.slot}`, { sex, slot: item.slot, item: { ...item, version } })
-      }
-      return route.fulfill({ json: ownedResponse() })
-    }
-    if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, texture_revision: textureRevision, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: false } }) }
-    if (path === '/api/shop/items') {
-      if (listGate) await listGate
-      const params = url.searchParams, position = params.get('cursor') || ''
-      const start = position ? Number(position.split(':')[0]) + 1 : 0, size = Number(params.get('page_size') || 24)
-      if (start && nextGate) await nextGate
-      let list = items || (params.get('department') === 'wearable' ? [params.get('sex') === 'female' ? femaleShirt : shirt] : [hero])
-      list = list.filter(item => (!item.is_unreleased || params.get('include_unreleased') === 'true' && item.department === 'wearable') && (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('owned_only') !== 'true' || savedOwned.has(item.id)) && (params.get('favorites_only') !== 'true' || savedFavorites.has(item.id)) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id || item.slot === 'pet' && item.sex === 'common'))
-      const chunk = list.slice(start, start + size), more = start + size < list.length
-      return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
-    }
-    if (path.startsWith('/api/shop/items/')) return route.fulfill({ json: items?.find(item => path.endsWith('/' + item.id)) || (path.endsWith('/201') ? femaleShirt : path.endsWith('/200') ? shirt : path.endsWith('/300') ? pet : hero) })
-    if (path.includes('/models/')) { if (modelGate) await modelGate; return route.fulfill({ json: models?.[path] || (path.includes('c'.repeat(64)) ? petMesh : mesh) }) }
-    if (path.includes('/textures/') || path.includes('/thumbnails/')) return route.fulfill({ body: texture, contentType: 'image/png' })
-    if (path.endsWith('/flags')) return route.fulfill({ json: { favorites: [], played: [], played_all: [] } })
-    return route.fulfill({ json: [] })
-  })
-  return requests
-}
+import { version, hash, root, hero, shirt, femaleShirt, pet, mesh, petMesh, png, setup, copiedShopUrl } from './shopFixtures.js'
 
 async function setViewerAngle(page, target) {
   const canvas = page.locator('.shop-stage canvas')
@@ -108,7 +45,7 @@ test('unreleased clothes are hidden by default suppress NEW and all prices and p
   await card.locator('.shop-card-select').click()
   await expect(card.locator('.shop-card-select')).toHaveAttribute('aria-pressed', 'true')
   await card.getByRole('button', { name: hidden.name + ' URL 복사', exact: true }).click()
-  const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const url = (await copiedShopUrl(page))
   expect(url.searchParams.has('price')).toBe(false)
   await page.goto(url.pathname + url.search)
   await expect(page.locator('.shop-slots')).toContainText(hidden.name)
@@ -144,7 +81,7 @@ test('my home saves first mains preserves later additions switches mains and res
   await expect(page.locator('.shop-card')).toHaveCount(2)
   await expect(firstCard.locator('.shop-main-tag')).toHaveText('메인')
   await expect(secondCard.locator('.shop-main-tag')).toHaveCount(0)
-  await secondCard.getByRole('button', { name: '메인으로 지정', exact: true }).click()
+  await secondCard.locator('.shop-card-select').click()
   await expect(secondCard.locator('.shop-main-tag')).toHaveText('메인')
   await expect(firstCard.locator('.shop-main-tag')).toHaveCount(0)
   await page.screenshot({ path: test.info().outputPath('wardrobe-home.png'), fullPage: true })
@@ -159,7 +96,7 @@ test('my home saves first mains preserves later additions switches mains and res
   await firstCard.locator('.shop-card-select').click()
   await previewSelection(page)
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const url = (await copiedShopUrl(page))
   expect(url.searchParams.get('top')).toBe(shirt.id)
   await page.goto(url.pathname + url.search)
   await openOutfitPanel(page)
@@ -197,11 +134,11 @@ test('clothing card actions stay on one row while card clicks equip and unequip 
   await watcher.expectStable(); release()
   await expect(card.locator('.shop-owned-tag')).toHaveText('내 아이템')
   await watcher.expectStable(); await watcher.stop()
-  const saved = await card.getByRole('button', { name: '내 의상에 저장됨', exact: true }).boundingBox(), copied = await copy.boundingBox()
+  const saved = await card.getByRole('button', { name: '내 의상에서 제거', exact: true }).boundingBox(), copied = await copy.boundingBox()
   expect(Math.abs(saved.y - copied.y)).toBeLessThan(1)
   await expect(select).toHaveAttribute('aria-pressed', 'false')
   await copy.click()
-  expect(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams.get('item')).toBe('200')
+  expect((await copiedShopUrl(page)).searchParams.get('item')).toBe('200')
 })
 
 test('failed main changes preserve the previous main outfit and catalog geometry', async ({ page }) => {
@@ -216,10 +153,9 @@ test('failed main changes preserve the previous main outfit and catalog geometry
   let release
   const gate = new Promise(resolve => { release = resolve })
   await page.route('**/api/shop/wardrobe/202/main?**', async route => { await gate; return route.fulfill({ status: 503, json: { detail: '메인 의상 저장을 다시 시도해주세요.' } }) })
-  await card.getByRole('button', { name: '메인으로 지정', exact: true }).scrollIntoViewIfNeeded()
+  await card.locator('.shop-card-select').scrollIntoViewIfNeeded()
   const watcher = await watchLayout(page, ['.shop-spaces', '.shop-search', '.shop-grid', '.shop-feedback'])
-  await card.getByRole('button', { name: '메인으로 지정', exact: true }).click()
-  await expect(card.getByRole('button', { name: '메인으로 지정', exact: true })).toBeDisabled()
+  await card.locator('.shop-card-select').click()
   await watcher.expectStable(); release()
   await expect(page.getByRole('alert')).toHaveText('메인 의상 저장을 다시 시도해주세요.')
   await expect(page.locator('[data-item-id="200"] .shop-main-tag')).toHaveText('메인')
@@ -381,7 +317,7 @@ test('the public shop browses and shares outfits anonymously while favorite acti
   await expect(favorites).toHaveCount(8)
   for (const button of await favorites.all()) await expect(button).toBeDisabled()
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   await page.goto(copied.pathname + copied.search)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
@@ -472,7 +408,7 @@ test('the favorite picker changes only the requested slot and preserves both cha
   await expect(page.locator('.shop-pair')).toHaveAttribute('aria-pressed','true')
   expect(await page.locator('canvas').evaluate(canvas=>canvas.toDataURL())).not.toBe(before)
   await page.getByRole('button',{name:'의상 URL 복사',exact:true}).click()
-  const copied = new URL(await page.evaluate(()=>window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   for(const [key,value] of Object.entries({top:'202',pet:'300',pair:'1',angle:'237',zoom:'119'}))expect(copied.searchParams.get(key)).toBe(value)
   await page.goto(copied.pathname+copied.search); await expect(page.locator('.shop-stage-status')).toHaveText('')
   await expect(page.locator('.shop-slots')).toContainText(alternate.name)
@@ -578,7 +514,7 @@ test('the favorites tab includes consumables and other items with gender categor
   await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const shared = (await copiedShopUrl(page))
   expect(shared.searchParams.get('sex')).toBe('female'); expect(shared.searchParams.get('top')).toBe(femaleShirt.id)
   await page.getByRole('button', { name: '의상 미리보기 닫기', exact: true }).click()
   await page.locator(`[data-item-id="${femaleShirt.id}"] .shop-favorite-button`).click()
@@ -607,7 +543,7 @@ test('functional item links restore selected item and price without adding it to
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(page.locator('.shop-card').getByText('기능성', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '이 아이템 URL 복사' }).click()
-  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   expect(copied.origin).toBe('https://r2archive.com')
   expect(copied.searchParams.get('item')).toBe('1000208')
   expect(copied.searchParams.get('price')).toBe('P7')
@@ -671,7 +607,7 @@ for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '
       await previewWatcher.expectStable(); await previewWatcher.stop()
       expect(requests).toContain(`/api/shop/items/${partner.id}`)
       await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-      const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+      const shared = (await copiedShopUrl(page))
       expect(shared.searchParams.get('face')).toBe(selected.id)
       expect(shared.searchParams.get('sex')).toBe(sex)
       expect(shared.searchParams.get('pair')).toBe('1')
@@ -776,7 +712,7 @@ test('couple preview loops selected outfits and audio without controls and keeps
   await expect.poll(() => dialog.locator('canvas').getAttribute('data-motion-frame'), { intervals: [17, 41, 83, 127], timeout: 10000 }).not.toBe(first)
   await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.currentTime)).toBeGreaterThan(1)
   await dialog.getByRole('button', { name: 'URL 복사', exact: true }).click()
-  const coupleUrl = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const coupleUrl = (await copiedShopUrl(page))
   expect(Object.fromEntries(coupleUrl.searchParams)).toMatchObject({ view: 'couple', item: '30120', v: version, sex: 'male', top: '200' })
   await expect(dialog.getByRole('status').filter({ hasText: 'URL을 복사했습니다' })).toBeVisible()
   await expect(dialog.locator('.shop-toast')).toHaveCount(0, { timeout: 5000 })
@@ -794,7 +730,7 @@ test('couple preview loops selected outfits and audio without controls and keeps
   await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const shared = (await copiedShopUrl(page))
   expect(shared.searchParams.get('top')).toBe('200')
   expect(shared.searchParams.get('view')).toBe('preview')
 })
@@ -851,7 +787,7 @@ for (const sex of ['male', 'female']) test(`shared couple preview restores ${sex
   await expect(dialog.locator('.shop-stage-status')).toHaveText('')
   await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(1)
   await dialog.getByRole('button', { name: 'URL 복사', exact: true }).click()
-  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   expect(copied.origin).toBe('https://r2archive.com')
   expect(Object.fromEntries(copied.searchParams)).toMatchObject({ view: 'couple', item: '30120', sex, top, pet: '300', v: version })
   await watcher.expectStable()
@@ -923,7 +859,7 @@ test('couple models share the audio clock while selected pets decorations and wi
   expect(requests).toContain('/api/shop/items/400')
   expect(requests).toContain('/api/shop/items/500')
   await dialog.getByRole('button', { name: 'URL 복사', exact: true }).click()
-  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const shared = (await copiedShopUrl(page))
   expect(Object.fromEntries(shared.searchParams)).toMatchObject({ pet: '300', accessory: '400', summon: '500', top: '200', view: 'couple', item: '30120' })
   await watcher.expectStable(); await watcher.stop()
   await page.goBack(); await expect(dialog).not.toBeVisible()
@@ -934,7 +870,7 @@ test('couple models share the audio clock while selected pets decorations and wi
   for (const digit of ['c', '8', '9']) expect(assets).toContain(`${root}/models/${digit.repeat(64)}.json.gz`)
   await expect(page.locator('.shop-stage canvas')).toHaveAttribute('data-couple-ornament', '0')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  expect(Object.fromEntries(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams)).toMatchObject({ pet: '300', accessory: '400', summon: '500', view: 'preview' })
+  expect(Object.fromEntries((await copiedShopUrl(page)).searchParams)).toMatchObject({ pet: '300', accessory: '400', summon: '500', view: 'preview' })
 })
 
 test('a lobby model reused by an action is shown once in the main scene', async ({ page }) => {
@@ -986,7 +922,7 @@ test('source particles render in the main scene without dark additive rectangles
   const frame = await dialog.locator('canvas').getAttribute('data-particle-frame')
   await expect.poll(() => dialog.locator('canvas').getAttribute('data-particle-frame'), { intervals: [17, 41, 83, 127] }).not.toBe(frame)
   await dialog.getByRole('button', { name: 'URL 복사', exact: true }).click()
-  expect(Object.fromEntries(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams)).toMatchObject({ item: '30120', top: '200', pet: '300', accessory: '400', summon: '500', view: 'couple' })
+  expect(Object.fromEntries((await copiedShopUrl(page)).searchParams)).toMatchObject({ item: '30120', top: '200', pet: '300', accessory: '400', summon: '500', view: 'couple' })
   await watcher.expectStable(); await watcher.stop()
   await page.goBack(); await expect(dialog).not.toBeVisible()
   await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('closed')
@@ -1024,7 +960,7 @@ test('full outfit links restore camera, gender, both characters and default unse
   await expect(page.locator('.shop-slots')).toContainText('기본 머리 착용')
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await page.getByRole('button', { name: '의상 URL 복사' }).click()
-  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   expect(copied.searchParams.get('top')).toBe('200')
   expect(copied.searchParams.has('hair')).toBe(false)
   expect(copied.searchParams.get('pair')).toBe('1')
@@ -1182,7 +1118,7 @@ test('infinite loading keeps the DOM bounded, caches images and preserves select
   await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  expect(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams.get('top')).toBe('2000')
+  expect((await copiedShopUrl(page)).searchParams.get('top')).toBe('2000')
   await page.getByRole('button', { name: '의상 미리보기 닫기' }).click()
   await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '144')
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
@@ -1217,7 +1153,7 @@ test('face selection is combined with hair and restored by the shared outfit URL
   await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const url = (await copiedShopUrl(page))
   expect(url.searchParams.get('hair')).toBe(hair.id)
   expect(url.searchParams.get('face')).toBe(face.id)
   await page.goto(url.pathname + url.search)
@@ -1312,7 +1248,7 @@ test('category filters isolate matching ring names, pet kinds and supplies witho
   await watcher.stop()
   await page.locator('[data-item-id="901"] .shop-card-select').click()
   await page.getByRole('button', { name: '이 아이템 URL 복사', exact: true }).click()
-  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const shared = (await copiedShopUrl(page))
   await closeMobilePanel(page)
   await page.getByRole('button', { name: '펫 용품', exact: true }).click()
   await page.getByRole('button', { name: '펫 먹이', exact: true }).click()
@@ -1324,7 +1260,7 @@ test('category filters isolate matching ring names, pet kinds and supplies witho
   await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const outfit = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const outfit = (await copiedShopUrl(page))
   expect(outfit.searchParams.get('top')).toBe(shirt.id)
   expect(outfit.searchParams.get('pet')).toBe(regular.id)
   await page.goto(shared.pathname + shared.search)
@@ -1417,7 +1353,7 @@ test('all eight outfit slots and common wings restore in both characters with un
   expect(pixels.bottom).toBeGreaterThan(4); expect(pixels.top).toBeLessThan(pixels.height - 5)
   const image = await canvas.evaluate(canvas => canvas.toDataURL())
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const shared = (await copiedShopUrl(page))
   for (const [key, value] of Object.entries(values)) expect(shared.searchParams.get(key)).toBe(value)
   await page.goto(shared.pathname + shared.search)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
@@ -1461,7 +1397,7 @@ test('static standing poses anchor common wings separately for both genders whil
   expect(requests.some(p => p.startsWith(`/api/shop/assets/${textureRevision}/textures/`))).toBe(true)
   const frame = await canvas.evaluate(c => c.toDataURL())
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   expect(copied.searchParams.get('v')).toBe(version)
   expect(copied.searchParams.get('accessory')).toBe('610')
   expect(copied.searchParams.get('summon')).toBe('620')
@@ -1573,7 +1509,7 @@ for (const sex of ['male', 'female']) test(`MD9 ${sex} and opposite gender with 
   await setViewerZoom(page, 119)
   const image = await canvas.evaluate(canvas => canvas.toDataURL())
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  const copied = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const copied = (await copiedShopUrl(page))
   for (const [key, value] of Object.entries({ sex, top: selected.id, pet: pet.id, pair: '1', angle: '237', zoom: '119', v: version })) expect(copied.searchParams.get(key)).toBe(value)
   await page.goto(copied.pathname + copied.search)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
@@ -1604,7 +1540,7 @@ test('couple camera gestures reuse poses and motion bounds without reloading ass
   await expect(canvas).toHaveAttribute('data-pose-builds', poses)
   expect(await page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(1)
   await dialog.getByRole('button', { name: 'URL 복사', exact: true }).click()
-  const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const url = (await copiedShopUrl(page))
   expect(Object.fromEntries(url.searchParams)).toMatchObject({ view: 'couple', sex: 'female', top: '201', angle: '307', zoom: '105' })
   await page.goto(url.pathname + url.search)
   await expect(dialog.locator('.shop-stage-status')).toHaveText('')
@@ -1647,7 +1583,7 @@ test('outfit modal loads every favorite automatically with bounded rendering and
   await picker.getByRole('button', { name: '즐겨찾기 목록 닫기', exact: true }).click()
   await closeMobilePanel(page)
   await preview.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  expect(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams.get('top')).toBe('200')
+  expect((await copiedShopUrl(page)).searchParams.get('top')).toBe('200')
   await preview.getByRole('button', { name: '의상 미리보기 닫기', exact: true }).click()
   await page.getByRole('tab', { name: '즐겨찾기', exact: true }).click()
   await expect(page.locator('.shop-list-status')).toHaveText('아이템 2개')
@@ -1712,7 +1648,7 @@ test('male and female clothing selections survive gender switches and reload wit
   await previewSelection(page)
   await expect(page.locator('.shop-stage-status')).toHaveText('')
   await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
-  expect(Object.fromEntries(new URL(await page.evaluate(() => window.__copiedShopUrl)).searchParams)).toMatchObject({ sex: 'female', pet: '300' })
+  expect(Object.fromEntries((await copiedShopUrl(page)).searchParams)).toMatchObject({ sex: 'female', pet: '300' })
 })
 
 for (const view of ['preview', 'couple']) test(`${view} move and rotate modes support real touch pinch transitions and preserve shared clothing without reloads`, async ({ page }) => {
@@ -1785,7 +1721,7 @@ for (const view of ['preview', 'couple']) test(`${view} move and rotate modes su
   await watcher.expectStable(); await watcher.stop(); page.off('request', track)
   const finalPanX = await canvas.getAttribute('data-view-pan-x'), finalPanY = await canvas.getAttribute('data-view-pan-y')
   await dialog.getByRole('button', { name: view === 'couple' ? 'URL 복사' : '의상 URL 복사', exact: true }).click()
-  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  const shared = (await copiedShopUrl(page))
   expect(Object.fromEntries(shared.searchParams)).toMatchObject({ view, top: '200', pet: '300', angle: '220', zoom: '119', panX: finalPanX })
   if (Number(finalPanY)) expect(shared.searchParams.get('panY')).toBe(finalPanY)
   await page.goto(shared.pathname + shared.search); await expect(dialog.locator('.shop-stage-status')).toHaveText('')

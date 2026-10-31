@@ -63,7 +63,7 @@ STATE_COOKIE = "r2b_oauth_state"
 REMEMBER_COOKIE = "r2b_oauth_remember"
 RETURN_COOKIE = "r2b_oauth_return"
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"
-PUBLIC_APP_HOSTS = {"music.r2archive.com", "xyx.r2archive.com"}
+PUBLIC_APP_HOSTS = {"r2archive.com", "music.r2archive.com", "xyx.r2archive.com"}
 
 
 def _request_origin(request: Request) -> str:

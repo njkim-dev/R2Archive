@@ -33,6 +33,7 @@ const GameRepairPage = lazy(() => import('./pages/GameRepairPage'))
 const RepairAdminPage = lazy(() => import('./pages/RepairAdminPage'))
 const ArchiveHomePage = lazy(() => import('./pages/ArchiveHomePage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
+const ShortLinkPage = lazy(() => import('./pages/ShortLinkPage'))
 
 function CloseModalOnCataloglessRoutes() {
   const location = useLocation()
@@ -138,7 +139,7 @@ export default function App() {
   }, [songs])
 
   useEffect(() => {
-    if (portalHost || appLocation.pathname.startsWith('/shop') || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
+    if (portalHost || appLocation.pathname.startsWith('/shop') || appLocation.pathname.startsWith('/myhome/') || appLocation.pathname.startsWith('/short/') || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
     let cancelled = false
     loadCatalog().then(success => {
       if (!success || cancelled) return
@@ -165,6 +166,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
+          <Route path="/short/:code" element={<ShortLinkPage />} />
+          <Route path="/myhome/:handle" element={<ShopPage />} />
           <Route path="/removed-songs" element={<RemovedSongsPage />} />
           {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}
           {!xyxMode && <Route path="/rankings" element={<RankingsPage />} />}

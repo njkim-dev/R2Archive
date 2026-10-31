@@ -1,6 +1,7 @@
 import { lockShopScroll } from './shopModalScroll'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, Copy, X } from 'lucide-react'
+import { createShortUrl } from '../../api/shopSharing'
 import { getShopItem } from '../../api/shop'
 import { coupleShareUrl, SHOP_SLOTS } from '../../utils/shopUrl'
 import ShopViewModes from './ShopViewModes'
@@ -21,7 +22,9 @@ export default function ShopCouplePreview({ selection, meta, onStart, onClose })
   useEffect(() => { active.current = true; return () => { active.current = false; clearTimeout(timer.current) } }, [])
   useEffect(() => { if (fallback) { fallbackInput.current?.focus(); fallbackInput.current?.select() } }, [fallback])
   async function copy() {
-    const url = coupleShareUrl({ version: meta.revision, ...selection, ...camera })
+    let url
+    try { url = await createShortUrl(coupleShareUrl({ version: meta.revision, ...selection, ...camera })) } catch { if (active.current) { setToast('공유 URL을 만들지 못했습니다. 다시 시도해주세요.'); clearTimeout(timer.current); timer.current = setTimeout(() => setToast(''), 2600) } return }
+    if (!active.current) return
     setFallback('')
     let copied = true
     try { await navigator.clipboard.writeText(url) } catch { copied = false }
