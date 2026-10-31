@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-const ROW_HEIGHT = 298
+const ROW_HEIGHT = 260
 const OVERSCAN = 2
 
 export default function ShopVirtualGrid({ items, hasMore, loading, error, loadMore, renderItem, empty, resetKey, scrollPosition, restoreScroll }) {
