@@ -1214,6 +1214,7 @@ test('unavailable previews are tagged over images before selection and non-cash 
     return tag.top >= image.top && tag.bottom <= image.bottom && tag.left >= image.left && tag.right <= image.right
   })
   expect(inside).toBe(true)
+  await card.getByRole('button', { name: `${unavailable.name} 자세히 보기`, exact: true }).scrollIntoViewIfNeeded()
   const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-pair-filter', '[data-item-id="403"] .shop-card-image', '[data-item-id="403"] .shop-preview-unavailable'])
   await watcher.expectStable()
   release()
