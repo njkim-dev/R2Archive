@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { deleteShopFavorite, getShopFavorites, saveShopFavorite } from '../../api/shop'
+import { clearShopFavorites, deleteShopFavorite, getShopFavorites, saveShopFavorite } from '../../api/shop'
 
 const empty = new Set()
 export default function useShopFavorites(userId) {
+  const [clearing, setClearing] = useState(false)
   const [revision, reload] = useState(0)
   const [state, setState] = useState({ owner: null, ids: empty, ready: false, error: '' })
   const [pending, setPending] = useState(new Set())
@@ -10,7 +11,7 @@ export default function useShopFavorites(userId) {
   useEffect(() => {
     const session = { owner: userId, ids: new Set(), pending: new Set() }
     current.current = session
-    setPending(new Set())
+    setPending(new Set()); setClearing(false)
     setState({ owner: userId, ids: session.ids, ready: false, error: '' })
     if (!userId) return
     const controller = new AbortController()
@@ -25,7 +26,7 @@ export default function useShopFavorites(userId) {
   }, [userId, revision])
   const toggle = useCallback(async item => {
     const session = current.current, id = String(item.id)
-    if (!userId || session.owner !== userId || session.pending.has(id)) return false
+    if (!userId || session.owner !== userId || session.pending.has(id) || session.clearing) return false
     const wasSaved = session.ids.has(id)
     session.pending.add(id)
     session.ids = new Set(session.ids)
@@ -47,6 +48,26 @@ export default function useShopFavorites(userId) {
       if (current.current === session) setPending(new Set(session.pending))
     }
   }, [userId])
+  const clear = useCallback(async slot => {
+    const session = current.current
+    if (!userId || session.owner !== userId || session.pending.size || session.clearing) return false
+    session.clearing = true; setClearing(true)
+    setState(previous => ({ ...previous, error: '' }))
+    try {
+      const result = await clearShopFavorites(slot)
+      if (current.current !== session) return false
+      const removed = new Set(result.removed_ids.map(String))
+      session.ids = new Set([...session.ids].filter(id => !removed.has(id)))
+      setState({ owner: userId, ids: session.ids, ready: true, error: '' })
+      return true
+    } catch (error) {
+      if (current.current === session) setState(previous => ({ ...previous, error: typeof error.response?.data?.detail === 'string' ? error.response.data.detail : '즐겨찾기를 초기화하지 못했습니다. 다시 시도해주세요.' }))
+      return false
+    } finally {
+      session.clearing = false
+      if (current.current === session) setClearing(false)
+    }
+  }, [userId])
   const owned = state.owner === userId && !!userId
-  return { ids: owned ? state.ids : empty, ready: owned && state.ready, error: owned ? state.error : '', pending: owned ? pending : empty, toggle, reload: () => reload(value => value + 1) }
+  return { ids: owned ? state.ids : empty, ready: owned && state.ready, error: owned ? state.error : '', pending: owned ? pending : empty, clearing: owned && clearing, clear, toggle, reload: () => reload(value => value + 1) }
 }

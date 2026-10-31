@@ -7,3 +7,4 @@ export const getShopItem = (id, version) => api.get(`/items/${id}`, { params: { 
 export const getShopFavorites = signal => api.get('/favorites', { signal }).then(r => r.data)
 export const saveShopFavorite = (id, version) => api.post(`/favorites/${id}`, null, { params: { version } }).then(r => r.data)
 export const deleteShopFavorite = id => api.delete(`/favorites/${id}`).then(r => r.data)
+export const clearShopFavorites = slot => api.delete('/favorites', { params: { slot: slot || undefined } }).then(r => r.data)

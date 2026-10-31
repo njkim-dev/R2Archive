@@ -223,6 +223,21 @@ def favorites(request: Request):
     return JSONResponse({'ids': ids}, headers=PRIVATE_HEADERS)
 
 
+@router.delete("/favorites")
+@bounded_shop_read
+def clear_favorites(request: Request, slot: str | None = Query(None)):
+    uid = favorite_user(request)
+    if slot is not None and slot not in ('hair', 'face', 'top', 'bottom', 'shoes', 'pet', 'accessory', 'summon'):
+        raise HTTPException(status_code=422, detail="아이템 부위가 올바르지 않습니다")
+    with get_conn() as conn, conn.cursor() as cur:
+        favorite_storage(cur)
+        condition = f" AND EXISTS (SELECT 1 FROM shop_items AS i WHERE i.item_id = shop_favorites.item_id AND ({slot_sql('i')}) = %s)" if slot else ''
+        cur.execute('DELETE FROM shop_favorites WHERE user_id = %s' + condition + ' RETURNING item_id', (uid, slot) if slot else (uid,))
+        removed = [str(row[0]) for row in cur.fetchall()]
+        conn.commit()
+    return JSONResponse({'removed_ids': removed, 'count': len(removed)}, headers=PRIVATE_HEADERS)
+
+
 @router.post("/favorites/{item_id}")
 @bounded_shop_read
 def add_favorite(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):

@@ -1,3 +1,4 @@
+import { lockShopScroll } from './shopModalScroll'
 import { useLayoutEffect, useRef } from 'react'
 
 export default function ShopMobilePanel({ open, onClose, children }) {
@@ -5,12 +6,9 @@ export default function ShopMobilePanel({ open, onClose, children }) {
   useLayoutEffect(() => {
     const node = dialog.current
     if (!open) return
-    const body = document.body, overflow = body.style.overflow, padding = body.style.paddingRight
-    const gutter = window.innerWidth - document.documentElement.clientWidth
-    body.style.paddingRight = `${parseFloat(getComputedStyle(body).paddingRight) + gutter}px`
-    body.style.overflow = 'hidden'
+    const release = lockShopScroll()
     node.showModal()
-    return () => { node.close(); body.style.overflow = overflow; body.style.paddingRight = padding }
+    return () => { node.close(); release() }
   }, [open])
   return <dialog ref={dialog} className="shop-mobile-panel" aria-label="아이템 현황" onCancel={event => { event.preventDefault(); onClose() }} onClick={event => {
     if (event.target !== event.currentTarget) return

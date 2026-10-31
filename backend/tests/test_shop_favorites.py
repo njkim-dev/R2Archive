@@ -98,6 +98,43 @@ class ShopFavoriteTests(unittest.TestCase):
             self.assertIn('female',call.args[1])
             self.assertIn('face',call.args[1])
 
+    def test_clear_all_returns_removed_ids_and_only_touches_the_session_account(self):
+        cur, conn, context = self.database()
+        cur.fetchone.return_value = ('shop_favorites',)
+        cur.fetchall.return_value = [(200,), (1000208,)]
+        with patch.object(shop, 'fetch_user', return_value={'id': 7}), patch.object(shop, 'get_conn', return_value=context):
+            response = self.client().delete('/api/shop/favorites?user_id=999')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'removed_ids': ['200', '1000208'], 'count': 2})
+        self.assertEqual(cur.execute.call_args.args[1], (7,))
+        self.assertIn('WHERE user_id = %s RETURNING item_id', cur.execute.call_args.args[0])
+        self.assertEqual(response.headers['cache-control'], 'private, no-store')
+        conn.commit.assert_called_once()
+
+    def test_clear_slot_removes_both_genders_and_old_catalog_entries_without_touching_other_slots(self):
+        for slot in ['hair', 'face', 'top', 'bottom', 'shoes', 'pet', 'accessory', 'summon']:
+            cur, conn, context = self.database()
+            cur.fetchone.return_value = ('shop_favorites',)
+            cur.fetchall.return_value = [(200,), (201,)]
+            with patch.object(shop, 'fetch_user', return_value={'id': 7}), patch.object(shop, 'get_conn', return_value=context):
+                response = self.client().delete('/api/shop/favorites?slot=' + slot)
+            self.assertEqual(response.status_code, 200)
+            query, parameters = cur.execute.call_args.args
+            self.assertEqual(parameters, (7, slot))
+            self.assertIn('i.item_id = shop_favorites.item_id', query)
+            self.assertIn('i.category', query)
+            self.assertNotIn('sex =', query)
+            self.assertNotIn('revision =', query)
+            conn.commit.assert_called_once()
+
+    def test_clear_requires_authentication_valid_scope_and_same_origin(self):
+        with patch.object(shop, 'get_conn') as connection, patch.object(shop, 'fetch_user', return_value={'id': 7}):
+            self.assertEqual(self.client().delete('/api/shop/favorites?slot=invalid').status_code, 422)
+            self.assertEqual(self.client(csrf=True).delete('/api/shop/favorites', headers={'Origin': 'https://untrusted.invalid'}).status_code, 403)
+            app = FastAPI(); app.include_router(shop.router)
+            self.assertEqual(TestClient(app).delete('/api/shop/favorites').status_code, 401)
+            connection.assert_not_called()
+
     def test_cross_site_cookie_writes_are_rejected_before_touching_favorites(self):
         with patch.object(shop,'get_conn') as connection:
             response=self.client(csrf=True).post('/api/shop/favorites/200',headers={'Origin':'https://untrusted.invalid'})

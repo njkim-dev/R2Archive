@@ -33,8 +33,8 @@ export function outfitShareUrl({ version, sex, slots, pair, angle, zoom }) {
   return url.href
 }
 
-export function coupleShareUrl({ version, sex, slots, item }) {
-  const url = new URL(outfitShareUrl({ version, sex, slots, pair: true, angle: 180, zoom: 100 }))
+export function coupleShareUrl({ version, sex, slots, item, angle = 180, zoom = 100 }) {
+  const url = new URL(outfitShareUrl({ version, sex, slots, pair: true, angle, zoom }))
   url.searchParams.set('view', 'couple')
   url.searchParams.set('item', String(item.id || item))
   return url.href
