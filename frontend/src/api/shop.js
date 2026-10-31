@@ -8,3 +8,6 @@ export const getShopFavorites = signal => api.get('/favorites', { signal }).then
 export const saveShopFavorite = (id, version) => api.post(`/favorites/${id}`, null, { params: { version } }).then(r => r.data)
 export const deleteShopFavorite = id => api.delete(`/favorites/${id}`).then(r => r.data)
 export const clearShopFavorites = slot => api.delete('/favorites', { params: { slot: slot || undefined } }).then(r => r.data)
+export const getShopWardrobe = (version, signal) => api.get('/wardrobe', { params: { version }, signal }).then(r => r.data)
+export const saveShopWardrobe = (id, version) => api.post(`/wardrobe/${id}`, null, { params: { version } }).then(r => r.data)
+export const setShopWardrobeMain = (id, sex, version) => api.put(`/wardrobe/${id}/main`, null, { params: { sex, version } }).then(r => r.data)

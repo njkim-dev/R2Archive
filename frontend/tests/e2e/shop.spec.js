@@ -13,9 +13,12 @@ const mesh = { meshes: [{ name: 'Waist', vertices: [-20, 20, 0, 0, 0, 1, 0, 0, 2
 const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertices: [-130, 30, 0, 0, 0, 1, 0, 0, -30, 30, 0, 0, 0, 1, 1, 0, -80, 140, 0, 0, 0, 1, .5, 1] }] }
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
-async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate, textureRevision, favoriteIds = [], favoriteGate, authGate } = {}) {
+async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, items, nextGate, models, texture = png, modelGate, textureRevision, favoriteIds = [], favoriteGate, authGate, wardrobeIds = [], wardrobeMains = [], wardrobeGate, wardrobeSaveGate } = {}) {
   const requests = []
   const savedFavorites = new Set(favoriteIds.map(String))
+  const savedOwned = new Set(wardrobeIds.map(String))
+  const mains = new Map(wardrobeMains.map(main => [`${main.sex}:${main.slot}`, main]))
+  const ownedResponse = () => ({ ids: [...savedOwned], mains: [...mains.values()] })
   await page.addInitScript(() => { window.__copiedShopUrl = ''; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => { window.__copiedShopUrl = value } } }) })
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname
@@ -26,6 +29,24 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
     if (path === '/api/shop/favorites' && route.request().method() === 'DELETE') { const slot = url.searchParams.get('slot'), removed = [...savedFavorites].filter(id => !slot || (items || [shirt,femaleShirt,pet,hero]).some(item => item.id === id && item.slot === slot)); removed.forEach(id => savedFavorites.delete(id)); return route.fulfill({ json: { removed_ids: removed, count: removed.length } }) }
     if (path === '/api/shop/favorites') { if (favoriteGate) await favoriteGate; return route.fulfill({ json: { ids: [...savedFavorites] } }) }
     if (path.startsWith('/api/shop/favorites/')) { const id = path.split('/').at(-1); if (route.request().method() === 'POST') savedFavorites.add(id); else savedFavorites.delete(id); return route.fulfill({ json: { id, favorite: savedFavorites.has(id) } }) }
+    if (path === '/api/shop/wardrobe') { if (wardrobeGate) await wardrobeGate; return route.fulfill({ json: ownedResponse() }) }
+    if (path.startsWith('/api/shop/wardrobe/')) {
+      if (wardrobeSaveGate) await wardrobeSaveGate
+      const id = path.split('/')[4], item = (items || [shirt, femaleShirt, pet]).find(item => item.id === id)
+      if (!item) return route.fulfill({ status: 404, json: { detail: '아이템 없음' } })
+      if (route.request().method() === 'POST') {
+        savedOwned.add(id)
+        for (const gender of item.sex === 'common' ? ['male', 'female'] : [item.sex]) {
+          const key = `${gender}:${item.slot}`
+          if (!mains.has(key)) mains.set(key, { sex: gender, slot: item.slot, item: { ...item, version } })
+        }
+      } else {
+        const sex = url.searchParams.get('sex')
+        if (!savedOwned.has(id)) return route.fulfill({ status: 404, json: { detail: '저장되지 않은 의상' } })
+        mains.set(`${sex}:${item.slot}`, { sex, slot: item.slot, item: { ...item, version } })
+      }
+      return route.fulfill({ json: ownedResponse() })
+    }
     if (path === '/api/shop/meta') { if (metaGate) await metaGate; return route.fulfill({ json: { revision: version, texture_revision: textureRevision, bases: { male: `${root}/models/${'d'.repeat(64)}.json.gz`, female: `${root}/models/${'e'.repeat(64)}.json.gz` }, counts: { wearable: 2, functional: 1, other: 0 }, admin_only: false } }) }
     if (path === '/api/shop/items') {
       if (listGate) await listGate
@@ -33,7 +54,7 @@ async function setup(page, { admin = true, loggedIn = true, metaGate, listGate, 
       const start = position ? Number(position.split(':')[0]) + 1 : 0, size = Number(params.get('page_size') || 24)
       if (start && nextGate) await nextGate
       let list = items || (params.get('department') === 'wearable' ? [params.get('sex') === 'female' ? femaleShirt : shirt] : [hero])
-      list = list.filter(item => (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('favorites_only') !== 'true' || savedFavorites.has(item.id)) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id || item.slot === 'pet' && item.sex === 'common'))
+      list = list.filter(item => (!item.is_unreleased || params.get('include_unreleased') === 'true' && item.department === 'wearable') && (!params.get('department') || item.department === params.get('department')) && (!params.get('sex') || item.sex === params.get('sex') || item.sex === 'common') && (!params.get('slot') || item.slot === params.get('slot')) && (!params.get('group') || item.group === params.get('group')) && (!params.get('subgroup') || item.subgroup === params.get('subgroup')) && (!params.get('q') || item.name.includes(params.get('q'))) && (params.get('owned_only') !== 'true' || savedOwned.has(item.id)) && (params.get('favorites_only') !== 'true' || savedFavorites.has(item.id)) && (params.get('preview_only') !== 'true' || !!item.preview_available && !!item.model) && (params.get('paired_only') !== 'true' || !!item.counterpart_id || item.slot === 'pet' && item.sex === 'common'))
       const chunk = list.slice(start, start + size), more = start + size < list.length
       return route.fulfill({ json: { version, items: chunk, total: start ? null : list.length, page_size: size, has_more: more, next_cursor: more ? `${start + size - 1}:${chunk.at(-1).id}` : null } })
     }
@@ -60,6 +81,135 @@ async function setViewerAngle(page, target) {
     angle = next; delta = ((target - angle + 540) % 360) - 180
   }
 }
+
+test('unreleased clothes are hidden by default suppress NEW and all prices and preserve shared selection', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const hidden = { ...femaleShirt, id: '30320871', name: '토끼 민트 상의(여)', is_unreleased: true, is_new: true, version }
+  const items = [{ ...femaleShirt, is_new: true }, hidden, { ...hero, id: '30807', is_unreleased: true }]
+  await setup(page, { loggedIn: false, items })
+  await page.goto('/shop?sex=female')
+  await expect(page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true })).toBeChecked()
+  await expect(page.locator(`[data-item-id="${hidden.id}"]`)).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: '마이홈', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '내 의상으로 저장', exact: true })).toBeDisabled()
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route(/\/api\/shop\/items\?/, async route => { if (new URL(route.request().url()).searchParams.get('include_unreleased') === 'true') await gate; return route.fallback() })
+  const watcher = await watchLayout(page, ['.shop-spaces', '.shop-search', '.shop-grid', '.shop-pair-filter', '.shop-panel'])
+  await page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true }).uncheck()
+  await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
+  await watcher.expectStable(); release()
+  const card = page.locator(`[data-item-id="${hidden.id}"]`)
+  await expect(card).toBeVisible()
+  await expect(card.locator('.shop-unreleased-tag')).toHaveText('미출시')
+  await expect(card.locator('.shop-new-tag')).toHaveCount(0)
+  await expect(card.locator('.shop-card-price')).toHaveText('')
+  await watcher.expectStable(); await watcher.stop()
+  await card.getByRole('button', { name: '착용하기', exact: true }).click()
+  await expect(card.getByRole('button', { name: '착용 해제', exact: true })).toBeVisible()
+  await card.getByRole('button', { name: hidden.name + ' URL 복사', exact: true }).click()
+  const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  expect(url.searchParams.has('price')).toBe(false)
+  await page.goto(url.pathname + url.search)
+  await expect(page.locator('.shop-slots')).toContainText(hidden.name)
+  await expect(page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true })).not.toBeChecked()
+  await expect(page.locator('.shop-price-options')).toHaveCount(0)
+  await expect(page.locator('.shop-detail-price')).toHaveCount(0)
+})
+
+test('my home saves first mains preserves later additions switches mains and restores defaults without changing shared outfits', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const second = { ...shirt, id: '202', name: '두번째 검증 셔츠(남)', is_new: true }
+  const items = [shirt, second, femaleShirt, pet, hero]
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await setup(page, { items, wardrobeSaveGate: gate })
+  await page.goto('/shop?sex=male')
+  const firstCard = page.locator('[data-item-id="200"]'), secondCard = page.locator('[data-item-id="202"]')
+  await expect(firstCard.getByRole('button', { name: '내 의상으로 저장', exact: true })).toBeEnabled()
+  await firstCard.getByRole('button', { name: '내 의상으로 저장', exact: true }).scrollIntoViewIfNeeded()
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '[data-item-id="200"]', '[data-item-id="202"]'])
+  await firstCard.getByRole('button', { name: '내 의상으로 저장', exact: true }).click()
+  await expect(firstCard.getByRole('button', { name: '내 의상으로 저장', exact: true })).toBeDisabled()
+  await watcher.expectStable(); release()
+  await expect(firstCard.locator('.shop-owned-tag')).toHaveText('내 아이템')
+  await watcher.expectStable(); await watcher.stop()
+  await secondCard.getByRole('button', { name: '내 의상으로 저장', exact: true }).click()
+  await expect(secondCard.locator('.shop-owned-tag')).toBeVisible()
+  const newBox = await secondCard.locator('.shop-new-tag').boundingBox(), ownedBox = await secondCard.locator('.shop-owned-tag').boundingBox()
+  expect(ownedBox.x).toBeGreaterThanOrEqual(newBox.x + newBox.width)
+  await page.getByRole('tab', { name: '마이홈', exact: true }).click()
+  await expect(page.getByRole('tab', { name: '기능성ㆍ소모품', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: '기타', exact: true })).toHaveCount(0)
+  await expect(page.locator('.shop-card')).toHaveCount(2)
+  await expect(firstCard.locator('.shop-main-tag')).toHaveText('메인')
+  await expect(secondCard.locator('.shop-main-tag')).toHaveCount(0)
+  await secondCard.getByRole('button', { name: '메인으로 지정', exact: true }).click()
+  await expect(secondCard.locator('.shop-main-tag')).toHaveText('메인')
+  await expect(firstCard.locator('.shop-main-tag')).toHaveCount(0)
+  await page.screenshot({ path: test.info().outputPath('wardrobe-home.png'), fullPage: true })
+  await page.getByRole('button', { name: '여성', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(0)
+  await page.getByRole('button', { name: '남성', exact: true }).click()
+  await expect(secondCard.locator('.shop-main-tag')).toHaveText('메인')
+  await page.reload()
+  await openOutfitPanel(page)
+  await expect(page.locator('.shop-slots')).toContainText(second.name)
+  await closeMobilePanel(page)
+  await firstCard.getByRole('button', { name: '착용하기', exact: true }).click()
+  await previewSelection(page)
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const url = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  expect(url.searchParams.get('top')).toBe(shirt.id)
+  await page.goto(url.pathname + url.search)
+  await openOutfitPanel(page)
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await page.goto('/shop?sex=male')
+  await openOutfitPanel(page)
+  await expect(page.locator('.shop-slots')).toContainText(second.name)
+})
+
+test('failed main changes preserve the previous main outfit and catalog geometry', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const second = { ...shirt, id: '202', name: '다른 저장 의상', is_unreleased: true }
+  await setup(page, { items: [shirt, second], wardrobeIds: ['200', '202'], wardrobeMains: [{ sex: 'male', slot: 'top', item: shirt }] })
+  await page.goto('/shop?sex=male')
+  await page.getByRole('tab', { name: '마이홈', exact: true }).click()
+  const card = page.locator('[data-item-id="202"]')
+  await expect(card).toBeVisible()
+  await expect(card.locator('.shop-unreleased-tag')).toHaveText('미출시')
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route('**/api/shop/wardrobe/202/main?**', async route => { await gate; return route.fulfill({ status: 503, json: { detail: '메인 의상 저장을 다시 시도해주세요.' } }) })
+  await card.getByRole('button', { name: '메인으로 지정', exact: true }).scrollIntoViewIfNeeded()
+  const watcher = await watchLayout(page, ['.shop-spaces', '.shop-search', '.shop-grid', '.shop-feedback'])
+  await card.getByRole('button', { name: '메인으로 지정', exact: true }).click()
+  await expect(card.getByRole('button', { name: '메인으로 지정', exact: true })).toBeDisabled()
+  await watcher.expectStable(); release()
+  await expect(page.getByRole('alert')).toHaveText('메인 의상 저장을 다시 시도해주세요.')
+  await expect(page.locator('[data-item-id="200"] .shop-main-tag')).toHaveText('메인')
+  await expect(card.locator('.shop-main-tag')).toHaveCount(0)
+  await watcher.expectStable(); await watcher.stop()
+  await openOutfitPanel(page)
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+})
+
+test('late saved mains do not overwrite a new choice or move the catalog while wardrobe data arrives', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const second = { ...shirt, id: '202', name: '지금 선택한 셔츠' }
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await setup(page, { items: [shirt, second], wardrobeIds: ['200'], wardrobeMains: [{ sex: 'male', slot: 'top', item: shirt }], wardrobeGate: gate })
+  await page.goto('/shop?sex=male')
+  await expect(page.locator('.shop-card')).toHaveCount(2)
+  await page.locator('[data-item-id="202"]').getByRole('button', { name: '착용하기', exact: true }).click()
+  const watcher = await watchLayout(page, ['.shop-spaces', '.shop-departments', '.shop-search', '.shop-grid', '.shop-panel'])
+  await watcher.expectStable(); release()
+  await expect(page.locator('[data-item-id="200"] .shop-owned-tag')).toBeVisible()
+  await watcher.expectStable(); await watcher.stop()
+  await openOutfitPanel(page)
+  await expect(page.locator('.shop-slots')).toContainText(second.name)
+})
 async function setViewerZoom(page, target) {
   const canvas = page.locator('.shop-stage canvas'), before = Number(await canvas.getAttribute('data-view-zoom'))
   await canvas.hover(); await page.mouse.wheel(0, -Math.log(target / before) / .0015)

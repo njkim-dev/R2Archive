@@ -22,7 +22,7 @@ export default function ShopFavoritePicker({ slot, sex, version, selected, favor
       const collected = new Map(), cursors = new Set()
       let cursor = ''
       do {
-        const data = await getShopItems({ version, sex, slot, department: 'wearable', favorites_only: true, preview_only: true, cursor, page_size: 60 }, controller.signal)
+        const data = await getShopItems({ version, sex, slot, department: 'wearable', favorites_only: true, preview_only: true, include_unreleased: true, cursor, page_size: 60 }, controller.signal)
         if (controller.signal.aborted) return
         for (const item of data.items) collected.set(item.id, item)
         setAll([...collected.values()])

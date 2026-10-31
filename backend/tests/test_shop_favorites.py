@@ -49,13 +49,13 @@ class ShopFavoriteTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         self.assertTrue(response.json()['favorite'])
         queries=[call.args[0] for call in cur.execute.call_args_list]
-        self.assertIn('AND show',queries[1])
-        self.assertNotIn("= 'wearable'",queries[1])
+        self.assertIn('(show OR',queries[1])
+        self.assertIn("= 'wearable'",queries[1])
         self.assertIn('ON CONFLICT DO NOTHING',queries[2])
         self.assertEqual(cur.execute.call_args.args[1],(7,200))
         conn.commit.assert_called_once()
 
-    def test_hidden_and_missing_items_cannot_be_saved(self):
+    def test_missing_items_cannot_be_saved(self):
         cur,conn,context=self.database()
         cur.fetchone.side_effect=[{'storage':'shop_favorites'},None]
         with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(shop,'get_conn',return_value=context),patch.object(shop,'catalog',return_value={'revision':'a'*20}):

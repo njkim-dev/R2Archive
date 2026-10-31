@@ -102,7 +102,7 @@ class ShopTests(unittest.TestCase):
             for kind, filename in [("source", image), ("models", image), ("textures", model), ("textures", "shop.txt"), ("models", "missing.json.gz")]:
                 self.assertEqual(client.get(f"/api/shop/assets/{version}/{kind}/{filename}").status_code, 404)
 
-    def test_hidden_items_cannot_be_resolved_by_direct_url(self):
+    def test_missing_items_cannot_be_resolved_and_direct_access_is_limited_to_visible_or_wearable_items(self):
         client = self.client()
         cursor = MagicMock()
         cursor.fetchone.return_value = None
@@ -112,7 +112,7 @@ class ShopTests(unittest.TestCase):
         context.__enter__.return_value = connection
         with patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
             self.assertEqual(client.get("/api/shop/items/20210882").status_code, 404)
-        self.assertIn("AND show", cursor.execute.call_args.args[0])
+        self.assertIn("(show OR", cursor.execute.call_args.args[0])
 
     def test_search_is_parameterized_and_visible_only(self):
         client = self.client()

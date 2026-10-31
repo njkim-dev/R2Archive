@@ -102,12 +102,16 @@ def serialize(row):
     item["thumbnail"] = asset_url(revision, "thumbnails", item.get("thumbnail"))
     item["model"] = model_url(revision, item.get("model"), pose_catalog())
     item["version"] = revision
+    if item.get('is_unreleased'):
+        item['prices'] = []
+        item['is_new'] = False
     if item.get('category') == '507':
         item['couple_preview'] = couple_preview(SHOP_DIR, item['id'])
     return item
 
 
-ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, {counterpart_sql()} AS counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
+ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, {counterpart_sql()} AS counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, NOT show AS is_unreleased, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
+ACCESSIBLE = f"(show OR ({DEPARTMENT_SQL}) = 'wearable')"
 
 
 @router.get("/meta")
@@ -141,14 +145,16 @@ def items(
     paired_only: bool = False,
     preview_only: bool = False,
     favorites_only: bool = False,
+    owned_only: bool = False,
+    include_unreleased: bool = False,
     cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(24, ge=1, le=60),
 ):
-    uid = favorite_user(request) if favorites_only else None
+    uid = favorite_user(request) if favorites_only or owned_only else None
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         current = catalog(cur, version)
-        conditions = ["revision = %s", "show"]
+        conditions = ["revision = %s", ACCESSIBLE if include_unreleased else "show"]
         args = [current["revision"]]
         if q.strip():
             conditions.append("position(lower(%s) in lower(name)) > 0")
@@ -165,6 +171,10 @@ def items(
         if favorites_only:
             conditions.append('EXISTS (SELECT 1 FROM shop_favorites AS favorite WHERE favorite.user_id = %s AND favorite.item_id = shop_items.item_id)')
             args.append(uid)
+        if owned_only:
+            conditions.append(f"({DEPARTMENT_SQL}) = 'wearable'")
+            conditions.append('EXISTS (SELECT 1 FROM shop_wardrobe AS owned WHERE owned.user_id = %s AND owned.item_id = shop_items.item_id)')
+            args.append(uid)
         if paired_only:
             partner_preview = 'AND partner.preview_available AND partner.model IS NOT NULL' if preview_only else ''
             conditions.append(f"""({department_sql('shop_items')}) = 'wearable' AND (
@@ -175,7 +185,7 @@ def items(
                 WHERE partner.revision = shop_items.revision
                   AND partner.item_id = {counterpart_sql()}
                   AND {counterpart_sql('partner')} = shop_items.item_id
-                  AND partner.show AND ({department_sql('partner')}) = 'wearable'
+                  AND {"(partner.show OR " + department_sql('partner') + " = 'wearable')" if include_unreleased else 'partner.show'} AND ({department_sql('partner')}) = 'wearable'
                   AND ({slot_sql('partner')}) = ({slot_sql('shop_items')})
                   AND (partner.name_key = shop_items.name_key OR {reviewed_pair_sql()})
                   {partner_preview}
@@ -247,7 +257,7 @@ def add_favorite(request: Request, item_id: int, version: str | None = Query(Non
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         favorite_storage(cur)
         current = catalog(cur, version)
-        cur.execute("SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND show", (current['revision'], item_id))
+        cur.execute(f"SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND {ACCESSIBLE}", (current['revision'], item_id))
         if cur.fetchone() is None:
             raise HTTPException(status_code=404, detail="즐겨찾기에 추가할 수 없는 아이템입니다")
         cur.execute('INSERT INTO shop_favorites (user_id, item_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (uid, item_id))
@@ -268,12 +278,85 @@ def remove_favorite(request: Request, item_id: int):
     return JSONResponse({'id': str(item_id), 'favorite': False}, headers=PRIVATE_HEADERS)
 
 
+def wardrobe_storage(cur):
+    cur.execute("SELECT to_regclass('public.shop_wardrobe') AS owned, to_regclass('public.shop_wardrobe_mains') AS mains")
+    row = cur.fetchone()
+    if not row or not row['owned'] or not row['mains']:
+        raise HTTPException(status_code=503, detail="내 의상 저장소를 준비 중입니다")
+
+
+def wardrobe_state(cur, uid, revision):
+    cur.execute('SELECT item_id FROM shop_wardrobe WHERE user_id = %s ORDER BY item_id', (uid,))
+    ids = [str(row['item_id']) for row in cur.fetchall()]
+    cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision = %s AND {ACCESSIBLE} AND item_id IN (SELECT item_id FROM shop_wardrobe_mains WHERE user_id = %s)", (revision, uid))
+    items = {row['id']: serialize(row) for row in cur.fetchall()}
+    cur.execute('SELECT sex, slot, item_id FROM shop_wardrobe_mains WHERE user_id = %s ORDER BY sex, slot', (uid,))
+    mains = [{'sex': row['sex'], 'slot': row['slot'], 'item': items[row['item_id']]} for row in cur.fetchall() if row['item_id'] in items]
+    return {'ids': ids, 'mains': mains}
+
+
+@router.get('/wardrobe')
+@bounded_shop_read
+def wardrobe(request: Request, version: str | None = Query(None, max_length=64)):
+    uid = favorite_user(request)
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+        wardrobe_storage(cur)
+        current = catalog(cur, version)
+        result = wardrobe_state(cur, uid, current['revision'])
+    return JSONResponse(result, headers=PRIVATE_HEADERS)
+
+
+def wardrobe_item(cur, uid, item_id, version):
+    if not 0 < item_id <= 9223372036854775807:
+        raise HTTPException(status_code=422, detail='아이템 번호가 올바르지 않습니다')
+    wardrobe_storage(cur)
+    current = catalog(cur, version)
+    # Serialize first-save/default selection for the same account, including two concurrent saves.
+    cur.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (uid,))
+    cur.execute(f"SELECT sex, ({SLOT_SQL}) AS slot FROM shop_items WHERE revision = %s AND item_id = %s AND ({DEPARTMENT_SQL}) = 'wearable' AND ({SLOT_SQL}) IN ('hair','face','top','bottom','shoes','pet','accessory','summon')", (current['revision'], item_id))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail='내 의상에 저장할 수 없는 아이템입니다')
+    return current['revision'], row
+
+
+@router.post('/wardrobe/{item_id}')
+@bounded_shop_read
+def save_wardrobe(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
+    uid = favorite_user(request)
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+        revision, row = wardrobe_item(cur, uid, item_id, version)
+        cur.execute('INSERT INTO shop_wardrobe (user_id, item_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (uid, item_id))
+        for gender in ('male', 'female') if row['sex'] == 'common' else (row['sex'],):
+            cur.execute('INSERT INTO shop_wardrobe_mains (user_id, sex, slot, item_id) VALUES (%s, %s, %s, %s) ON CONFLICT (user_id, sex, slot) DO NOTHING', (uid, gender, row['slot'], item_id))
+        result = wardrobe_state(cur, uid, revision)
+        conn.commit()
+    return JSONResponse(result, headers=PRIVATE_HEADERS)
+
+
+@router.put('/wardrobe/{item_id}/main')
+@bounded_shop_read
+def set_wardrobe_main(request: Request, item_id: int, sex: str = Query(..., pattern='^(male|female)$'), version: str | None = Query(None, max_length=64)):
+    uid = favorite_user(request)
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+        revision, row = wardrobe_item(cur, uid, item_id, version)
+        if row['sex'] not in ('common', sex):
+            raise HTTPException(status_code=422, detail='캐릭터 성별에 맞는 의상을 선택해주세요')
+        cur.execute('SELECT item_id FROM shop_wardrobe WHERE user_id = %s AND item_id = %s', (uid, item_id))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail='먼저 내 의상으로 저장해주세요')
+        cur.execute('INSERT INTO shop_wardrobe_mains (user_id, sex, slot, item_id) VALUES (%s, %s, %s, %s) ON CONFLICT (user_id, sex, slot) DO UPDATE SET item_id = EXCLUDED.item_id', (uid, sex, row['slot'], item_id))
+        result = wardrobe_state(cur, uid, revision)
+        conn.commit()
+    return JSONResponse(result, headers=PRIVATE_HEADERS)
+
+
 @router.get("/items/{item_id}")
 @bounded_shop_read
 def item(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         current = catalog(cur, version)
-        cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision = %s AND item_id = %s AND show", (current["revision"], item_id))
+        cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision = %s AND item_id = %s AND {ACCESSIBLE}", (current["revision"], item_id))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="표시할 수 없는 아이템입니다")
