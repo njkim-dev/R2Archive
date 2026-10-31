@@ -66,8 +66,10 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
             if (track.frames?.length !== data.frame_count * 16 || !track.frames.every(Number.isFinite)) throw new Error('의상 동작 자료가 올바르지 않습니다.')
             extras[name] = { ...track, frames: new Float32Array(track.frames) }
           }
-          clip.actors[gender] = { bones: actor.bones, frames: new Float32Array(actor.frames), extras }
+          if (actor.side != null && !['left', 'right'].includes(actor.side)) throw new Error('커플 배우 배치 자료가 올바르지 않습니다.')
+          clip.actors[gender] = { bones: actor.bones, frames: new Float32Array(actor.frames), extras, side: actor.side }
         }
+        if (clip.actors.male.side && clip.actors.male.side === clip.actors.female.side) throw new Error('커플 배우 배치 자료가 올바르지 않습니다.')
         if (!audioContext) throw new Error('이 브라우저에서 소리를 재생할 수 없습니다.')
         if (!await audioReady) throw new Error('소리를 시작하지 못했습니다. 창을 닫고 다시 열어주세요.')
         buffer = await audioContext.decodeAudioData(await response.arrayBuffer())
@@ -233,7 +235,10 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         gl.uniform1f(uniforms.halfHeight, halfHeight)
         gl.uniform1f(uniforms.halfDepth, Math.max(500, (bounds[1][2] - bounds[0][2]) / 2 + 10))
         for (const [index, group] of scene.slice(0, pair ? 2 : 1).entries()) {
-          const position = 50 + (group.offset - (bounds[0][0] + bounds[1][0]) / 2) / (halfHeight * aspect) * 50
+          const gender = index ? (sex === 'male' ? 'female' : 'male') : sex
+          const side = clip?.actors[gender].side
+          const labelOffset = side ? (side === 'left' ? -65 : 65) : group.offset
+          const position = 50 + (labelOffset - (bounds[0][0] + bounds[1][0]) / 2) / (halfHeight * aspect) * 50
           canvas.parentElement.style.setProperty(index ? '--shop-secondary-label' : '--shop-primary-label', `${Math.min(88, Math.max(12, position))}%`)
         }
         for (const group of scene) paint(group.meshes, group.offset)

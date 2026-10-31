@@ -12,7 +12,7 @@ import numpy as np
 
 from prepare_shop import Builder, BASE_FILES, bone_worlds, md9_materials, write_json
 from shop_archive import ArchiveSource
-from shop_pose import read_animation, local_pose, couple_scene_pose
+from shop_pose import read_animation, local_pose, couple_scene_pose, couple_actor_side
 
 
 SCHEMA = 'shop-couple-motion-v1'
@@ -59,13 +59,23 @@ def collect(game, shop, catalog):
             sound_id = sounds.get(name, int(effects.get(name, {}).get('SndBoy1', -1)))
             audio = source.resolve(soundpaths[sound_id]) if sound_id in soundpaths else None
             if audio and all(actors.values()):
-                for path in actors.values():
-                    read_animation(path)
+                sides = {}
+                for sex, actor in [('male', 'boy'), ('female', 'girl')]:
+                    animation = read_animation(actors[sex])
+                    variants = {}
+                    for side, letter in [('left', 'l'), ('right', 'r')]:
+                        alias = name + '_' + letter + '_' + actor
+                        path = source.resolve(aliases[alias]) if alias in aliases else None
+                        if path:
+                            variants[side] = read_animation(path)
+                    sides[sex] = couple_actor_side(animation, variants, 'left' if sex == 'male' else 'right')
+                if len(set(sides.values())) != 2:
+                    raise ValueError(f'Conflicting couple actor roles: {item_id}')
                 audio_target = shop / 'couple-input' / soundpaths[sound_id]
                 audio_target.parent.mkdir(parents=True, exist_ok=True)
                 if audio.resolve() != audio_target.resolve():
                     shutil.copyfile(audio, audio_target)
-                records[str(item_id)] = {'name': item['name'], 'actors': {sex: str(path.resolve()) for sex, path in actors.items()}, 'audio': str(audio_target.resolve())}
+                records[str(item_id)] = {'name': item['name'], 'actors': {sex: str(path.resolve()) for sex, path in actors.items()}, 'audio': str(audio_target.resolve()), 'actor_roles': sides}
                 break
         if str(item_id) not in records:
             unavailable[str(item_id)] = 'missing_assets'
@@ -145,10 +155,10 @@ def main():
     builder = Builder(Path(manifest['snapshot_root']), shop, manifest)
     bone_bindings, unresolved = bindings(builder)
     encoded = json.dumps({'schema': SCHEMA, 'bindings': bone_bindings}, separators=(',', ':'), allow_nan=False).encode()
-    generation = hashlib.sha256(SCHEMA.encode() + b':30fps-audio-normalized-v2-skirt:' + encoded)
+    generation = hashlib.sha256(SCHEMA.encode() + b':v5-original-mf-role-local-shared-clock:' + encoded)
     for item_id, record in sorted(records.items()):
         generation.update(item_id.encode())
-        generation.update(json.dumps({sex: couple_scene_pose(item_id, sex) for sex in record['actors']}, sort_keys=True).encode())
+        generation.update(json.dumps({sex: couple_scene_pose(record['actor_roles'][sex], sex) for sex in record['actors']}, sort_keys=True).encode())
         for path in [record['audio'], *record['actors'].values()]:
             generation.update(Path(path).read_bytes())
         generation.update(str(audio_info[item_id]['duration']).encode())
@@ -174,19 +184,21 @@ def main():
             raise ValueError('Invalid couple audio duration')
         frames = max(2, math.ceil(duration * 30))
         payload = {'schema': SCHEMA, 'duration': duration, 'frame_count': frames, 'bases': catalog['bases'], 'actors': {}}
+        animations = {sex: read_animation(Path(path)) for sex, path in record['actors'].items()}
+        shared_duration = max(animation['duration'] for animation in animations.values())
         for sex, base in builder.bases.items():
-            animation = read_animation(Path(record['actors'][sex]))
-            scene_pose = couple_scene_pose(item_id, sex)
+            animation = animations[sex]
+            scene_pose = np.array(couple_scene_pose(record['actor_roles'][sex], sex))
             names = [bone['name'] for bone in base['bones']]
             static = bone_worlds(base, base, builder.poses[sex])
             inverse = {name: np.linalg.inv(static[name]) for name in names}
             matrices = []
             for frame in range(frames):
-                time = animation['duration'] * frame / frames
+                time = shared_duration * frame / frames
                 locals_ = {bone['name']: np.array(local_pose(animation['tracks'][bone['name']], bone['matrix'], time)) for bone in base['bones'] if bone['name'] in animation['tracks']}
                 worlds = bone_worlds(base, base, {'locals': locals_, 'floor_offset': builder.poses[sex]['floor_offset']})
                 for name in names:
-                    world = worlds[name] @ np.array(scene_pose) if scene_pose is not None else worlds[name]
+                    world = worlds[name] @ scene_pose
                     matrices.extend(np.round(inverse[name] @ world, 6).ravel().tolist())
             extras = {}
             for name, track in animation['tracks'].items():
@@ -194,9 +206,10 @@ def main():
                     continue
                 extra_frames = []
                 for frame in range(frames):
-                    extra_frames.extend(np.round(local_pose(track, np.eye(4), animation['duration'] * frame / frames), 6).ravel().tolist())
+                    extra_frames.extend(np.round(local_pose(track, np.eye(4), shared_duration * frame / frames), 6).ravel().tolist())
                 extras[name] = {'frames': extra_frames, **{key: bool(track[key]) for key in ['position', 'rotation', 'scale']}}
-            payload['actors'][sex] = {'bones': names, 'frames': matrices, 'extras': extras}
+            payload['actors'][sex] = {'bones': names, 'frames': matrices, 'extras': extras, 'side': record['actor_roles'][sex], 'source_duration': animation['duration']}
+        payload['source_duration'] = shared_duration
         data = json.dumps(payload, separators=(',', ':'), allow_nan=False).encode()
         audio_path = Path(record['audio'])
         supported[item_id] = {'motion': asset('motions', gzip.compress(data, compresslevel=6, mtime=0), '.json.gz'), 'audio': asset('audio', audio_path.read_bytes(), audio_path.suffix.lower()), 'duration': duration}

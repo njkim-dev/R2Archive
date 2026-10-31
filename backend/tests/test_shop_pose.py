@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
-from shop_pose import local_pose, read_animation, sample_channel, couple_scene_pose
+from shop_pose import local_pose, read_animation, sample_channel, couple_scene_pose, couple_actor_side
 
 
 class ShopPoseTests(unittest.TestCase):
@@ -17,18 +17,32 @@ class ShopPoseTests(unittest.TestCase):
             with self.subTest(item_id=item_id):
                 boy = [[0,0,-1,0],[0,1,0,0],[1,0,0,0],[55,170,75,1]]
                 girl = [[0,0,1,0],[0,1,0,0],[-1,0,0,0],[-91,170,-14,1]]
-                boy = multiply(boy, couple_scene_pose(item_id, 'male'))
-                girl = multiply(girl, couple_scene_pose(str(item_id), 'female'))
+                boy = multiply(boy, couple_scene_pose('left', 'male'))
+                girl = multiply(girl, couple_scene_pose('right', 'female'))
                 self.assertEqual(boy[:3], girl[:3])
                 self.assertEqual(boy[2][:3], [0,0,1])
                 self.assertEqual(boy[3], [-75,170,55,1])
                 self.assertEqual(girl[3], [-14,170,91,1])
                 self.assertGreater(girl[3][0] + 65 - (boy[3][0] - 65), 150)
 
-    def test_other_couple_motions_keep_their_original_scene_coordinates(self):
-        for item_id in (30120, 30162, 30494, 30645, 30830, 30852):
-            for sex in ('male', 'female'):
-                self.assertIsNone(couple_scene_pose(item_id, sex))
+    def test_couple_actor_frames_are_opposite_and_reject_unknown_roles(self):
+        male, female = couple_scene_pose('left', 'male'), couple_scene_pose('right', 'female')
+        self.assertEqual(male[0][2], -female[0][2])
+        self.assertEqual(male[2][0], -female[2][0])
+        self.assertEqual(male[3], [0,0,0,1])
+        self.assertEqual(couple_scene_pose('right', 'male')[3], [130,0,0,1])
+        self.assertEqual(couple_scene_pose('left', 'female')[3], [-130,0,0,1])
+        with self.assertRaises(ValueError):
+            couple_scene_pose('common', 'male')
+
+    def test_actor_side_uses_root_motion_without_replacing_original_hand_animation(self):
+        left = {'duration': 100, 'tracks': {'Hip': {'position': [(0,0,0,0),(100,60,0,0)]}}}
+        right = {'duration': 100, 'tracks': {'Hip': {'position': [(0,0,0,0),(100,-60,0,0)]}}}
+        original = {'duration': 100, 'tracks': {'Hip': right['tracks']['Hip'], 'RightHand': {'rotation': ['original couple grip']}}}
+        self.assertEqual(couple_actor_side(original, {'left': left, 'right': right}, 'left'), 'right')
+        self.assertEqual(original['tracks']['RightHand']['rotation'], ['original couple grip'])
+        self.assertEqual(couple_actor_side(original, {}, 'left'), 'left')
+        self.assertEqual(couple_actor_side(original, {'left': right, 'right': right}, 'left'), 'left')
 
     def animation(self, position, rotation, suffix=b''):
         data = struct.pack('<If', 1, 100) + b'\x03Hip' + struct.pack('<3I', len(position), len(rotation), 0)

@@ -476,16 +476,16 @@ for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '
 const coupleRoot = `${root}/motions/`
 const coupleRing = { ...hero, id: '30120', name: '하트 주얼링', category: '507', group: 'couple', couple_preview: { motion: coupleRoot + '1'.repeat(64) + '.json.gz', bindings: coupleRoot + '2'.repeat(64) + '.json.gz', audio: `${root}/audio/${'3'.repeat(64)}.mp3`, duration: .5 } }
 const missingCoupleRing = { ...coupleRing, id: '30845', name: '흐르는 등불(공용)', couple_preview: null }
-async function coupleFixture(page, { motionGate } = {}) {
+async function coupleFixture(page, { motionGate, actorRoles = true } = {}) {
   const requests = await setup(page, { items: [shirt, femaleShirt, coupleRing, missingCoupleRing] })
   const wave = Buffer.alloc(44 + 22050 * 2)
   wave.write('RIFF'); wave.writeUInt32LE(wave.length - 8, 4); wave.write('WAVEfmt ', 8); wave.writeUInt32LE(16, 16); wave.writeUInt16LE(1, 20); wave.writeUInt16LE(1, 22); wave.writeUInt32LE(44100, 24); wave.writeUInt32LE(88200, 28); wave.writeUInt16LE(2, 32); wave.writeUInt16LE(16, 34); wave.write('data', 36); wave.writeUInt32LE(wave.length - 44, 40)
   const matrices = Array.from({ length: 15 }, (_, frame) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, Math.sin(frame * Math.PI * 2 / 15) * 15, 0, 0, 1]).flat()
-  const actor = { bones: ['Waist'], frames: matrices }
+  const actor = gender => ({ bones: ['Waist'], frames: matrices.map((value, index) => actorRoles && index % 16 === 12 ? value + (gender === 'male' ? 130 : -130) : value), ...(actorRoles ? { side: gender === 'male' ? 'right' : 'left' } : {}) })
   await page.route('**/api/shop/assets/*/motions/*', async route => {
     if (motionGate) await motionGate
     const bindings = route.request().url().includes('2'.repeat(64))
-    return route.fulfill({ json: bindings ? { schema: 'shop-couple-motion-v1', bindings: {} } : { schema: 'shop-couple-motion-v1', frame_count: 15, duration: .5, actors: { male: actor, female: actor } } })
+    return route.fulfill({ json: bindings ? { schema: 'shop-couple-motion-v1', bindings: {} } : { schema: 'shop-couple-motion-v1', frame_count: 15, duration: .5, actors: { male: actor('male'), female: actor('female') } } })
   })
   await page.route('**/api/shop/assets/*/audio/*', route => route.fulfill({ body: wave, contentType: 'audio/mpeg' }))
   await page.addInitScript(() => {
@@ -535,12 +535,14 @@ test('couple preview loops selected outfits and audio without controls and keeps
   const watcher = await watchLayout(page, ['.shop-couple-heading', '.shop-couple-dialog .shop-stage', '.shop-couple-note', '.shop-header', '.shop-search'])
   await watcher.expectStable(); release()
   await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  const labelPositions = await dialog.locator('canvas').evaluate(canvas => ['--shop-primary-label', '--shop-secondary-label'].map(name => parseFloat(canvas.parentElement.style.getPropertyValue(name))))
+  expect(labelPositions[0]).toBeGreaterThan(labelPositions[1])
   await expect(dialog.getByRole('button')).toHaveCount(1)
   await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.state)).toBe('running')
   await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).starts)).toBe(1)
   expect(await page.evaluate(() => window.__coupleAudio.at(-1).loop)).toBe(true)
   const first = await dialog.locator('canvas').getAttribute('data-motion-frame')
-  await expect.poll(() => dialog.locator('canvas').getAttribute('data-motion-frame')).not.toBe(first)
+  await expect.poll(() => dialog.locator('canvas').getAttribute('data-motion-frame'), { intervals: [17, 41, 83, 127], timeout: 10000 }).not.toBe(first)
   await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1).context.currentTime)).toBeGreaterThan(1)
   await watcher.expectStable(); await watcher.stop()
   expect(requests).toContain('/api/shop/items/201')
@@ -564,7 +566,7 @@ test('back and Escape close couple audio and preserve the original item URL whil
   await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
   let release
   const gate = new Promise(resolve => { release = resolve })
-  await coupleFixture(page, { motionGate: gate })
+  await coupleFixture(page, { motionGate: gate, actorRoles: false })
   await page.goto(`/shop?item=30120&v=${version}`)
   await expect(page.locator('.shop-detail h3')).toHaveText(coupleRing.name)
   if (page.viewportSize().width <= 800) {
