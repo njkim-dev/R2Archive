@@ -67,7 +67,7 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-          npm run test:e2e -- --project=chromium-${{ matrix.width }} --reporter=line,json
+          npm run test:e2e -- --project=chromium-${{ matrix.width }} --reporter=line,json --max-failures=8
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

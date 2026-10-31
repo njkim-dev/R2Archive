@@ -43,6 +43,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
   const [status, setStatus] = useState('3D 모델을 준비 중입니다.')
   const callbacks=useRef({onReady,onFailure});callbacks.current={onReady,onFailure}
   const [failed, setFailed] = useState(false)
+  const [primaryOnLeft,setPrimaryOnLeft]=useState(true)
   useEffect(() => {
     let cancelled = false
     const resources = []
@@ -91,6 +92,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       const effects = await Promise.all(effectSpecs.map(async effect => ({ ...effect, data: effectAnimation(await motionData(effect.animation), models[effect.model].meshes, effect.kind === 'scene' ? clip?.frame_count : null) })))
       await Promise.all(effects.map(async effect => { if (effect.particles) effect.particleData = particleSystem(await motionData(effect.particles), effect.data.frame_count) }))
       if (cancelled) return
+      setPrimaryOnLeft(!clip||(clip.actors.a||clip.actors[sex]).side!=='right')
       const ornament = effects.find(effect => effect.kind === 'ornament')
       const sceneEffects = effects.filter(effect => effect.kind === 'scene')
       const ornamentPose = ornament ? ornamentPlacement(ornament.data.bounds) : null
@@ -376,6 +378,6 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
   return <div className="shop-stage">
     <canvas ref={canvasRef} tabIndex={0} data-view-mode={mode} role="img" aria-label={pair ? '두 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
-    <div className="shop-character-labels"><span>{sex === 'male' ? '남성' : '여성'} ㆍ {sex === selectedSex ? '선택한 의상' : '대응 의상'}</span>{pair && <span>{otherSex === 'male' ? '남성' : '여성'} ㆍ 대응 의상</span>}</div>
+    <div className="shop-character-labels">{(pair&&!primaryOnLeft?[{sex:otherSex,primary:false},{sex,primary:true}]:[{sex,primary:true},...(pair?[{sex:otherSex,primary:false}]:[])]).map(actor=><span key={actor.primary?'primary':'partner'} data-actor={actor.primary?'primary':'partner'}>{actor.sex==='male'?'남성':'여성'} ㆍ {actor.primary&&sex===selectedSex?'선택한 의상':'대응 의상'}</span>)}</div>
   </div>
 }

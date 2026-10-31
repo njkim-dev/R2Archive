@@ -87,7 +87,7 @@ test('unsupported same-sex import alerts without changing the partner and shared
   await page.evaluate(()=>fetch('/api/share/myhome',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'friend',character_id:1})}))
   await page.getByRole('button',{name:'내 커플 의상 불러오기',exact:true}).click();const importer=page.getByRole('dialog',{name:'내 커플 의상 불러오기',exact:true});await importer.getByLabel('친구 캐릭터의 마이홈 URL').fill('https://r2archive.com/myhome/friend')
   page.once('dialog',async alert=>{expect(alert.message()).toBe('동성 커플이 불가능한 반지입니다.');await alert.accept()});await importer.getByRole('button',{name:'의상 불러오기',exact:true}).click();await importer.getByRole('button',{name:'닫기',exact:true}).click()
-  await expect(page.locator('.shop-character-labels span').nth(1)).toContainText('남성')
+  await expect(page.locator('.shop-character-labels [data-actor="partner"]')).toContainText('남성')
   await page.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page)
   await page.route('**/api/auth/me',route=>route.fulfill({json:{user:null}}));await page.goto(url.pathname+url.search)
   const button=page.getByRole('button',{name:'내 캐릭터 의상 불러오기',exact:true});await expect(button).toBeDisabled();await expect(button).toHaveAttribute('title','로그인이 필요합니다.')
