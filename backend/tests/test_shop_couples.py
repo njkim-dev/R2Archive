@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 from fastapi import HTTPException
-from routers.shop_couples import public_handle
+from routers.shop_couples import public_handle,locked_relation
 from routers.shop_characters import character_state
 from shop_couples import partner_character
 
@@ -33,3 +33,18 @@ class CouplePrivacyTests(unittest.TestCase):
         cur=Cursor([None])
         with self.assertRaises(HTTPException) as result:partner_character(cur,5,7)
         self.assertEqual(result.exception.status_code,404);self.assertEqual(cur.queries[0][1],(7,5));self.assertIn("r.status='accepted'",cur.queries[0][0]);self.assertIn('own.user_id=%s',cur.queries[0][0])
+
+    def test_stale_notification_cannot_accept_or_remove_a_replaced_relationship(self):
+        row={'id':42,'sender_id':1,'recipient_id':7,'status':'pending'}
+        cur=Cursor([row,[],row])
+        with patch('routers.shop_couples.require_character'),patch('routers.shop_couples.lock_couple_changes'):
+            with self.assertRaises(HTTPException) as result:locked_relation(cur,5,7,41)
+        self.assertEqual(result.exception.status_code,409)
+        self.assertFalse(any('UPDATE' in sql.split(' FROM ')[0] or sql.startswith('DELETE') for sql,args in cur.queries))
+
+    def test_pending_cancel_cannot_break_a_just_accepted_couple(self):
+        row={'id':42,'sender_id':1,'recipient_id':7,'status':'accepted'}
+        cur=Cursor([row,[],row])
+        with patch('routers.shop_couples.require_character'),patch('routers.shop_couples.lock_couple_changes'):
+            with self.assertRaises(HTTPException) as result:locked_relation(cur,5,7,42,'pending')
+        self.assertEqual(result.exception.status_code,409)

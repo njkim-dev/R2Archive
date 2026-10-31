@@ -4,7 +4,8 @@ import {lockShopScroll} from './shopModalScroll'
 
 export default function ShopCoupleActions({characterId}){
   const couples=useCouples(),relation=couples.items.find(item=>item.character.id===characterId),[open,setOpen]=useState(false),[error,setError]=useState('')
-  async function remove(){if(relation.status==='accepted'&&!confirm('정말로 커플을 파기하시겠습니까?'))return;try{await couples.remove(characterId);setError('')}catch(e){setError(e.response?.data?.detail||'커플 정보를 변경하지 못했습니다.')}}
+  useEffect(()=>setError(''),[relation?.id,relation?.status])
+  async function remove(){if(relation.status==='accepted'&&!confirm('정말로 커플을 파기하시겠습니까?'))return;try{await couples.remove(characterId,relation.id,relation.status);setError('')}catch(e){setError(e.response?.data?.detail||'커플 정보를 변경하지 못했습니다.')}}
   return <div className="shop-couple-controls"><div>{relation?.status==='accepted'?<><button disabled={couples.busy} onClick={remove}>커플 파기</button><a className="shop-partner-link" href={relation.url}>커플 마이홈으로 이동</a></>:relation?.incoming?<button disabled={couples.busy} onClick={()=>couples.openRequest(relation)}>커플 수락</button>:relation?<button disabled={couples.busy} onClick={remove}>커플 요청 취소</button>:<button disabled={!couples.ready||couples.busy} onClick={()=>setOpen(true)}>커플 등록</button>}</div>{error&&<span role="alert">{error}</span>}{open&&<RequestDialog onClose={()=>setOpen(false)} onSubmit={async url=>{if(await couples.request(characterId,url))setOpen(false)}} busy={couples.busy}/>}</div>
 }
 

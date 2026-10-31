@@ -27,8 +27,8 @@ export default function ShopCouplesProvider({children}){
   },[items,prompt])
   useEffect(()=>{if(prompt&&!items.some(item=>item.id===prompt.id&&item.status==='pending'))setPrompt(null)},[items,prompt])
   async function write(operation){if(writeLock.current)return false;const current=uid;writeLock.current=true;setBusy(true);setError('');try{await operation();if(owner.current===current){setEpoch(value=>value+1);return true}return false}catch(e){if(owner.current===current){setEpoch(value=>value+1);setError(e.response?.data?.detail||'커플 정보를 변경하지 못했습니다.')}throw e}finally{if(owner.current===current){writeLock.current=false;setBusy(false)}}}
-  const value={items,ready,busy,request:(id,url)=>write(()=>requestCouple(id,url)),accept:id=>write(()=>acceptCouple(id)),remove:id=>write(()=>removeCouple(id)),openRequest:item=>{seen.current.add(item.id);setError('');setPrompt(item)}}
-  return <Context.Provider value={value}>{children}{prompt&&uid&&state.owner===uid&&<CoupleConsent request={prompt} busy={busy} error={error} onClose={()=>setPrompt(null)} onAccept={async()=>{try{if(await value.accept(prompt.character.id))setPrompt(null)}catch{}}} onReject={async()=>{try{if(await value.remove(prompt.character.id))setPrompt(null)}catch{}}}/>}</Context.Provider>
+  const value={items,ready,busy,request:(id,url)=>write(()=>requestCouple(id,url)),accept:(id,rid)=>write(()=>acceptCouple(id,rid)),remove:(id,rid,status)=>write(()=>removeCouple(id,rid,status)),openRequest:item=>{seen.current.add(item.id);setError('');setPrompt(item)}}
+  return <Context.Provider value={value}>{children}{prompt&&uid&&state.owner===uid&&<CoupleConsent request={prompt} busy={busy} error={error} onClose={()=>setPrompt(null)} onAccept={async()=>{try{if(await value.accept(prompt.character.id,prompt.id))setPrompt(null)}catch{}}} onReject={async()=>{try{if(await value.remove(prompt.character.id,prompt.id,'pending'))setPrompt(null)}catch{}}}/>}</Context.Provider>
 }
 
 function CoupleConsent({request,busy,error,onClose,onAccept,onReject}){

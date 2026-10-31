@@ -50,7 +50,7 @@ def request_couple(request:Request,character_id:int,payload:CoupleRequest):
         cur.execute('INSERT INTO shop_couple_members(character_id,relationship_id) VALUES(%s,%s),(%s,%s)',(character_id,rid,other,rid));conn.commit()
     return JSONResponse({'ok':True},status_code=201,headers=PRIVATE_HEADERS)
 
-def locked_relation(cur,uid,character_id):
+def locked_relation(cur,uid,character_id,expected_id=None,expected_status=None):
     lock_couple_changes(cur)
     require_character(cur,uid,character_id)
     cur.execute('SELECT r.id,r.sender_id,r.recipient_id,r.status FROM shop_couple_relationships r JOIN shop_couple_members m ON m.relationship_id=r.id WHERE m.character_id=%s',(character_id,));row=cur.fetchone()
@@ -58,24 +58,25 @@ def locked_relation(cur,uid,character_id):
     cur.execute('SELECT id FROM shop_characters WHERE id=ANY(%s) ORDER BY id FOR UPDATE',([row['sender_id'],row['recipient_id']],));cur.fetchall()
     cur.execute('SELECT id,sender_id,recipient_id,status FROM shop_couple_relationships WHERE id=%s FOR UPDATE',(row['id'],));row=cur.fetchone()
     if not row:raise HTTPException(409,'이미 처리된 요청입니다')
+    if expected_id is not None and row['id']!=expected_id or expected_status is not None and row['status']!=expected_status:raise HTTPException(409,'커플 정보가 변경되었습니다. 현재 상태를 다시 확인해주세요')
     return row
 
 @router.post('/{character_id}/accept')
 @bounded_shop_read
-def accept_couple(request:Request,character_id:int):
+def accept_couple(request:Request,character_id:int,relationship_id:int|None=Query(None,gt=0,le=9223372036854775807)):
     uid=favorite_user(request)
     with get_conn() as conn,conn.cursor(cursor_factory=RealDictCursor) as cur:
-        row=locked_relation(cur,uid,character_id)
+        row=locked_relation(cur,uid,character_id,relationship_id)
         if row['recipient_id']!=character_id or row['status']!='pending':raise HTTPException(409,'수락할 수 있는 요청이 아닙니다')
         cur.execute("UPDATE shop_couple_relationships SET status='accepted' WHERE id=%s",(row['id'],));conn.commit()
     return JSONResponse({'ok':True},headers=PRIVATE_HEADERS)
 
 @router.delete('/{character_id}')
 @bounded_shop_read
-def remove_couple(request:Request,character_id:int):
+def remove_couple(request:Request,character_id:int,relationship_id:int|None=Query(None,gt=0,le=9223372036854775807),expected_status:str|None=Query(None,pattern='^(pending|accepted)$')):
     uid=favorite_user(request)
     with get_conn() as conn,conn.cursor(cursor_factory=RealDictCursor) as cur:
-        row=locked_relation(cur,uid,character_id);cur.execute('DELETE FROM shop_couple_relationships WHERE id=%s',(row['id'],));conn.commit()
+        row=locked_relation(cur,uid,character_id,relationship_id,expected_status);cur.execute('DELETE FROM shop_couple_relationships WHERE id=%s',(row['id'],));conn.commit()
     return Response(status_code=204,headers=PRIVATE_HEADERS)
 
 @router.get('/{character_id}/home')

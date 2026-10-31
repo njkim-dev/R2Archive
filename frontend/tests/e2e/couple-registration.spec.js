@@ -10,7 +10,7 @@ const peer={character:{id:'80',name:'커플캐릭터',sex:'male'},ids:['200'],ma
 async function connections(page,{initial=[],gate,partner=peer}={}){
   let rows=initial;const calls=[]
   await page.route('**/api/shop/couples**',async route=>{
-    const request=route.request(),path=new URL(request.url()).pathname,method=request.method();calls.push({path,method})
+    const request=route.request(),path=new URL(request.url()).pathname,method=request.method();calls.push({path,method,relationship_id:new URL(request.url()).searchParams.get('relationship_id'),expected_status:new URL(request.url()).searchParams.get('expected_status')})
     if(method!=='GET'&&gate)await gate
     if(path.endsWith('/home'))return route.fulfill({json:partner})
     if(method==='GET')return route.fulfill({json:{relationships:rows}})
@@ -36,18 +36,18 @@ test('right aligned request controls keep geometry and URL disclosure is anchore
 })
 
 test('incoming global request can be dismissed then accepted in myhome and broken unilaterally',async({page})=>{
-  await setup(page,{characters:[own]});let release;const gate=new Promise(resolve=>{release=resolve});await connections(page,{initial:[relation(true)],gate})
+  await setup(page,{characters:[own]});let release;const gate=new Promise(resolve=>{release=resolve});const api=await connections(page,{initial:[relation(true)],gate})
   await page.goto('/myhome');const dialog=page.getByRole('dialog',{name:'커플 등록 요청',exact:true});await expect(dialog).toContainText('요청사용자 사용자가 커플 등록을 요청했습니다. 수락하시겠습니까?')
   await dialog.getByRole('button',{name:'나중에',exact:true}).click();await page.waitForTimeout(1100);await expect(dialog).toHaveCount(0)
   await page.getByRole('button',{name:'내캐릭터 캐릭터 선택',exact:true}).click();await page.getByRole('button',{name:'커플 수락',exact:true}).click();await expect(dialog).toBeVisible()
   const watcher=await watchLayout(page,['.shop-header','.shop-home-share','.shop-grid']);await dialog.getByRole('button',{name:'수락',exact:true}).click();await waitForFrames(page);await watcher.expectStable();release()
   await expect(page.getByRole('link',{name:'커플 마이홈으로 이동',exact:true})).toBeVisible();await expect(page.getByRole('tab',{name:'커플 마이홈',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
   page.once('dialog',async prompt=>{expect(prompt.message()).toContain('커플을 파기');await prompt.dismiss()});await page.getByRole('button',{name:'커플 파기',exact:true}).click();await expect(page.getByRole('link',{name:'커플 마이홈으로 이동',exact:true})).toBeVisible()
-  page.once('dialog',prompt=>prompt.accept());await page.getByRole('button',{name:'커플 파기',exact:true}).click();await expect(page.getByRole('button',{name:'커플 등록',exact:true})).toBeVisible()
+  page.once('dialog',prompt=>prompt.accept());await page.getByRole('button',{name:'커플 파기',exact:true}).click();await expect(page.getByRole('button',{name:'커플 등록',exact:true})).toBeVisible();expect(api.calls.filter(call=>call.method==='DELETE'||call.path.endsWith('/accept')).every(call=>call.relationship_id==='41')).toBe(true);expect(api.calls.filter(call=>call.method==='DELETE').every(call=>call.expected_status==='accepted')).toBe(true)
 })
 
 test('incoming request rejection releases the character',async({page})=>{
-  await setup(page,{characters:[own]});const api=await connections(page,{initial:[relation(true)]});await page.goto('/myhome');await page.getByRole('dialog',{name:'커플 등록 요청',exact:true}).getByRole('button',{name:'거절',exact:true}).click();await expect(page.getByRole('dialog',{name:'커플 등록 요청',exact:true})).toHaveCount(0);await home(page);await expect(page.getByRole('button',{name:'커플 등록',exact:true})).toBeEnabled();expect(api.getRows()).toHaveLength(0)
+  await setup(page,{characters:[own]});const api=await connections(page,{initial:[relation(true)]});await page.goto('/myhome');await page.getByRole('dialog',{name:'커플 등록 요청',exact:true}).getByRole('button',{name:'거절',exact:true}).click();await expect(page.getByRole('dialog',{name:'커플 등록 요청',exact:true})).toHaveCount(0);await home(page);await expect(page.getByRole('button',{name:'커플 등록',exact:true})).toBeEnabled();expect(api.getRows()).toHaveLength(0);expect(api.calls.find(call=>call.method==='DELETE').expected_status).toBe('pending')
 })
 
 test('private items and mains remain owned but disappear publicly and all three card actions never wrap',async({page})=>{
