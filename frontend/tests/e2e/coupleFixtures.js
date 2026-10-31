@@ -1,4 +1,4 @@
-import {setup,root,hero,shirt,femaleShirt,pet,mesh} from './shopFixtures.js'
+import {setup,root,hero,shirt,femaleShirt,pet,mesh,png} from './shopFixtures.js'
 export const coupleRoot = `${root}/motions/`
 export const coupleRing = { ...hero, id: '30120', name: '하트 주얼링', category: '507', group: 'couple', couple_preview: { motion: coupleRoot + '1'.repeat(64) + '.json.gz', bindings: coupleRoot + '2'.repeat(64) + '.json.gz', audio: `${root}/audio/${'3'.repeat(64)}.mp3`, duration: .5 } }
 export const missingCoupleRing = { ...coupleRing, id: '30845', name: '흐르는 등불(공용)', couple_preview: null }
