@@ -41,7 +41,7 @@ class ShopFavoriteTests(unittest.TestCase):
             self.assertEqual(cur.execute.call_args.args[1],(uid,))
             self.assertEqual(response.headers['cache-control'],'private, no-store')
 
-    def test_add_is_idempotent_checks_visible_clothing_and_binds_session_owner(self):
+    def test_add_is_idempotent_checks_visibility_and_binds_session_owner(self):
         cur,conn,context=self.database()
         cur.fetchone.side_effect=[{'storage':'shop_favorites'},{'item_id':200}]
         with patch.object(shop,'fetch_user',return_value={'id':7,'is_admin':False}),patch.object(shop,'get_conn',return_value=context),patch.object(shop,'catalog',return_value={'revision':'a'*20}):
@@ -50,18 +50,28 @@ class ShopFavoriteTests(unittest.TestCase):
         self.assertTrue(response.json()['favorite'])
         queries=[call.args[0] for call in cur.execute.call_args_list]
         self.assertIn('AND show',queries[1])
-        self.assertIn("= 'wearable'",queries[1])
+        self.assertNotIn("= 'wearable'",queries[1])
         self.assertIn('ON CONFLICT DO NOTHING',queries[2])
         self.assertEqual(cur.execute.call_args.args[1],(7,200))
         conn.commit.assert_called_once()
 
-    def test_hidden_missing_and_functional_items_cannot_be_saved(self):
+    def test_hidden_and_missing_items_cannot_be_saved(self):
         cur,conn,context=self.database()
         cur.fetchone.side_effect=[{'storage':'shop_favorites'},None]
         with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(shop,'get_conn',return_value=context),patch.object(shop,'catalog',return_value={'revision':'a'*20}):
             response=self.client().post('/api/shop/favorites/200')
         self.assertEqual(response.status_code,404)
         conn.commit.assert_not_called()
+
+    def test_functional_and_other_visible_items_can_be_saved(self):
+        for item_id in [1000208,11000357,30852]:
+            cur,conn,context=self.database()
+            cur.fetchone.side_effect=[{'storage':'shop_favorites'},{'item_id':item_id}]
+            with patch.object(shop,'fetch_user',return_value={'id':7,'is_admin':False}),patch.object(shop,'get_conn',return_value=context),patch.object(shop,'catalog',return_value={'revision':'a'*20}):
+                response=self.client().post('/api/shop/favorites/'+str(item_id))
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json(),{'id':str(item_id),'favorite':True})
+            self.assertEqual(cur.execute.call_args.args[1],(7,item_id))
 
     def test_removal_is_scoped_to_the_current_account_even_for_missing_catalog_items(self):
         cur,conn,context=self.database()

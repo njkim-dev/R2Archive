@@ -135,30 +135,52 @@ class ShopTests(unittest.TestCase):
 
     def test_cursor_pages_use_a_stable_tiebreaker_and_do_not_repeat_counts(self):
         version = "a" * 20
-        rows = [{"revision": version, "id": 100, "name": "성형", "_sort_order": 10}, {"revision": version, "id": 101, "name": "성형2", "_sort_order": 10}]
+        rows = [{"revision": version, "id": 101, "name": "성형2", "_sort_order": 10}, {"revision": version, "id": 100, "name": "성형", "_sort_order": 10}]
         cursor, context = self.database(rows)
         with patch.object(shop, "catalog", return_value={"revision": version}), patch.object(shop, "get_conn", return_value=context):
             response = self.client().get("/api/shop/items", params={"cursor": "", "page_size": 1, "slot": "face"})
             self.assertEqual(response.status_code, 200)
             data = response.json()
-            self.assertEqual(data["next_cursor"], "10:100")
+            self.assertEqual(data["next_cursor"], "d:10:101")
             self.assertTrue(data["has_more"])
-            self.assertEqual([item["id"] for item in data["items"]], ["100"])
+            self.assertEqual([item["id"] for item in data["items"]], ["101"])
+            self.assertIn('ORDER BY sort_order DESC, item_id DESC', cursor.execute.call_args.args[0])
             self.assertNotIn("_sort_order", data["items"][0])
             cursor.reset_mock()
             cursor.fetchall.return_value = rows[1:]
             response = self.client().get("/api/shop/items", params={"cursor": data["next_cursor"], "page_size": 1, "slot": "face"})
             self.assertIsNone(response.json()["total"])
             self.assertFalse(response.json()["has_more"])
-            self.assertEqual(response.json()["items"][0]["id"], "101")
+            self.assertEqual(response.json()["items"][0]["id"], "100")
             cursor.fetchone.assert_not_called()
-            self.assertIn("(sort_order, item_id) > (%s, %s)", cursor.execute.call_args.args[0])
-            self.assertEqual(cursor.execute.call_args.args[1][-3:], [10, 100, 2])
+            self.assertIn("(sort_order, item_id) < (%s, %s)", cursor.execute.call_args.args[0])
+            self.assertEqual(cursor.execute.call_args.args[1][-3:], [10, 101, 2])
+
+    def test_open_pages_can_finish_using_their_legacy_ascending_cursor(self):
+        rows=[{'revision':'a'*20,'id':101,'_sort_order':10},{'revision':'a'*20,'id':102,'_sort_order':11}]
+        cursor,context=self.database(rows)
+        with patch.object(shop,'catalog',return_value={'revision':'a'*20}),patch.object(shop,'get_conn',return_value=context):
+            response=self.client().get('/api/shop/items',params={'cursor':'10:100','page_size':1})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['next_cursor'],'10:101')
+        sql=cursor.execute.call_args.args[0]
+        self.assertIn('(sort_order, item_id) > (%s, %s)',sql)
+        self.assertIn('ORDER BY sort_order ASC, item_id ASC',sql)
+
+    def test_new_badge_uses_the_stored_source_attribute_and_offset_pages_use_latest_order(self):
+        row={'revision':'a'*20,'id':200,'is_new':True}
+        cursor,context=self.database([row])
+        with patch.object(shop,'catalog',return_value={'revision':'a'*20}),patch.object(shop,'get_conn',return_value=context):
+            response=self.client().get('/api/shop/items')
+        self.assertTrue(response.json()['items'][0]['is_new'])
+        self.assertNotIn('attributes',response.json()['items'][0])
+        self.assertIn("COALESCE(attributes->>'New', '0') = '1'",cursor.execute.call_args.args[0])
+        self.assertIn('ORDER BY sort_order DESC, item_id DESC',cursor.execute.call_args.args[0])
 
     def test_cursor_rejects_malformed_or_overflowing_values(self):
         cursor, context = self.database([])
         with patch.object(shop, "catalog", return_value={"revision": "a" * 20}), patch.object(shop, "get_conn", return_value=context):
-            for value in ["1:2 OR true", "-1:2", "2147483648:1", "1:9223372036854775808"]:
+            for value in ["1:2 OR true", "-1:2", "2147483648:1", "1:9223372036854775808", "d:2147483648:1", "d:1:9223372036854775808", "dd:1:2"]:
                 self.assertEqual(self.client().get("/api/shop/items", params={"cursor": value}).status_code, 400)
         cursor.execute.assert_not_called()
 

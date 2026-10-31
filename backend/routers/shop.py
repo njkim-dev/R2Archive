@@ -103,7 +103,7 @@ def serialize(row):
     return item
 
 
-ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
+ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
 
 
 @router.get("/meta")
@@ -182,21 +182,23 @@ def items(
             cur.execute(f"SELECT count(*)::int AS count FROM shop_items WHERE {where}", args)
             total = cur.fetchone()["count"]
         if cursor is not None:
+            descending = not cursor or cursor.startswith('d:')
+            direction = 'DESC' if descending else 'ASC'
             if cursor:
-                if not re.fullmatch(r"\d{1,10}:\d{1,19}", cursor):
+                if not re.fullmatch(r"(?:d:)?\d{1,10}:\d{1,19}", cursor):
                     raise HTTPException(status_code=400, detail="목록 위치가 올바르지 않습니다")
-                order, item_id = map(int, cursor.split(":"))
+                order, item_id = map(int, cursor.removeprefix('d:').split(":"))
                 if order > 2147483647 or item_id > 9223372036854775807:
                     raise HTTPException(status_code=400, detail="목록 위치가 올바르지 않습니다")
-                where += " AND (sort_order, item_id) > (%s, %s)"
+                where += f" AND (sort_order, item_id) {'<' if descending else '>'} (%s, %s)"
                 args.extend([order, item_id])
-            cur.execute(f"SELECT {ITEM_COLUMNS}, sort_order AS _sort_order FROM shop_items WHERE {where} ORDER BY sort_order, item_id LIMIT %s", [*args, page_size + 1])
+            cur.execute(f"SELECT {ITEM_COLUMNS}, sort_order AS _sort_order FROM shop_items WHERE {where} ORDER BY sort_order {direction}, item_id {direction} LIMIT %s", [*args, page_size + 1])
             rows = cur.fetchall()
             has_more = len(rows) > page_size
             rows = rows[:page_size]
-            next_cursor = f"{rows[-1]['_sort_order']}:{rows[-1]['id']}" if has_more else None
+            next_cursor = f"{'d:' if descending else ''}{rows[-1]['_sort_order']}:{rows[-1]['id']}" if has_more else None
         else:
-            cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE {where} ORDER BY sort_order, item_id LIMIT %s OFFSET %s", [*args, page_size, (page - 1) * page_size])
+            cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE {where} ORDER BY sort_order DESC, item_id DESC LIMIT %s OFFSET %s", [*args, page_size, (page - 1) * page_size])
             rows = cur.fetchall()
             has_more = page * page_size < total
             next_cursor = None
@@ -224,7 +226,7 @@ def add_favorite(request: Request, item_id: int, version: str | None = Query(Non
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         favorite_storage(cur)
         current = catalog(cur, version)
-        cur.execute(f"SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND show AND ({DEPARTMENT_SQL}) = 'wearable'", (current['revision'], item_id))
+        cur.execute("SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND show", (current['revision'], item_id))
         if cur.fetchone() is None:
             raise HTTPException(status_code=404, detail="즐겨찾기에 추가할 수 없는 아이템입니다")
         cur.execute('INSERT INTO shop_favorites (user_id, item_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (uid, item_id))

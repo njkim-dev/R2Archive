@@ -50,6 +50,7 @@ test('the public shop browses and shares outfits anonymously while favorite acti
   await page.goto('/shop?sex=male')
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(page.getByRole('button', { name: shirt.name + ' 즐겨찾기 추가', exact: true })).toBeDisabled()
+  await expect(page.getByRole('tab', { name: '즐겨찾기', exact: true })).toBeDisabled()
   await expect(page.locator('.shop-app')).not.toContainText('관리자 전용')
   await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: shirt.name + ' 의상 선택', exact: true }).click()
@@ -170,6 +171,88 @@ test('login returns to the public catalog with already selected clothing intact'
   await expect(page.getByRole('heading',{name:'아이템 상점',exact:true})).toBeVisible()
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await expect(page.getByRole('button',{name:shirt.name+' 즐겨찾기 추가',exact:true})).toBeEnabled()
+})
+
+test('NEW and unavailable badges leave room for hover favorites without moving the catalog', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const fresh = { ...shirt, is_new: true }
+  const missing = { ...shirt, id: '205', name: '새 미지원 상의', preview_available: false, model: null, is_new: true }
+  await setup(page, { admin: false, items: [fresh, missing] })
+  await page.goto('/shop?sex=male')
+  await page.getByRole('checkbox', { name: '미리보기 불가능 아이템 가리기', exact: true }).uncheck()
+  await expect(page.locator('.shop-card')).toHaveCount(2)
+  await expect(page.locator('.shop-footer')).toHaveText('R2 ARCHIVE ㆍ 아이템 미리보기')
+  const watcher = await watchLayout(page, ['.shop-departments', '.shop-search', '.shop-grid', '.shop-panel'])
+  for (const item of [fresh, missing]) {
+    const card = page.locator(`[data-item-id="${item.id}"]`), star = card.locator('.shop-favorite-button')
+    await expect(card.locator('.shop-new-tag')).toHaveText('NEW')
+    await expect(star).toBeEnabled(); await card.hover(); await expect(star).toHaveCSS('opacity', '1')
+    const a = await star.boundingBox(), b = await card.locator('.shop-new-tag').boundingBox()
+    expect(b.x).toBeGreaterThanOrEqual(a.x + a.width)
+    if (item === missing) {
+      await expect(card.locator('.shop-preview-unavailable')).toHaveText('미리보기 불가능')
+      expect((await card.locator('.shop-preview-unavailable').boundingBox()).y).toBeGreaterThan(a.y + a.height)
+    }
+    await star.click(); await expect(star).toHaveAttribute('aria-pressed', 'true')
+  }
+  await expect(page.locator('.shop-slots')).not.toContainText(missing.name)
+  await watcher.expectStable(); await watcher.stop()
+})
+
+test('the favorites tab includes consumables and other items with gender category and search filters while preserving clothing', async ({ page }) => {
+  await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
+  const boost = { ...hero, id: '11000357', name: '자동 부스터 카드', group: 'buff', is_new: true }
+  const other = { ...hero, id: '30852', name: '특수 캐릭터', department: 'other', group: 'character' }
+  await setup(page, { admin: false, items: [shirt, femaleShirt, boost, other], favoriteIds: [shirt.id, femaleShirt.id, other.id] })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route(/\/api\/shop\/items\?/, async route => {
+    if (new URL(route.request().url()).searchParams.get('favorites_only') === 'true') await gate
+    return route.fallback()
+  })
+  await page.goto('/shop?sex=male')
+  await page.getByRole('button', { name: shirt.name + ' 의상 선택', exact: true }).click()
+  await page.getByRole('tab', { name: '기능성ㆍ소모품', exact: true }).click()
+  const boostStar = page.locator(`[data-item-id="${boost.id}"] .shop-favorite-button`)
+  await expect(boostStar).toBeEnabled(); await boostStar.click(); await expect(boostStar).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('tab', { name: '즐겨찾기', exact: true }).click()
+  await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
+  const watcher = await watchLayout(page, ['.shop-departments', '.shop-favorite-categories', '.shop-gender-row', '.shop-search', '.shop-grid', '.shop-panel'])
+  await watcher.expectStable(); release()
+  await expect(page.locator('.shop-card')).toHaveCount(3)
+  await expect(page.locator(`[data-item-id="${boost.id}"]`)).toContainText(boost.name)
+  await expect(page.locator(`[data-item-id="${other.id}"]`)).toContainText(other.name)
+  await watcher.expectStable(); await watcher.stop()
+  await page.getByRole('button', { name: '전체 성별', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(4)
+  const categories = page.getByRole('group', { name: '즐겨찾기 아이템 분류', exact: true })
+  await categories.getByRole('button', { name: '꾸미기ㆍ펫', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(2)
+  await page.getByRole('button', { name: '여성', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await expect(page.locator('.shop-slots')).toContainText(shirt.name)
+  await page.getByRole('button', { name: femaleShirt.name + ' 의상 선택', exact: true }).click()
+  await expect(page.locator('.shop-slots')).toContainText(femaleShirt.name)
+  await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+  await expect(page.locator('.shop-stage-status')).toHaveText('')
+  await page.getByRole('button', { name: '의상 URL 복사', exact: true }).click()
+  const shared = new URL(await page.evaluate(() => window.__copiedShopUrl))
+  expect(shared.searchParams.get('sex')).toBe('female'); expect(shared.searchParams.get('top')).toBe(femaleShirt.id)
+  await page.getByRole('button', { name: '아이템 다시 고르기', exact: true }).click()
+  await page.locator(`[data-item-id="${femaleShirt.id}"] .shop-favorite-button`).click()
+  await expect(page.locator('.shop-card')).toHaveCount(0)
+  await expect(page.locator('.shop-slots')).toContainText(femaleShirt.name)
+  await categories.getByRole('button', { name: '기능성ㆍ소모품', exact: true }).click()
+  await page.getByRole('button', { name: '버프아이템', exact: true }).click()
+  await page.getByLabel('아이템 이름으로 검색').fill('자동')
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await page.getByRole('button', { name: boost.name + ' 자세히 보기', exact: true }).click()
+  await expect(page.locator('.shop-detail h3')).toHaveText(boost.name)
+  await categories.getByRole('button', { name: '기타', exact: true }).click()
+  await expect(page.locator('.shop-card')).toHaveCount(1)
+  await page.getByRole('button', { name: '로그아웃', exact: true }).click()
+  await expect(page.getByRole('tab', { name: '즐겨찾기', exact: true })).toBeDisabled()
+  await expect(categories).toHaveCount(0)
 })
 
 test('functional item links restore selected item and price without adding it to the outfit', async ({ page }) => {
