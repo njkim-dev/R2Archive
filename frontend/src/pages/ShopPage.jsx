@@ -190,7 +190,10 @@ function ShopContent({ search }) {
   function preview() { if (sex && meta) { restoreScroll.current = true; setApplied({ sex, slots: { ...slots } }); setCounterparts(emptySlots()); setPair(false); setView('preview'); setError(''); window.scrollTo({ top: 0, behavior: 'instant' }) } }
   function login() {
     let target = location.pathname + location.search
-    if (detail && department !== 'wearable') {
+    if (view === 'preview' && applied && meta) {
+      const url = new URL(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom }))
+      target = url.pathname + url.search
+    } else if (detail && department !== 'wearable') {
       const url = new URL(itemShareUrl(detail, sex, selectedPrice?.key))
       target = url.pathname + url.search
     } else if (sex && meta) {
