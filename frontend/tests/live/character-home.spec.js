@@ -16,6 +16,21 @@ test('live portal preserves service order and disables guest myhome',async({page
   await expect(page.locator('.myhome-service')).toContainText('내 의상을 저장해서 언제든지 불러오고 친구에게 공유할 수 있어요')
 })
 
+test('live short snapshot keeps both outfits after profile main changes',async({page})=>{
+  const code=process.env.LIVE_SHORT_CODE
+  test.skip(!code,'A temporary live QA snapshot is supplied by the deployment audit')
+  expect(code).toMatch(/^[a-z0-9]{4}$/)
+  await page.goto('/short/'+code)
+  await expect(page).toHaveURL(/\/shop\?/)
+  const query=new URL(page.url()).searchParams
+  expect(Object.fromEntries(query)).toMatchObject({sex:'female',partnerSex:'male',top:'30320871',partner_top:'30310765',item:'30854',angle:'237.12345',zoom:'119',panX:'12.345',panY:'-8.765'})
+  const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true})
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('',{timeout:60000})
+  await dialog.getByRole('button',{name:'커플 모션 시작',exact:true}).click()
+  await expect(dialog.locator('canvas')).toHaveAttribute('data-envelope-builds','1',{timeout:60000})
+  await expect(dialog.locator('canvas')).toHaveAttribute('data-view-pan-x','12.345')
+})
+
 for(const archive of ['music','xyx'])test(`live ${archive} legacy redirect preserves fragments and uses the new archive path`,async({page})=>{
   const calls=[];page.on('request',request=>{if(request.url().includes('/api/'))calls.push(new URL(request.url()).pathname)})
   await page.goto(`https://${archive}.r2archive.com/#song=102939`)

@@ -10,6 +10,7 @@ export const petMesh = { meshes: [{ ...mesh.meshes[0], name: 'Pet-body', vertice
 export const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC', 'base64')
 
 export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,items,nextGate,models,texture=png,modelGate,textureRevision,favoriteIds=[],favoriteGate,authGate,wardrobeIds=[],wardrobeMains=[],wardrobeGate,wardrobeSaveGate,characters:initialCharacters}={}){
+  page.on('pageerror',error=>{throw error})
   const requests=[],shortLinks=new Map(),savedFavorites=new Set(favoriteIds.map(String)),links=new Map()
   const allItems=()=>items||[shirt,femaleShirt,pet,hero]
   let characters=(initialCharacters||[{id:'1',name:'남성캐릭터',sex:'male'},{id:'2',name:'여성캐릭터',sex:'female'}]).map(source=>{

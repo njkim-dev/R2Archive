@@ -171,7 +171,7 @@ export default function App() {
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
           <Route path="/short/:code" element={<ShortLinkPage />} />
           <Route path="/myhome" element={<MyHomePage/>}/>
-          <Route path="/myhome/all" element={<ShopPage allCharacters/>}/>
+          <Route path="/myhome/characters/all" element={<ShopPage allCharacters/>}/>
           <Route path="/myhome/characters/:characterId" element={<ShopPage/>}/>
           <Route path="/myhome/:handle" element={<ShopPage />} />
           <Route path="/removed-songs" element={<RemovedSongsPage />} />

@@ -22,6 +22,7 @@ TRACKED_DOMAINS = ("r2archive.com", "music.r2archive.com", "xyx.r2archive.com")
 DOMAIN_SQL = "CASE WHEN path LIKE 'https://r2archive.com/music/%%' OR path='https://r2archive.com/music' THEN 'music.r2archive.com' WHEN path LIKE 'https://r2archive.com/xyx/%%' OR path='https://r2archive.com/xyx' THEN 'xyx.r2archive.com' " + " ".join(
     f"WHEN path LIKE 'https://{host}/%%' THEN '{host}'" for host in TRACKED_DOMAINS
 ) + " ELSE 'unknown' END"
+ARCHIVE_REFERRER_SQL = ' OR '.join(f"referrer='{origin}/{prefix}' OR referrer LIKE '{origin}/{prefix}/%%' OR referrer LIKE '{origin}/{prefix}?%%'" for origin in ['https://r2archive.com','http://r2archive.com'] for prefix in ['music','xyx'])
 VALID_DEVICES = {"desktop", "mobile", "tablet", "unknown"}
 CATALOG_COUNT_TABLES = {
     "kr": "songs",
@@ -104,7 +105,7 @@ def _domain_summary(cur, start):
           AND (referrer IN ('https://r2archive.com', 'http://r2archive.com')
                OR referrer LIKE 'https://r2archive.com/%%'
                OR referrer LIKE 'http://r2archive.com/%%')
-          AND referrer !~ '^https?://r2archive[.]com/(music|xyx)(/|[?#]|$)'
+          AND NOT ({ARCHIVE_REFERRER_SQL})
         """,
         (start,),
     )

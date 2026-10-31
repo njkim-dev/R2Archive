@@ -116,3 +116,14 @@ class DomainAnalyticsTests(unittest.TestCase):
         self.assertEqual(by_domain["xyx.r2archive.com"]["visitors"], 1)
         self.assertEqual(by_domain["unknown"]["visitors"], 1)
         self.assertEqual(transition, {"visitors": 2})
+
+    def test_prefix_archives_keep_domain_totals_without_counting_internal_referrals(self):
+        with sqlite3.connect(':memory:') as db:
+            db.execute('CREATE TABLE site_pageviews(path TEXT,user_id INTEGER,session_id TEXT,referrer TEXT,created_at TEXT)')
+            rows=[('https://r2archive.com/',None,'main',None,'2026-10-20'),('https://r2archive.com/xyx/',None,'xyx',None,'2026-10-20')]
+            for session,referrer in [('entry','https://r2archive.com/'),('internal','https://r2archive.com/music/updates'),('server','https://r2archive.com/xyx/'),('query','https://r2archive.com/music?search=test')]:
+                rows.append(('https://r2archive.com/music/',None,session,referrer,'2026-10-20'))
+            db.executemany('INSERT INTO site_pageviews VALUES(?,?,?,?,?)',rows)
+            domains,transition=analytics._domain_summary(SqliteCursor(db),'2026-10-20')
+        self.assertEqual({row['domain']:row['pageviews'] for row in domains},{'r2archive.com':1,'music.r2archive.com':4,'xyx.r2archive.com':1})
+        self.assertEqual(transition,{'visitors':1})

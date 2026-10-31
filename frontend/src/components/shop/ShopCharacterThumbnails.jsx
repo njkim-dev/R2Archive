@@ -12,7 +12,7 @@ export default function ShopCharacterThumbnails({characters,meta}){
     if(next){attempted.current.add(next.character.id+':'+next.thumbnail_key);setEntry(next)}
   },[characters.items,meta,entry,epoch])
   const chosen=useRef(null)
-  if(entry&&chosen.current?.key!==entry.thumbnail_key)chosen.current={key:entry.thumbnail_key,slots:Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,entry.mains.find(main=>main.slot===slot)?.item||null]))}
+  if(entry&&chosen.current?.key!==entry.thumbnail_key)chosen.current={key:entry.thumbnail_key,slots:Object.fromEntries(SHOP_SLOTS.map(slot=>{const item=entry.mains.find(main=>main.slot===slot)?.item;return[slot,item?.preview_available&&item.model?item:null]}))}
   async function ready(canvas){
     const current=entry
     try{const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.82));if(blob)await saveCharacterThumbnail(current.character.id,current.thumbnail_key,blob,meta.revision);characters.reload()}catch{}finally{setEntry(null);setEpoch(x=>x+1)}

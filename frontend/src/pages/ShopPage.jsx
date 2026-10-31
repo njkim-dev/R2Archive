@@ -63,7 +63,6 @@ function ShopContent({ search, publicHome,characterId,privateHome }) {
   const [meta, setMeta] = useState(null)
   const [targetCharacter,setTargetCharacter]=useState(null)
   const [saveRequest,setSaveRequest]=useState(null)
-  useEffect(()=>{setTargetCharacter(null);setSaveRequest(null)},[user?.id])
   const [savingOwned,setSavingOwned]=useState(false),saveLock=useRef(false)
   const storageCharacter=characterId||(!privateHome?targetCharacter:null)
   const characters=useCharacters(authLoaded?user?.id:null,meta?.revision)
@@ -144,7 +143,7 @@ function ShopContent({ search, publicHome,characterId,privateHome }) {
   const listKey = JSON.stringify([ready, meta?.revision, department, listSex, slot, group, subgroup, query, pairedOnly, hideUnavailable, hideUnreleased, favoritesOnly, homeOnly,characterId,homeOnly?[...owned.ids].join(','):'', (favoritesOnly || homeOnly) ? user?.id : null, favoritesOnly && favorites.ready, homeOnly && homeData.ready, publicHome, publicData.epoch])
   useEffect(()=>{setSaveRequest(null);setTargetCharacter(null)},[user?.id])
   useEffect(()=>{if(homeOnly&&homeData.character?.sex)setSex(homeData.character.sex)},[homeOnly,homeData.character?.sex,sex])
-  useEffect(() => { if (!authenticated) { setFavoritesOnly(false); if (!publicHome) setHomeOnly(false) } }, [authenticated, publicHome])
+  useEffect(() => { if (!authenticated) { setFavoritesOnly(false); if (!publicHome&&!privateHome) setHomeOnly(false) } }, [authenticated, publicHome,privateHome])
   useEffect(() => () => clearTimeout(toastTimer.current), [])
   function notify(text) { clearTimeout(toastTimer.current); setToast(text); toastTimer.current = setTimeout(() => setToast(''), 2600) }
   useEffect(() => {

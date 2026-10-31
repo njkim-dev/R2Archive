@@ -1,5 +1,11 @@
 name: Verify deployed character homes
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      short_code:
+        description: Temporary QA snapshot code
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -16,6 +22,7 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
+          LIVE_SHORT_CODE: ${{ inputs.short_code }}
         run: |
           npm ci
           npx playwright install --with-deps chromium

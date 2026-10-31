@@ -14,7 +14,8 @@ export default function useShopWardrobe(userId, version, characterId = null) {
     setState(previous=>previous.owner===userId&&previous.version===version&&previous.characterId===characterId?{...previous,error:''}:{...empty,owner:userId,version,characterId})
     if (!userId || !version) return
     const controller = new AbortController()
-    (characterId ? getCharacter(characterId,version,controller.signal) : getShopWardrobe(version, controller.signal)).then(data => {
+    const request=characterId ? getCharacter(characterId,version,controller.signal) : getShopWardrobe(version, controller.signal)
+    request.then(data => {
       if (controller.signal.aborted || current.current !== session) return
       setState({ owner: userId, version, characterId, character:data.character, ids: new Set(data.ids.map(String)), mains: data.mains, ready: true, pending: false, error: '' })
     }).catch(error => {
