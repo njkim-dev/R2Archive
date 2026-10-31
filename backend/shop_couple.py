@@ -25,6 +25,11 @@ def _load(path, modified, size):
             return None
         if not isinstance(item.get('duration'), (int, float)) or not 0 < item['duration'] <= 180:
             return None
+        if 'same_sex' in item:
+            if str(item_id) not in {'30855','30854','30846'} or set(item['same_sex'])!={'male','female'}:
+                return None
+            if any(not REVISION.fullmatch(entry.get('revision','')) or not MOTION.fullmatch(entry.get('motion','')) for entry in item['same_sex'].values()):
+                return None
         effects = item.get('effects', [])
         if not isinstance(effects, list) or len(effects) > 8:
             return None
@@ -54,6 +59,9 @@ def preview(shop_dir, item_id):
         return None
     prefix = f"/api/shop/assets/{data['revision']}"
     result = {'motion': f"{prefix}/motions/{item['motion']}", 'bindings': f"{prefix}/motions/{data['bindings']}", 'audio': f"{prefix}/audio/{item['audio']}", 'duration': item['duration']}
+    if item.get('same_sex'):
+        result['same_sex_motions']={sex:f"/api/shop/assets/{entry['revision']}/motions/{entry['motion']}" for sex,entry in item['same_sex'].items()}
+        result['actor_roles']=item.get('actor_roles',{})
     def effect_urls(effect):
         urls = {'model': f"{prefix}/models/{effect['model']}", 'animation': f"{prefix}/motions/{effect['animation']}"}
         if effect.get('particles'):

@@ -92,8 +92,9 @@ def _redirect_uri(provider: str, request: Request) -> str:
 def _safe_return_origin(origin: str | None) -> str:
     if not origin:
         return BASE_URL
-    if origin in {f"https://{host}" for host in PUBLIC_APP_HOSTS}:
-        return origin
+    normalized=origin.rstrip('/')
+    if normalized in {f"https://{host}" for host in PUBLIC_APP_HOSTS} | {'https://r2archive.com/music','https://r2archive.com/xyx'}:
+        return normalized
     if not COOKIE_SECURE:
         try:
             parsed = urlsplit(origin)

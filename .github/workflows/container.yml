@@ -44,15 +44,40 @@ jobs:
           python -m pip install "numpy==2.5.3"
           python -m unittest discover -s tests -v
 
+  ui:
+    if: ${{ !contains(github.event.head_commit.message, '[skip-ui]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [1920, 1440, 1024, 768]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - name: Test UI layout stability
-        if: ${{ !contains(github.event.head_commit.message, '[skip-ui]') }}
         working-directory: frontend
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
         run: |
+          npm ci
           npx playwright install --with-deps chromium
-          npm run test:e2e
+          npm run test:e2e -- --project=chromium-${{ matrix.width }} --reporter=line,json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: browser-results-${{ matrix.width }}
+          path: frontend/test-results/
+          retention-days: 7
 
   build-scan:
-    needs: test
+    needs: [test, ui]
+    if: ${{ always() && needs.test.result == 'success' && (needs.ui.result == 'success' || needs.ui.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

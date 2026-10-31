@@ -150,7 +150,7 @@ class DiscordNotificationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         embed = payload["embeds"][0]
-        self.assertEqual(embed["url"], "https://music.r2archive.com/#song=56")
+        self.assertEqual(embed["url"], "https://r2archive.com/music/#song=56")
         self.assertEqual(embed["fields"][1]["value"], "Lv 8.5")
         self.assertEqual(embed["fields"][2]["value"], "BPM 정보")
 

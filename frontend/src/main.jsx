@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App'
+import { ARCHIVE_BASE } from './utils/serverMode'
 
 const PRELOAD_RELOAD_KEY = 'r2archive:preload-reload'
 
@@ -18,7 +19,7 @@ window.setTimeout(() => sessionStorage.removeItem(PRELOAD_RELOAD_KEY), 10_000)
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={ARCHIVE_BASE||'/'}>
       <App />
     </BrowserRouter>
   </StrictMode>

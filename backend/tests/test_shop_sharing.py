@@ -17,6 +17,20 @@ class SharingValidationTests(unittest.TestCase):
             with self.subTest(target=target), self.assertRaises(HTTPException):
                 short_target(target)
 
+    def test_both_actor_snapshot_is_immutable_and_validated(self):
+        from urllib.parse import parse_qs, urlsplit
+        slots=['hair','face','top','bottom','shoes','pet','accessory','summon']
+        target='/shop?view=couple&sex=female&partnerSex=female&item=30854&angle=245&zoom=126&panX=14&panY=-19'
+        target+=''.join(f'&{slot}={100+i}&partner_{slot}={200+i}' for i,slot in enumerate(slots))
+        query=parse_qs(urlsplit(short_target(target)).query)
+        self.assertEqual(query['partnerSex'],['female'])
+        self.assertEqual(query['partner_summon'],['207'])
+        self.assertEqual(query['top'],['102'])
+        self.assertEqual(query['panY'],['-19'])
+        for suffix in ['&partnerSex=admin','&partner_top=../secret','&partner_top=-1']:
+            with self.subTest(suffix=suffix),self.assertRaises(HTTPException):
+                short_target('/shop?view=couple'+suffix)
+
 
 if __name__ == '__main__':
     unittest.main()

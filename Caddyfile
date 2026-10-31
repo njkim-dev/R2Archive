@@ -25,7 +25,7 @@ header {
 	Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://kauth.kakao.com https://nid.naver.com"
 }
 
-@private_shop path /shop /shop/* /api/shop/* /short/* /myhome/* /api/share/*
+@private_shop path /shop /shop/* /api/shop/* /short/* /myhome /myhome/* /api/share/*
 header @private_shop X-Robots-Tag "noindex, nofollow"
 
 # 스크린샷 업로드(500KB~2MB)를 고려해 10MB까지 허용.
@@ -33,9 +33,24 @@ request_body {
 	max_size 10MB
 }
 
+@legacy_discovery {
+ host music.r2archive.com xyx.r2archive.com
+ path /robots.txt /sitemap.xml
+}
+redir @legacy_discovery https://r2archive.com{uri} 308
+@legacy_music {
+ host music.r2archive.com
+ not path /api/* /assets/* /static/* /.env /.git/* /seo /seo/* /server-status /nginx_status /metrics /docs /openapi.json /swagger /swagger/*
+}
+redir @legacy_music https://r2archive.com/music{uri} 308
+@legacy_xyx {
+ host xyx.r2archive.com
+ not path /api/* /assets/* /static/* /.env /.git/* /seo /seo/* /server-status /nginx_status /metrics /docs /openapi.json /swagger /swagger/*
+}
+redir @legacy_xyx https://r2archive.com/xyx{uri} 308
 @discovery path /robots.txt /sitemap.xml
 handle @discovery {
-	@kr host music.r2archive.com
+	@kr host r2archive.com
 	handle @kr {
 		root * /srv/seo/kr
 		header Cache-Control "public, max-age=3600"
@@ -47,7 +62,7 @@ handle @discovery {
 }
 
 # 존재하지 않는 민감/운영 경로를 SPA 진입 문서로 위장해 반환하지 않는다.
-@blocked_paths path /.env /.git/* /.well-known/security.txt /seo /seo/* /server-status /nginx_status /metrics /docs /openapi.json /swagger /swagger/* /api/docs /api/openapi.json /api/swagger /api/swagger/*
+@blocked_paths path /music/.env /xyx/.env /music/.git/* /xyx/.git/* /music/seo/* /xyx/seo/* /.env /.git/* /.well-known/security.txt /seo /seo/* /server-status /nginx_status /metrics /docs /openapi.json /swagger /swagger/* /api/docs /api/openapi.json /api/swagger /api/swagger/*
 handle @blocked_paths {
 	respond 404
 }
@@ -75,6 +90,11 @@ handle_path /static/pmang_image/* {
 }
 
 @api path /api/*
+handle /assets/* {
+ root * /srv
+ header Cache-Control "public, max-age=31536000, immutable"
+ file_server
+}
 handle @api {
 	reverse_proxy {$API_UPSTREAM} {
 		header_up X-Forwarded-For {client_ip}
@@ -102,20 +122,20 @@ handle {
 	}
 	header @portal_cache_reset Clear-Site-Data "\"cache\""
 	@kr_home {
-		host music.r2archive.com
-		path / /index.html
+		host r2archive.com
+		path /music /music/ /music/index.html
 	}
 	@kr_pmang {
-		host music.r2archive.com
-		path /pmang-songs /pmang-songs/
+		host r2archive.com
+		path /music/pmang-songs /music/pmang-songs/
 	}
 	@kr_updates {
-		host music.r2archive.com
-		path /updates /updates/
+		host r2archive.com
+		path /music/updates /music/updates/
 	}
 	@kr_nonpublic {
-		host music.r2archive.com
-		not path / /index.html /pmang-songs /pmang-songs/ /updates /updates/
+		host r2archive.com
+		not path /music /music/ /music/index.html /music/pmang-songs /music/pmang-songs/ /music/updates /music/updates/
 	}
 	header @kr_nonpublic X-Robots-Tag "noindex"
 	route {

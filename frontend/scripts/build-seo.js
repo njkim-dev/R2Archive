@@ -27,7 +27,7 @@ for (const page of PUBLIC_PAGES) {
   await writeFile(new URL(page.file, output), serialize(document))
 }
 
-await writeFile(new URL('robots.txt', output), `User-agent: *\nAllow: /\nSitemap: ${KR_ORIGIN}/sitemap.xml\n`)
+await writeFile(new URL('robots.txt', output), `User-agent: *\nAllow: /music/\nDisallow: /shop\nDisallow: /myhome\nDisallow: /short/\nDisallow: /xyx/\nSitemap: https://r2archive.com/sitemap.xml\n`)
 await writeFile(new URL('sitemap.xml', output), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${PUBLIC_PAGES.map(page => `  <url><loc>${escape(KR_ORIGIN + page.path)}</loc></url>`).join('\n')}

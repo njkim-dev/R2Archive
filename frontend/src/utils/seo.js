@@ -1,5 +1,5 @@
 export const DEFAULT_TITLE = '알투비트 아카이브 — Music'
-export const KR_ORIGIN = 'https://music.r2archive.com'
+export const KR_ORIGIN = 'https://r2archive.com/music'
 
 export const PUBLIC_PAGES = [
   {

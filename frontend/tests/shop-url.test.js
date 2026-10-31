@@ -59,6 +59,22 @@ test('couple shares support default clothing and reject malformed ring identifie
   assert.equal(readShopUrl(url.search).item, null)
 })
 
+test('couple snapshots retain both actors independently of future profile edits',()=>{
+  for(const primarySex of ['male','female'])for(const partnerSex of ['male','female']){
+    const slots=Object.fromEntries(SHOP_SLOTS.map((slot,i)=>[slot,{id:String(100+i)}]))
+    const partner={sex:partnerSex,slots:Object.fromEntries(SHOP_SLOTS.map((slot,i)=>[slot,{id:String(200+i)}]))}
+    const url=new URL(coupleShareUrl({version:'a'.repeat(20),sex:primarySex,slots,partner,item:'30854',angle:245,zoom:126,panX:14,panY:-19}))
+    partner.slots.top.id='999';slots.top.id='888'
+    const restored=readShopUrl(url.search)
+    assert.equal(restored.sex,primarySex);assert.equal(restored.partner.sex,partnerSex)
+    assert.equal(restored.slots.top,'102');assert.equal(restored.partner.slots.top,'202')
+    assert.deepEqual([restored.angle,restored.zoom,restored.panX,restored.panY],[245,126,14,-19])
+    assert.equal(Object.values(restored.partner.slots).filter(Boolean).length,8)
+  }
+  assert.equal(readShopUrl('?view=couple&partnerSex=admin&partner_top=201').partner,null)
+  assert.equal(readShopUrl('?view=couple&partnerSex=female&partner_top=../../x').partner.slots.top,null)
+})
+
 test('unselected slots remain defaults and invalid inputs never become model identifiers', () => {
   const state = readShopUrl('?view=preview&v=../../secret&hair=../../x&pet=-1&sex=admin&angle=Infinity&zoom=9999')
   assert.equal(state.version, null)

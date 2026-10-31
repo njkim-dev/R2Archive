@@ -8,7 +8,7 @@ const RESTORE_LIST_HASH_PREFIX = `${RESTORE_LIST_HASH}:`
 let currentListScrollOffset = 0
 
 function normalizeListPath(pathname = window.location.pathname) {
-  return pathname === '/removed-songs' ? '/removed-songs' : '/'
+  return /(?:^|\/)removed-songs\/?$/.test(pathname) ? '/removed-songs' : '/'
 }
 
 function storageKey(pathname = window.location.pathname) {

@@ -63,7 +63,7 @@ def build_feedback_item_notification(
         "embeds": [{
             "title": f"새 {'버그 신고' if is_bug else '기능 제안'} #{feedback_id}: {_text(title, 180)}",
             "description": _text(body, 4000),
-            "url": "https://music.r2archive.com/feedback",
+            "url": "https://r2archive.com/music/feedback",
             "color": 0xED4245 if is_bug else 0x5865F2,
             "fields": fields,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -88,7 +88,7 @@ def build_song_feedback_notification(
         "embeds": [{
             "title": f"새 음악별 피드백 #{feedback_id}",
             "description": _text(body, 4000),
-            "url": f"https://music.r2archive.com/#song={song_id}",
+            "url": f"https://r2archive.com/music/#song={song_id}",
             "color": 0xFEE75C,
             "fields": [
                 {"name": "곡", "value": f"{_text(song_name, 400)} - {_text(artist, 400)}", "inline": False},

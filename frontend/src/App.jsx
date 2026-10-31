@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import useStore from './store/useStore'
-import { isXyxMode } from './utils/serverMode'
+import { isXyxMode,ARCHIVE_BASE,archivePath } from './utils/serverMode'
 import { clearRestoreListParam, readRestorableListState, shouldRestoreListState } from './utils/listState'
 import { replaceCatalogHash, songCatalogHash } from './utils/catalogUrl'
 import { categoryFromLevel } from './utils/helpers'
@@ -33,6 +33,7 @@ const GameRepairPage = lazy(() => import('./pages/GameRepairPage'))
 const RepairAdminPage = lazy(() => import('./pages/RepairAdminPage'))
 const ArchiveHomePage = lazy(() => import('./pages/ArchiveHomePage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
+const MyHomePage=lazy(()=>import('./pages/MyHomePage'))
 const ShortLinkPage = lazy(() => import('./pages/ShortLinkPage'))
 
 function CloseModalOnCataloglessRoutes() {
@@ -44,6 +45,8 @@ function CloseModalOnCataloglessRoutes() {
       path === '/feedback' ||
       path === '/analytics' ||
       path.startsWith('/shop') ||
+      path.startsWith('/myhome') ||
+      path.startsWith('/short/') ||
       path.startsWith('/game-repair') ||
       path === '/groups' ||
       path.startsWith('/groups/') ||
@@ -66,7 +69,7 @@ function SyncCatalogUrl() {
 
   useEffect(() => {
     if (!modalOpen || !songId) return
-    useStore.getState().setModalReturnUrl(`${location.pathname}${location.search}` || '/')
+    useStore.getState().setModalReturnUrl(archivePath(`${location.pathname}${location.search}` || '/'))
     replaceCatalogHash(songCatalogHash(songId), preservePath ? location.pathname : '/', preservePath ? location.search : '')
   }, [modalOpen, songId, preservePath, location.pathname, location.search])
 
@@ -84,7 +87,7 @@ export default function App() {
   const appLocation = useLocation()
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
-  const portalHost = window.location.hostname === 'r2archive.com'
+  const portalHost = window.location.hostname === 'r2archive.com'&&!ARCHIVE_BASE
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
 
@@ -139,7 +142,7 @@ export default function App() {
   }, [songs])
 
   useEffect(() => {
-    if (portalHost || appLocation.pathname.startsWith('/shop') || appLocation.pathname.startsWith('/myhome/') || appLocation.pathname.startsWith('/short/') || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
+    if (portalHost || appLocation.pathname.startsWith('/shop') || appLocation.pathname.startsWith('/myhome') || appLocation.pathname.startsWith('/short/') || appLocation.pathname === '/updates' || appLocation.pathname.startsWith('/game-repair')) return
     let cancelled = false
     loadCatalog().then(success => {
       if (!success || cancelled) return
@@ -167,6 +170,9 @@ export default function App() {
           <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
           <Route path="/short/:code" element={<ShortLinkPage />} />
+          <Route path="/myhome" element={<MyHomePage/>}/>
+          <Route path="/myhome/all" element={<ShopPage allCharacters/>}/>
+          <Route path="/myhome/characters/:characterId" element={<ShopPage/>}/>
           <Route path="/myhome/:handle" element={<ShopPage />} />
           <Route path="/removed-songs" element={<RemovedSongsPage />} />
           {!xyxMode && <Route path="/pmang-songs" element={<PmangSongsPage />} />}

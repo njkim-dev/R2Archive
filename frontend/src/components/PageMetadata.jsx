@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { isXyxMode } from '../utils/serverMode'
+import { isXyxMode,ARCHIVE_BASE } from '../utils/serverMode'
 import { DEFAULT_TITLE, getPageSeo } from '../utils/seo'
 
 export default function PageMetadata() {
@@ -8,7 +8,7 @@ export default function PageMetadata() {
 
   useEffect(() => {
     if (isXyxMode()) return
-    const portalHost = window.location.hostname === 'r2archive.com'
+    const portalHost = window.location.hostname === 'r2archive.com'&&!ARCHIVE_BASE
     const seo = portalHost ? null : getPageSeo(pathname)
     document.title = pathname === '/shop' ? '아이템 상점 | R2Archive' : pathname === '/game-repair' ? '게임 설치 파일 검사 및 복구 | R2Archive' : portalHost ? 'R2Archive | 알투비트 팬 아카이브' : seo?.title ?? DEFAULT_TITLE
     document.head.querySelectorAll('[data-page-seo]').forEach(node => node.remove())

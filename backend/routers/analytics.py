@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api", tags=["analytics"])
 VALID_SERVERS = {"kr", "xyx", "pmang", "unknown"}
 VALID_CATALOG_SERVERS = {"kr", "xyx", "pmang"}
 TRACKED_DOMAINS = ("r2archive.com", "music.r2archive.com", "xyx.r2archive.com")
-DOMAIN_SQL = "CASE " + " ".join(
+DOMAIN_SQL = "CASE WHEN path LIKE 'https://r2archive.com/music/%%' OR path='https://r2archive.com/music' THEN 'music.r2archive.com' WHEN path LIKE 'https://r2archive.com/xyx/%%' OR path='https://r2archive.com/xyx' THEN 'xyx.r2archive.com' " + " ".join(
     f"WHEN path LIKE 'https://{host}/%%' THEN '{host}'" for host in TRACKED_DOMAINS
 ) + " ELSE 'unknown' END"
 VALID_DEVICES = {"desktop", "mobile", "tablet", "unknown"}

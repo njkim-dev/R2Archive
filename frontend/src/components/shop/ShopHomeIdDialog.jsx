@@ -3,9 +3,9 @@ import { checkMyHomeId, publishMyHome } from '../../api/shopSharing'
 import { myHomeId } from '../../utils/myHomeId'
 import { lockShopScroll } from './shopModalScroll'
 
-export default function ShopHomeIdDialog({ onClose, onPublished }) {
+export default function ShopHomeIdDialog({ onClose, onPublished, characterId, initialName = '' }) {
   const dialog = useRef(null)
-  const [input, setInput] = useState(''), [status, setStatus] = useState(''), [available, setAvailable] = useState(false), [saving, setSaving] = useState(false)
+  const [input, setInput] = useState(initialName), [status, setStatus] = useState(''), [available, setAvailable] = useState(false), [saving, setSaving] = useState(false)
   const value = myHomeId(input)
   useLayoutEffect(() => { const node = dialog.current, release = lockShopScroll(); node.showModal(); return () => { node.close(); release() } }, [])
   useEffect(() => {
@@ -14,7 +14,7 @@ export default function ShopHomeIdDialog({ onClose, onPublished }) {
     if (!value.valid) { setStatus('영어ㆍ숫자ㆍ한글ㆍ[ㆍ]ㆍ-ㆍ_만 사용하여 20byte 이내로 입력해주세요.'); return }
     setStatus('중복 확인 중입니다.')
     const controller = new AbortController()
-    const timer = setTimeout(() => checkMyHomeId(value.handle, controller.signal).then(data => {
+    const timer = setTimeout(() => checkMyHomeId(value.handle, controller.signal,characterId).then(data => {
       if (!controller.signal.aborted) { setAvailable(data.available); setStatus(data.available ? '사용할 수 있는 ID입니다.' : '이미 사용 중인 ID입니다.') }
     }).catch(error => { if (!controller.signal.aborted) setStatus(error.response?.data?.detail || '중복 확인에 실패했습니다.') }), 300)
     return () => { clearTimeout(timer); controller.abort() }
@@ -23,7 +23,7 @@ export default function ShopHomeIdDialog({ onClose, onPublished }) {
     event.preventDefault()
     if (!value.valid || !available || saving) return
     setSaving(true)
-    try { const result = await publishMyHome(value.handle); onPublished(result) }
+    try { const result = await publishMyHome(value.handle,characterId); onPublished(result) }
     catch (error) { setStatus(error.response?.data?.detail || '공유 ID를 저장하지 못했습니다.'); setAvailable(false) }
     finally { setSaving(false) }
   }

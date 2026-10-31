@@ -100,3 +100,5 @@
 @media (prefers-reduced-motion: reduce) { .archive-portal * { transition: none !important; } }
 
 .archive-portal .shop-service{grid-column:1 / -1}
+
+.archive-portal .shop-service{grid-column:auto}.archive-portal .myhome-service{text-align:left;font:inherit;cursor:pointer}.archive-portal .myhome-service:disabled{opacity:.55;cursor:not-allowed}.archive-portal .myhome-service:disabled:hover{background:linear-gradient(145deg,#ffffffdf,#efffffac);box-shadow:0 14px 50px #0b7eac1c,inset 0 1px #fff}

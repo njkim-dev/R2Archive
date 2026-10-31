@@ -14,7 +14,7 @@ def home_handle(value):
 
 def public_home_owner(cur, handle):
     _, key = home_handle(handle)
-    cur.execute('SELECT user_id, handle FROM shop_myhome_links WHERE handle_key = %s AND active', (key,))
+    cur.execute('SELECT l.user_id,l.handle,c.id AS character_id,c.name,c.sex,c.thumbnail_key FROM shop_myhome_links l JOIN shop_characters c ON c.id=l.character_id WHERE l.handle_key=%s AND l.active',(key,))
     row = cur.fetchone()
     if not row:
         raise HTTPException(404, '존재하지 않거나 공유가 해제된 마이홈입니다')
@@ -26,15 +26,17 @@ def short_target(value):
     if parsed.scheme or parsed.netloc or parsed.path != '/shop' or parsed.fragment or len(value) > 4096:
         raise HTTPException(422, '상점 공유 URL만 저장할 수 있습니다')
     try:
-        pairs = parse_qsl(parsed.query, keep_blank_values=True, max_num_fields=24)
+        pairs = parse_qsl(parsed.query, keep_blank_values=True, max_num_fields=48)
     except ValueError:
         raise HTTPException(422, '공유 URL이 올바르지 않습니다')
     fields = dict(pairs)
     if len(fields) != len(pairs):
         raise HTTPException(422, '공유 URL에 중복된 항목이 있습니다')
     patterns = {'v':r'[a-f0-9]{12,64}', 'sex':r'male|female', 'view':r'preview|couple', 'pair':r'[01]', 'price':r'[A-Z0-9]{1,8}'}
+    patterns['partnerSex']=r'male|female'
     for key in ['item','hair','face','top','bottom','shoes','pet','accessory','summon']:
         patterns[key] = r'[0-9]{1,12}'
+        if key!='item':patterns['partner_'+key]=r'[0-9]{1,12}'
     for key, val in fields.items():
         if key in ['angle','zoom','panX','panY']:
             import math

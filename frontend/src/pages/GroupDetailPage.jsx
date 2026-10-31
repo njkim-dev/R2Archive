@@ -1,3 +1,4 @@
+import { archivePath } from '../utils/serverMode'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import useStore from '../store/useStore'
@@ -104,7 +105,7 @@ export default function GroupDetailPage() {
   const hue = hueOf(g.id)
 
   const onCopyCode = async () => {
-    const url = `${window.location.origin}/groups/${g.join_code}`
+    const url = `${window.location.origin}${archivePath(`/groups/${g.join_code}`)}`
     try {
       await navigator.clipboard.writeText(url)
       alert(`초대 링크가 복사되었어요\n${url}`)

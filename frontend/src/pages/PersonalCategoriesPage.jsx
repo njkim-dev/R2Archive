@@ -1,3 +1,4 @@
+import { archivePath } from '../utils/serverMode'
 import { useEffect, useMemo, useState } from 'react'
 import { Copy, ExternalLink, FolderPlus, Globe2, Lock, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -19,7 +20,7 @@ function fmtDate(value) {
 }
 
 function categoryLink(category) {
-  return `${window.location.origin}/personal-categories/${category.category_code}`
+  return `${window.location.origin}${archivePath(`/personal-categories/${category.category_code}`)}`
 }
 
 function mergeCategories(...groups) {

@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { getMyHomeLink, getPublicHome, removeMyHomeLink } from '../../api/shopSharing'
 
-export function useMyHomeLink(userId) {
+export function useMyHomeLink(userId,characterId) {
   const [state, setState] = useState({ owner: null, handle: null, ready: false, busy: false, error: '' })
-  const owner = useRef(userId); owner.current = userId
+  const owner = useRef(null); const identity=userId&&characterId?`${userId}:${characterId}`:null;owner.current=identity
   useEffect(() => {
-    setState({ owner: userId, handle: null, ready: false, busy: false, error: '' })
-    if (!userId) return
+    setState({ owner: identity, handle: null, ready: false, busy: false, error: '' })
+    if (!identity) return
     const controller = new AbortController()
-    getMyHomeLink(controller.signal).then(data => { if (!controller.signal.aborted) setState({ owner: userId, handle: data.handle, ready: true, busy: false, error: '' }) }).catch(() => { if (!controller.signal.aborted) setState(previous => ({ ...previous, error: '마이홈 공유 정보를 불러오지 못했습니다.' })) })
+    getMyHomeLink(characterId,controller.signal).then(data => { if (!controller.signal.aborted) setState({ owner: identity, handle: data.handle, ready: true, busy: false, error: '' }) }).catch(() => { if (!controller.signal.aborted) setState(previous => ({ ...previous, error: '마이홈 공유 정보를 불러오지 못했습니다.' })) })
     return () => controller.abort()
-  }, [userId])
+  }, [identity])
   async function remove() {
-    if (!userId || state.busy) return
+    if (!identity || state.busy) return
     setState(previous => ({ ...previous, busy: true, error: '' }))
-    try { await removeMyHomeLink(); if (owner.current === userId) setState({ owner:userId,handle:null,ready:true,busy:false,error:'' }) }
-    catch { if (owner.current === userId) setState(previous => ({ ...previous,busy:false,error:'마이홈 공유 URL을 제거하지 못했습니다.' })) }
+    try { await removeMyHomeLink(characterId); if (owner.current === identity) setState({ owner:identity,handle:null,ready:true,busy:false,error:'' }) }
+    catch { if (owner.current === identity) setState(previous => ({ ...previous,busy:false,error:'마이홈 공유 URL을 제거하지 못했습니다.' })) }
   }
-  const current = state.owner === userId && !!userId
-  return { ...(current ? state : { handle:null,ready:false,busy:false,error:'' }), remove, published: data => { if (owner.current === userId) setState({ owner:userId,handle:data.handle,ready:true,busy:false,error:'' }) } }
+  const current = state.owner === identity && !!identity
+  return { ...(current ? state : { handle:null,ready:false,busy:false,error:'' }), remove, published: data => { if (owner.current === identity) setState({ owner:identity,handle:data.handle,ready:true,busy:false,error:'' }) } }
 }
 
 export function usePublicHome(handle, version) {

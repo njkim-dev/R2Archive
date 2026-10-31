@@ -3,10 +3,11 @@ import { watchLayout } from './layout.js'
 
 const song = { id: 1, name: 'Home Link Test', artist: 'Test', level: 8, bpm: 160, combo: 100, time: '1:00', image: '', youtube_url: '', file_order: 1, aliases: [], artist_aliases: [], user_level_votes: 0 }
 
-for (const host of ['music.r2archive.com', 'xyx.r2archive.com']) {
-  test(`${host} sidebar places the main home link above server buttons with stable loading`, async ({ page, baseURL }, testInfo) => {
+for (const archive of ['music','xyx']) {
+  const host='r2archive.com'
+  test(`${archive} sidebar places the main home link above server buttons with stable loading`, async ({ page, baseURL }, testInfo) => {
     const width = testInfo.project.use.viewport.width
-    const mobile = width < (host.startsWith('xyx') ? 1100 : 768)
+    const mobile = width < (archive==='xyx' ? 1100 : 768)
     let release
     const gate = new Promise(resolve => { release = resolve })
     await page.route(`http://${host}/**`, async route => {
@@ -24,7 +25,7 @@ for (const host of ['music.r2archive.com', 'xyx.r2archive.com']) {
       const response = await route.fetch({ url: `${baseURL}${url.pathname}${url.search}` })
       await route.fulfill({ response })
     })
-    await page.goto(`http://${host}/`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`http://${host}/${archive}/`, { waitUntil: 'domcontentloaded' })
     if (mobile) {
       await expect(page.locator('.mob-top .main-home-link')).toBeHidden()
       await expect(page.getByRole('button', { name: '한국 서버', exact: true })).toBeVisible()

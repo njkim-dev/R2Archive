@@ -113,7 +113,7 @@ def serialize(row):
 
 
 ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, {counterpart_sql()} AS counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, NOT show AS is_unreleased, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
-ACCESSIBLE = f"(show OR ({DEPARTMENT_SQL}) = 'wearable')"
+ACCESSIBLE = f"(show OR ({DEPARTMENT_SQL}) = 'wearable' OR category='507' OR category='508' AND ({GROUP_SQL})='friend')"
 
 
 @router.get("/meta")
@@ -149,6 +149,7 @@ def items(
     favorites_only: bool = False,
     owned_only: bool = False,
     home: str | None = Query(None, max_length=20),
+    character_id: int | None = Query(None,gt=0,le=9223372036854775807),
     include_unreleased: bool = False,
     cursor: str | None = Query(None, max_length=80),
     page: int = Query(1, ge=1, le=10000),
@@ -156,12 +157,17 @@ def items(
 ):
     if home and (favorites_only or owned_only):
         raise HTTPException(422, '공개 마이홈은 공개 목록 조건으로 조회해주세요')
-    uid = favorite_user(request) if favorites_only or owned_only else None
+    uid = favorite_user(request) if favorites_only or owned_only or character_id else None
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         if home:
-            uid = public_home_owner(cur, home)['user_id']
+            owner=public_home_owner(cur,home)
+            uid=owner['user_id'];character_id=owner['character_id'];sex=owner['sex']
             owned_only = True
             include_unreleased = True
+        elif character_id:
+            from shop_characters import require_character
+            character=require_character(cur,uid,character_id)
+            if owned_only:sex=character['sex']
         current = catalog(cur, version)
         conditions = ["revision = %s", ACCESSIBLE if include_unreleased else "show"]
         args = [current["revision"]]
@@ -181,9 +187,10 @@ def items(
             conditions.append('EXISTS (SELECT 1 FROM shop_favorites AS favorite WHERE favorite.user_id = %s AND favorite.item_id = shop_items.item_id)')
             args.append(uid)
         if owned_only:
-            conditions.append(f"({DEPARTMENT_SQL}) = 'wearable'")
-            conditions.append('EXISTS (SELECT 1 FROM shop_wardrobe AS owned WHERE owned.user_id = %s AND owned.item_id = shop_items.item_id)')
+            conditions.append(f"(({DEPARTMENT_SQL})='wearable' OR category='507' OR category='508' AND ({GROUP_SQL})='friend')")
+            conditions.append('EXISTS (SELECT 1 FROM shop_character_items owned JOIN shop_characters c ON c.id=owned.character_id WHERE c.user_id=%s AND owned.item_id=shop_items.item_id'+(' AND c.id=%s' if character_id else '')+')')
             args.append(uid)
+            if character_id:args.append(character_id)
         if paired_only:
             partner_preview = 'AND partner.preview_available AND partner.model IS NOT NULL' if preview_only else ''
             conditions.append(f"""({department_sql('shop_items')}) = 'wearable' AND (
@@ -228,6 +235,11 @@ def items(
             has_more = page * page_size < total
             next_cursor = None
         result = [serialize(r) for r in rows]
+        if owned_only and not home and not character_id and result:
+            cur.execute('SELECT ci.item_id,c.id,c.name FROM shop_character_items ci JOIN shop_characters c ON c.id=ci.character_id WHERE c.user_id=%s AND ci.item_id=ANY(%s) ORDER BY c.id',(uid,[int(item['id']) for item in result]))
+            owners={}
+            for row in cur.fetchall():owners.setdefault(str(row['item_id']),[]).append({'id':str(row['id']),'name':row['name']})
+            for item in result:item['owners']=owners.get(item['id'],[])
     return JSONResponse({"version": current["revision"], "items": result, "total": total, "page": page, "page_size": page_size, "has_more": has_more, "next_cursor": next_cursor}, headers=PRIVATE_HEADERS)
 
 
@@ -309,106 +321,19 @@ def wardrobe_state(cur, uid, revision):
 def wardrobe(request: Request, version: str | None = Query(None, max_length=64)):
     uid = favorite_user(request)
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        wardrobe_storage(cur)
-        current = catalog(cur, version)
-        result = wardrobe_state(cur, uid, current['revision'])
-    return JSONResponse(result, headers=PRIVATE_HEADERS)
-
-
-def wardrobe_item(cur, uid, item_id, version):
-    if not 0 < item_id <= 9223372036854775807:
-        raise HTTPException(status_code=422, detail='아이템 번호가 올바르지 않습니다')
-    wardrobe_storage(cur)
-    current = catalog(cur, version)
-    # Serialize first-save/default selection for the same account, including two concurrent saves.
-    cur.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (uid,))
-    cur.execute(f"SELECT sex, ({SLOT_SQL}) AS slot FROM shop_items WHERE revision = %s AND item_id = %s AND ({DEPARTMENT_SQL}) = 'wearable' AND ({SLOT_SQL}) IN ('hair','face','top','bottom','shoes','pet','accessory','summon')", (current['revision'], item_id))
-    row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail='내 의상에 저장할 수 없는 아이템입니다')
-    return current['revision'], row
-
-
-class WardrobeBatch(BaseModel):
-    ids: list[int] = Field(min_length=1, max_length=8)
-
-
-@router.post('/wardrobe/batch')
-@bounded_shop_read
-def save_wardrobe_batch(request: Request, payload: WardrobeBatch, version: str | None = Query(None, max_length=64)):
-    uid = favorite_user(request)
-    ids = sorted(set(payload.ids))
-    if any(not 0 < item_id <= 9223372036854775807 for item_id in ids):
-        raise HTTPException(422, '아이템 번호가 올바르지 않습니다')
-    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        wardrobe_storage(cur)
-        current = catalog(cur, version)
-        cur.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (uid,))
-        cur.execute(f"SELECT item_id, sex, ({SLOT_SQL}) AS slot FROM shop_items WHERE revision = %s AND item_id = ANY(%s) AND ({DEPARTMENT_SQL}) = 'wearable' AND ({SLOT_SQL}) IN ('hair','face','top','bottom','shoes','pet','accessory','summon')", (current['revision'], ids))
-        rows = cur.fetchall()
-        if len(rows) != len(ids):
-            raise HTTPException(404, '내 의상에 저장할 수 없는 아이템이 포함되어 있습니다')
-        for row in rows:
-            cur.execute('INSERT INTO shop_wardrobe (user_id,item_id) VALUES (%s,%s) ON CONFLICT DO NOTHING', (uid,row['item_id']))
-            for sex in ('male','female') if row['sex'] == 'common' else (row['sex'],):
-                cur.execute('INSERT INTO shop_wardrobe_mains (user_id,sex,slot,item_id) VALUES (%s,%s,%s,%s) ON CONFLICT (user_id,sex,slot) DO NOTHING', (uid,sex,row['slot'],row['item_id']))
-        result = wardrobe_state(cur, uid, current['revision'])
-        conn.commit()
-    return JSONResponse(result, headers=PRIVATE_HEADERS)
-
-
-@router.delete('/wardrobe/{item_id}')
-@bounded_shop_read
-def delete_wardrobe(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
-    uid = favorite_user(request)
-    if not 0 < item_id <= 9223372036854775807:
-        raise HTTPException(422, '아이템 번호가 올바르지 않습니다')
-    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        wardrobe_storage(cur)
-        current = catalog(cur, version)
-        cur.execute('SELECT id FROM users WHERE id = %s FOR UPDATE', (uid,))
-        cur.execute('SELECT sex,slot FROM shop_wardrobe_mains WHERE user_id = %s AND item_id = %s', (uid,item_id))
-        affected = cur.fetchall()
-        cur.execute('DELETE FROM shop_wardrobe WHERE user_id = %s AND item_id = %s', (uid,item_id))
-        for main in affected:
-            cur.execute(f"""INSERT INTO shop_wardrobe_mains (user_id,sex,slot,item_id)
-                SELECT %s,%s,%s,i.item_id FROM shop_wardrobe AS w JOIN shop_items AS i ON i.item_id = w.item_id
-                WHERE w.user_id = %s AND i.revision = %s AND i.sex IN (%s,'common') AND ({slot_sql('i')}) = %s AND ({department_sql('i')}) = 'wearable'
-                ORDER BY w.created_at,i.item_id LIMIT 1 ON CONFLICT DO NOTHING""", (uid,main['sex'],main['slot'],uid,current['revision'],main['sex'],main['slot']))
-        result = wardrobe_state(cur,uid,current['revision'])
-        conn.commit()
-    return JSONResponse(result, headers=PRIVATE_HEADERS)
+        catalog(cur, version)
+        cur.execute('SELECT DISTINCT ci.item_id FROM shop_character_items ci JOIN shop_characters c ON c.id=ci.character_id WHERE c.user_id=%s ORDER BY ci.item_id',(uid,))
+        result={'ids':[str(row['item_id']) for row in cur.fetchall()],'mains':[]}
+    return JSONResponse(result,headers=PRIVATE_HEADERS)
 
 
 @router.post('/wardrobe/{item_id}')
-@bounded_shop_read
-def save_wardrobe(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
-    uid = favorite_user(request)
-    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        revision, row = wardrobe_item(cur, uid, item_id, version)
-        cur.execute('INSERT INTO shop_wardrobe (user_id, item_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (uid, item_id))
-        for gender in ('male', 'female') if row['sex'] == 'common' else (row['sex'],):
-            cur.execute('INSERT INTO shop_wardrobe_mains (user_id, sex, slot, item_id) VALUES (%s, %s, %s, %s) ON CONFLICT (user_id, sex, slot) DO NOTHING', (uid, gender, row['slot'], item_id))
-        result = wardrobe_state(cur, uid, revision)
-        conn.commit()
-    return JSONResponse(result, headers=PRIVATE_HEADERS)
-
-
+@router.delete('/wardrobe/{item_id}')
 @router.put('/wardrobe/{item_id}/main')
-@bounded_shop_read
-def set_wardrobe_main(request: Request, item_id: int, sex: str = Query(..., pattern='^(male|female)$'), version: str | None = Query(None, max_length=64)):
-    uid = favorite_user(request)
-    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        revision, row = wardrobe_item(cur, uid, item_id, version)
-        if row['sex'] not in ('common', sex):
-            raise HTTPException(status_code=422, detail='캐릭터 성별에 맞는 의상을 선택해주세요')
-        cur.execute('SELECT item_id FROM shop_wardrobe WHERE user_id = %s AND item_id = %s', (uid, item_id))
-        if not cur.fetchone():
-            raise HTTPException(status_code=404, detail='먼저 내 의상으로 저장해주세요')
-        cur.execute('INSERT INTO shop_wardrobe_mains (user_id, sex, slot, item_id) VALUES (%s, %s, %s, %s) ON CONFLICT (user_id, sex, slot) DO UPDATE SET item_id = EXCLUDED.item_id', (uid, sex, row['slot'], item_id))
-        result = wardrobe_state(cur, uid, revision)
-        conn.commit()
-    return JSONResponse(result, headers=PRIVATE_HEADERS)
+@router.post('/wardrobe/batch')
+def select_character_first(request:Request,item_id:int|None=None):
+    favorite_user(request)
+    raise HTTPException(409,'의상을 저장할 캐릭터를 선택해주세요')
 
 
 @router.get("/items/{item_id}")

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { getSessionId } from '../utils/helpers'
-import { apiPath, isXyxMode } from '../utils/serverMode'
+import { apiPath, isXyxMode,ARCHIVE_BASE } from '../utils/serverMode'
 
 const api = axios.create({ baseURL: '/api', withCredentials: true })
 export const setRepairAvailability = (enabled) => api.put('/game-repair/admin/status', { enabled }).then(r => r.data)
@@ -153,7 +153,7 @@ export const deleteMyRecord = (recordId) =>
 export const deleteMyComment = (commentId) =>
   api.delete(`/users/me/comments/${commentId}`).then(r => r.data)
 export const oauthLoginUrl = (provider, remember = false) =>
-  `/api/auth/${provider}/login?remember=${remember ? '1' : '0'}`
+  `/api/auth/${provider}/login?remember=${remember ? '1' : '0'}&return_origin=${encodeURIComponent(window.location.origin+ARCHIVE_BASE)}`
 
 export const getRankings = (groupId = null, speed = 'all') =>
   api.get('/rankings/songs', {

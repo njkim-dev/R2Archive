@@ -7,9 +7,9 @@ export const createShortUrl = url => {
   return api.post('/short', { target: target.pathname + target.search }).then(r => r.data.url)
 }
 export const resolveShortUrl = (code, signal) => api.get(`/short/${encodeURIComponent(code)}`, { signal }).then(r => r.data)
-export const getMyHomeLink = signal => api.get('/myhome', { signal }).then(r => r.data)
-export const checkMyHomeId = (handle, signal) => api.get('/myhome/check', { params: { handle }, signal }).then(r => r.data)
-export const publishMyHome = handle => api.put('/myhome', { handle }).then(r => r.data)
-export const removeMyHomeLink = () => api.delete('/myhome').then(r => r.data)
+export const getMyHomeLink = (characterId,signal) => api.get('/myhome', { params:{character_id:characterId},signal }).then(r => r.data)
+export const checkMyHomeId = (handle, signal, characterId) => api.get('/myhome/check', { params: { handle,character_id:characterId }, signal }).then(r => r.data)
+export const publishMyHome = (handle,characterId) => api.put('/myhome', { handle,character_id:characterId }).then(r => r.data)
+export const removeMyHomeLink = characterId => api.delete('/myhome',{params:{character_id:characterId}}).then(r => r.data)
 export const getPublicHome = (handle, version, signal) => api.get(`/homes/${encodeURIComponent(handle)}`, { params: { version }, signal }).then(r => r.data)
 export const myHomeUrl = handle => 'https://r2archive.com/myhome/' + encodeURIComponent(handle)

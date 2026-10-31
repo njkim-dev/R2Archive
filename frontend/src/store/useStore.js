@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { getAuthMe, getAdminStatus, logoutApi, getMyFlags, addFavorite, removeFavorite, getMyPmangFavorites, addPmangFavorite, removePmangFavorite, getPmangYoutubeCandidates, getSongs, getMeta, getPersonalCategoryFilters } from '../api/client'
 import { replaceCatalogHash, songCatalogHash } from '../utils/catalogUrl'
-import { SERVER_MODE, isXyxMode } from '../utils/serverMode'
+import { SERVER_MODE, isXyxMode,archivePath } from '../utils/serverMode'
 import { allowedQuickFilter, normalizeDetailedFilters } from '../utils/catalogFilters'
 
 const SHOW_ORIGINAL_BPM_KEY = 'r2b_show_original_bpm'
@@ -409,15 +409,15 @@ const useStore = create((set, get) => ({
     const modalReturnUrl = state.modalOpen
       ? state.modalReturnUrl
       : `${window.location.pathname}${window.location.search}`
-    const pathname = preservePath ? window.location.pathname : '/'
+    const pathname = preservePath ? window.location.pathname : archivePath('/')
     const search = preservePath ? window.location.search : ''
     if (song?.id) replaceCatalogHash(songCatalogHash(song.id), pathname, search)
-    set({ modalSong: song, modalOpen: true, modalReturnUrl: modalReturnUrl || '/', modalPreservePath: preservePath })
+    set({ modalSong: song, modalOpen: true, modalReturnUrl: modalReturnUrl || archivePath('/'), modalPreservePath: preservePath })
   },
   closeModal: () => {
     const { modalReturnUrl } = get()
     if (/^#song=\d+$/.test(window.location.hash)) {
-      window.history.replaceState(window.history.state, '', modalReturnUrl || '/')
+      window.history.replaceState(window.history.state, '', modalReturnUrl || archivePath('/'))
     }
     set({ modalOpen: false, modalSong: null, modalReturnUrl: null, modalPreservePath: false })
   },

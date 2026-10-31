@@ -1,3 +1,4 @@
+import { archivePath } from '../utils/serverMode'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Globe2, Lock, Search, SlidersHorizontal, Users, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -663,7 +664,7 @@ export default function PersonalCategoryDetailPage() {
   }
 
   const copyLink = async () => {
-    const link = `${window.location.origin}/personal-categories/${category.category_code}`
+    const link = `${window.location.origin}${archivePath(`/personal-categories/${category.category_code}`)}`
     try {
       await navigator.clipboard.writeText(link)
       alert(`카테고리 링크를 복사했어요.\n${link}`)

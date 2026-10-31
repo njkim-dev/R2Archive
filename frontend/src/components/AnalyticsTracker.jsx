@@ -9,7 +9,7 @@ function currentPath() {
 
 function currentServer(path) {
   if (isXyxMode()) return 'xyx'
-  if (path.startsWith('/pmang-songs')) return 'pmang'
+  if (/^\/(?:music\/)?pmang-songs(?:\/|$)/.test(path)) return 'pmang'
   return 'kr'
 }
 

@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test'
 import { watchLayout } from './layout.js'
 
 const song = { id: 1, name: '배경 가독성 확인', artist: 'Test', level: 8, bpm: 160, combo: 100, time: '1:00', image: '', youtube_url: '', file_order: 1, aliases: [], artist_aliases: [], user_level_votes: 0 }
-for (const host of ['music.r2archive.com', 'xyx.r2archive.com']) {
-  test(`${host} artwork stays behind opaque content without moving the loading catalog`, async ({ page, baseURL }, testInfo) => {
+for (const archive of ['music','xyx']) {
+  const host='r2archive.com'
+  test(`${archive} artwork stays behind opaque content without moving the loading catalog`, async ({ page, baseURL }, testInfo) => {
     const width = testInfo.project.name.endsWith('768') ? 390 : testInfo.project.use.viewport.width
     await page.setViewportSize({ width, height: 900 })
-    const mobile = width < (host.startsWith('xyx') ? 1100 : 768)
+    const mobile = width < (archive==='xyx' ? 1100 : 768)
     let releaseImage, releaseCatalog
     const imageGate = new Promise(resolve => { releaseImage = resolve })
     const catalogGate = new Promise(resolve => { releaseCatalog = resolve })
@@ -26,7 +27,7 @@ for (const host of ['music.r2archive.com', 'xyx.r2archive.com']) {
       const response = await route.fetch({ url: `${baseURL}${url.pathname}${url.search}` })
       await route.fulfill({ response })
     })
-    await page.goto(`http://${host}/`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`http://${host}/${archive}/`, { waitUntil: 'domcontentloaded' })
     const layer = page.locator('.archive-backdrop')
     await expect(layer).toHaveCount(1)
     await expect(layer).toHaveAttribute('aria-hidden', 'true')

@@ -449,7 +449,7 @@ def plan(source, output, pose_root=None):
     errors = []
     models = set()
     for item in items:
-        if not item['show']:
+        if not item['show'] and item['category'] not in ['507','508']:
             continue
         if item['_thumbnail_source']:
             required.add(resolver.resolve(item['_thumbnail_source']))
@@ -657,7 +657,7 @@ class Builder:
     def item(self, original):
         item = dict(original)
         preview_slot = item.pop('_preview_slot', item['slot'])
-        if item['show']:
+        if item['show'] or item['category'] in ['507','508']:
             if item['_thumbnail_source']:
                 try:
                     item['thumbnail'] = self.image(item['_thumbnail_source'], 'thumbnails')
