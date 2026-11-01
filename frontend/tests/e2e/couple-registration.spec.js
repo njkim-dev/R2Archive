@@ -29,6 +29,9 @@ test('right aligned request controls keep geometry and URL disclosure is anchore
   await page.getByRole('button',{name:'내 마이홈 URL 복사',exact:true}).click();const copyDialog=page.getByRole('dialog',{name:'내 마이홈 복사',exact:true});await expect(copyDialog).toContainText('공개하고 싶지 않은 아이템은 비공개하세요.')
   const anchored=await copyDialog.boundingBox(),anchor=await page.getByRole('button',{name:'내 마이홈 URL 복사',exact:true}).boundingBox();expect(Math.abs(anchored.x-anchor.x)).toBeLessThan(30);expect(anchored.y).toBeGreaterThan(30)
   await copyDialog.getByRole('button',{name:'닫기',exact:true}).click();await button.click();const dialog=page.getByRole('dialog',{name:'커플 등록',exact:true})
+  for(const node of [dialog.getByRole('heading',{name:'커플 등록',exact:true}),dialog.locator('label'),dialog.locator('.r2-couple-status')])await expect(node).toHaveCSS('text-align','left')
+  await expect(dialog.locator('form>div')).toHaveCSS('justify-content','flex-end')
+  await page.screenshot({path:test.info().outputPath('couple-registration-alignment.png')})
   const watcher=await watchLayout(page,['.shop-header','.shop-home-share','.shop-departments','.shop-grid'])
   await dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL').fill('https://r2archive.com/myhome/friend');await dialog.getByRole('button',{name:'커플 요청 보내기',exact:true}).click();await waitForFrames(page);await watcher.expectStable();release()
   await expect(page.getByRole('button',{name:'커플 요청 취소',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
@@ -51,8 +54,10 @@ test('incoming request rejection releases the character',async({page})=>{
 })
 
 test('private items and mains remain owned but disappear publicly and all three card actions never wrap',async({page})=>{
+  if(test.info().project.use.viewport.width>768)await page.setViewportSize({width:1176,height:900})
   const requests=await setup(page,{characters:[own],items:[femaleShirt,pet]});await connections(page);await home(page)
   const card=page.locator('[data-item-id="201"]'),privacy=card.getByRole('button',{name:'비공개 처리',exact:true});await privacy.scrollIntoViewIfNeeded();const watcher=await watchLayout(page,['.shop-header','.shop-home-share','.shop-grid','.shop-card-actions'])
+  if(test.info().project.use.viewport.width>768)expect((await card.boundingBox()).width).toBeCloseTo(266.67,1)
   await privacy.click();await expect(card.locator('.shop-private-tag')).toHaveText('비공개');await expect(card.getByRole('button',{name:'공개 처리',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
   expect(requests.characters()[0].private_ids).toEqual(['201']);expect(requests.characters()[0].mains[0].item.id).toBe('201')
   const positions=await card.locator('.shop-card-actions button').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return{y:r.y,scroll:node.scrollWidth,client:node.clientWidth}}));expect(positions).toHaveLength(3);expect(Math.max(...positions.map(p=>p.y))-Math.min(...positions.map(p=>p.y))).toBeLessThan(2);for(const p of positions)expect(p.scroll).toBeLessThanOrEqual(p.client+1)
