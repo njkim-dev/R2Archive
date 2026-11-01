@@ -259,10 +259,12 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
 
   function applyStorageCharacter(entry){
     const gender=entry.character.sex,updates=Object.fromEntries(SHOP_SLOTS.map(key=>[key,entry.mains.find(main=>main.slot===key&&main.item.preview_available&&main.item.model)?.item||null]))
-    wardrobes.current[gender]=updates;touched.current[gender]=new Set();setSex(gender);setSlots(updates)
+    const edited=gender===sex?slots:wardrobes.current[gender]
+    for(const key of touched.current[gender])updates[key]=edited[key]||null
+    wardrobes.current[gender]=updates;setSex(gender);setSlots(updates)
   }
   function selectStorageCharacter(value){
-    const id=value||null;pendingStorageCharacter.current=id
+    const id=value||null;pendingStorageCharacter.current=id;if(id)touched.current={male:new Set(),female:new Set()}
     if(id===targetCharacter&&owned.ready&&owned.character?.id===id){pendingStorageCharacter.current=null;applyStorageCharacter(owned)}
     setTargetCharacter(id)
   }
