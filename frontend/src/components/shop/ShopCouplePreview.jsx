@@ -27,7 +27,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
   function readPartnerOnce(key,load){if(!partnerReads.current.has(key))partnerReads.current.set(key,load());return partnerReads.current.get(key)}
   const {user,authLoaded}=useStore(),characters=useCharacters(ownPicker&&authLoaded?user?.id:null,meta.revision)
   useEffect(()=>{active.current=true;return()=>{active.current=false;clearTimeout(timer.current)}},[])
-  useEffect(()=>{if(!fallbackNotice||!viewerReady)return;const timeout=setTimeout(()=>setFallbackNotice(false),2000);return()=>clearTimeout(timeout)},[fallbackNotice,viewerReady])
+  useEffect(()=>{if(!fallbackNotice||!viewerReady)return;const timeout=setTimeout(()=>setFallbackNotice(false),5000);return()=>clearTimeout(timeout)},[fallbackNotice,viewerReady])
   useEffect(()=>{if(fallback){fallbackInput.current?.focus();fallbackInput.current?.select()}},[fallback])
   useLayoutEffect(()=>{const node=dialog.current,release=lockShopScroll();node.showModal();return()=>{node.close();release()}},[])
   useEffect(()=>{

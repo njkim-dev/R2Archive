@@ -48,12 +48,14 @@ test('saving without a character opens creation and stores the first item as tha
 })
 
 test('all characters deduplicates shared items and reports every owning character without a public home copy',async({page})=>{
-  await viewport(page);await setup(page,{items:[pet],characters:[{id:'1',name:'하나',sex:'female',ids:['300']},{id:'2',name:'둘',sex:'male',ids:['300']}]})
+  const names=['하나','둘',...Array.from({length:15},(_,i)=>'Owner'+String(i+3).padStart(15,'0'))],alerts=[];page.on('dialog',async dialog=>{alerts.push(dialog.message());await dialog.accept()})
+  await viewport(page);await setup(page,{items:[pet],characters:names.map((name,i)=>({id:String(i+1),name,sex:i%2?'male':'female',ids:['300']}))})
   await page.goto('/myhome/characters/all');await page.getByRole('button',{name:'여성',exact:true}).click();const card=page.locator('[data-item-id="300"]');await expect(card).toBeVisible()
-  await expect(page.locator('.shop-card')).toHaveCount(1);await card.hover();await expect(card.getByRole('note')).toHaveText('하나ㆍ둘')
+  await expect(page.locator('.shop-card')).toHaveCount(1);await card.hover();await expect(card.getByRole('note')).toHaveCount(0);await expect(card).not.toHaveAttribute('title',/.+/);await expect(card).not.toContainText('하나')
+  const info=card.locator('.shop-owner-info');await expect(info).toHaveAttribute('title',names.join('ㆍ'));await info.hover();await info.focus();await expect(info).toBeFocused();await info.click();expect(alerts).toEqual([]);await expect(card.locator('.shop-card-select')).toHaveAttribute('aria-pressed','false')
   await expect(page.getByRole('button',{name:'내 마이홈 URL 복사',exact:true})).toHaveCount(0)
   await card.getByRole('button',{name:'내 의상에서 제거',exact:true}).click();await page.getByRole('button',{name:'하나 캐릭터 선택',exact:true}).click()
-  await expect(card).toBeVisible();await card.hover();await expect(card.getByRole('note')).toHaveText('둘')
+  await expect(card).toBeVisible();await expect(info).toHaveAttribute('title',names.slice(1).join('ㆍ'));await expect(card.getByRole('note')).toHaveCount(0)
 })
 
 test('public ID all remains available without colliding with the private aggregate route',async({page})=>{
