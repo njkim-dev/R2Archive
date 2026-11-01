@@ -115,6 +115,7 @@ jobs:
 
   push:
     needs: build-scan
+    if: ${{ always() && needs.build-scan.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
