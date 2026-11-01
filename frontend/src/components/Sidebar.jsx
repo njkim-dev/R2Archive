@@ -105,7 +105,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
                 key={key}
                 className={`${quick === key ? 'active' : ''}${disabled ? ' locked' : ''}`}
                 onClick={() => !disabled && setQuick(key)}
-                title={disabled ? '로그인 후 이용 가능' : undefined}
+                data-tooltip={disabled ? '로그인 후 이용 가능' : undefined}
                 aria-pressed={quick === key}
                 aria-disabled={disabled}
               >
@@ -125,7 +125,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
               key={key}
               className={`cat-btn${category === key ? ' active' : ''}`}
               onClick={() => setCategory(key)}
-              title={`${label} (난이도 ${rng})`}
+              data-tooltip={`${label} (난이도 ${rng})`}
               aria-pressed={category === key}
             >
               {icon}

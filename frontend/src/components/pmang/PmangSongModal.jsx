@@ -570,7 +570,7 @@ export default function PmangSongModal({ song, onClose }) {
               className="btn btn-ghost"
               disabled={!user}
               style={!user ? { opacity: 0.5 } : (isFav ? { color: 'var(--accent, #ff6b9d)' } : {})}
-              title={user ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
+              data-tooltip={user ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
               onClick={() => { if (user) togglePmangFavorite(song.id) }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -578,7 +578,7 @@ export default function PmangSongModal({ song, onClose }) {
               </svg>
               즐겨찾기
             </button>
-            <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
+            <button className="btn btn-ghost btn-icon" data-tooltip="링크 복사" aria-label="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
               {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
             </button>
           </div>

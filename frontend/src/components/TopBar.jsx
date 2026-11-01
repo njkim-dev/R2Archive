@@ -151,7 +151,7 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
               <hr className="search-options-divider" />
               <div className="search-display-options">
                 {showOriginalBpmToggle && (
-                  <label className={`search-original-bpm${originalBpmAvailable ? '' : ' disabled'}`} title={originalBpmAvailable ? undefined : '현재 화면 너비에서는 원 BPM 컬럼을 표시할 수 없습니다.'}>
+                  <label className={`search-original-bpm${originalBpmAvailable ? '' : ' disabled'}`} data-tooltip={originalBpmAvailable ? undefined : '현재 화면 너비에서는 원 BPM 컬럼을 표시할 수 없습니다.'}>
                     <input
                       type="checkbox"
                       checked={showOriginalBpm}
@@ -162,7 +162,7 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
                   </label>
                 )}
                 {showMyPerceivedToggle && (
-                  <label className={`search-my-perceived${user ? '' : ' disabled'}`} title={user ? undefined : '로그인 후 사용할 수 있습니다.'}>
+                  <label className={`search-my-perceived${user ? '' : ' disabled'}`} data-tooltip={user ? undefined : '로그인 후 사용할 수 있습니다.'}>
                     <input
                       type="checkbox"
                       checked={!!user && showMyPerceived}
@@ -224,17 +224,17 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
                 type="button"
                 className="user-chip-open"
                 onClick={openMyPage}
-                title="마이페이지"
+                data-tooltip="마이페이지"
               >
                 <div className="user-avatar">{((user.nickname || '?')[0] || '?').toUpperCase()}</div>
                 <span className="user-name">{user.nickname || '...'}</span>
               </button>
-              <button className="user-logout" onClick={openOnboarding} title="프로필 수정" style={{ marginRight: 2 }}>
+              <button className="user-logout" onClick={openOnboarding} data-tooltip="프로필 수정" aria-label="프로필 수정" style={{ marginRight: 2 }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                 </svg>
               </button>
-              <button className="user-logout" onClick={logout} title="로그아웃">
+              <button className="user-logout" onClick={logout} data-tooltip="로그아웃" aria-label="로그아웃">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                   <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>

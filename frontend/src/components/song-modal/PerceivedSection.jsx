@@ -77,7 +77,7 @@ export default function PerceivedSection({ song }) {
                 key={i}
                 className={`perceived-bar${i === officialBin ? ' highlight' : ''}`}
                 style={{ height: `${maxBin ? (v / maxBin * 100) : 0}%` }}
-                title={`LV ${(0.5 + i * 0.5).toFixed(1)} — ${v}표`}
+                data-tooltip={`LV ${(0.5 + i * 0.5).toFixed(1)} — ${v}표`}
               />
             ))}
           </div>
@@ -102,7 +102,7 @@ export default function PerceivedSection({ song }) {
               key={v}
               className={`perceived-step${v === song.level ? ' is-official' : ''}${selected === v ? ' on' : ''}`}
               onClick={() => !submitted && setSelected(v)}
-              title={v === song.level ? '표기 난이도' : ''}
+              data-tooltip={v === song.level ? '표기 난이도' : ''}
             >
               {v.toFixed(1)}
             </button>

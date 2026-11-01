@@ -275,7 +275,7 @@ function ComposeCard({ tab, onSubmitted }) {
           aria-disabled={!isValid || busy}
           data-disabled={!isValid || busy ? 'true' : 'false'}
           onClick={() => { if (isValid && !busy) handleSubmit() }}
-          title={
+          data-tooltip={
             busy ? '제출 중'
               : !type ? '유형을 먼저 선택해주세요'
               : !title.trim() ? '제목을 입력해주세요'
@@ -299,7 +299,7 @@ function FeedbackItem({ item, onVote }) {
       <button
         className={`fb-vote${item.voted ? ' on' : ''}`}
         onClick={() => onVote(item)}
-        title={item.voted ? '좋아요 취소' : '좋아요'}
+        data-tooltip={item.voted ? '좋아요 취소' : '좋아요'}
       >
         <svg
           width="15" height="15" viewBox="0 0 24 24"

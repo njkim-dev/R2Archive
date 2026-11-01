@@ -73,7 +73,7 @@ export default function PersonalCategoryPicker({
       <button
         type="button"
         className={className}
-        title="개인 카테고리 저장"
+        data-tooltip="개인 카테고리 저장"
         aria-label="개인 카테고리 저장"
         onClick={openPicker}
       >

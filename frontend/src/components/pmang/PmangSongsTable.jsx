@@ -41,7 +41,7 @@ function YoutubeLinkIcon({ song }) {
     <button
       type="button"
       className="song-youtube-icon"
-      title="YouTube에서 듣기"
+      data-tooltip="YouTube에서 듣기"
       aria-label="YouTube에서 듣기"
       onClick={e => {
         e.stopPropagation()
@@ -165,7 +165,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
         <div className="idx-cell">
           <button
             className={`fav-btn${isFav ? ' on' : ''}`}
-            title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+            data-tooltip={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
             aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
             onClick={e => { e.stopPropagation(); if (canFav) onToggleFav(song.id) }}
             disabled={!canFav}
@@ -200,7 +200,7 @@ function SongRow({ song, style, onClick, isFav, canFav, onToggleFav, compact = f
           {song.youtube_candidate && (
             <span
               className="candidate-pill"
-              title={song.candidate_video_title || 'YouTube 후보'}
+              data-tooltip={song.candidate_video_title || 'YouTube 후보'}
             >
               후보 {song.candidate_rank}
               {song.candidate_score != null && ` · ${Number(song.candidate_score).toFixed(2)}`}
@@ -273,7 +273,7 @@ function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, active =
               className="mob-music-btn"
               onClick={openMusic}
               aria-label="YouTube에서 듣기"
-              title="YouTube에서 듣기"
+              data-tooltip="YouTube에서 듣기"
             >
               ♪
             </button>

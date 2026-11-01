@@ -53,7 +53,7 @@ export function SavedCategoryTags({ song, onOpenCategory }) {
           <button
             key={category.id}
             className="m-saved-cat-tag"
-            title={`${category.name} 카테고리로 이동`}
+            data-tooltip={`${category.name} 카테고리로 이동`}
             onClick={() => onOpenCategory(category)}
           >
             {category.name}

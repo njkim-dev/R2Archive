@@ -1,0 +1,3 @@
+.app-tooltip{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:max-content;padding:9px 12px;border:1px solid #596980;border-radius:8px;background:#101b2bf5;color:#edf4ff;box-shadow:0 4px 18px #0007;font:12px/1.65 "Pretendard",sans-serif;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;overscroll-behavior:contain;visibility:hidden;z-index:2147483647;cursor:auto;pointer-events:auto}.app-tooltip::backdrop{background:transparent;pointer-events:none}[data-tooltip]:disabled{pointer-events:auto}
+
+.app-tooltip:popover-open{display:block}.app-tooltip:not(:popover-open){display:none}

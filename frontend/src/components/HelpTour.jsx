@@ -213,7 +213,7 @@ export function HelpButton({ className = '' }) {
     <button
       className={`help-topbar-btn${className ? ` ${className}` : ''}`}
       onClick={() => window.dispatchEvent(new Event('r2-help-open'))}
-      title="도움말 (F1)"
+      data-tooltip="도움말 (F1)"
       aria-label="도움말 열기"
       type="button"
     >

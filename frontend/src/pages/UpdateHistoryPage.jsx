@@ -55,27 +55,27 @@ function SongRow({ song, onOpenVariant }) {
       </div>
       <div className="rh-song-title">
         {song.is_deleted && <span className="rh-delete-tag">삭제</span>}
-        <span className="rh-song-name" title={song.name}>{song.name}</span>
+        <span className="rh-song-name" data-tooltip={song.name}>{song.name}</span>
         {song.youtube_url && (
           <a
             className="song-youtube-icon rh-preview-link"
             href={song.youtube_url}
             target="_blank"
             rel="noopener noreferrer"
-            title="YouTube에서 듣기"
+            data-tooltip="YouTube에서 듣기"
             aria-label="YouTube에서 듣기"
             onClick={event => event.stopPropagation()}
           >♪</a>
         )}
       </div>
-      <div className="rh-song-artist" title={song.artist}>{song.artist}</div>
+      <div className="rh-song-artist" data-tooltip={song.artist}>{song.artist}</div>
       <div className="rh-levels" aria-label={`난이도 ${song.levels.join(', ')}`}>
         {(song.variants || []).map(variant => (
           <button
             type="button"
             key={variant.id}
             style={{ '--lv-bar': levelBarColor(variant.level) }}
-            title={`난이도 ${Number(variant.level).toFixed(1)} 카탈로그 열기`}
+            data-tooltip={`난이도 ${Number(variant.level).toFixed(1)} 카탈로그 열기`}
             aria-label={`난이도 ${Number(variant.level).toFixed(1)} 카탈로그 열기`}
             onClick={() => onOpenVariant(song, variant)}
           >

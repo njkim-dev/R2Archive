@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { fmtBpm } from '../../utils/helpers'
 
 const BPM_TIMELINE_VIEW_KEY = 'r2b_bpm_timeline_view'
@@ -34,7 +34,6 @@ function formatBpmDelta(delta) {
 }
 
 function BpmGraph({ timeline, songTime }) {
-  const tooltipRef = useRef(null)
   if (!timeline || timeline.length === 0) return null
 
   const W = 820, H = 105
@@ -68,44 +67,9 @@ function BpmGraph({ timeline, songTime }) {
   const ty = bpm => pad.t + (1 - (bpm - mn) / range) * gh
   const yTicks = [mn, Math.round((mn + mx) / 2), mx]
 
-  const handleDotHover = (e, pt, prev) => {
-    const tip = tooltipRef.current
-    if (!tip || !pt) { tip && tip.classList.remove('show'); return }
-    const delta = (pt.bpm - prev.bpm).toFixed(1)
-    const dir = pt.bpm > prev.bpm ? '▲' : pt.bpm < prev.bpm ? '▼' : '•'
-    const mono = "'JetBrains Mono',monospace"
-    tip.textContent = ''
-    const row1 = document.createElement('div')
-    row1.style.cssText = `font-family:${mono};font-size:10.5px;color:var(--fg-4)`
-    row1.textContent = fmtT(pt.time)
-    const row2 = document.createElement('div')
-    row2.style.cssText = 'display:flex;align-items:baseline;gap:6px'
-    const bpmEl = document.createElement('b')
-    bpmEl.style.cssText = `font-family:${mono};font-size:15px;color:var(--fg)`
-    bpmEl.textContent = pt.bpm.toFixed(1)
-    const unitEl = document.createElement('span')
-    unitEl.style.cssText = 'font-size:10px;color:var(--fg-4)'
-    unitEl.textContent = 'BPM'
-    row2.append(bpmEl, unitEl)
-    if (Math.abs(pt.bpm - prev.bpm) > (mx - mn) * 0.25) {
-      const badge = document.createElement('span')
-      badge.style.cssText = 'font-size:9.5px;padding:1px 6px;border-radius:999px;background:var(--accent-dim);color:var(--accent)'
-      badge.textContent = '변속'
-      row2.appendChild(badge)
-    }
-    const row3 = document.createElement('div')
-    row3.style.cssText = `font-family:${mono};font-size:10.5px;color:var(--fg-4);margin-top:3px`
-    row3.textContent = `${dir} ${Number(delta) >= 0 ? '+' : ''}${delta} (이전 ${prev.bpm.toFixed(1)})`
-    tip.append(row1, row2, row3)
-    const rect = e.currentTarget.closest('.bpm-graph').getBoundingClientRect()
-    const x = e.clientX - rect.left, y = e.clientY - rect.top
-    tip.style.left = Math.min(rect.width - 140, Math.max(8, x + 12)) + 'px'
-    tip.style.top = Math.max(8, y - 58) + 'px'
-    tip.classList.add('show')
-  }
 
   return (
-    <div className="bpm-graph" onMouseLeave={() => tooltipRef.current?.classList.remove('show')}>
+    <div className="bpm-graph">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         {yTicks.map(v => {
           const y = pad.t + (1 - (v - mn) / range) * gh
@@ -124,7 +88,7 @@ function BpmGraph({ timeline, songTime }) {
             <circle key={i} cx={tx(pt.time)} cy={ty(pt.bpm)} r={5}
               fill="var(--accent)" opacity="0.9"
               style={{ cursor: i > 0 ? 'pointer' : 'default' }}
-              onMouseEnter={i > 0 ? e => handleDotHover(e, pt, prev) : undefined}
+              data-tooltip={i > 0 ? `${fmtT(pt.time)}\n${pt.bpm.toFixed(1)} BPM\n${pt.bpm >= prev.bpm ? '▲ +' : '▼ '}${(pt.bpm-prev.bpm).toFixed(1)} (이전 ${prev.bpm.toFixed(1)})${Math.abs(pt.bpm-prev.bpm)>(mx-mn)*.25?'\n변속':''}` : undefined}
             />
           )
         })}
@@ -137,7 +101,6 @@ function BpmGraph({ timeline, songTime }) {
           </text>
         )}
       </svg>
-      <div className="bpm-tooltip" ref={tooltipRef} aria-hidden="true" />
     </div>
   )
 }

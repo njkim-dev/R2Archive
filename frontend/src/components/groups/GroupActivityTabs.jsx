@@ -63,7 +63,7 @@ export function FeedTab({ feed }) {
                           <span
                             className="gd-feed-song gd-feed-song-clickable"
                             onClick={(e) => onSongClick(e, ev.song_id)}
-                            title="곡 상세 보기"
+                            data-tooltip="곡 상세 보기"
                           >
                             {ev.song_name || `곡 #${ev.song_id}`}
                           </span>
@@ -81,7 +81,7 @@ export function FeedTab({ feed }) {
                         <button
                           type="button"
                           className="gd-feed-icon-btn"
-                          title="스크린샷 보기"
+                          data-tooltip="스크린샷 보기" aria-label="스크린샷 보기"
                           onClick={() => setViewerUrl(ev.screenshot_url)}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -97,7 +97,7 @@ export function FeedTab({ feed }) {
                           href={ev.youtube_url}
                           target="_blank"
                           rel="noreferrer"
-                          title="YouTube에서 재생"
+                          data-tooltip="YouTube에서 재생" aria-label="YouTube에서 재생"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M23 7.5s-.2-1.6-.8-2.3c-.8-.9-1.7-.9-2.1-.95C17 4 12 4 12 4s-5 0-8.1.25c-.4.05-1.3.05-2.1.95C1.2 5.9 1 7.5 1 7.5S.75 9.5.75 11.5v1c0 2 .25 4 .25 4s.2 1.6.8 2.3c.8.9 1.85.87 2.3.96C5.85 20 12 20.05 12 20.05s5 0 8.1-.25c.4-.05 1.3-.05 2.1-.95.6-.7.8-2.3.8-2.3s.25-2 .25-4v-1c0-2-.25-4-.25-4zM9.75 15.5V8.5l6.5 3.5-6.5 3.5z"/>

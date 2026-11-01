@@ -41,14 +41,15 @@ def request_couple(request:Request,character_id:int,payload:CoupleRequest):
         lock_couple_changes(cur)
         require_character(cur,uid,character_id)
         peer=public_home_owner(cur,handle);other=peer['character_id']
-        if peer['user_id']==uid:raise HTTPException(422,'다른 사용자의 캐릭터만 커플로 등록할 수 있습니다')
+        if other==character_id:raise HTTPException(422,'같은 캐릭터는 커플로 등록할 수 없습니다')
         cur.execute('SELECT id FROM shop_characters WHERE id=ANY(%s) ORDER BY id FOR UPDATE',([character_id,other],))
         if len(cur.fetchall())!=2:raise HTTPException(404,'캐릭터를 찾을 수 없습니다')
         cur.execute('SELECT 1 FROM shop_couple_members WHERE character_id=ANY(%s)',([character_id,other],))
         if cur.fetchone():raise HTTPException(409,'이미 커플이 등록되어 있거나 진행 중인 요청이 있습니다')
-        cur.execute('INSERT INTO shop_couple_relationships(sender_id,recipient_id) VALUES(%s,%s) RETURNING id',(character_id,other));rid=cur.fetchone()['id']
+        status='accepted' if peer['user_id']==uid else 'pending'
+        cur.execute('INSERT INTO shop_couple_relationships(sender_id,recipient_id,status) VALUES(%s,%s,%s) RETURNING id',(character_id,other,status));rid=cur.fetchone()['id']
         cur.execute('INSERT INTO shop_couple_members(character_id,relationship_id) VALUES(%s,%s),(%s,%s)',(character_id,rid,other,rid));conn.commit()
-    return JSONResponse({'ok':True},status_code=201,headers=PRIVATE_HEADERS)
+    return JSONResponse({'ok':True,'status':status},status_code=201,headers=PRIVATE_HEADERS)
 
 def locked_relation(cur,uid,character_id,expected_id=None,expected_status=None):
     lock_couple_changes(cur)

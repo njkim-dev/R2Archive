@@ -172,7 +172,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
                     e.stopPropagation()
                     if ((top.visibility === 'public' || top.visibility === 'group') && !top.is_mine) onRankerClick(top, song.id)
                   }}
-                  title={(top.visibility === 'public' || top.visibility === 'group') && !top.is_mine ? `${top.nickname}의 성과 보기` : undefined}
+                  data-tooltip={(top.visibility === 'public' || top.visibility === 'group') && !top.is_mine ? `${top.nickname}의 성과 보기` : undefined}
                   style={{ cursor: (top.visibility === 'public' || top.visibility === 'group') && !top.is_mine ? 'pointer' : 'default' }}
                 >
                   <span className="ranker-medal">🥇</span>
@@ -199,7 +199,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
                     e.stopPropagation()
                     if ((groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine) onRankerClick(groupTop, song.id)
                   }}
-                  title={(groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine ? `${groupTop.nickname}의 성과 보기` : undefined}
+                  data-tooltip={(groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine ? `${groupTop.nickname}의 성과 보기` : undefined}
                   style={{ cursor: (groupTop.visibility === 'public' || groupTop.visibility === 'group') && !groupTop.is_mine ? 'pointer' : 'default' }}
                 >
                   <span className="ranker-medal">🏅</span>
@@ -231,7 +231,7 @@ function RankingRow({ row, style, onRowClick, onRankerClick, currentUserId, pinn
           <div className="rank-judge-cell">
             <span className={`judge ${myCls}`}>
               {fmtJp(myJp)}<span className="pct">%</span>
-              {isMineManual && <span className="manual-mark" title="본인 직접 입력">M</span>}
+              {isMineManual && <span className="manual-mark" data-tooltip="본인 직접 입력">M</span>}
             </span>
             {speedFilter === 'all' && <span className="ranking-speed-badge">{SPEED_LABELS[mine.speed || 'ultra']}</span>}
             {delta && !isMyTop && (

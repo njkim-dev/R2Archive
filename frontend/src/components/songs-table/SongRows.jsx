@@ -42,7 +42,7 @@ function SongListenButton({ song }) {
     <button
       type="button"
       className="song-youtube-icon"
-      title="YouTube에서 듣기"
+      data-tooltip="YouTube에서 듣기"
       aria-label="YouTube에서 듣기"
       onClick={e => {
         e.stopPropagation()
@@ -60,9 +60,9 @@ function SongTitle({ song, categories = [] }) {
   const categoryNames = categories.map(category => category.name)
   return (
     <span className="title-text">
-      <span className="title-main" title={`${song.name} - ${song.artist}`}>{song.name}</span>
+      <span className="title-main" data-tooltip={`${song.name} - ${song.artist}`}>{song.name}</span>
       {categoryNames.length > 0 && (
-        <span className="song-category-list" title={`등록된 카테고리: ${categoryNames.join(', ')}`}>
+        <span className="song-category-list" data-tooltip={`등록된 카테고리: ${categoryNames.join(', ')}`}>
           {categoryNames.join(' · ')}
         </span>
       )}
@@ -131,7 +131,7 @@ export function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, c
               className="mob-delete-btn"
               onClick={e => { e.stopPropagation(); onDeleteSong?.(song) }}
               aria-label="카테고리에서 삭제"
-              title="카테고리에서 삭제"
+              data-tooltip="카테고리에서 삭제"
             >
               <Trash2 size={15} />
             </button>
@@ -142,7 +142,7 @@ export function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, c
               className="mob-music-btn"
               onClick={openMusic}
               aria-label="YouTube에서 듣기"
-              title="YouTube에서 듣기"
+              data-tooltip="YouTube에서 듣기"
             >
               ♪
             </button>
@@ -169,7 +169,7 @@ export function MobileCard({ song, style, onClick, isFav, canFav, onToggleFav, c
         <div className="mob-card-title">
           {song.is_new && <span className="mob-new-dot" />}
           {song.combo_warning && (
-            <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
+            <span className="combo-warning-tag" data-tooltip={COMBO_WARNING_TEXT}>팅곡</span>
           )}
           <span className="mob-card-name">{song.name}</span>
         </div>
@@ -232,7 +232,7 @@ export function SongRow({
     <button
       type="button"
       className={`fav-btn${isFav ? ' on' : ''}`}
-      title={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+      data-tooltip={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
       aria-label={canFav ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 즐겨찾기 이용 가능'}
       aria-pressed={!!isFav}
       onClick={e => { e.stopPropagation(); if (canFav) onToggleFav(song.id) }}
@@ -279,7 +279,7 @@ export function SongRow({
               }
             </div>
             {song.combo_warning && (
-              <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
+              <span className="combo-warning-tag" data-tooltip={COMBO_WARNING_TEXT}>팅곡</span>
             )}
             <SongTitle song={song} categories={categories} />
             <SongListenButton song={song} />
@@ -287,7 +287,7 @@ export function SongRow({
         </div>
 
         {showKoreaName && (
-          <div className="td korea-name-cell" title={song.korea_name || ''} role="cell">
+          <div className="td korea-name-cell" data-tooltip={song.korea_name || ''} role="cell">
             {song.korea_name || <span className="muted-dash">—</span>}
           </div>
         )}
@@ -335,13 +335,13 @@ export function SongRow({
             }
           </div>
           {song.combo_warning && (
-            <span className="combo-warning-tag" title={COMBO_WARNING_TEXT}>팅곡</span>
+            <span className="combo-warning-tag" data-tooltip={COMBO_WARNING_TEXT}>팅곡</span>
           )}
           <SongTitle song={song} categories={categories} />
           {song.youtube_candidate && (
             <span
               className="candidate-pill"
-              title={song.candidate_video_title || 'YouTube 후보'}
+              data-tooltip={song.candidate_video_title || 'YouTube 후보'}
             >
               후보 {song.candidate_rank}
               {song.candidate_score != null && ` · ${Number(song.candidate_score).toFixed(2)}`}
@@ -352,7 +352,7 @@ export function SongRow({
           {isAdmin && (
             <button
               className={`copy-name-btn${copied ? ' copied' : ''}`}
-              title={copied ? '곡명 - 아티스트 복사됨' : '곡명 - 아티스트 복사'}
+              data-tooltip={copied ? '곡명 - 아티스트 복사됨' : '곡명 - 아티스트 복사'}
               aria-label={copied ? '곡명 - 아티스트 복사됨' : '곡명 - 아티스트 복사'}
               onClick={handleCopyName}
             >
@@ -373,7 +373,7 @@ export function SongRow({
       </div>
 
       {showKoreaName && (
-        <div className="td korea-name-cell" title={song.korea_name || ''} role="cell">
+        <div className="td korea-name-cell" data-tooltip={song.korea_name || ''} role="cell">
           {song.korea_name || <span className="muted-dash">—</span>}
         </div>
       )}
@@ -429,7 +429,7 @@ export function SongRow({
           <button
             className="pcat-song-delete"
             disabled={!canDelete}
-            title={canDelete ? '카테고리에서 삭제' : '수정 권한이 필요해요'}
+            data-tooltip={canDelete ? '카테고리에서 삭제' : '수정 권한이 필요해요'}
             aria-label="카테고리에서 삭제"
             onClick={e => { e.stopPropagation(); if (canDelete) onDeleteSong?.(song) }}
           >

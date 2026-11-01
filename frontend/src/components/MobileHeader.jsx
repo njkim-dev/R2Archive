@@ -96,7 +96,7 @@ export default function MobileHeader({ totalFiltered }) {
                   type="button"
                   className="mob-icon-btn"
                   onClick={openMyPage}
-                  title="마이페이지"
+                  data-tooltip="마이페이지"
                   aria-label="마이페이지"
                   style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
                 >
@@ -104,7 +104,7 @@ export default function MobileHeader({ totalFiltered }) {
                     {((user.nickname || '?')[0] || '?').toUpperCase()}
                   </div>
                 </button>
-                <button className="mob-icon-btn" onClick={logout} title="로그아웃" aria-label="로그아웃">
+                <button className="mob-icon-btn" onClick={logout} data-tooltip="로그아웃" aria-label="로그아웃">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                     <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -112,7 +112,7 @@ export default function MobileHeader({ totalFiltered }) {
                 </button>
               </>
             ) : (
-              <button className="mob-icon-btn" onClick={openLogin} title="로그인" aria-label="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
+              <button className="mob-icon-btn" onClick={openLogin} data-tooltip="로그인" aria-label="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
                   <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
                   <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
@@ -120,7 +120,7 @@ export default function MobileHeader({ totalFiltered }) {
                 로그인
               </button>
             )}
-            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="상세 필터" title="상세 필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
+            <button className="mob-icon-btn" onClick={openMobileSheet} aria-label="상세 필터" data-tooltip="상세 필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
               </svg>

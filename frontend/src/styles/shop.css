@@ -46,3 +46,5 @@
 @media(max-width:550px){.shop-outfit-dialog .shop-couple-heading{flex-wrap:wrap}.shop-outfit-dialog .shop-couple-heading h2{flex:1 0 100%}.shop-outfit-dialog .shop-couple-actions{width:100%;justify-content:flex-end}}
 
 .shop-stage canvas{touch-action:none}.shop-stage canvas[data-view-mode=move]{cursor:move}.shop-view-controls{gap:8px;min-height:46px}.shop-view-controls button{min-height:32px;padding:6px 15px;border:1px solid #465166;border-radius:8px;background:#253248;color:#adbed1;font:inherit;cursor:pointer}.shop-view-controls button[aria-pressed=true]{background:#18324b;border-color:#78c4fb;color:#78c4fb}
+
+.shop-couple-dialog:not(.shop-outfit-dialog)>.shop-couple-heading{min-height:66px}@media(max-width:550px){.shop-couple-dialog:not(.shop-outfit-dialog)>.shop-couple-heading{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(48px,auto) 38px;min-height:0}.shop-couple-dialog:not(.shop-outfit-dialog) .shop-couple-actions{justify-content:flex-end}}

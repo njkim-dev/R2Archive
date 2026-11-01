@@ -61,11 +61,11 @@ function CategoryCard({ category, onCopy, onOpen }) {
         <div className="grp-card-stat"><div className="lbl">곡</div><div className="val">{category.song_count}</div></div>
         <div className="grp-card-stat"><div className="lbl">생성</div><div className="val dim">{fmtDate(category.created_at)}</div></div>
         <div className="grp-card-stat pcat-card-actions">
-          <button className="pcat-card-btn" onClick={(e) => { e.stopPropagation(); onCopy(category) }} title="카테고리 링크 복사">
+          <button className="pcat-card-btn" onClick={(e) => { e.stopPropagation(); onCopy(category) }} data-tooltip="카테고리 링크 복사">
             <Copy size={14} />
             복사
           </button>
-          <button className="pcat-card-btn" onClick={(e) => { e.stopPropagation(); onOpen(category) }} title="카테고리 열기">
+          <button className="pcat-card-btn" onClick={(e) => { e.stopPropagation(); onOpen(category) }} data-tooltip="카테고리 열기">
             <ExternalLink size={14} />
             열기
           </button>
@@ -91,7 +91,7 @@ function Tabs({ activeTab, setActiveTab, counts, user }) {
             key={tab.key}
             className={`pcat-tab${activeTab === tab.key ? ' on' : ''}${disabled ? ' disabled' : ''}`}
             onClick={() => !disabled && setActiveTab(tab.key)}
-            title={disabled ? '로그인 후 이용 가능' : undefined}
+            data-tooltip={disabled ? '로그인 후 이용 가능' : undefined}
           >
             {tab.label}
             <span className="mono">{disabled ? '-' : tab.count}</span>
@@ -212,7 +212,7 @@ export default function PersonalCategoriesPage() {
               <ServerSwitcher className="mob-server-switcher" />
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
-                <button className="mob-icon-btn pcat-mobile-create" onClick={openCreate} title="카테고리 만들기">
+                <button className="mob-icon-btn pcat-mobile-create" onClick={openCreate} data-tooltip="카테고리 만들기" aria-label="카테고리 만들기">
                   <FolderPlus size={18} />
                 </button>
               </div>
@@ -247,7 +247,7 @@ export default function PersonalCategoriesPage() {
                       </div>
                       <div className="grp-mob-card-meta mono">{category.category_code}</div>
                     </div>
-                    <button className="pcat-mobile-copy" onClick={(e) => { e.stopPropagation(); copy(category) }} title="복사">
+                    <button className="pcat-mobile-copy" onClick={(e) => { e.stopPropagation(); copy(category) }} data-tooltip="복사" aria-label="복사">
                       <Copy size={15} />
                     </button>
                   </div>

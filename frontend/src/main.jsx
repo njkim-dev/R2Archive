@@ -5,6 +5,7 @@ import './index.css'
 import App from './App'
 import { ARCHIVE_BASE } from './utils/serverMode'
 import ShopCouplesProvider from './components/shop/ShopCouplesContext'
+import AppTooltip from './components/AppTooltip'
 
 const PRELOAD_RELOAD_KEY = 'r2archive:preload-reload'
 
@@ -21,7 +22,7 @@ window.setTimeout(() => sessionStorage.removeItem(PRELOAD_RELOAD_KEY), 10_000)
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter basename={ARCHIVE_BASE||'/'}>
-      <ShopCouplesProvider><App /></ShopCouplesProvider>
+      <ShopCouplesProvider><App /><AppTooltip /></ShopCouplesProvider>
     </BrowserRouter>
   </StrictMode>
 )

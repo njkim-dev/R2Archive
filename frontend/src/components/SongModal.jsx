@@ -184,7 +184,7 @@ function MobileDetail({ song, detail, onClose, difficultyVariants = [], onDiffic
           className="mob-act-btn mob-act-ghost"
           disabled={!user}
           style={!user ? { opacity: 0.4 } : (isFav ? { color: 'var(--accent, #ff6b9d)' } : {})}
-          title={user ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
+          data-tooltip={user ? (isFav ? '즐겨찾기 해제' : '즐겨찾기 추가') : '로그인 후 이용 가능'}
           onClick={() => { if (user) toggleFavorite(song.id) }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -209,7 +209,7 @@ function MobileDetail({ song, detail, onClose, difficultyVariants = [], onDiffic
           className="mob-act-btn mob-act-ghost mob-difficulty-action"
           disabled={!hasDifficultyVariants}
           style={!hasDifficultyVariants ? { opacity: 0.4 } : undefined}
-          title={hasDifficultyVariants ? '동일한 음악의 다른 난이도 보기' : '다른 난이도가 없습니다'}
+          data-tooltip={hasDifficultyVariants ? '동일한 음악의 다른 난이도 보기' : '다른 난이도가 없습니다'}
           onClick={() => { if (hasDifficultyVariants) setDifficultyOpen(true) }}
         >
           <Layers size={15} strokeWidth={2.4} />
@@ -624,7 +624,7 @@ export default function SongModal() {
                 className="btn btn-ghost"
                 disabled={!user}
                 style={!user ? { opacity: 0.5 } : (favorites?.has(song.id) ? { color: 'var(--accent, #ff6b9d)' } : {})}
-                title={user ? (favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
+                data-tooltip={user ? (favorites?.has(song.id) ? '즐겨찾기 해제' : '즐겨찾기 추가') : '즐겨찾기 (로그인 필요)'}
                 onClick={() => { if (user) toggleFavorite(song.id) }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill={favorites?.has(song.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -646,7 +646,7 @@ export default function SongModal() {
                   ref={difficultyBtnRef}
                   className="btn btn-ghost"
                   disabled={difficultyVariants.length === 0}
-                  title={difficultyVariants.length ? '동일한 음악의 다른 난이도 보기' : '다른 난이도가 없습니다'}
+                  data-tooltip={difficultyVariants.length ? '동일한 음악의 다른 난이도 보기' : '다른 난이도가 없습니다'}
                   style={difficultyVariants.length === 0 ? { opacity: 0.5 } : undefined}
                   onClick={e => {
                     e.stopPropagation()
@@ -689,11 +689,11 @@ export default function SongModal() {
                   </div>
                 )}
               </div>
-              <button className="btn btn-ghost btn-icon" title="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
+              <button className="btn btn-ghost btn-icon" data-tooltip="링크 복사" aria-label="링크 복사" onClick={handleCopyLink} style={copied ? { color: 'var(--ok)' } : {}}>
                 {copied ? <Check size={16} strokeWidth={2.5} /> : <Link2 size={18} strokeWidth={2.5} />}
               </button>
               <div className="more-wrap">
-                <button ref={moreBtnRef} className="btn btn-ghost btn-icon" title="더 보기" onClick={e => {
+                <button ref={moreBtnRef} className="btn btn-ghost btn-icon" data-tooltip="더 보기" onClick={e => {
                   e.stopPropagation()
                   const rect = moreBtnRef.current.getBoundingClientRect()
                   setMorePos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })

@@ -80,7 +80,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
               <button
                 className={`${quick === 'mine' ? 'active' : ''}${disabled ? ' locked' : ''}`}
                 onClick={() => handleQuick('mine')}
-                title={disabled ? '로그인 후 이용 가능' : undefined}
+                data-tooltip={disabled ? '로그인 후 이용 가능' : undefined}
               >
                 <span>{pinnedUser ? `★ ${pinnedUser.nickname}의 성과` : '★ 내 성과 목록'}</span>
                 <span className="tag">{disabled ? '—' : mineSongCount.toLocaleString()}</span>
@@ -104,7 +104,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
                 key={key}
                 className={quick === key ? 'active' : ''}
                 onClick={() => handleQuick(key)}
-                title={`${g.name} 그룹 멤버들의 성과`}
+                data-tooltip={`${g.name} 그룹 멤버들의 성과`}
               >
                 <span>👥 {g.name} 그룹 성과 목록</span>
                 <span className="tag">{count.toLocaleString()}</span>
@@ -132,7 +132,7 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
               key={key}
               className={`cat-btn${category === key ? ' active' : ''}`}
               onClick={() => setCategory(key)}
-              title={`${label} (난이도 ${rng})`}
+              data-tooltip={`${label} (난이도 ${rng})`}
             >
               {icon}
               <span>{label}</span>

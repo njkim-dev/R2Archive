@@ -3,9 +3,9 @@ import { watchLayout } from './layout.js'
 
 const song = { id: 1, name: 'Home Link Test', artist: 'Test', level: 8, bpm: 160, combo: 100, time: '1:00', image: '', youtube_url: '', file_order: 1, aliases: [], artist_aliases: [], user_level_votes: 0 }
 
-for (const archive of ['music','xyx']) {
+for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
   const host='r2archive.com'
-  test(`${archive} sidebar places the main home link above server buttons with stable loading`, async ({ page, baseURL }, testInfo) => {
+  test(`${archive} sidebar places the main home link above server buttons with stable loading loggedIn=${loggedIn}`, async ({ page, baseURL }, testInfo) => {
     const width = testInfo.project.use.viewport.width
     const mobile = width < (archive==='xyx' ? 1100 : 768)
     let release
@@ -17,7 +17,7 @@ for (const archive of ['music','xyx']) {
         let json = []
         if (pathname === '/api/songs') { await gate; json = [song] }
         else if (pathname === '/api/meta') json = { total_count: 1, level_min: 0.5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
-        else if (pathname === '/api/auth/me') json = { user: null }
+        else if (pathname === '/api/auth/me') json = { user: loggedIn?{id:1,nickname:'테스터',onboarded:true}:null }
         else if (pathname.endsWith('/admin-status')) json = { is_admin: false }
         else if (pathname.endsWith('/flags')) json = { favorites: [], played: [], played_all: [] }
         return route.fulfill({ json })
@@ -26,6 +26,10 @@ for (const archive of ['music','xyx']) {
       await route.fulfill({ response })
     })
     await page.goto(`http://${host}/${archive}/`, { waitUntil: 'domcontentloaded' })
+    const shop=page.getByRole('link',{name:'상점',exact:true}),myhome=page.getByRole('button',{name:'마이홈',exact:true})
+    await expect(shop).toHaveAttribute('href','https://r2archive.com/shop');if(loggedIn)await expect(myhome).toBeEnabled();else await expect(myhome).toBeDisabled();await expect(myhome).not.toHaveAttribute('title',/.+/)
+    const serverBox=await page.getByRole('button',{name:'중국 서버',exact:true}).boundingBox(),shopBox=await shop.boundingBox();expect(shopBox.y).toBeGreaterThanOrEqual(serverBox.y+serverBox.height)
+    if(!loggedIn){await myhome.hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0)}
     if (mobile) {
       await expect(page.locator('.mob-top .main-home-link')).toBeHidden()
       await expect(page.getByRole('button', { name: '한국 서버', exact: true })).toBeVisible()

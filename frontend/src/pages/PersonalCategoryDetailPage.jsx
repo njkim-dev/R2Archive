@@ -84,7 +84,7 @@ function CategorySongSearch({ search, searchMode, excludeSearch, onSearch, onSea
             autoComplete="off"
           />
           {search && (
-            <button type="button" onClick={() => onSearch('')} aria-label="검색어 지우기" title="검색어 지우기">
+            <button type="button" onClick={() => onSearch('')} aria-label="검색어 지우기" data-tooltip="검색어 지우기">
               <X size={15} />
             </button>
           )}
@@ -158,7 +158,7 @@ function PersonalCategoryFilterPanel({
                 key={key}
                 className={`${filters.quick === key ? 'active' : ''}${disabled ? ' locked' : ''}`}
                 onClick={() => !disabled && onQuick(key)}
-                title={disabled ? '로그인 후 이용 가능' : undefined}
+                data-tooltip={disabled ? '로그인 후 이용 가능' : undefined}
               >
                 <span>{label}</span>
                 <span className="tag">{disabled ? '—' : (counts[key] || 0).toLocaleString()}</span>
@@ -176,7 +176,7 @@ function PersonalCategoryFilterPanel({
               key={key}
               className={`cat-btn${filters.category === key ? ' active' : ''}`}
               onClick={() => onCategory(filters.category === key ? null : key)}
-              title={`${label} (난이도 ${rng})`}
+              data-tooltip={`${label} (난이도 ${rng})`}
             >
               {icon}
               <span>{label}</span>
@@ -771,7 +771,7 @@ export default function PersonalCategoryDetailPage() {
             {subscribeLabel}
           </button>
         )}
-        <button className="pcat-copy-icon" onClick={copyLink} title="링크 복사">
+        <button className="pcat-copy-icon" onClick={copyLink} data-tooltip="링크 복사" aria-label="링크 복사">
           <Copy size={17} />
         </button>
       </div>
@@ -788,15 +788,15 @@ export default function PersonalCategoryDetailPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
                 {user ? (
-                  <button className="mob-icon-btn" onClick={() => navigate('/personal-categories')} title="내 카테고리">
+                  <button className="mob-icon-btn" onClick={() => navigate('/personal-categories')} data-tooltip="내 카테고리" aria-label="내 카테고리">
                     <Globe2 size={18} />
                   </button>
                 ) : (
-                  <button className="mob-icon-btn" onClick={openLogin} title="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
+                  <button className="mob-icon-btn" onClick={openLogin} data-tooltip="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
                     로그인
                   </button>
                 )}
-                <button className="mob-icon-btn" onClick={() => setMobileFilterOpen(true)} aria-label="필터" title="필터">
+                <button className="mob-icon-btn" onClick={() => setMobileFilterOpen(true)} aria-label="필터" data-tooltip="필터">
                   <SlidersHorizontal size={19} />
                   {hasMobileRangeFilter && <span className="mob-badge" />}
                 </button>

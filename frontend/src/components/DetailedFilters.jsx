@@ -25,7 +25,7 @@ const CHANNELS = [
 function ArtistRow({ index, style, data }) {
   const { artist, count } = data.items[index]
   return (
-    <label className="detailed-artist-row" style={style} title={`${artist} (${count.toLocaleString()}곡)`}>
+    <label className="detailed-artist-row" style={style} data-tooltip={`${artist} (${count.toLocaleString()}곡)`}>
       <input type="checkbox" checked={data.selected.has(artist)} onChange={() => data.toggle(artist)} aria-label={artist} />
       <span className="detailed-artist-name">{artist}</span>
       <span className="detailed-artist-count">{count.toLocaleString()}곡</span>
@@ -187,7 +187,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
       <section className="detailed-filter-dialog" ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="detailed-filter-title">
         <header className="detailed-filter-header">
           <h2 id="detailed-filter-title"><SlidersHorizontal size={18} aria-hidden="true" />상세 필터</h2>
-          <button type="button" className="detailed-close" onClick={close} aria-label="상세 필터 닫기" title="닫기"><X size={20} /></button>
+          <button type="button" className="detailed-close" onClick={close} aria-label="상세 필터 닫기" data-tooltip="닫기"><X size={20} /></button>
         </header>
         <div className="detailed-filter-scroll">
           <section className="detailed-quick-section">
@@ -196,7 +196,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
               {options.map(option => {
                 const disabled = option.needLogin && !user
                 return (
-                  <label className={`detailed-quick-option${disabled ? ' locked' : ''}`} key={option.key} title={disabled ? '로그인 후 이용 가능' : undefined}>
+                  <label className={`detailed-quick-option${disabled ? ' locked' : ''}`} key={option.key} data-tooltip={disabled ? '로그인 후 이용 가능' : undefined}>
                     <input type="radio" name="detailed-quick" value={option.key} checked={draft.quick === option.key} disabled={disabled} onChange={() => update('quick', option.key)} />
                     <span>{option.label}</span>
                     {option.adminOnly && <Shield size={13} aria-label="관리자 전용" />}
@@ -237,7 +237,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
               <label className="detailed-listen-option"><span>음악 듣기 제공 곡만</span><input type="checkbox" role="switch" checked={draft.listenOnly} onChange={event => update('listenOnly', event.target.checked)} /></label>
               <section><h3 id="detailed-ai-title">AI 생성 음원</h3><div className="detailed-ai-options" role="radiogroup" aria-labelledby="detailed-ai-title">
                 {AI_MODES.map(option => (
-                  <label key={option.key} title={option.title}>
+                  <label key={option.key} data-tooltip={option.title}>
                     <input type="radio" name="detailed-ai" value={option.key} checked={draft.aiMode === option.key} onChange={() => update('aiMode', option.key)} aria-label={`AI 생성 음원 ${option.label}`} />
                     <span>{option.label}</span>
                   </label>
@@ -249,7 +249,7 @@ function FilterDialog({ songs, isMobile, showRemovedFilter }) {
                 tabIndex={-1}
               ><h3 id="detailed-removed-title">삭제된 곡</h3><div className="detailed-removed-options" role="radiogroup" aria-labelledby="detailed-removed-title">
                 {REMOVED_MODES.map(option => (
-                  <label key={option.key} title={option.title}>
+                  <label key={option.key} data-tooltip={option.title}>
                     <input type="radio" name="detailed-removed" value={option.key} checked={draft.removedMode === option.key} onChange={() => update('removedMode', option.key)} />
                     <span>{option.label}</span>
                   </label>

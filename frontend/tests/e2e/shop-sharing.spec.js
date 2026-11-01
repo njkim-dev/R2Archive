@@ -66,7 +66,7 @@ test('short links and live public homes preserve outfits while save and removal 
   await page.locator('[data-item-id="300"]').getByRole('button', { name: '내 의상에서 제거', exact: true }).click()
   await expect(page.locator('[data-item-id="300"]')).toHaveCount(0)
   await page.goto('/myhome/' + encodeURIComponent('내집[1]'))
-  await expect(page.getByRole('heading', { name: '남성캐릭터님의 마이홈', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '남성캐릭터의 마이홈', exact: true })).toBeVisible()
   await expect(page.getByRole('button',{name:'남성',exact:true})).toBeDisabled()
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(page.locator('[data-item-id="200"]')).toBeVisible()

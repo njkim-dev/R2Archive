@@ -40,7 +40,7 @@ test('domain statistics preserve layout through initial load, range refresh, sta
   await expect(page.locator('.ana-visitor').nth(1)).toHaveText('비로그인')
   await expect(page.locator('.ana-visitor').nth(2)).toHaveText('닉네임 없음')
   const longName = page.locator('.ana-visitor').nth(3)
-  await expect(longName).toHaveAttribute('title', '아주긴닉네임을사용하는방문자테스터입니다')
+  await expect(longName).toHaveAttribute('data-tooltip', '아주긴닉네임을사용하는방문자테스터입니다')
   expect(await page.locator('.ana-recent').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
   await watcher.expectStable()
   await page.getByRole('button', { name: '7일', exact: true }).click()

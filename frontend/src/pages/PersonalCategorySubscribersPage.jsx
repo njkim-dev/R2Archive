@@ -53,7 +53,7 @@ function SubscribersList({ category, members, onRole, onRemove, busyKey }) {
               className={member.role === 'viewer' ? 'active' : ''}
               disabled={busyKey != null || member.role === 'viewer'}
               onClick={() => onRole(member, 'viewer')}
-              title="보기 전용으로 변경"
+              data-tooltip="보기 전용으로 변경"
               aria-label="보기 전용으로 변경"
             >
               <Eye size={14} />
@@ -62,7 +62,7 @@ function SubscribersList({ category, members, onRole, onRemove, busyKey }) {
               className={member.role === 'editor' ? 'active' : ''}
               disabled={busyKey != null || member.role === 'editor'}
               onClick={() => onRole(member, 'editor')}
-              title="수정 가능으로 변경"
+              data-tooltip="수정 가능으로 변경"
               aria-label="수정 가능으로 변경"
             >
               <ShieldCheck size={14} />
@@ -71,7 +71,7 @@ function SubscribersList({ category, members, onRole, onRemove, busyKey }) {
               className="danger"
               disabled={busyKey != null}
               onClick={() => onRemove(member)}
-              title="구독자 삭제"
+              data-tooltip="구독자 삭제"
               aria-label="구독자 삭제"
             >
               <Trash2 size={14} />
@@ -167,11 +167,11 @@ export default function PersonalCategorySubscribersPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
                 {user ? (
-                  <button className="mob-icon-btn" onClick={() => navigate(`/personal-categories/${code}`)} title="카테고리로">
+                  <button className="mob-icon-btn" onClick={() => navigate(`/personal-categories/${code}`)} data-tooltip="카테고리로" aria-label="카테고리로">
                     <ArrowLeft size={18} />
                   </button>
                 ) : (
-                  <button className="mob-icon-btn" onClick={openLogin} title="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
+                  <button className="mob-icon-btn" onClick={openLogin} data-tooltip="로그인" style={{ width: 'auto', padding: '0 10px', fontSize: 13 }}>
                     로그인
                   </button>
                 )}

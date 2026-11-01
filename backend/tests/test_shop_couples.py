@@ -1,9 +1,44 @@
+import json
+import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock,patch
+os.environ.setdefault('SESSION_SECRET','couple-test-secret-at-least-32-characters')
 from fastapi import HTTPException
 from routers.shop_couples import public_handle,locked_relation
 from routers.shop_characters import character_state
 from shop_couples import partner_character
+from routers.shop_couples import request_couple,CoupleRequest
+
+class CoupleRegistrationTests(unittest.TestCase):
+    def register(self,peer,occupied=False):
+        cur,conn,ctx=MagicMock(),MagicMock(),MagicMock();conn.cursor.return_value.__enter__.return_value=cur;ctx.__enter__.return_value=conn
+        cur.fetchall.return_value=[{'id':12},{'id':13}];cur.fetchone.side_effect=[{'exists':1} if occupied else None,{'id':99}]
+        with patch('routers.shop_couples.favorite_user',return_value=7),patch('routers.shop_couples.get_conn',return_value=ctx),patch('routers.shop_couples.lock_couple_changes') as lock,patch('routers.shop_couples.require_character') as owner,patch('routers.shop_couples.public_home_owner',return_value=peer):
+            try:response=request_couple(MagicMock(),12,CoupleRequest(url='https://r2archive.com/myhome/friend'))
+            except HTTPException as error:response=error
+        owner.assert_called_once_with(cur,7,12);lock.assert_called_once_with(cur)
+        return response,cur,conn
+
+    def test_distinct_characters_on_same_account_are_immediately_accepted(self):
+        response,cur,conn=self.register({'user_id':7,'character_id':13})
+        self.assertEqual(response.status_code,201);self.assertEqual(json.loads(response.body),{'ok':True,'status':'accepted'})
+        self.assertEqual(response.headers['cache-control'],'private, no-store')
+        self.assertIn((12,13,'accepted'),[call.args[1] for call in cur.execute.call_args_list]);conn.commit.assert_called_once()
+        self.assertTrue(any('ORDER BY id FOR UPDATE' in call.args[0] for call in cur.execute.call_args_list))
+
+    def test_other_account_still_requires_consent(self):
+        response,cur,conn=self.register({'user_id':8,'character_id':13})
+        self.assertEqual(json.loads(response.body)['status'],'pending');self.assertIn((12,13,'pending'),[call.args[1] for call in cur.execute.call_args_list]);conn.commit.assert_called_once()
+
+    def test_a_character_cannot_be_its_own_partner(self):
+        response,cur,conn=self.register({'user_id':7,'character_id':12})
+        self.assertEqual(response.status_code,422);conn.commit.assert_not_called();cur.execute.assert_not_called()
+
+    def test_existing_or_pending_couple_cannot_be_overwritten(self):
+        for uid in [7,8]:
+            with self.subTest(uid=uid):
+                response,cur,conn=self.register({'user_id':uid,'character_id':13},occupied=True)
+                self.assertEqual(response.status_code,409);conn.commit.assert_not_called();self.assertFalse(any(call.args[0].startswith('INSERT') for call in cur.execute.call_args_list))
 
 class Cursor:
     def __init__(self,rows):self.rows=iter(rows);self.queries=[]

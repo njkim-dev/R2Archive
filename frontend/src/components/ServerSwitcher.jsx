@@ -4,6 +4,7 @@ import { makeSearchRestoreState, saveCurrentListState, withRestoreListParam } fr
 import useStore from '../store/useStore'
 
 export default function ServerSwitcher({ className = '' }) {
+  const user=useStore(state=>state.user),authLoaded=useStore(state=>state.authLoaded)
   const go = (mode) => {
     if (mode === SERVER_MODE) return
     const state = useStore.getState()
@@ -32,6 +33,8 @@ export default function ServerSwitcher({ className = '' }) {
       >
         중국 서버
       </button>
+      <a className="archive-service-link" href="https://r2archive.com/shop">상점</a>
+      <button type="button" className="archive-service-link" disabled={!authLoaded||!user} data-tooltip={!user?'로그인하세요':undefined} onClick={()=>{window.location.href='https://r2archive.com/myhome'}}>마이홈</button>
     </div>
   )
 }

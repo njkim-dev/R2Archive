@@ -50,7 +50,7 @@ for(const id of ['30855','30854','30846'])for(const sex of ['female','male'])tes
   const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true}),canvas=dialog.locator('canvas')
   await expect(dialog.locator('.shop-stage-status')).toHaveText('',{timeout:60000})
   const importer=dialog.getByRole('button',{name:'내 캐릭터 의상 불러오기',exact:true})
-  await expect(importer).toBeDisabled();await expect(importer).toHaveAttribute('title','로그인이 필요합니다.')
+  await expect(importer).toBeDisabled();await expect(importer).toHaveAttribute('data-tooltip','로그인하세요')
   await dialog.getByRole('button',{name:'커플 모션 시작',exact:true}).click()
   await expect(canvas).toHaveAttribute('data-envelope-builds','1',{timeout:60000})
   await expect(dialog.locator('.shop-stage-status')).toHaveText('')

@@ -40,7 +40,7 @@ function SeriesChart({ rows }) {
       {rows.map(row => {
         const h = Math.max(4, Math.round(Number(row.pageviews || 0) / max * 100))
         return (
-          <div key={row.day} className="ana-bar-wrap" title={`${row.day} · ${fmt(row.pageviews)} PV · ${fmt(row.visitors)} 방문`}>
+          <div key={row.day} className="ana-bar-wrap" data-tooltip={`${row.day} · ${fmt(row.pageviews)} PV · ${fmt(row.visitors)} 방문`}>
             <div className="ana-bar" style={{ height: `${h}%` }} />
             <span>{row.day.slice(5)}</span>
           </div>
@@ -60,7 +60,7 @@ function TopList({ title, rows, primaryKey = 'path', secondaryKey = 'visitors' }
         ) : rows.map((row, i) => (
           <div key={`${row[primaryKey]}-${i}`} className="ana-list-row">
             <span className="ana-rank">{i + 1}</span>
-            <span className="ana-name" title={row[primaryKey]}>{row[primaryKey]}</span>
+            <span className="ana-name" data-tooltip={row[primaryKey]}>{row[primaryKey]}</span>
             <span className="ana-num">{fmt(row.pageviews)}</span>
             {secondaryKey && <span className="ana-subnum">{fmt(row[secondaryKey])}</span>}
           </div>
@@ -147,8 +147,8 @@ function AnalyticsContent({ data, days, setDays, loading, error }) {
                 <div key={`${row.at}-${i}`} className="ana-recent-row">
                   <span className="ana-time">{row.at}</span>
                   <div className="ana-visit">
-                    <span className="ana-visitor" title={row.nickname || (row.user_id ? '닉네임 없음' : '비로그인')}>{row.nickname || (row.user_id ? '닉네임 없음' : '비로그인')}</span>
-                    <span className="ana-name" title={row.path}>{row.path}</span>
+                    <span className="ana-visitor" data-tooltip={row.nickname || (row.user_id ? '닉네임 없음' : '비로그인')}>{row.nickname || (row.user_id ? '닉네임 없음' : '비로그인')}</span>
+                    <span className="ana-name" data-tooltip={row.path}>{row.path}</span>
                   </div>
                   <span className="ana-pill">{row.server}</span>
                   <span className="ana-pill muted">{row.device}</span>

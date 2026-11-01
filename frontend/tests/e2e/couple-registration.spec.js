@@ -7,16 +7,16 @@ test.beforeEach(async({page})=>{if(test.info().project.use.viewport.width<=768)a
 const own={id:'1',name:'내캐릭터',sex:'female',ids:['201','300'],mains:[{sex:'female',slot:'top',item:femaleShirt}]}
 const relation=(incoming=false,status='pending')=>({id:'41',status,incoming,requester_name:'요청사용자',character:{id:'1',name:'내캐릭터',sex:'female'},partner:{id:'80',name:'커플캐릭터',sex:'male'},url:'/myhome/partners/1'})
 const peer={character:{id:'80',name:'커플캐릭터',sex:'male'},ids:['200'],mains:[{sex:'male',slot:'top',item:shirt}],thumbnail_key:'f'.repeat(24)}
-async function connections(page,{initial=[],gate,homeGate,partner=peer}={}){
+async function connections(page,{initial=[],gate,homeGate,partner=peer,requested=()=>[relation()]}={}){
   let rows=initial;const calls=[]
   await page.route('**/api/shop/couples**',async route=>{
-    const request=route.request(),path=new URL(request.url()).pathname,method=request.method();calls.push({path,method,relationship_id:new URL(request.url()).searchParams.get('relationship_id'),expected_status:new URL(request.url()).searchParams.get('expected_status')})
+    const request=route.request(),path=new URL(request.url()).pathname,method=request.method();calls.push({path,method,body:request.postData()?request.postDataJSON():null,relationship_id:new URL(request.url()).searchParams.get('relationship_id'),expected_status:new URL(request.url()).searchParams.get('expected_status')})
     if(method!=='GET'&&gate)await gate
     if(path.endsWith('/home')){if(homeGate)await homeGate;return route.fulfill({json:typeof partner==='function'?partner(path.split('/').at(-2)):partner})}
     if(method==='GET')return route.fulfill({json:{relationships:rows}})
     if(method==='DELETE'){rows=[];return route.fulfill({status:204})}
     if(path.endsWith('/accept')){rows=rows.map(row=>({...row,status:'accepted'}));return route.fulfill({json:{ok:true}})}
-    rows=[relation()];return route.fulfill({status:201,json:{ok:true}})
+    rows=requested();return route.fulfill({status:201,json:{ok:true,status:rows[0].status}})
   })
   return{calls,getRows:()=>rows}
 }
@@ -33,9 +33,9 @@ test('right aligned request controls keep geometry and URL disclosure is anchore
   await expect(dialog.locator('form>div')).toHaveCSS('justify-content','flex-end')
   await page.screenshot({path:test.info().outputPath('couple-registration-alignment.png')})
   const watcher=await watchLayout(page,['.shop-header','.shop-home-share','.shop-departments','.shop-grid'])
-  await dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL').fill('https://r2archive.com/myhome/friend');await dialog.getByRole('button',{name:'커플 요청 보내기',exact:true}).click();await waitForFrames(page);await watcher.expectStable();release()
+  await expect(dialog.locator('.shop-couple-url-field>span')).toHaveText('https://r2archive.com/myhome/');await expect(dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL')).toHaveValue('');await dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL').fill('https://r2archive.com/myhome/friend');await expect(dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL')).toHaveValue('friend');await dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL').fill('unused');await dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL').evaluate(node=>{const clipboardData=new DataTransfer();clipboardData.setData('text/plain','https://r2archive.com/myhome/friend');node.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,clipboardData}))});await expect(dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL')).toHaveValue('friend');await dialog.getByRole('button',{name:'커플 요청 보내기',exact:true}).click();await waitForFrames(page);await watcher.expectStable();release()
   await expect(page.getByRole('button',{name:'커플 요청 취소',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
-  await page.getByRole('button',{name:'커플 요청 취소',exact:true}).click();await expect(button).toBeVisible();expect(api.getRows()).toHaveLength(0)
+  await page.getByRole('button',{name:'커플 요청 취소',exact:true}).click();await expect(button).toBeVisible();expect(api.getRows()).toHaveLength(0);expect(api.calls.find(call=>call.method==='POST').body.url).toBe('https://r2archive.com/myhome/friend')
 })
 
 test('incoming global request can be dismissed then accepted in myhome and broken unilaterally',async({page})=>{
@@ -47,6 +47,14 @@ test('incoming global request can be dismissed then accepted in myhome and broke
   await expect(page.getByRole('link',{name:'커플 마이홈으로 이동',exact:true})).toBeVisible();await expect(page.getByRole('tab',{name:'커플 마이홈',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
   page.once('dialog',async prompt=>{expect(prompt.message()).toContain('커플을 파기');await prompt.dismiss()});await page.getByRole('button',{name:'커플 파기',exact:true}).click();await expect(page.getByRole('link',{name:'커플 마이홈으로 이동',exact:true})).toBeVisible()
   page.once('dialog',prompt=>prompt.accept());await page.getByRole('button',{name:'커플 파기',exact:true}).click();await expect(page.getByRole('button',{name:'커플 등록',exact:true})).toBeVisible();expect(api.calls.filter(call=>call.method==='DELETE'||call.path.endsWith('/accept')).every(call=>call.relationship_id==='41')).toBe(true);expect(api.calls.filter(call=>call.method==='DELETE').every(call=>call.expected_status==='accepted')).toBe(true)
+})
+
+test('same account characters register immediately from a bare ID without a consent prompt',async({page})=>{
+  const other={id:'2',name:'내다른캐릭터',sex:'male',ids:['200'],mains:[{sex:'male',slot:'top',item:shirt}]},row={...relation(false,'accepted'),partner:{id:'2',name:other.name,sex:other.sex}},mirror={...row,character:row.partner,partner:row.character,url:'/myhome/partners/2',incoming:true}
+  await setup(page,{characters:[own,other],items:[shirt,femaleShirt]});let release;const gate=new Promise(resolve=>{release=resolve});const api=await connections(page,{gate,requested:()=>[row,mirror]});await home(page)
+  await page.getByRole('button',{name:'커플 등록',exact:true}).click();const dialog=page.getByRole('dialog',{name:'커플 등록',exact:true});await dialog.getByLabel('커플로 등록할 캐릭터의 마이홈 URL').fill('내다른캐릭터');const watcher=await watchLayout(page,['.shop-header','.shop-home-share','.shop-grid']);await dialog.getByRole('button',{name:'커플 요청 보내기',exact:true}).click();await waitForFrames(page);await watcher.expectStable();release()
+  await expect(dialog).toHaveCount(0);await expect(page.getByRole('link',{name:'커플 마이홈으로 이동',exact:true})).toBeVisible();await expect(page.getByRole('dialog',{name:'커플 등록 요청',exact:true})).toHaveCount(0);await watcher.expectStable();await watcher.stop();expect(api.calls.find(call=>call.method==='POST').body.url).toBe('https://r2archive.com/myhome/'+encodeURIComponent('내다른캐릭터'))
+  await page.goto('/myhome/characters/2');await expect(page.getByRole('link',{name:'커플 마이홈으로 이동',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'커플 수락',exact:true})).toHaveCount(0)
 })
 
 test('incoming request rejection releases the character',async({page})=>{
@@ -61,7 +69,7 @@ test('private items and mains remain owned but disappear publicly and all three 
   await privacy.click();await expect(card.locator('.shop-private-tag')).toHaveText('비공개');await expect(card.getByRole('button',{name:'공개 처리',exact:true})).toBeVisible();await watcher.expectStable();await watcher.stop()
   expect(requests.characters()[0].private_ids).toEqual(['201']);expect(requests.characters()[0].mains[0].item.id).toBe('201')
   const positions=await card.locator('.shop-card-actions button').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return{y:r.y,scroll:node.scrollWidth,client:node.clientWidth}}));expect(positions).toHaveLength(3);expect(Math.max(...positions.map(p=>p.y))-Math.min(...positions.map(p=>p.y))).toBeLessThan(2);for(const p of positions)expect(p.scroll).toBeLessThanOrEqual(p.client+1)
-  await page.evaluate(()=>fetch('/api/share/myhome',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'public',character_id:1})}));await page.goto('/myhome/public');await expect(page.getByRole('heading',{name:'내캐릭터님의 마이홈',exact:true})).toBeVisible();await expect(page.locator('[data-item-id="201"]')).toHaveCount(0)
+  await page.evaluate(()=>fetch('/api/share/myhome',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'public',character_id:1})}));await page.goto('/myhome/public');await expect(page.getByRole('heading',{name:'내캐릭터의 마이홈',exact:true})).toBeVisible();await expect(page.locator('[data-item-id="201"]')).toHaveCount(0)
   const publicState=await page.evaluate(()=>fetch('/api/share/homes/public').then(r=>r.json()));expect(publicState.ids).not.toContain('201');expect(publicState.mains).toEqual([]);expect(publicState.private_ids).toBeUndefined()
   await home(page);await card.getByRole('button',{name:'공개 처리',exact:true}).click();await expect(card.locator('.shop-private-tag')).toHaveCount(0)
   if(test.info().project.use.viewport.width<=768){await page.setViewportSize({width:320,height:900});await card.scrollIntoViewIfNeeded();const bounds=await card.locator('.shop-card-actions button').evaluateAll(nodes=>nodes.map(node=>({y:node.getBoundingClientRect().y,scroll:node.scrollWidth,client:node.clientWidth})));expect(Math.max(...bounds.map(p=>p.y))-Math.min(...bounds.map(p=>p.y))).toBeLessThan(2);for(const p of bounds)expect(p.scroll).toBeLessThanOrEqual(p.client+1)}
@@ -75,14 +83,14 @@ test('aggregate privacy chooses an owner and changes only that inventory',async(
 
 test('accepted partner home has live readonly inventory and its own major navigation tab',async({page})=>{
   await setup(page,{characters:[own],items:[shirt,femaleShirt]});await connections(page,{initial:[relation(false,'accepted')]});await page.route('**/api/shop/items?**',route=>new URL(route.request().url()).searchParams.has('partner_of')?route.fulfill({json:{version,items:[shirt],total:1,has_more:false,next_cursor:null}}):route.fallback());await home(page)
-  await page.getByRole('tab',{name:'커플 마이홈',exact:true}).click();await expect(page.getByRole('heading',{name:'커플캐릭터님의 마이홈',exact:true})).toBeVisible();await expect(page.locator('[data-item-id="200"]')).toBeVisible();await expect(page.getByRole('button',{name:'내 의상에서 제거',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'비공개 처리',exact:true})).toHaveCount(0);await expect(page.getByRole('tab',{name:'커플 마이홈',exact:true})).toHaveAttribute('aria-selected','true');await page.getByRole('tab',{name:'마이홈',exact:true}).click();await expect(page.getByRole('heading',{name:'내캐릭터의 마이홈',exact:true})).toBeVisible()
+  await page.getByRole('tab',{name:'커플 마이홈',exact:true}).click();await expect(page.getByRole('heading',{name:'커플캐릭터의 마이홈',exact:true})).toBeVisible();await expect(page.locator('[data-item-id="200"]')).toBeVisible();await expect(page.getByRole('button',{name:'내 의상에서 제거',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'비공개 처리',exact:true})).toHaveCount(0);await expect(page.getByRole('tab',{name:'커플 마이홈',exact:true})).toHaveAttribute('aria-selected','true');await page.getByRole('tab',{name:'마이홈',exact:true}).click();await expect(page.getByRole('heading',{name:'내캐릭터의 마이홈',exact:true})).toBeVisible()
 })
 
 for(const sameSex of [false,true])test(`registered partner automatically loads public mains and shared snapshot stays fixed sameSex=${sameSex}`,async({page})=>{
   const alerts=[];page.on('dialog',async prompt=>{alerts.push(prompt.message());await prompt.accept()})
   const item={...(sameSex?femaleShirt:shirt),id:'202',name:'커플 메인 상의'},partner={...peer,character:{...peer.character,sex:item.sex},mains:[{sex:item.sex,slot:'top',item}]};await coupleFixture(page,{sameSex,characters:[own],extraItems:[item]});const api=await connections(page,{initial:[relation(false,'accepted')],partner});await page.goto('/shop?sex=female');await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('1');await page.getByRole('button',{name:femaleShirt.name+' 의상 선택',exact:true}).click();await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click();await page.locator(`[data-item-id="${sameSex?'30854':'30120'}"] .shop-card-select`).click();await page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true}).click()
-  const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect(dialog.locator('.shop-stage-status')).toHaveText('');await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page);expect(url.searchParams.get('partner_top')).toBe('202');expect(url.searchParams.get('partnerSex')).toBe(item.sex);expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
-  partner.mains=[];await page.goto(url.pathname+url.search);await page.getByRole('button',{name:'커플 모션 시작',exact:true}).click();await expect(page.locator('.shop-stage-status')).toHaveText('');await page.getByRole('button',{name:'URL 복사',exact:true}).click();expect((await copiedShopUrl(page)).searchParams.get('partner_top')).toBe('202');expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
+  const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect(dialog.locator('.shop-stage-status')).toHaveText('');await expect(dialog.getByRole('button',{name:'내 커플 의상 불러오기',exact:true})).toHaveCount(0);await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page);expect(url.searchParams.get('partner_top')).toBe('202');expect(url.searchParams.get('partnerSex')).toBe(item.sex);expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
+  partner.mains=[];await page.goto(url.pathname+url.search);await expect(page.getByRole('button',{name:'내 캐릭터 의상 불러오기',exact:true})).toBeVisible();await page.getByRole('button',{name:'커플 모션 시작',exact:true}).click();await expect(page.locator('.shop-stage-status')).toHaveText('');await page.getByRole('button',{name:'URL 복사',exact:true}).click();expect((await copiedShopUrl(page)).searchParams.get('partner_top')).toBe('202');expect(api.calls.filter(call=>call.path.endsWith('/home'))).toHaveLength(1)
   expect(alerts).toEqual([])
 })
 

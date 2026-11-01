@@ -24,6 +24,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
   const timer=useRef(null),fallbackInput=useRef(null),active=useRef(true)
   const couples=useCouples(),partnerReads=useRef(new Map()),fallbackNotified=useRef(false)
   const [fallbackNotice,setFallbackNotice]=useState(false),[viewerReady,setViewerReady]=useState(false)
+  const [registeredPartner,setRegisteredPartner]=useState(false)
   function readPartnerOnce(key,load){if(!partnerReads.current.has(key))partnerReads.current.set(key,load());return partnerReads.current.get(key)}
   const {user,authLoaded}=useStore(),characters=useCharacters(ownPicker&&authLoaded?user?.id:null,meta.revision)
   useEffect(()=>{active.current=true;return()=>{active.current=false;clearTimeout(timer.current)}},[])
@@ -46,6 +47,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
           const relationships=couples.ready?couples.items:(await readPartnerOnce('relationships',()=>getCouples())).relationships||[]
           const candidates=relationships.filter(row=>row.status==='accepted'&&row.character.sex===primary.sex)
           const id=selection.characterId?relationships.find(row=>row.status==='accepted'&&row.character.id===selection.characterId)?.character.id:candidates.length===1?candidates[0].character.id:null
+          if(!cancelled)setRegisteredPartner(!!id)
           if(id){const entry=await readPartnerOnce(id+':'+meta.revision,()=>getCoupleHome(id,meta.revision));if(entry.character.sex===primary.sex&&!selection.item.couple_preview.same_sex_motions?.[primary.sex]){if(!cancelled&&!fallbackNotified.current){fallbackNotified.current=true;setFallbackNotice(true)}}else savedPartner={sex:entry.character.sex,slots:mainSlots(entry.mains)}}
         }catch(e){if(e.response?.status!==404&&!cancelled)notify('커플 의상을 불러오지 못해 대응 의상으로 표시합니다.')}
       }
@@ -89,7 +91,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
     setActors(previous=>({...previous,partner:{sex:entry.character.sex,slots}}));return true
   }
   return <dialog ref={dialog} className="shop-couple-dialog" aria-label="커플 모션 미리보기" onCancel={event=>{event.preventDefault();onClose()}}>
-    <div className="shop-couple-heading"><div><h2>커플 모션 미리보기</h2><p>{selection.item.name||`커플링 ${selection.item.id}`}</p></div><div className="shop-couple-actions"><button disabled={!actors||selection.shared&&(!authLoaded||!user)} title={selection.shared&&!user?'로그인이 필요합니다.':undefined} onClick={()=>selection.shared?setOwnPicker(true):setUrlPicker(true)}>{selection.shared?'내 캐릭터 의상 불러오기':'내 커플 의상 불러오기'}</button><button disabled={!actors} onClick={copy}><Copy size={16}/><span>URL 복사</span></button><button aria-label="커플 모션 미리보기 닫기" onClick={onClose}><X size={22}/><span>닫기</span></button></div></div>
+    <div className="shop-couple-heading"><div><h2>커플 모션 미리보기</h2><p>{selection.item.name||`커플링 ${selection.item.id}`}</p></div><div className="shop-couple-actions">{(selection.shared||actors&&!registeredPartner)&&<button disabled={!actors||selection.shared&&(!authLoaded||!user)} data-tooltip={selection.shared&&!user?'로그인하세요':undefined} onClick={()=>selection.shared?setOwnPicker(true):setUrlPicker(true)}>{selection.shared?'내 캐릭터 의상 불러오기':'내 커플 의상 불러오기'}</button>}<button disabled={!actors} onClick={copy}><Copy size={16}/><span>URL 복사</span></button><button aria-label="커플 모션 미리보기 닫기" onClick={onClose}><X size={22}/><span>닫기</span></button></div></div>
     <div className="shop-couple-viewport">
       {actors&&!error?<ShopViewer meta={meta} sex={actors.primary.sex} partnerSex={actors.partner.sex} slots={figures.primary} counterparts={figures.partner} pair selectedSex={actors.primary.sex} angle={camera.angle} zoom={camera.zoom} panX={camera.panX} panY={camera.panY} mode={mode} onViewChange={setCamera} onReady={()=>setViewerReady(true)} couplePreview={selection.item.couple_preview} motion={motion} audioContext={selection.audioContext} audioReady={selection.audioReady}/>:<div className="shop-stage"><div className="shop-stage-status" role={error?'alert':'status'}>{error||'선택한 의상을 준비 중입니다.'}</div></div>}
       {fallbackNotice&&viewerReady&&<div className="shop-couple-fallback-notice" role="status" aria-live="polite"><span>동성 커플은 이성 커플 정보를 볼 수 없어, 동일한 이성 의상으로 대체합니다.</span><button aria-label="의상 대체 안내 닫기" onClick={()=>setFallbackNotice(false)}><X size={16}/></button></div>}

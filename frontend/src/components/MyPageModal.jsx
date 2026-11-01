@@ -194,7 +194,7 @@ function RecordRow({ record, onSongClick, onDelete }) {
 
         <button
           onClick={() => onDelete(record.id)}
-          title="성과 삭제"
+          data-tooltip="성과 삭제"
           style={{ padding: '3px 10px', fontSize: 11, background: 'transparent', border: '1px solid var(--bd-2, #2a2a2a)', borderRadius: 4, color: 'var(--fg-4)', cursor: 'pointer' }}
           onMouseEnter={e => { e.currentTarget.style.color = '#ff6b6b'; e.currentTarget.style.borderColor = '#ff6b6b' }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-4)'; e.currentTarget.style.borderColor = 'var(--bd-2, #2a2a2a)' }}
@@ -241,7 +241,7 @@ function CommentsTab({ comments, onSongClick, onDelete }) {
             </button>
             <button
               onClick={() => onDelete(c.id)}
-              title="댓글 삭제"
+              data-tooltip="댓글 삭제"
               style={{ padding: '3px 10px', fontSize: 11, background: 'transparent', border: '1px solid var(--bd-2, #2a2a2a)', borderRadius: 4, color: 'var(--fg-4)', cursor: 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#ff6b6b'; e.currentTarget.style.borderColor = '#ff6b6b' }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-4)'; e.currentTarget.style.borderColor = 'var(--bd-2, #2a2a2a)' }}
