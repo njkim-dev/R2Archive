@@ -115,10 +115,13 @@ def save_items(request:Request,character_id:int,payload:SaveItems,version:str|No
         cur.execute(f"SELECT item_id,sex,({SLOT_SQL}) AS slot,({DEPARTMENT_SQL}) AS department FROM shop_items WHERE revision=%s AND item_id=ANY(%s) AND {ELIGIBLE} AND sex IN (%s,'common')",(revision,ids,character['sex']))
         rows=cur.fetchall()
         if len(rows)!=len(ids):raise HTTPException(422,'캐릭터 성별에 맞는 의상ㆍ커플링ㆍ단짝링만 저장할 수 있습니다')
+        cur.execute(f'SELECT DISTINCT ({slot_sql("i")}) AS slot FROM shop_character_items ci JOIN shop_items i ON i.item_id=ci.item_id AND i.revision=%s WHERE ci.character_id=%s',(revision,character_id))
+        occupied={row['slot'] for row in cur.fetchall()}
         for row in rows:
             cur.execute('INSERT INTO shop_character_items(character_id,item_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(character_id,row['item_id']))
-            if row['department']=='wearable' and row['slot'] in SLOTS:
+            if row['department']=='wearable' and row['slot'] in SLOTS and row['slot'] not in occupied:
                 cur.execute('INSERT INTO shop_character_mains(character_id,slot,item_id) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',(character_id,row['slot'],row['item_id']))
+                occupied.add(row['slot'])
         result=character_state(cur,character,revision);conn.commit()
     return JSONResponse(result,headers=PRIVATE_HEADERS)
 
@@ -149,6 +152,18 @@ def set_main(request:Request,character_id:int,item_id:int,version:str|None=Query
         row=cur.fetchone()
         if not row or row['slot'] not in SLOTS:raise HTTPException(422,'저장한 꾸미기 아이템만 메인으로 지정할 수 있습니다')
         cur.execute('INSERT INTO shop_character_mains(character_id,slot,item_id) VALUES(%s,%s,%s) ON CONFLICT(character_id,slot) DO UPDATE SET item_id=EXCLUDED.item_id',(character_id,row['slot'],item_id))
+        result=character_state(cur,character,revision);conn.commit()
+    return JSONResponse(result,headers=PRIVATE_HEADERS)
+
+
+@router.delete('/{character_id}/mains/{item_id}')
+@bounded_shop_read
+def clear_main(request:Request,character_id:int,item_id:int,version:str|None=Query(None,max_length=64)):
+    uid=favorite_user(request)
+    if not 0 < item_id <= 9223372036854775807:raise HTTPException(422,'아이템 번호가 올바르지 않습니다')
+    with get_conn() as conn,conn.cursor(cursor_factory=RealDictCursor) as cur:
+        character=require_character(cur,uid,character_id,True);revision=catalog(cur,version)['revision']
+        cur.execute('DELETE FROM shop_character_mains WHERE character_id=%s AND item_id=%s',(character_id,item_id))
         result=character_state(cur,character,revision);conn.commit()
     return JSONResponse(result,headers=PRIVATE_HEADERS)
 

@@ -77,7 +77,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const homeData = publicHome ? publicData : owned
   const [idDialog, setIdDialog] = useState(false)
   useEffect(() => { setIdDialog(false) }, [user?.id])
-  const mainOwner = useRef(null)
+  const mainOwner = useRef(null),pendingStorageCharacter=useRef(null)
   const touched = useRef({ male: new Set(), female: new Set() })
   const [ready, setReady] = useState(false)
   const [catalogDepartment, setDepartment] = useState('wearable')
@@ -257,6 +257,20 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     }
   }, [ready, homeData.ready, homeData.mains, homeData.epoch, user?.id, initial, sex, publicHome])
 
+  function applyStorageCharacter(entry){
+    const gender=entry.character.sex,updates=Object.fromEntries(SHOP_SLOTS.map(key=>[key,entry.mains.find(main=>main.slot===key&&main.item.preview_available&&main.item.model)?.item||null]))
+    wardrobes.current[gender]=updates;touched.current[gender]=new Set();setSex(gender);setSlots(updates)
+  }
+  function selectStorageCharacter(value){
+    const id=value||null;pendingStorageCharacter.current=id
+    if(id===targetCharacter&&owned.ready&&owned.character?.id===id){pendingStorageCharacter.current=null;applyStorageCharacter(owned)}
+    setTargetCharacter(id)
+  }
+  useEffect(()=>{
+    if(!pendingStorageCharacter.current||privateHome||publicHome||!ready||!owned.ready||owned.character?.id!==pendingStorageCharacter.current)return
+    pendingStorageCharacter.current=null;applyStorageCharacter(owned)
+  },[ready,owned.ready,owned.character,owned.mains,targetCharacter,privateHome,publicHome])
+
   useEffect(() => {
     if (publicHome || privateHome || !ready || !meta || !sex) return
     wardrobes.current[sex] = slots
@@ -342,14 +356,16 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function changeDepartment(next) { setFavoritesOnly(false); setDepartment(next); resetFilters() }
   function changeSpace(home) { if(home){navigate('/myhome');return} if(privateHome||publicHome){navigate('/shop');return}setHomeOnly(false);setFavoritesOnly(false);setDepartment('wearable');resetFilters() }
   async function chooseMain(item) {
-    if (!sex || !owned.ids.has(item.id) || !await owned.setMain(item, sex)) return
-    if (item.preview_available && item.model) { touched.current[sex].add(item.slot); setSlots(current => ({ ...current, [item.slot]: item })) }
-    setDetail(item); notify('메인 의상을 저장했습니다')
+    if(!sex||!owned.ids.has(item.id))return
+    const clearing=owned.mains.some(main=>main.item.id===item.id)
+    if(!await(clearing?owned.clearMain(item):owned.setMain(item,sex)))return
+    touched.current[sex].add(item.slot);setSlots(current=>({...current,[item.slot]:!clearing&&item.preview_available&&item.model?item:null}))
+    characters.reload();setDetail(item);notify(clearing?'메인 의상을 해제했습니다':'메인 의상을 저장했습니다')
   }
   async function writeToCharacter(action,entry){
     const owner=user?.id
     if(!owner||owner!==currentOwner.current)return
-    if(action.mode==='create'){setTargetCharacter(entry.character.id);setSaveRequest(null);return}
+    if(action.mode==='create'){selectStorageCharacter(entry.character.id);setSaveRequest(null);return}
     if(saveLock.current)return
     saveLock.current=true;setSavingOwned(true)
     try{
@@ -448,7 +464,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     <div className="shop-title" aria-hidden={view === 'preview' || undefined}><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : publicHome ? `${homeData.character?.name || publicData.handle || publicHome}님의 마이홈` : characterId ? `${owned.character?.name||'캐릭터'}의 마이홈` : homeOnly ? '모든 캐릭터' : '아이템 상점'}</h1></div></div>
     <div className="shop-spaces" hidden={!!publicHome&&!partnerOf} role="tablist" aria-label="상점 공간" aria-hidden={view === 'preview' || undefined} inert={view === 'preview' ? '' : undefined}><button role="tab" aria-selected={!homeOnly} onClick={() => changeSpace(false)}>상점</button><button role="tab" aria-selected={homeOnly&&!partnerOf} disabled={!authenticated} title={!authenticated ? '로그인 후 사용할 수 있습니다.' : undefined} onClick={() => partnerOf?navigate('/myhome/characters/'+partnerOf):changeSpace(true)}>마이홈</button>{coupleRelation?.status==='accepted'&&<button role="tab" aria-selected={!!partnerOf} onClick={()=>navigate(coupleRelation.url)}>커플 마이홈</button>}</div>
     {privateHome&&<Link className="shop-back-characters" to="/myhome">← 캐릭터 목록</Link>}
-    {!homeOnly&&!publicHome&&<div className="shop-storage-target"><label htmlFor="shop-storage-character">저장할 캐릭터</label><select id="shop-storage-character" value={targetCharacter||''} onChange={e=>setTargetCharacter(e.target.value||null)} disabled={!authenticated||!characters.ready||savingOwned}><option value="">캐릭터 선택</option>{characters.items.map(entry=><option key={entry.character.id} value={entry.character.id}>{entry.character.name} ({entry.character.sex==='female'?'여':'남'})</option>)}</select><button onClick={()=>setSaveRequest({mode:'create',ids:[],sex:null})} disabled={!authenticated||!characters.ready||characters.items.length>=17}>새 캐릭터 추가</button></div>}
+    {!homeOnly&&!publicHome&&<div className="shop-storage-target"><label htmlFor="shop-storage-character">저장할 캐릭터</label><select id="shop-storage-character" value={targetCharacter||''} onChange={e=>selectStorageCharacter(e.target.value)} disabled={!authenticated||!characters.ready||savingOwned}><option value="">캐릭터 선택</option>{characters.items.map(entry=><option key={entry.character.id} value={entry.character.id}>{entry.character.name} ({entry.character.sex==='female'?'여':'남'})</option>)}</select><button onClick={()=>setSaveRequest({mode:'create',ids:[],sex:null})} disabled={!authenticated||!characters.ready||characters.items.length>=17}>새 캐릭터 추가</button></div>}
     <div className="shop-feedback" aria-live="polite"><span role={error || favorites.error || owned.error || sharing.error ? 'alert' : undefined}>{error || favorites.error || owned.error || sharing.error}</span>{favorites.error && <button disabled={favorites.pending.size > 0} onClick={favorites.reload}>즐겨찾기 다시 불러오기</button>}{owned.error && <button disabled={(owned.pending||savingOwned)} onClick={owned.reload}>내 의상 다시 불러오기</button>}</div>
     {view === 'preview' && applied && meta ? <>
       <ShopOutfitPreview onClose={browse} onCopy={() => copy(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))} tools={!panelOpen && copyTools} saveTools={<button disabled={!authenticated || !owned.ready || !characters.ready || (owned.pending||savingOwned) || !Object.values(applied.slots).some(Boolean)} onClick={saveAllOwned}>전부 내 의상으로 저장</button>} headerTools={<>{mobile && <button onClick={() => openPanel()}>아이템 현황</button>}{!user && <button disabled={!authLoaded} onClick={login}>로그인</button>}</>}>
@@ -476,7 +492,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
       </section>{framePanel(<aside className="shop-panel">
         {panelHeading(mobile && panelMode === 'outfit' || !mobile && showWardrobe ? '선택한 의상' : '아이템 정보')}{panelTabs}
         {(mobile ? panelMode === 'outfit' : showWardrobe) ? <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
-        {detail && <section className="shop-detail" hidden={mobile && panelMode !== 'detail'} aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}<h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p>{detail.category === '507' && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>선택한 커플링 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
+        {detail && <section className="shop-detail" hidden={mobile && panelMode !== 'detail'} aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}{!homeOnly&&<><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p></>}{detail.category === '507' && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>선택한 커플링 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
         {!detail && !(mobile ? panelMode === 'outfit' : showWardrobe) && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
       </aside>)}</div>
     </>}

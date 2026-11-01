@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getShopWardrobe } from '../../api/shop'
-import { getCharacter,saveCharacterItems,removeCharacterItem,setCharacterMain } from '../../api/shopCharacters'
+import { getCharacter,saveCharacterItems,removeCharacterItem,setCharacterMain,clearCharacterMain } from '../../api/shopCharacters'
 
 const empty = { ids: new Set(),privateIds:new Set(), mains: [], ready: false, pending: false, error: '' }
 const message = error => typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : '내 의상을 저장하거나 불러오지 못했습니다. 다시 시도해주세요.'
@@ -29,7 +29,7 @@ export default function useShopWardrobe(userId, version, characterId = null) {
     session.busy = true
     setState(previous => ({ ...previous, pending: true, error: '' }))
     try {
-      const data = operation === 'remove' ? await removeCharacterItem(characterId,item.id,version) : sex ? await setCharacterMain(characterId,item.id,version) : await saveCharacterItems(characterId,operation==='all'?item:[item.id],version)
+      const data = operation === 'remove' ? await removeCharacterItem(characterId,item.id,version) : operation === 'clearMain' ? await clearCharacterMain(characterId,item.id,version) : sex ? await setCharacterMain(characterId,item.id,version) : await saveCharacterItems(characterId,operation==='all'?item:[item.id],version)
       if (current.current !== session) return false
       setState({ owner: userId, version, characterId, character:data.character, ids: new Set(data.ids.map(String)),privateIds:new Set(data.private_ids||[]), mains: data.mains, ready: true, pending: false, error: '' })
       return true
@@ -39,5 +39,5 @@ export default function useShopWardrobe(userId, version, characterId = null) {
     } finally { session.busy = false }
   }
   const owned = !!userId && state.owner === userId && state.version === version && state.characterId === characterId
-  return { ...(owned ? state : empty), save: item => write(item), remove: item => write(item, null, 'remove'), saveAll: items => write(items, null, 'all'), setMain: (item, sex) => write(item, sex), reload: () => setRetry(value => value + 1) }
+  return { ...(owned ? state : empty), save: item => write(item), remove: item => write(item, null, 'remove'), saveAll: items => write(items, null, 'all'), setMain: (item, sex) => write(item, sex), clearMain: item => write(item, null, 'clearMain'), reload: () => setRetry(value => value + 1) }
 }

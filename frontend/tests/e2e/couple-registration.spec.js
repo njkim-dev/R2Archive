@@ -92,13 +92,13 @@ test('delayed incoming request appears without moving the loaded myhome controls
 })
 
 for(const selectedSex of ['female','male'])test(`multiple characters use the selected storage character mains and partner without changing browsed clothes sex=${selectedSex}`,async({page})=>{
-  const secondTop={...(selectedSex==='female'?femaleShirt:shirt),id:'203',name:'두 번째 캐릭터 메인'},firstPartner={...shirt,id:'202',name:'첫 커플 메인'},secondPartner={...(selectedSex==='female'?shirt:femaleShirt),id:'205',name:'두 번째 커플 메인'},browsed={...femaleShirt,id:'206',name:'상점에서 고른 상의'}
+  const secondTop={...(selectedSex==='female'?femaleShirt:shirt),id:'203',name:'두 번째 캐릭터 메인'},firstPartner={...shirt,id:'202',name:'첫 커플 메인'},secondPartner={...(selectedSex==='female'?shirt:femaleShirt),id:'205',name:'두 번째 커플 메인'},browsed={...(selectedSex==='female'?femaleShirt:shirt),id:'206',name:'상점에서 고른 상의'}
   const second={id:'2',name:'두번째캐릭터',sex:selectedSex,ids:['203'],mains:[{sex:selectedSex,slot:'top',item:secondTop}]},partners={'1':{...peer,mains:[{sex:'male',slot:'top',item:firstPartner}]},'2':{...peer,character:{id:'81',name:'두번째커플',sex:secondPartner.sex},mains:[{sex:secondPartner.sex,slot:'top',item:secondPartner}]}}
   await coupleFixture(page,{characters:[own,second],extraItems:[secondTop,firstPartner,secondPartner,browsed]})
   const api=await connections(page,{initial:[relation(false,'accepted'),{...relation(false,'accepted'),id:'42',character:{id:'2',name:second.name,sex:selectedSex},partner:partners['2'].character}],partner:id=>partners[id]})
   let hold=false,requested=false,release;const gate=new Promise(resolve=>{release=resolve})
   await page.route('**/api/shop/characters/2**',async route=>{if(hold&&new URL(route.request().url()).pathname==='/api/shop/characters/2'){requested=true;await gate}await route.fallback()})
-  await page.goto('/shop?sex=female');await page.getByRole('button',{name:browsed.name+' 의상 선택',exact:true}).click();await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('2')
+  await page.goto('/shop?sex=female');await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('2');await expect(page.getByRole('button',{name:secondTop.name+' 의상 선택',exact:true})).toHaveAttribute('aria-pressed','true');await page.getByRole('button',{name:browsed.name+' 의상 선택',exact:true}).click()
   await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click();await page.locator('[data-item-id="30120"] .shop-card-select').click();hold=true;await page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true}).click()
   const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect.poll(()=>requested).toBe(true);await expect(dialog.locator('.shop-stage-status')).toHaveText('선택한 의상을 준비 중입니다.');const watcher=await watchLayout(page,['.shop-couple-heading','.shop-couple-viewport','.shop-couple-note']);await watcher.expectStable();release();await expect(dialog.locator('.shop-stage-status')).toHaveText('');await watcher.expectStable();await watcher.stop()
   async function copy(){await page.evaluate(()=>{window.__copiedShopUrl=''});await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();return copiedShopUrl(page)}

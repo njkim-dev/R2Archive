@@ -24,7 +24,7 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
   const union=()=>[...new Set(characters.flatMap(entry=>[...entry.ids]))]
   requests.wardrobe=()=>characters[0]?state(characters[0]):{ids:[],mains:[]}
   requests.characters=()=>characters.map(state)
-  function save(entry,id){const item=allItems().find(item=>item.id===id);if(!item)return;entry.ids.add(id);if(item.department==='wearable'&&item.slot&&!entry.mains.has(item.slot))entry.mains.set(item.slot,{sex:entry.character.sex,slot:item.slot,item:{...item,version}})}
+  function save(entry,id){const item=allItems().find(item=>item.id===id);if(!item)return;const occupied=allItems().some(other=>entry.ids.has(other.id)&&other.department==='wearable'&&other.slot===item.slot);entry.ids.add(id);if(item.department==='wearable'&&item.slot&&!occupied&&!entry.mains.has(item.slot))entry.mains.set(item.slot,{sex:entry.character.sex,slot:item.slot,item:{...item,version}})}
   await page.addInitScript(()=>{window.__copiedShopUrl='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copiedShopUrl=value}}})})
   await page.route('**/api/**',async route=>{
     const url=new URL(route.request().url()),path=url.pathname,method=route.request().method()
@@ -76,6 +76,7 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
         for(const [slot,main]of entry.mains)if(main.item.id===id){entry.mains.delete(slot);const next=allItems().find(item=>item.slot===slot&&entry.ids.has(item.id));if(next)entry.mains.set(slot,{sex:entry.character.sex,slot,item:next})}
       }
       if(parts[5]==='mains'){
+        if(method==='DELETE'){for(const [slot,main] of entry.mains)if(main.item.id===parts[6])entry.mains.delete(slot);return route.fulfill({json:state(entry)})}
         const item=allItems().find(item=>item.id===parts[6]);if(!item||!entry.ids.has(item.id))return route.fulfill({status:422,json:{detail:'저장한 꾸미기 아이템만 메인으로 지정할 수 있습니다'}})
         entry.mains.set(item.slot,{sex:entry.character.sex,slot:item.slot,item:{...item,version}})
       }

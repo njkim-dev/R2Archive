@@ -48,12 +48,41 @@ class WardrobeTests(unittest.TestCase):
     def test_first_save_locks_character_and_preserves_existing_main(self):
         for sex in ['male','female']:
             for department,slot in [('wearable','top'),('wearable','pet'),('functional',None)]:
-                cur,conn,ctx=self.database();cur.fetchall.return_value=[{'item_id':200,'sex':'common' if slot=='pet' else sex,'slot':slot,'department':department}]
+                cur,conn,ctx=self.database();cur.fetchall.side_effect=[[{'item_id':200,'sex':'common' if slot=='pet' else sex,'slot':slot,'department':department}],[]]
                 with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(chars,'get_conn',return_value=ctx),patch.object(chars,'require_character',return_value={'id':12,'sex':sex}) as required,patch.object(chars,'catalog',return_value={'revision':'a'*20}),patch.object(chars,'character_state',return_value={'ids':['200'],'mains':[]}):response=self.client().post('/api/shop/characters/12/items?user_id=999',json={'ids':[200]})
                 self.assertEqual(response.status_code,200);required.assert_called_once_with(cur,7,12,True)
                 writes=[call for call in cur.execute.call_args_list if 'INSERT INTO shop_character_mains' in call.args[0]]
                 self.assertEqual(len(writes),int(department=='wearable'));self.assertTrue(all('DO NOTHING' in call.args[0] for call in writes));conn.commit.assert_called_once()
                 query=cur.execute.call_args_list[0];self.assertIn("sex IN (%s,'common')",query.args[0]);self.assertEqual(query.args[1][-1],sex)
+
+    def test_saving_another_owned_slot_does_not_reequip_an_unset_main(self):
+        cur,conn,ctx=self.database();cur.fetchall.side_effect=[[{'item_id':201,'sex':'female','slot':'top','department':'wearable'}],[{'slot':'top'}]]
+        with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(chars,'get_conn',return_value=ctx),patch.object(chars,'require_character',return_value={'id':12,'sex':'female'}),patch.object(chars,'catalog',return_value={'revision':'a'*20}),patch.object(chars,'character_state',return_value={'ids':['200','201'],'mains':[]}):response=self.client().post('/api/shop/characters/12/items',json={'ids':[201]})
+        self.assertEqual(response.status_code,200);self.assertEqual(response.json()['mains'],[])
+        self.assertTrue(any('INSERT INTO shop_character_items' in call.args[0] for call in cur.execute.call_args_list))
+        self.assertFalse(any('INSERT INTO shop_character_mains' in call.args[0] for call in cur.execute.call_args_list));conn.commit.assert_called_once()
+
+    def test_clear_main_keeps_inventory_and_does_not_assign_a_replacement(self):
+        cur,conn,ctx=self.database()
+        with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(chars,'get_conn',return_value=ctx),patch.object(chars,'require_character',return_value={'id':12,'sex':'female'}) as owned,patch.object(chars,'catalog',return_value={'revision':'a'*20}),patch.object(chars,'character_state',return_value={'ids':['200','201'],'mains':[]}):response=self.client().delete('/api/shop/characters/12/mains/200?user_id=999')
+        self.assertEqual(response.status_code,200);owned.assert_called_once_with(cur,7,12,True)
+        self.assertEqual(response.json(),{'ids':['200','201'],'mains':[]});self.assertEqual(response.headers['cache-control'],'private, no-store')
+        cur.execute.assert_called_once_with('DELETE FROM shop_character_mains WHERE character_id=%s AND item_id=%s',(12,200));conn.commit.assert_called_once()
+
+    def test_stale_clear_does_not_remove_a_different_main(self):
+        cur,conn,ctx=self.database();cur.rowcount=0;current={'ids':['200','201'],'mains':[{'slot':'top','item':{'id':'201'}}]}
+        with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(chars,'get_conn',return_value=ctx),patch.object(chars,'require_character',return_value={'id':12,'sex':'female'}),patch.object(chars,'catalog',return_value={'revision':'a'*20}),patch.object(chars,'character_state',return_value=current):response=self.client().delete('/api/shop/characters/12/mains/200')
+        self.assertEqual(response.json(),current);self.assertEqual(cur.execute.call_args.args[1],(12,200))
+
+    def test_clear_main_cannot_target_another_users_character(self):
+        cur,conn,ctx=self.database()
+        with patch.object(shop,'fetch_user',return_value={'id':7}),patch.object(chars,'get_conn',return_value=ctx),patch.object(chars,'require_character',side_effect=HTTPException(404,'캐릭터를 찾을 수 없습니다')):
+            self.assertEqual(self.client().delete('/api/shop/characters/999/mains/200').status_code,404)
+        cur.execute.assert_not_called();conn.commit.assert_not_called()
+        with patch.object(chars,'get_conn') as connection:
+            self.assertEqual(self.client(None).delete('/api/shop/characters/12/mains/200').status_code,401)
+            self.assertEqual(self.client(csrf=True).delete('/api/shop/characters/12/mains/200',headers={'Origin':'https://wrong.invalid'}).status_code,403)
+            connection.assert_not_called()
 
     def test_main_requires_saved_wearable_and_does_not_accept_rings(self):
         for row,expected in [(None,422),({'slot':None},422),({'slot':'pet'},200)]:
