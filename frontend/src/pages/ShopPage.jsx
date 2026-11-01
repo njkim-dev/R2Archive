@@ -129,9 +129,8 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   }, [couple])
   function openCouple() {
     if (!detail?.couple_preview) return
-    const activeCharacter=characters.items.find(entry=>entry.character.id===(characterId||storageCharacter))
-    const disableAutoPartner=!!publicHome||!!activeCharacter&&activeCharacter.character.sex!==sex
-    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:disableAutoPartner?null:characterId||storageCharacter,disableAutoPartner, ...coupleAudio() })
+    const previewCharacter=publicHome?null:characterId||targetCharacter
+    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:previewCharacter,useCharacterMains:!!previewCharacter,disableAutoPartner:!!publicHome, ...coupleAudio() })
     navigate(location.pathname + location.search, { state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
   }
   function startCouple() {

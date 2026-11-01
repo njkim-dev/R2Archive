@@ -3,6 +3,7 @@ import { Check,Copy,X } from 'lucide-react'
 import { lockShopScroll } from './shopModalScroll'
 import { createShortUrl } from '../../api/shopSharing'
 import {getCouples,getCoupleHome} from '../../api/shopCouples'
+import {getCharacter} from '../../api/shopCharacters'
 import {useCouples} from './ShopCouplesContext'
 import { getShopItem } from '../../api/shop'
 import { coupleShareUrl,SHOP_SLOTS } from '../../utils/shopUrl'
@@ -15,6 +16,7 @@ import ShopViewer from './ShopViewer'
 
 const empty=()=>Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,null]))
 const renderSlots=slots=>({...slots,pet:null,accessory:null,summon:null})
+const mainSlots=mains=>Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,mains.find(main=>main.slot===slot&&main.item.preview_available&&main.item.model)?.item||null]))
 
 export default function ShopCouplePreview({selection,meta,onStart,onClose}){
   const dialog=useRef(null),[camera,setCamera]=useState({angle:selection.angle??180,zoom:selection.zoom??100,panX:selection.panX??0,panY:selection.panY??0}),[mode,setMode]=useState('rotate')
@@ -30,29 +32,35 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
     let cancelled=false
     if(!selection.shared&&!selection.disableAutoPartner&&!authLoaded)return
     async function restore(){
+      let primary={sex:selection.sex,slots:selection.slots}
+      if(selection.useCharacterMains&&selection.characterId&&!selection.shared&&user){
+        try{const entry=await readPartnerOnce('character:'+selection.characterId+':'+meta.revision,()=>getCharacter(selection.characterId,meta.revision));primary={sex:entry.character.sex,slots:mainSlots(entry.mains)}}
+        catch{throw new Error('선택한 캐릭터의 의상을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')}
+        if(cancelled)return
+      }
       let savedPartner=null
       if(!selection.shared&&!selection.disableAutoPartner&&!selection.partner&&user){
         try{
           const relationships=couples.ready?couples.items:(await readPartnerOnce('relationships',()=>getCouples())).relationships||[]
-          const candidates=relationships.filter(row=>row.status==='accepted'&&row.character.sex===selection.sex)
+          const candidates=relationships.filter(row=>row.status==='accepted'&&row.character.sex===primary.sex)
           const id=selection.characterId?relationships.find(row=>row.status==='accepted'&&row.character.id===selection.characterId)?.character.id:candidates.length===1?candidates[0].character.id:null
-          if(id){const entry=await readPartnerOnce(id+':'+meta.revision,()=>getCoupleHome(id,meta.revision));if(entry.character.sex===selection.sex&&!selection.item.couple_preview.same_sex_motions?.[selection.sex]){if(!cancelled&&!fallbackAlerted.current){fallbackAlerted.current=true;alert('동성 커플은 이성 커플 정보를 볼 수 없어, 동일한 이성 의상으로 대체합니다.')}}else savedPartner={sex:entry.character.sex,slots:Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,entry.mains.find(main=>main.slot===slot&&main.item.preview_available&&main.item.model)?.item||null]))}}
+          if(id){const entry=await readPartnerOnce(id+':'+meta.revision,()=>getCoupleHome(id,meta.revision));if(entry.character.sex===primary.sex&&!selection.item.couple_preview.same_sex_motions?.[primary.sex]){if(!cancelled&&!fallbackAlerted.current){fallbackAlerted.current=true;alert('동성 커플은 이성 커플 정보를 볼 수 없어, 동일한 이성 의상으로 대체합니다.')}}else savedPartner={sex:entry.character.sex,slots:mainSlots(entry.mains)}}
         }catch(e){if(e.response?.status!==404&&!cancelled)notify('커플 의상을 불러오지 못해 대응 의상으로 표시합니다.')}
       }
-      const partner=selection.partner?{sex:selection.partner.sex,slots:{...selection.partner.slots}}:savedPartner||{sex:selection.sex==='male'?'female':'male',slots:empty()}
+      const partner=selection.partner?{sex:selection.partner.sex,slots:{...selection.partner.slots}}:savedPartner||{sex:primary.sex==='male'?'female':'male',slots:empty()}
       if(!selection.partner&&!savedPartner)await Promise.all(SHOP_SLOTS.map(async key=>{
-        const item=selection.slots[key];if(!item)return
+        const item=primary.slots[key];if(!item)return
         if(item.sex==='common'){partner.slots[key]=item;return}
         if(!item.counterpart_id)return
         const other=await getShopItem(item.counterpart_id,meta.revision)
         if(other.sex===partner.sex&&other.slot===key&&other.preview_available&&other.model)partner.slots[key]=other
       }))
-      if(partner.sex===selection.sex&&!selection.item.couple_preview.same_sex_motions?.[selection.sex])throw new Error('동성 커플이 불가능한 반지입니다.')
-      if(!cancelled)setActors({primary:{sex:selection.sex,slots:selection.slots},partner})
+      if(partner.sex===primary.sex&&!selection.item.couple_preview.same_sex_motions?.[primary.sex])throw new Error('동성 커플이 불가능한 반지입니다.')
+      if(!cancelled)setActors({primary,partner})
     }
     restore().catch(e=>{if(!cancelled)setError(e.message||'선택한 의상을 불러오지 못했습니다.')})
     return()=>{cancelled=true}
-  },[selection.slots,selection.sex,selection.partner,selection.item,meta,authLoaded])
+  },[selection.slots,selection.sex,selection.partner,selection.item,selection.characterId,selection.useCharacterMains,meta,authLoaded])
   const figures=useMemo(()=>actors?{primary:renderSlots(actors.primary.slots),partner:renderSlots(actors.partner.slots)}:null,[actors])
   const motion=useMemo(()=>{
     if(!actors||!selection.started)return null
