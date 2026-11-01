@@ -130,7 +130,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function openCouple() {
     if (!detail?.couple_preview) return
     const previewCharacter=publicHome?null:characterId||targetCharacter
-    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:previewCharacter,useCharacterMains:!!previewCharacter,disableAutoPartner:!!publicHome, ...coupleAudio() })
+    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:previewCharacter,useCharacterMains:homeOnly&&!!previewCharacter,disableAutoPartner:!!publicHome, ...coupleAudio() })
     navigate(location.pathname + location.search, { state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
   }
   function startCouple() {
@@ -141,7 +141,9 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const restoreScroll = useRef(false)
   const toastTimer = useRef(null)
   const listSex = favoritesOnly ? favoriteSex : department === 'wearable' ? sex : null
-  const showWardrobe = homeOnly || department === 'wearable' || favoritesOnly && !department
+  const detailOnly=homeOnly&&department==='functional'
+  const showWardrobe = !detailOnly&&(homeOnly || department === 'wearable' || favoritesOnly && !department)
+  const panelShowsOutfit=!detailOnly&&(mobile?panelMode==='outfit':showWardrobe)
   const needsSex = !favoritesOnly && department === 'wearable' && !sex
   const visibleItems = publicHome ? listing.items : homeOnly ? listing.items.filter(item => owned.ids.has(item.id)) : favoritesOnly ? listing.items.filter(item => favorites.ids.has(item.id)) : listing.items
   const visibleTotal = Math.max(0, listing.total - (listing.items.length - visibleItems.length))
@@ -175,7 +177,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function openPanel(mode = 'outfit') { setPanelMode(mode); setPanelOpen(true) }
   function framePanel(content) { return mobile ? <ShopMobilePanel open={panelOpen} onClose={() => setPanelOpen(false)}>{content}{panelOpen && copyTools}</ShopMobilePanel> : content }
   const panelHeading = title => <div className="shop-panel-heading"><h2>{title}</h2><div><button className="shop-panel-top" aria-label="페이지 맨 위로 이동" onClick={top}><ArrowUp size={14} /> 맨 위로</button>{mobile && <button className="shop-panel-close" aria-label="아이템 현황 닫기" onClick={() => setPanelOpen(false)}><X size={19} /></button>}</div></div>
-  const panelTabs = mobile && detail && <div className="shop-panel-tabs" role="tablist" aria-label="아이템 현황 표시">{[['outfit', '선택한 의상'], ['detail', '아이템 정보']].map(([value, label]) => <button key={value} role="tab" aria-selected={panelMode === value} onClick={() => setPanelMode(value)}>{label}</button>)}</div>
+  const panelTabs = mobile && detail && !detailOnly && <div className="shop-panel-tabs" role="tablist" aria-label="아이템 현황 표시">{[['outfit', '선택한 의상'], ['detail', '아이템 정보']].map(([value, label]) => <button key={value} role="tab" aria-selected={panelMode === value} onClick={() => setPanelMode(value)}>{label}</button>)}</div>
 
   useEffect(() => {
     let cancelled = false
@@ -492,10 +494,10 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
         {initial.item && <div className="shop-shared-item"><b>공유된 아이템</b><span>{detail?.name || '아이템 정보를 확인 중입니다.'}</span></div>}
         <ShopVirtualGrid minCardWidth={homeOnly&&!publicHome?240:undefined} key={listKey} resetKey={listKey} scrollPosition={scrollPosition} restoreScroll={restoreScroll} items={visibleItems} hasMore={listing.has_more} loading={loading} error={error} loadMore={loadMore} renderItem={renderCard} empty={<div className="shop-empty">{needsSex ? <>어떤 캐릭터로 입어볼까요?<br />위에서 성별을 선택해주세요.</> : !ready || loading || homeOnly && !homeData.ready ? '아이템을 불러오는 중입니다.' : error ? '목록을 불러오지 못했습니다.' : homeOnly ? <>저장한 의상이 없습니다.<br />상점에서 내 의상으로 저장해주세요.</> : favoritesOnly ? <>표시할 즐겨찾기가 없습니다.<br />아이템의 ☆를 눌러 등록해주세요.</> : <>표시할 아이템이 없습니다.<br />다른 이름이나 분류로 검색해보세요.</>}</div>} />
       </section>{framePanel(<aside className="shop-panel">
-        {panelHeading(mobile && panelMode === 'outfit' || !mobile && showWardrobe ? '선택한 의상' : '아이템 정보')}{panelTabs}
-        {(mobile ? panelMode === 'outfit' : showWardrobe) ? <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
-        {detail && <section className="shop-detail" hidden={mobile && panelMode !== 'detail'} aria-label="선택한 아이템 정보"><h2>아이템 정보</h2><div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}{!homeOnly&&<><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p></>}{detail.category === '507' && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>선택한 커플링 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
-        {!detail && !(mobile ? panelMode === 'outfit' : showWardrobe) && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
+        {panelHeading(panelShowsOutfit ? '선택한 의상' : '아이템 정보')}{panelTabs}
+        {panelShowsOutfit ? <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
+        {detail && <section className="shop-detail" hidden={mobile && !detailOnly && panelMode !== 'detail'} aria-label="선택한 아이템 정보">{!detailOnly&&<h2>아이템 정보</h2>}<div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}{!homeOnly&&<><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p></>}{detail.category === '507' && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>선택한 커플링 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
+        {!detail && !panelShowsOutfit && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
       </aside>)}</div>
     </>}
     {mobile && awayFromTop && !panelOpen && <button className="shop-floating-top" aria-label="페이지 맨 위로 이동" onClick={top}><ArrowUp size={18} /><span>맨 위로</span></button>}
