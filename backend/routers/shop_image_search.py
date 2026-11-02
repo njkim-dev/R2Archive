@@ -1,25 +1,26 @@
 import logging
 import re
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from psycopg2.extras import RealDictCursor
 
 from database import get_conn
+from auth import require_admin
 from rate_limit import limiter, user_key
 from routers.shop import ACCESSIBLE, ITEM_COLUMNS, catalog, serialize
 import shop_image_search as search
 from work_capacity import WorkCapacity, run_blocking
 
 
-router = APIRouter(prefix='/api/shop/image-search', tags=['shop'])
+router = APIRouter(prefix='/api/shop/image-search', tags=['shop'], dependencies=[Depends(require_admin)])
 capacity = WorkCapacity(1)
 logger = logging.getLogger(__name__)
 
 
 @router.get('/status')
 def image_search_status():
-    return search.status()
+    return JSONResponse(search.status(), headers={'Cache-Control': 'no-store'})
 
 
 def find(content, sex, slot, version, include_unreleased):

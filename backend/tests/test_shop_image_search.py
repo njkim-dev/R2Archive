@@ -5,6 +5,9 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault('SESSION_SECRET', 'image-search-test-session-secret-at-least-32-characters')
 import numpy as np
+import auth
+import jwt
+import time
 from PIL import Image, ImageDraw
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -56,9 +59,38 @@ class ImageSearchTests(unittest.TestCase):
         self.assertEqual(result, ['2'])
         model.session.run.assert_called_once()
 
-    def client(self):
+    def client(self, admin=True):
         app = FastAPI(); app.include_router(api.router)
+        if admin:
+            app.dependency_overrides[api.require_admin] = lambda: {'id': 1, 'is_admin': True}
         return TestClient(app)
+
+    def test_both_routes_require_a_real_admin_session_before_search(self):
+        client = self.client(admin=False)
+        with patch.object(auth, 'fetch_user', return_value={'id': 2, 'is_admin': False}) as user, \
+             patch.object(core, 'engine') as engine, patch.object(core, 'status') as status, \
+             patch.object(api, 'get_conn') as db:
+            for token, expected in [(None, 401), ('invalid', 401),
+                                    (jwt.encode({'sub': '2', 'exp': int(time.time()) + 60}, auth.SESSION_SECRET, algorithm='HS256'), 403)]:
+                cookies = {auth.SESSION_COOKIE: token} if token else {}
+                response = client.get('/api/shop/image-search/status', cookies=cookies)
+                self.assertEqual(response.status_code, expected)
+                response = client.post('/api/shop/image-search', cookies=cookies, data={'sex': 'male', 'slot': 'top'},
+                                       files={'image': ('a.png', png(), 'image/png')})
+                self.assertEqual(response.status_code, expected)
+            engine.assert_not_called(); status.assert_not_called(); db.assert_not_called()
+        token = jwt.encode({'sub': '1', 'exp': int(time.time()) + 60}, auth.SESSION_SECRET, algorithm='HS256')
+        with patch.object(auth, 'fetch_user', return_value={'id': 1, 'is_admin': True}), \
+             patch.object(core, 'status', return_value={'available': True}), \
+             patch.object(api, 'find', return_value={'items': [], 'version': 'a'*20}) as find:
+            client.cookies.set(auth.SESSION_COOKIE, token)
+            response = client.get('/api/shop/image-search/status')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers['cache-control'], 'no-store')
+            response = client.post('/api/shop/image-search', data={'sex': 'male', 'slot': 'top'},
+                                   files={'image': ('a.png', png(), 'image/png')})
+            self.assertEqual(response.status_code, 200)
+            find.assert_called_once()
 
     def test_invalid_filters_and_images_do_not_start_model_or_query_database(self):
         with patch.object(core, 'engine') as engine, patch.object(api, 'get_conn') as db:

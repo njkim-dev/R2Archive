@@ -13,10 +13,20 @@ async function upload(page) {
 }
 
 for (const width of [1440, 390]) {
+  for (const loggedIn of [false, true]) {
+    test(`image search is hidden for ${loggedIn ? 'members' : 'guests'} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 })
+      await setup(page, { loggedIn, admin: false })
+      await page.goto('/shop?sex=male')
+      await expect(page.getByRole('button', { name: loggedIn ? '로그아웃' : '로그인', exact: true }).first()).toBeEnabled()
+      await expect(page.getByRole('button', { name: '이미지로 찾기', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('dialog', { name: '이미지로 아이템 찾기' })).toHaveCount(0)
+    })
+  }
   test(`image search upload, pending results, failure, and retry preserve geometry at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 })
     const candidate = { ...shirt, version, name: '토끼 민트 상의(남)', is_unreleased: true }
-    await setup(page, { loggedIn: false, items: [candidate] })
+    await setup(page, { admin: true, items: [candidate] })
     let release, requested = false, calls = 0
     await page.route('**/api/shop/image-search', async route => {
       requested = true; calls++
@@ -54,7 +64,7 @@ for (const width of [1440, 390]) {
   test(`image result without a preview opens item details and clears unrelated filters at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 })
     const candidate = { ...shirt, id: '202', sex: 'female', name: '미리보기 없는 검색 상의', model: null, preview_available: false }
-    await setup(page, { loggedIn: false, items: [candidate] })
+    await setup(page, { admin: true, items: [candidate] })
     await page.route('**/api/shop/image-search', route => route.fulfill({ json: { items: [candidate], version } }))
     await page.goto('/shop?sex=male')
     await page.getByRole('tab', { name: '기능성ㆍ소모품', exact: true }).click()
