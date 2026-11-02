@@ -55,7 +55,7 @@ for(const width of [1440,390]) {
     await expect(dialog.getByRole('button',{name:`${shirt.name} 좋아요`,exact:true})).toBeDisabled()
     expect(requests.filter(path=>path==='/api/shop/image-search')).toHaveLength(0)
     if(loggedIn){await dialog.getByRole('button',{name:'해당 의상 즐겨찾기 등록',exact:true}).click();await expect(dialog.getByText('선택한 의상을 즐겨찾기에 등록했습니다.')).toBeVisible();await dialog.getByRole('button',{name:'다시 찾기',exact:true}).click();await expect(page).not.toHaveURL(/imageResult=/);await expect(dialog).toBeVisible();await expect(dialog.getByLabel('검색할 캐릭터 성별',{exact:true})).toHaveValue('')}
-    else {await dialog.getByRole('button',{name:'해당 의상 입어보기',exact:true}).click();await expect(page.getByRole('dialog',{name:'의상 미리보기',exact:true})).toBeVisible();await page.getByRole('button',{name:/이미지 검색 다시 열기/}).click();await expect(dialog.getByRole('button',{name:'다시 찾기',exact:true})).toBeDisabled()}
+    else {await dialog.getByRole('button',{name:'해당 의상 입어보기',exact:true}).click();await expect(page.getByRole('dialog',{name:'의상 미리보기',exact:true})).toBeVisible();await page.getByRole('button',{name:/이미지 검색 다시 열기/}).click();await expect(dialog.getByRole('button',{name:'다시 찾기',exact:true})).toBeDisabled();await dialog.getByRole('button',{name:'이미지 검색 최소화',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('r2_shop_return')).url)).toContain('imageResult='+token)}
   })
 }
 test('deleted shared result shows a recoverable error',async({page})=>{

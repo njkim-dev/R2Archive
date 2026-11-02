@@ -436,6 +436,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   }
   function login() {
     let target = location.pathname + location.search
+    if (sharedToken) { rememberShopReturn(target); openLogin(); return }
     if (view === 'preview' && applied && meta) {
       const url = new URL(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))
       target = url.pathname + url.search
