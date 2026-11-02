@@ -23,7 +23,7 @@ for (const width of [1440, 390]) {
       expect(route.request().headers()['content-type']).toContain('multipart/form-data')
       expect(route.request().postDataBuffer().toString('latin1')).toContain('name="image"')
       await new Promise(resolve => { release = resolve })
-      return calls === 1 ? route.fulfill({ status: 429, json: { detail: '처리 중인 작업이 있습니다. 잠시 후 다시 시도해주세요.' } }) : route.fulfill({ json: { items: [candidate], version } })
+      return calls === 1 ? route.fulfill({ status: 429, json: { error: 'Rate limit exceeded' } }) : route.fulfill({ json: { items: [candidate], version } })
     })
     await page.goto('/shop?sex=male')
     await page.getByRole('button', { name: '이미지로 찾기', exact: true }).click()
@@ -37,7 +37,7 @@ for (const width of [1440, 390]) {
     await expect.poll(() => requested).toBe(true)
     await watch.expectStable()
     release()
-    await expect(modal.getByRole('alert')).toContainText('처리 중인 작업')
+    await expect(modal.getByRole('alert')).toContainText('검색 요청이 많습니다')
     await watch.expectStable()
     requested = false
     await modal.getByRole('button', { name: '비슷한 아이템 찾기', exact: true }).click()

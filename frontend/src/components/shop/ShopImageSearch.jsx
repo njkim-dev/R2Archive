@@ -82,7 +82,10 @@ export default function ShopImageSearch({ sex: initialSex, version, onChoose, on
       const result = await searchShopImage({ image: blob, sex, slot, version, includeUnreleased }, controller.current.signal)
       setItems(result.items)
     } catch (failure) {
-      if (failure.code !== 'ERR_CANCELED' && failure.name !== 'AbortError') setError(typeof failure.response?.data?.detail === 'string' ? failure.response.data.detail : failure.message || '이미지 검색에 실패했습니다.')
+      if (failure.code !== 'ERR_CANCELED' && failure.name !== 'AbortError') {
+        const detail = failure.response?.data?.detail
+        setError(typeof detail === 'string' ? detail : failure.isAxiosError ? failure.response?.status === 429 ? '검색 요청이 많습니다. 잠시 후 다시 시도해주세요.' : '이미지 검색에 실패했습니다. 잠시 후 다시 시도해주세요.' : failure.message || '이미지 검색에 실패했습니다.')
+      }
     } finally { submitting.current = false; setBusy(false) }
   }
   const size = source ? Math.min(1, 560 / source.width, 350 / source.height) : 1
