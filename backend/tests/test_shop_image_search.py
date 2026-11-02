@@ -108,6 +108,33 @@ class ImageSearchTests(unittest.TestCase):
         self.assertEqual(response.headers['retry-after'], '5')
         engine.assert_not_called()
 
+    def test_automatic_search_routes_all_parts_and_keeps_admin_protection(self):
+        with patch.object(api, 'find_outfit', return_value={'groups': [], 'items': []}) as automatic, patch.object(api, 'find') as cpu:
+            response = self.client().post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'},
+                                          files={'image': ('a.png', png(), 'image/png')})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(automatic.call_args.args[1:3], ('auto', 'all'))
+            cpu.assert_not_called()
+        with patch.object(api, 'find_outfit') as automatic:
+            response = self.client(admin=False).post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'},
+                                                     files={'image': ('a.png', png(), 'image/png')})
+            self.assertEqual(response.status_code, 401)
+            automatic.assert_not_called()
+
+    def test_automatic_results_preserve_database_visibility(self):
+        cursor = MagicMock(); cursor.fetchall.return_value = [{'id': '1', 'thumbnail': 'one', 'slot': 'top', 'sex': 'female'}]
+        connection = MagicMock(); connection.cursor.return_value.__enter__.return_value = cursor
+        context = MagicMock(); context.__enter__.return_value = connection
+        result = {'sex': 'female', 'parts': {'top': {'id': '1', 'alternatives': ['999'], 'confidence': 'high', 'exact_match_supported': True}},
+                  'timing': {'total_seconds': 2}, 'cached': False}
+        with patch.object(api.outfit, 'configured', return_value=True), patch.object(api, 'get_conn', return_value=context), \
+             patch.object(api, 'catalog', return_value={'revision': 'a'*20}), patch.object(api, 'serialize', side_effect=lambda row: row), \
+             patch.object(api.outfit, 'cached_search', return_value=result) as search:
+            actual = api.find_outfit(png(), 'auto', 'all', None, False)
+        self.assertEqual([item['id'] for item in actual['items']], ['1'])
+        self.assertIn('AND (show)', cursor.execute.call_args.args[0])
+        self.assertEqual(set(search.call_args.args[2]), {'1'})
+
     def test_unavailable_model_returns_recoverable_error(self):
         with patch.object(core, 'engine', side_effect=FileNotFoundError):
             response = self.client().post('/api/shop/image-search', data={'sex': 'male', 'slot': 'top'}, files={'image': ('a.png', png(), 'image/png')})

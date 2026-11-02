@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import Thread
+import logging
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -33,6 +35,14 @@ TRUSTED_HOSTS = [h.strip() for h in os.environ.get("TRUSTED_HOSTS", _default_tru
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_pool()
+    def warm_image_search():
+        try:
+            from shop_outfit_search import configured, outfit_engine
+            if configured():
+                outfit_engine()
+        except Exception:
+            logging.getLogger(__name__).exception('Could not warm shop image search')
+    Thread(target=warm_image_search, daemon=True).start()
     try:
         yield
     finally:
