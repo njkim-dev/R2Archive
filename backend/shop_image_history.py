@@ -5,6 +5,8 @@ from io import BytesIO
 import json
 import logging
 import os
+import secrets
+import string
 from pathlib import Path
 from threading import Lock
 import uuid
@@ -80,7 +82,7 @@ def finish(search_id, result=None, diagnostics=None, error=''):
 
 
 def owner_record(cur, search_id, uid):
-    cur.execute('SELECT id,user_id,result,status FROM shop_image_search_history WHERE id=%s FOR UPDATE', (str(search_id),))
+    cur.execute('SELECT id,user_id,result,status,sex,slot,catalog_revision FROM shop_image_search_history WHERE id=%s FOR UPDATE', (str(search_id),))
     row = cur.fetchone()
     if not row or row['user_id'] != uid:
         raise HTTPException(404, '검색 기록을 찾을 수 없습니다.')
@@ -92,6 +94,73 @@ def owner_record(cur, search_id, uid):
 def candidate_ids(record, slot=None):
     return {str(item['id']) for group in record['result'].get('groups', []) if slot is None or group['slot'] == slot
             for item in group.get('items', [])}
+
+
+def publish(search_id, uid, selected_ids):
+    from shop_sharing import short_target
+    selected_ids = sorted(set(selected_ids))
+    with transaction(write=True) as cur:
+        row = owner_record(cur, search_id, uid)
+        if not set(selected_ids).issubset(candidate_ids(row)) or any(
+                len(set(selected_ids) & {str(item['id']) for item in group.get('items', [])}) > 1
+                for group in row['result'].get('groups', [])):
+            raise HTTPException(422, '검색 결과에서 부위별로 한 아이템만 선택해주세요.')
+        shares = list(row['result'].get('shares', []))
+        existing = next((share for share in shares if share['selected_ids'] == selected_ids), None)
+        if existing:
+            return {'url': existing['url']}
+        if len(shares) >= 32:
+            raise HTTPException(422, '이 검색에서 저장할 수 있는 공유 결과 수를 초과했습니다.')
+        token = uuid.UUID(str(search_id)).hex + secrets.token_hex(24)
+        target = short_target(f"/shop?imageResult={token}&v={row['catalog_revision']}&sex={row['sex']}")
+        digest = sha256(target.encode()).hexdigest()
+        for _ in range(32):
+            code = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+            cur.execute('INSERT INTO shop_short_links(code,target,target_hash) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING RETURNING code', (code,target,digest))
+            saved = cur.fetchone()
+            if saved:
+                break
+        else:
+            raise HTTPException(503, '짧은 URL을 생성하지 못했습니다. 다시 시도해주세요.')
+        url = 'https://r2archive.com/short/' + saved['code']
+        shares.append({'token': token, 'selected_ids': selected_ids, 'url': url})
+        cur.execute("UPDATE shop_image_search_history SET result=jsonb_set(result,'{shares}',%s) WHERE id=%s", (Json(shares),str(search_id)))
+    return {'url': url}
+
+
+def shared_record(cur, token):
+    import re
+    if not re.fullmatch(r'[a-f0-9]{80}', token):
+        raise HTTPException(404, '공유 결과를 찾을 수 없습니다.')
+    cur.execute("SELECT id,user_id,result,sex,slot,catalog_revision,image_key,image_format FROM shop_image_search_history WHERE id=%s AND status='completed' AND result->'shares' @> %s::jsonb", (str(uuid.UUID(hex=token[:32])),Json([{'token': token}]),))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(404, '존재하지 않거나 삭제된 공유 결과입니다.')
+    return row
+
+
+def shared(token, uid=None):
+    with transaction() as cur:
+        row = shared_record(cur, token)
+        share = next(share for share in row['result']['shares'] if share['token'] == token)
+        owner = uid is not None and uid == row['user_id']
+        votes = []
+        if owner:
+            cur.execute('SELECT slot,item_id::text AS item_id,value FROM shop_image_search_votes WHERE search_id=%s', (str(row['id']),))
+            votes = [dict(vote) for vote in cur.fetchall()]
+    return {**{key:row['result'][key] for key in ('items','groups')}, 'version': row['catalog_revision'],
+            'sex': row['sex'], 'slot': row['slot'], 'shared': True, 'url': share['url'],
+            'image_url': f'/api/shop/image-search/shared/{token}/image', 'selected_ids': share['selected_ids'],
+            'search_id': str(row['id']) if owner else None, 'votes': votes}
+
+
+def shared_image_path(token):
+    with transaction() as cur:
+        row = shared_record(cur, token)
+    path = file_path(row['image_key'])
+    if not path.is_file():
+        raise HTTPException(404, '공유 이미지를 찾을 수 없습니다.')
+    return path, {'PNG':'image/png','JPEG':'image/jpeg','WEBP':'image/webp'}[row['image_format']]
 
 
 def vote(search_id, uid, slot, item_id, value):

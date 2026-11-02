@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from io import BytesIO
 from pydantic import BaseModel, Field, ConfigDict
 
-from auth import require_admin
+from auth import require_admin, get_current_user_id
 from rate_limit import limiter, user_key
 from routers.shop import favorite_user
 import shop_image_history as history
@@ -15,6 +15,7 @@ from work_capacity import WorkCapacity, run_blocking
 
 router = APIRouter(prefix='/api/shop/image-search/history', tags=['shop'], dependencies=[Depends(favorite_user)])
 admin_router = APIRouter(prefix='/api/shop/image-search/admin', tags=['admin'], dependencies=[Depends(require_admin)])
+public_router = APIRouter(prefix='/api/shop/image-search/shared', tags=['shop'])
 PRIVATE = {'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow'}
 review_capacity = WorkCapacity(1)
 
@@ -36,6 +37,30 @@ class Label(BaseModel):
     model_config = ConfigDict(extra='forbid')
     item_id: str = Field(pattern=r'^[1-9][0-9]{0,17}$')
     region: dict | None = None
+
+
+class Publish(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    selected_ids: list[Annotated[str, Field(pattern=r'^[1-9][0-9]{0,17}$')]] = Field(default_factory=list,max_length=4)
+
+
+@router.post('/{search_id}/share')
+@limiter.limit('30/minute', key_func=user_key)
+def publish(request: Request, search_id: UUID, body: Publish, uid: int = Depends(favorite_user)):
+    return JSONResponse(history.publish(search_id,uid,body.selected_ids),headers=PRIVATE)
+
+
+@public_router.get('/{token}')
+@limiter.limit('120/minute')
+def shared(request: Request, token: str):
+    return JSONResponse(history.shared(token,get_current_user_id(request)),headers=PRIVATE)
+
+
+@public_router.get('/{token}/image')
+@limiter.limit('120/minute')
+def shared_image(request: Request, token: str):
+    path,media_type = history.shared_image_path(token)
+    return FileResponse(path,media_type=media_type,headers=PRIVATE)
 
 
 class Review(BaseModel):

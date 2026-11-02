@@ -33,6 +33,9 @@ def short_target(value):
     if len(fields) != len(pairs):
         raise HTTPException(422, '공유 URL에 중복된 항목이 있습니다')
     patterns = {'v':r'[a-f0-9]{12,64}', 'sex':r'male|female', 'view':r'preview|couple', 'pair':r'[01]', 'price':r'[A-Z0-9]{1,8}'}
+    patterns['imageResult'] = r'[a-f0-9]{80}'
+    if 'imageResult' in fields and not set(fields).issubset({'imageResult','v','sex'}):
+        raise HTTPException(422, '이미지 검색 결과 URL이 올바르지 않습니다')
     patterns['partnerSex']=r'male|female'
     for key in ['item','hair','face','top','bottom','shoes','pet','accessory','summon']:
         patterns[key] = r'[0-9]{1,12}'

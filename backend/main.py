@@ -110,6 +110,7 @@ app.include_router(shop.router)
 app.include_router(shop_image_search.router)
 app.include_router(shop_image_history.router)
 app.include_router(shop_image_history.admin_router)
+app.include_router(shop_image_history.public_router)
 
 if STATIC_DIR.exists():
     app.mount("/static/rnr_image", StaticFiles(directory=str(STATIC_DIR)), name="rnr_image")

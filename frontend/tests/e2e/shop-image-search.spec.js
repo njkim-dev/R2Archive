@@ -30,6 +30,8 @@ async function upload(page, method = 'upload') {
     await page.locator('.shop-image-search-workspace').dispatchEvent('drop', { dataTransfer: data })
   }
   await expect(page.getByAltText('검색할 캐릭터 원본 이미지')).toBeVisible()
+  await expect(page.getByText('검색에 사용할 부분을 지정해주세요', {exact:true})).toBeVisible()
+  await page.getByRole('button', {name:'전체 이미지 사용',exact:true}).click()
 }
 const candidate = { ...shirt, version, name: '토끼 민트 상의(남)', is_unreleased: true }
 const hair = { ...shirt, id: '220', name: '테스트 머리(남)', slot: 'hair', version }

@@ -34,7 +34,7 @@ class HistoryTests(unittest.TestCase):
         self.cur = MagicMock()
 
     def client(self, admin=False):
-        app = FastAPI(); app.include_router(api.router); app.include_router(api.admin_router)
+        app = FastAPI(); app.include_router(api.router); app.include_router(api.admin_router); app.include_router(api.public_router)
         app.dependency_overrides[api.favorite_user] = lambda: 42
         if admin: app.dependency_overrides[api.require_admin] = lambda: {'id':42,'is_admin':True}
         return TestClient(app)
@@ -133,6 +133,48 @@ class HistoryTests(unittest.TestCase):
             self.assertTrue(outfit.cached_search(b'photo',image,allowed,'v',('hair',))['cached'])
             self.assertFalse(outfit.cached_search(b'photo',image,allowed,'v',('hair',))['cached'])
         self.assertEqual(model.search.call_count,2); outfit._results.clear()
+
+    def test_share_requires_owner_and_reuses_an_immutable_selection(self):
+        token = ID.hex + 'a'*48
+        self.cur.fetchone.return_value = {'user_id':42,'status':'completed','sex':'male','catalog_revision':'a'*20,
+            'result':{'groups':[{'slot':'top','items':[{'id':'200'},{'id':'201'}]}],
+                      'shares':[{'token':token,'selected_ids':['200'],'url':'https://r2archive.com/short/abcd'}]}}
+        with patch.object(store,'transaction',self.cursor):
+            self.assertEqual(store.publish(ID,42,['200'])['url'],'https://r2archive.com/short/abcd')
+            self.assertEqual(self.cur.execute.call_count,1)
+            for selected in [['999'],['200','201']]:
+                with self.assertRaises(HTTPException) as error: store.publish(ID,42,selected)
+                self.assertEqual(error.exception.status_code,422)
+            with self.assertRaises(HTTPException) as error: store.publish(ID,99,[])
+            self.assertEqual(error.exception.status_code,404)
+
+    def test_shared_result_exposes_only_published_data_and_owner_feedback(self):
+        token = ID.hex + 'a'*48
+        row={'id':ID,'user_id':42,'sex':'male','slot':'top','catalog_revision':'a'*20,
+             'image_key':ID.hex+'.png','image_format':'PNG',
+             'result':{'items':[{'id':'200'}],'groups':[{'slot':'top','items':[{'id':'200'}]}],
+                       'shares':[{'token':token,'selected_ids':['200'],'url':'https://r2archive.com/short/abcd'}]}}
+        self.cur.fetchone.return_value=row
+        self.cur.fetchall.return_value=[{'slot':'top','item_id':'200','value':1}]
+        with patch.object(store,'transaction',self.cursor):
+            result=store.shared(token)
+            self.assertIsNone(result['search_id']); self.assertEqual(result['votes'],[])
+            self.assertFalse(set(result)&{'user_id','image_key','original_filename','diagnostics','shares'})
+            self.assertEqual(self.cur.execute.call_args.args[1][0],str(ID))
+            owner=store.shared(token,42);self.assertEqual(owner['search_id'],str(ID));self.assertEqual(owner['votes'][0]['value'],1)
+            for invalid in ['a'*79,'../admin']:
+                with self.assertRaises(HTTPException): store.shared(invalid)
+            self.cur.fetchone.return_value=None
+            with self.assertRaises(HTTPException) as error: store.shared(token)
+            self.assertEqual(error.exception.status_code,404)
+
+    def test_public_share_route_does_not_require_login_and_never_runs_search(self):
+        token=ID.hex+'a'*48
+        client=self.client()
+        with patch.object(store,'shared',return_value={'shared':True}) as shared:
+            response=client.get('/api/shop/image-search/shared/'+token)
+            self.assertEqual(response.status_code,200);self.assertIn('no-store',response.headers['cache-control'])
+            shared.assert_called_once_with(token,None)
 
 
 if __name__ == '__main__': unittest.main()

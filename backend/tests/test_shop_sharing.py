@@ -31,6 +31,13 @@ class SharingValidationTests(unittest.TestCase):
             with self.subTest(suffix=suffix),self.assertRaises(HTTPException):
                 short_target('/shop?view=couple'+suffix)
 
+    def test_search_result_tokens_are_validated_without_allowing_mixed_views(self):
+        token='a'*80
+        self.assertIn('imageResult='+token,short_target('/shop?imageResult='+token+'&sex=male&v='+'b'*20))
+        for suffix in ['a'*79,'../../admin','g'*80]:
+            with self.assertRaises(HTTPException): short_target('/shop?imageResult='+suffix)
+        with self.assertRaises(HTTPException): short_target('/shop?imageResult='+token+'&view=couple')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -16,6 +16,8 @@ export const getImageSearchHistory = (params, signal) => api.get('/image-search/
 export const getImageSearchHistoryDetail = (id, signal) => api.get(`/image-search/admin/history/${id}`, { signal }).then(r => r.data)
 export const reviewImageSearch = (id, data) => api.put(`/image-search/admin/history/${id}/review`, data).then(r => r.data)
 export const deleteImageSearch = id => api.delete(`/image-search/admin/history/${id}`).then(r => r.data)
+export const publishShopImage = (id, selectedIds) => api.post(`/image-search/history/${id}/share`, { selected_ids: selectedIds }).then(r => r.data)
+export const getSharedShopImage = (token, signal) => api.get(`/image-search/shared/${encodeURIComponent(token)}`, { signal }).then(r => r.data)
 export const getShopItems = (params, signal) => api.get('/items', { params, signal }).then(r => r.data)
 export const getShopItem = (id, version) => api.get(`/items/${id}`, { params: { version } }).then(r => r.data)
 export const getShopFavorites = signal => api.get('/favorites', { signal }).then(r => r.data)
