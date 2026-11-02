@@ -2,6 +2,13 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api/shop', withCredentials: true })
 export const getShopMeta = version => api.get('/meta', { params: { version } }).then(r => r.data)
+export const searchShopImage = ({ image, sex, slot, version, includeUnreleased }, signal) => {
+  const data = new FormData()
+  data.append('image', image, 'search.jpg'); data.append('sex', sex); data.append('slot', slot)
+  if (version) data.append('version', version)
+  data.append('include_unreleased', String(includeUnreleased))
+  return api.post('/image-search', data, { signal, timeout: 45000 }).then(r => r.data)
+}
 export const getShopItems = (params, signal) => api.get('/items', { params, signal }).then(r => r.data)
 export const getShopItem = (id, version) => api.get(`/items/${id}`, { params: { version } }).then(r => r.data)
 export const getShopFavorites = signal => api.get('/favorites', { signal }).then(r => r.data)
