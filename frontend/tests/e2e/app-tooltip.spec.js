@@ -2,7 +2,7 @@ import {expect,test} from '@playwright/test'
 import {setup} from './shopFixtures.js'
 import {watchLayout} from './layout.js'
 
-test.beforeEach(async({page},info)=>{if(info.project.use.viewport.width<=768)await page.setViewportSize({width:390,height:900});await setup(page,{loggedIn:false});await page.goto('/shop')})
+test.beforeEach(async({page},info)=>{if(info.project.use.viewport.width<=768)await page.setViewportSize({width:390,height:900});await setup(page,{loggedIn:false});await page.goto('/shop');await expect(page.locator('.shop-header')).toBeVisible();await expect(page.locator('.shop-grid')).toBeVisible()})
 
 test('logged out myhome uses a custom tooltip over the disabled tab without shifting content',async({page})=>{
   const button=page.getByRole('tab',{name:'마이홈',exact:true});await expect(button).toBeDisabled();await expect(button).not.toHaveAttribute('title',/.+/)

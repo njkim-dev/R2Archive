@@ -39,7 +39,7 @@ class OutfitTests(unittest.TestCase):
         model = MagicMock()
         model.search.return_value = {'parts': {}}
         image = Image.new('RGB', (32, 64))
-        with patch.object(search, 'outfit_engine', return_value=model):
+        with patch.object(search, 'outfit_engine', return_value=model), patch('shop_image_history.training_snapshot', return_value=(0, [])):
             first = search.cached_search(b'uploaded-image', image, {'1': {'thumbnail': 'a'}}, 'version', ('hair',))
             second = search.cached_search(b'uploaded-image', image, {'1': {'thumbnail': 'a'}}, 'version', ('hair',))
             third = search.cached_search(b'uploaded-image', image, {'2': {'thumbnail': 'b'}}, 'version', ('hair',))

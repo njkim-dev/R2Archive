@@ -3,6 +3,8 @@ import { watchLayout } from './layout.js'
 
 const song = { id: 1, name: 'Home Link Test', artist: 'Test', level: 8, bpm: 160, combo: 100, time: '1:00', image: '', youtube_url: '', file_order: 1, aliases: [], artist_aliases: [], user_level_votes: 0 }
 
+test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: 'ignoreErrors' }) })
+
 for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
   const host='r2archive.com'
   test(`${archive} sidebar places the main home link above server buttons with stable loading loggedIn=${loggedIn}`, async ({ page, baseURL }, testInfo) => {

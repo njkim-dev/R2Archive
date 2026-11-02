@@ -68,6 +68,31 @@ export default function useShopFavorites(userId) {
       if (current.current === session) setClearing(false)
     }
   }, [userId])
+  const addMany = useCallback(async items => {
+    const session = current.current
+    if (!userId || session.owner !== userId || session.clearing) return false
+    const unique = [...new Map(items.map(item => [String(item.id), item])).values()]
+    const results = await Promise.all(unique.map(async item => {
+      const id = String(item.id)
+      if (session.ids.has(id) && !session.pending.has(id)) return true
+      if (session.pending.has(id)) return false
+      session.pending.add(id); setPending(new Set(session.pending))
+      try {
+        await saveShopFavorite(id, item.version)
+        if (current.current !== session) return false
+        session.ids = new Set(session.ids).add(id)
+        setState({ owner: userId, ids: session.ids, ready: true, error: '' })
+        return true
+      } catch (error) {
+        if (current.current === session) setState(previous => ({ ...previous, error: error.response?.data?.detail || '즐겨찾기를 저장하지 못했습니다.' }))
+        return false
+      } finally {
+        session.pending.delete(id)
+        if (current.current === session) setPending(new Set(session.pending))
+      }
+    }))
+    return results.every(Boolean)
+  }, [userId])
   const owned = state.owner === userId && !!userId
-  return { ids: owned ? state.ids : empty, ready: owned && state.ready, error: owned ? state.error : '', pending: owned ? pending : empty, clearing: owned && clearing, clear, toggle, reload: () => reload(value => value + 1) }
+  return { ids: owned ? state.ids : empty, ready: owned && state.ready, error: owned ? state.error : '', pending: owned ? pending : empty, clearing: owned && clearing, clear, toggle, addMany, reload: () => reload(value => value + 1) }
 }

@@ -2,14 +2,20 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api/shop', withCredentials: true })
 export const getShopMeta = version => api.get('/meta', { params: { version } }).then(r => r.data)
-export const searchShopImage = ({ image, sex, slot, version, includeUnreleased, mode = 'terra' }, signal) => {
+export const searchShopImage = ({ image, sex, slot, version, mode = 'terra' }, signal) => {
   const data = new FormData()
-  data.append('image', image, 'search.jpg'); data.append('sex', sex); data.append('slot', slot)
+  data.append('image', image, image.name || 'search.png'); data.append('sex', sex); data.append('slot', slot)
   if (version) data.append('version', version)
-  data.append('include_unreleased', String(includeUnreleased))
+  data.append('include_unreleased', 'true')
   data.append('mode', mode)
   return api.post('/image-search', data, { signal, timeout: 150000 }).then(r => r.data)
 }
+export const rateShopImage = (id, slot, itemId, value) => api.put(`/image-search/history/${id}/votes`, { slot, item_id: itemId, value }).then(r => r.data)
+export const recordShopImageAction = (id, action, items) => api.post(`/image-search/history/${id}/actions`, { action, item_ids: items.map(item => String(item.id)) }).then(r => r.data)
+export const getImageSearchHistory = (params, signal) => api.get('/image-search/admin/history', { params, signal }).then(r => r.data)
+export const getImageSearchHistoryDetail = (id, signal) => api.get(`/image-search/admin/history/${id}`, { signal }).then(r => r.data)
+export const reviewImageSearch = (id, data) => api.put(`/image-search/admin/history/${id}/review`, data).then(r => r.data)
+export const deleteImageSearch = id => api.delete(`/image-search/admin/history/${id}`).then(r => r.data)
 export const getShopItems = (params, signal) => api.get('/items', { params, signal }).then(r => r.data)
 export const getShopItem = (id, version) => api.get(`/items/${id}`, { params: { version } }).then(r => r.data)
 export const getShopFavorites = signal => api.get('/favorites', { signal }).then(r => r.data)

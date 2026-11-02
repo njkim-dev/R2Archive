@@ -28,7 +28,9 @@ _engine_lock = Lock()
 
 
 class SearchUnavailable(Exception):
-    pass
+    def __init__(self, message, diagnostics=None):
+        super().__init__(message)
+        self.diagnostics = diagnostics or {}
 
 
 def configured():
@@ -64,7 +66,9 @@ def call(prompt, images, limit):
         details = usage.get('input_tokens_details', {})
         cached, written = details.get('cached_tokens', 0), details.get('cache_write_tokens', 0)
         cost = ((usage.get('input_tokens', 0)-cached-written)+cached*.05+written*1.25+usage.get('output_tokens', 0)*5)/1_000_000
-        return result, {'seconds': round(time.perf_counter()-started, 3), 'usage': usage, 'cost_estimate_usd': cost}
+        return result, {'seconds': round(time.perf_counter()-started, 3), 'usage': usage, 'cost_estimate_usd': cost,
+                        'response_id': data.get('id'), 'request_id': response.headers.get('x-request-id'),
+                        'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest()}
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         raise SearchUnavailable('이미지 분석을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.') from None
 
@@ -104,6 +108,7 @@ class OutfitSearch:
         if len(self.rows) != count or self.features.shape != (count, 384) or self.colors.shape != (count, 512) or self.aspects.shape != (count,):
             raise ValueError('Invalid outfit dimensions')
         self.model = engine()
+        self.encoder_sha256 = json.loads((SEARCH_DIR/'manifest.json').read_text(encoding='utf8'))['sha256']['encoder.onnx']
         self.by_id = {str(r['id']): i for i,r in enumerate(self.rows)}
         self.font = ImageFont.load_default(size=15)
 
@@ -115,7 +120,7 @@ class OutfitSearch:
         with Image.open(path) as image:
             return image.convert('RGBA')
 
-    def shortlist(self, image, info, sex, slot, allowed):
+    def masked_part(self, image, info):
         box, polygon = valid_region(info, image.size)
         mask = Image.new('L', image.size, 0)
         ImageDraw.Draw(mask).polygon(polygon, fill=255)
@@ -124,18 +129,43 @@ class OutfitSearch:
         masked = masked.crop(box)
         rgb = Image.new('RGB', masked.size, BACKGROUND)
         rgb.paste(masked, mask=masked.getchannel('A'))
+        return box, masked, rgb
+
+    def example_vector(self, image, info):
+        _, _, rgb = self.masked_part(image, info)
+        return self.model.session.run(None, {'pixels': image_tensor(rgb, preserve_full=True)})[0][0]
+
+    def shortlist(self, image, info, sex, slot, allowed, examples=()):
+        box, masked, rgb = self.masked_part(image, info)
         vector = self.model.session.run(None, {'pixels': image_tensor(rgb, preserve_full=True)})[0][0]
         indices = np.asarray([self.by_id[item_id] for item_id,row in allowed.items() if item_id in self.by_id
                               and row['slot'] == slot and row['sex'] in (sex, 'common')
                               and self.rows[self.by_id[item_id]]['thumbnail'] == row['thumbnail']], dtype=np.int64)
         indices.sort()
+        matching = [row for row in examples if row['slot'] == slot and row['sex'] in (sex, 'common')
+                    and row['encoder_sha256'] == self.encoder_sha256 and row['item_id'] in allowed
+                    and row['item_id'] in self.by_id and allowed[row['item_id']]['thumbnail'] == row['thumbnail']
+                    and allowed[row['item_id']]['sex'] in (sex, 'common') and allowed[row['item_id']]['slot'] == slot]
+        learned = {}
+        if matching:
+            similarity = np.einsum('ij,j->i', np.stack([row['feature'] for row in matching]), vector, optimize=False)
+            for row,score in zip(matching, similarity):
+                index = self.by_id[row['item_id']]
+                learned[index] = max(learned.get(index, -1), float(score))
         if slot in ('bottom', 'shoes') and len(indices):
             hist, aspect = color_descriptor(masked)
             color_scores = np.einsum('ij,j->i', self.colors[indices], hist, optimize=False)-.12*np.abs(np.log(np.maximum(self.aspects[indices], .01)/max(aspect, .01)))
             indices = indices[np.argsort(-color_scores, kind='stable')[:800]]
+            extra = [i for i,_ in sorted(learned.items(), key=lambda pair: -pair[1])[:120]]
+            indices = np.asarray(list(dict.fromkeys([*indices.tolist(), *extra])), dtype=np.int64)
         scores = np.einsum('ij,j->i', self.features[indices], vector, optimize=False)
-        indices = indices[np.argsort(-scores, kind='stable')[:120]]
-        return [allowed[str(self.rows[i]['id'])] for i in indices], image.crop(box)
+        for n,index in enumerate(indices):
+            if index in learned:
+                scores[n] = max(float(scores[n]), learned[index])
+        order = np.argsort(-scores, kind='stable')[:120]
+        indices = indices[order]
+        scored = [{'id': str(self.rows[i]['id']), 'score': round(float(score), 6)} for i,score in zip(indices,scores[order])]
+        return [allowed[str(self.rows[i]['id'])] for i in indices], image.crop(box), scored
 
     def compare(self, slot, image_input, crop, candidates, revision):
         if not candidates:
@@ -174,7 +204,7 @@ class OutfitSearch:
                 'confidence': result.get('confidence') if result.get('confidence') in ('high', 'medium', 'low') else 'low',
                 'exact_match_supported': result.get('exact_match_supported') is True}, usage
 
-    def search(self, image, allowed, revision, slots=SLOTS, sex_hint=None):
+    def search(self, image, allowed, revision, slots=SLOTS, sex_hint=None, examples=()):
         started = time.perf_counter()
         if revision != self.revision:
             raise SearchUnavailable('현재 상점 버전의 이미지 검색 데이터를 준비 중입니다.')
@@ -188,6 +218,8 @@ class OutfitSearch:
                   'lengths and braids but exclude face/neck where possible. For top exclude hands, gloves, props, '
                   'arms and skirt. For bottom exclude legs and props. For shoes include both shoes and socks, '
                   'exclude floor. Preserve item silhouettes. Do not output descriptions, item names or IDs.')
+        if sex_hint:
+            prompt += ' The user has specified the character sex as '+sex_hint+'.'
         localized, usage = call(prompt, [original], 1900)
         sex = sex_hint or localized.get('sex')
         if sex not in ('male', 'female') or not isinstance(localized.get('parts'), dict):
@@ -198,8 +230,9 @@ class OutfitSearch:
                 valid_region(localized['parts'][slot], image.size)
             preparation = time.perf_counter()
             shortlists = {}
+            scored = {}
             for slot in slots:
-                candidates, crop = self.shortlist(image, localized['parts'][slot], sex, slot, allowed)
+                candidates, crop, scored[slot] = self.shortlist(image, localized['parts'][slot], sex, slot, allowed, examples)
                 shortlists[slot] = [str(r['id']) for r in candidates]
                 futures[slot] = _pool.submit(self.compare, slot, original, crop, candidates, revision)
             prepared = time.perf_counter()-preparation
@@ -213,14 +246,17 @@ class OutfitSearch:
                 except Exception as exc:
                     errors.append(exc)
             if errors:
-                raise SearchUnavailable('일부 부위의 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.')
+                raise SearchUnavailable('일부 부위의 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.',
+                                        {'localization': localized['parts'], 'shortlists': shortlists, 'scored_candidates': scored, 'calls': calls})
         except (ValueError, KeyError, TypeError):
             for future in futures.values():
                 future.cancel()
-            raise SearchUnavailable('부위를 인식하지 못했습니다. 다른 이미지를 사용해주세요.') from None
+            raise SearchUnavailable('부위를 인식하지 못했습니다. 다른 이미지를 사용해주세요.', {'localization': localized.get('parts'), 'calls': [usage]}) from None
         return {'sex': sex, 'parts': parts, 'model': MODEL,
                 'timing': {'total_seconds': round(time.perf_counter()-started, 3), 'candidate_seconds': round(prepared, 3)},
-                'calls': calls, 'cost_estimate_usd': sum(c['cost_estimate_usd'] for c in calls), 'shortlists': shortlists}
+                'calls': calls, 'cost_estimate_usd': sum(c['cost_estimate_usd'] for c in calls), 'shortlists': shortlists,
+                'scored_candidates': scored, 'localization': localized['parts'], 'encoder_sha256': self.encoder_sha256,
+                'approved_example_count': len(examples)}
 
 
 @lru_cache(maxsize=1)
@@ -234,14 +270,17 @@ def outfit_engine():
 
 
 def cached_search(content, image, allowed, revision, slots, sex_hint=None):
+    from shop_image_history import training_snapshot
+    generation, examples = training_snapshot()
     visibility = hashlib.sha256(json.dumps(sorted((key,row['thumbnail'],row.get('slot'),row.get('sex')) for key,row in allowed.items())).encode()).hexdigest()
-    key = (hashlib.sha256(content).hexdigest(), revision, tuple(slots), sex_hint, visibility)
+    key = (hashlib.sha256(content).hexdigest(), revision, tuple(slots), sex_hint, visibility, generation)
     with _cache_lock:
         cached = _results.get(key)
         if cached and time.monotonic()-cached[0] < 900:
             _results.move_to_end(key)
             return {**cached[1], 'cached': True}
-    result = outfit_engine().search(image, allowed, revision, slots, sex_hint)
+    result = outfit_engine().search(image, allowed, revision, slots, sex_hint, examples)
+    result['dataset_generation'] = generation
     with _cache_lock:
         _results[key] = (time.monotonic(), result)
         while len(_results) > 32:

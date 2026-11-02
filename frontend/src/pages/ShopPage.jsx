@@ -58,7 +58,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const [panelMode, setPanelMode] = useState('outfit')
   const [awayFromTop, setAwayFromTop] = useState(() => window.scrollY > 600)
   const { authLoaded, user, isAdmin, adminLoaded, openLogin, logout } = useStore()
-  const canSearchImage = authLoaded && adminLoaded && !!user && isAdmin
+  const canSearchImage = authLoaded && !!user
   const couples=useCouples(),copyHomeAnchor=useRef(null)
   const currentOwner=useRef(user?.id);currentOwner.current=user?.id
   const favorites = useShopFavorites(authLoaded ? user?.id : null)
@@ -84,6 +84,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const touched = useRef({ male: new Set(), female: new Set() })
   const [ready, setReady] = useState(false)
   const [imageSearchOpen, setImageSearchOpen] = useState(false)
+  const [imageSearchRestoreHost, setImageSearchRestoreHost] = useState(null)
   useEffect(() => { if (!canSearchImage) setImageSearchOpen(false) }, [canSearchImage])
   const [catalogDepartment, setDepartment] = useState('wearable')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
@@ -361,20 +362,23 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
       setSlots(current => { const chosen = gender !== sex ? wardrobes.current[gender] : current; return { ...chosen, [item.slot]: chosen[item.slot]?.id === item.id ? null : item } })
     }
   }
-  function chooseImageMatch(item) {
-    setImageSearchOpen(false); setFavoritesOnly(false); setDepartment('wearable'); setDetail(item); setPriceKey(defaultPrice(item)?.key)
-    const gender = item.sex === 'common' ? sex || 'female' : item.sex
-    const available = item.preview_available && item.model
-    setSlot(item.slot || ''); setGroup(''); setSubgroup(''); setQuery(''); setSex(gender)
-    if (available) {
-      setSlots(current => ({ ...(gender === sex ? current : emptySlots()), [item.slot]: item }))
-      touched.current[gender].add(item.slot)
+  function previewImageMatches(items, gender) {
+    setFavoritesOnly(false); setDepartment('wearable'); setSlot(''); setGroup(''); setSubgroup(''); setQuery(''); setSex(gender)
+    const next = { ...(gender === sex ? slots : wardrobes.current[gender] || emptySlots()) }
+    const available = items.filter(item => item.preview_available && item.model)
+    for (const item of available) { next[item.slot] = item; touched.current[gender].add(item.slot) }
+    setDetail(items[0]); setPriceKey(defaultPrice(items[0])?.key)
+    if (items.some(item => item.is_unreleased)) setHideUnreleased(false)
+    if (available.length) {
+      setSlots(next); setApplied({ sex: gender, slots: next }); setCounterparts(emptySlots()); setPair(false); setError(''); setPanelOpen(false)
+      scrollPosition.current = window.scrollY; restoreScroll.current = true
+      navigate(location.pathname + location.search + location.hash, { state: { ...location.state, shopNavigation: { owner: navigationOwner, view: 'preview', fromBrowse: true } } })
+      if (available.length !== items.length) notify('미리보기가 가능한 의상만 적용했습니다.')
     } else {
       setHideUnavailable(false)
-      if (gender !== sex) setSlots(emptySlots())
+      if (mobile) openPanel('detail')
+      notify('선택한 의상은 미리보기를 지원하지 않아 아이템 정보로 표시합니다.')
     }
-    if (item.is_unreleased) setHideUnreleased(false)
-    if (mobile) openPanel(available ? 'outfit' : 'detail')
   }
   function resetFilters() { setSlot(''); setGroup(''); setSubgroup(''); setQuery(''); setDetail(null); setError('') }
   function changeDepartment(next) { setFavoritesOnly(false); setDepartment(next); resetFilters() }
@@ -484,14 +488,14 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
 
   if(privateHome&&authLoaded&&!user)return <main className="share-link-status"><p>로그인 후 이용할 수 있습니다.</p><button onClick={openLogin}>로그인</button><Link to="/">홈으로</Link></main>
   if (publicHome && publicData.error) return <main className="share-link-status"><p role="alert">{publicData.error}</p><Link to="/shop">상점으로 이동</Link></main>
-  return <>{canSearchImage && imageSearchOpen && meta && <ShopImageSearch sex={sex} version={meta.revision} onChoose={chooseImageMatch} onClose={() => setImageSearchOpen(false)} />}<header className="shop-header" aria-hidden={view === 'preview' || undefined} inert={view === 'preview' ? '' : undefined}><Link to="/" className="shop-brand"><b>R2</b> ARCHIVE</Link><nav><a href="/music/">음악</a><span aria-current="page">상점</span><Link to="/game-repair">게임 복구</Link></nav><div className="shop-header-actions"><button className="shop-item-status" onClick={() => openPanel()}><Box size={15} /> 아이템 현황</button><button className="shop-login" disabled={!authLoaded} onClick={user ? logout : login}>{!authLoaded ? '확인 중' : user ? '로그아웃' : '로그인'}</button></div></header><main className="shop-main">
+  return <>{canSearchImage && imageSearchOpen && meta && <ShopImageSearch restoreHost={imageSearchRestoreHost} version={meta.revision} onPreview={previewImageMatches} onFavorite={favorites.addMany} onClose={() => setImageSearchOpen(false)} />}<header className="shop-header" aria-hidden={view === 'preview' || undefined} inert={view === 'preview' ? '' : undefined}><Link to="/" className="shop-brand"><b>R2</b> ARCHIVE</Link><nav><a href="/music/">음악</a><span aria-current="page">상점</span><Link to="/game-repair">게임 복구</Link><Link className="shop-admin-menu" to="/shop/admin" style={{ visibility: adminLoaded && isAdmin ? undefined : 'hidden' }} aria-hidden={!isAdmin || undefined} tabIndex={isAdmin ? undefined : -1}>관리자 도구</Link></nav><div className="shop-header-actions"><button className="shop-item-status" onClick={() => openPanel()}><Box size={15} /> 아이템 현황</button><button className="shop-login" disabled={!authLoaded} onClick={user ? logout : login}>{!authLoaded ? '확인 중' : user ? '로그아웃' : '로그인'}</button></div></header><main className="shop-main">
     <div className="shop-title" aria-hidden={view === 'preview' || undefined}><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : publicHome ? `${homeData.character?.name || publicData.handle || publicHome}의 마이홈` : characterId ? `${owned.character?.name||'캐릭터'}의 마이홈` : homeOnly ? '모든 캐릭터' : '아이템 상점'}</h1></div></div>
     <div className="shop-spaces" hidden={!!publicHome&&!partnerOf} role="tablist" aria-label="상점 공간" aria-hidden={view === 'preview' || undefined} inert={view === 'preview' ? '' : undefined}><button role="tab" aria-selected={!homeOnly} onClick={() => changeSpace(false)}>상점</button><button role="tab" aria-selected={homeOnly&&!partnerOf} disabled={!authenticated} data-tooltip={!authenticated ? '로그인하세요' : undefined} onClick={() => partnerOf?navigate('/myhome/characters/'+partnerOf):changeSpace(true)}>마이홈</button>{coupleRelation?.status==='accepted'&&<button role="tab" aria-selected={!!partnerOf} onClick={()=>navigate(coupleRelation.url)}>커플 마이홈</button>}</div>
     {privateHome&&<Link className="shop-back-characters" to="/myhome">← 캐릭터 목록</Link>}
     {!homeOnly&&!publicHome&&<div className="shop-storage-target"><label htmlFor="shop-storage-character">저장할 캐릭터</label><select id="shop-storage-character" value={targetCharacter||''} onChange={e=>selectStorageCharacter(e.target.value)} disabled={!authenticated||!characters.ready||savingOwned}><option value="">캐릭터 선택</option>{characters.items.map(entry=><option key={entry.character.id} value={entry.character.id}>{entry.character.name} ({entry.character.sex==='female'?'여':'남'})</option>)}</select><button onClick={()=>setSaveRequest({mode:'create',ids:[],sex:null})} disabled={!authenticated||!characters.ready||characters.items.length>=17}>새 캐릭터 추가</button></div>}
     <div className="shop-feedback" aria-live="polite"><span role={error || favorites.error || owned.error || sharing.error ? 'alert' : undefined}>{error || favorites.error || owned.error || sharing.error}</span>{favorites.error && <button disabled={favorites.pending.size > 0} onClick={favorites.reload}>즐겨찾기 다시 불러오기</button>}{owned.error && <button disabled={(owned.pending||savingOwned)} onClick={owned.reload}>내 의상 다시 불러오기</button>}</div>
     {view === 'preview' && applied && meta ? <>
-      <ShopOutfitPreview onClose={browse} onCopy={() => copy(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))} tools={!panelOpen && copyTools} saveTools={<button disabled={!authenticated || !owned.ready || !characters.ready || (owned.pending||savingOwned) || !Object.values(applied.slots).some(Boolean)} onClick={saveAllOwned}>전부 내 의상으로 저장</button>} headerTools={<>{mobile && <button onClick={() => openPanel()}>아이템 현황</button>}{!user && <button disabled={!authLoaded} onClick={login}>로그인</button>}</>}>
+      <ShopOutfitPreview onDialog={setImageSearchRestoreHost} onClose={browse} onCopy={() => copy(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))} tools={!panelOpen && copyTools} saveTools={<button disabled={!authenticated || !owned.ready || !characters.ready || (owned.pending||savingOwned) || !Object.values(applied.slots).some(Boolean)} onClick={saveAllOwned}>전부 내 의상으로 저장</button>} headerTools={<>{mobile && <button onClick={() => openPanel()}>아이템 현황</button>}{!user && <button disabled={!authLoaded} onClick={login}>로그인</button>}</>}>
       <div className="shop-preview-grid"><section>
         {pairLoading ? <div className="shop-stage"><div className="shop-stage-status">이성 아이템을 확인 중입니다.</div></div> : <ShopViewer meta={meta} sex={applied.sex} slots={applied.slots} counterparts={counterparts} pair={pair} angle={angle} zoom={zoom} panX={pan.panX} panY={pan.panY} mode={viewMode} onViewChange={next => { setAngle(next.angle); setZoom(next.zoom); setPan({ panX: next.panX, panY: next.panY }) }} />}
         <ShopViewModes mode={viewMode} onChange={setViewMode} />
@@ -506,7 +510,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
       {favoritesOnly && <div className="shop-favorite-categories" role="group" aria-label="즐겨찾기 아이템 분류">{[['', '전체'], ...DEPARTMENTS].map(([value, label]) => <button key={value} aria-pressed={department === value} onClick={() => { setFavoriteDepartment(value); resetFilters() }}>{label}</button>)}</div>}
       <div className="shop-gender-row">{favoritesOnly ? <><b>성별</b><div>{[['', '전체 성별'], ['female', '여성'], ['male', '남성']].map(([value, label]) => <button key={value} aria-pressed={favoriteSex === value} onClick={() => setFavoriteSex(value)}>{label}</button>)}</div>{showWardrobe && <button className="shop-mobile-preview" aria-label="선택한 아이템으로 미리보기" disabled={!sex || !ready} onClick={preview}>미리보기 ({chosenCount})</button>}</> : department === 'wearable' ? <><b>캐릭터 성별</b><div>{[['female', '여성'], ['male', '남성']].map(([value, label]) => <button key={value} aria-pressed={sex === value} disabled={!!characterId||!!publicHome} onClick={() => changeSex(value)}>{label}</button>)}</div><button className="shop-mobile-preview" aria-label="선택한 아이템으로 미리보기" disabled={!sex || !ready} onClick={preview}>미리보기 ({chosenCount})</button></> : <><b>{department === 'functional' ? '기능성ㆍ소모품' : '기타 아이템'}</b><span>아이템 설명과 기간별 가격을 확인해보세요.</span></>}</div>
       <div className="shop-workspace"><section className="shop-library" aria-label="아이템 목록">
-        <div className="shop-search-tools"><label className="shop-search"><Search size={17} /><input aria-label="아이템 이름으로 검색" type="search" maxLength={120} placeholder="아이템 이름으로 검색" value={query} onChange={event => { setQuery(event.target.value) }} /></label>{!homeOnly && canSearchImage && <button className="shop-image-search-open" disabled={!ready || !meta} onClick={() => setImageSearchOpen(true)}>이미지로 찾기</button>}</div>
+        <div className="shop-search-tools"><label className="shop-search"><Search size={17} /><input aria-label="아이템 이름으로 검색" type="search" maxLength={120} placeholder="아이템 이름으로 검색" value={query} onChange={event => { setQuery(event.target.value) }} /></label>{!homeOnly && <span className="shop-image-search-open-anchor" data-tooltip={authLoaded && !user ? '이미지로 찾기 기능은 로그인이 필요합니다.' : undefined} tabIndex={authLoaded && !user ? 0 : undefined}><button className="shop-image-search-open" disabled={!canSearchImage || !ready || !meta} onClick={() => setImageSearchOpen(true)}>이미지로 찾기</button></span>}</div>
         <div className="shop-filters" role="group" aria-label="아이템 세부 분류"><button aria-pressed={department === 'wearable' ? !slot : !group} onClick={() => { setSlot(''); setGroup(''); setSubgroup('') }}>전체</button>{department === 'wearable' ? SHOP_SLOTS.map(key => <button key={key} aria-pressed={slot === key} onClick={() => { setSlot(key); setSubgroup('') }}>{SLOT_LABELS[key]}</button>) : (SHOP_GROUPS[department] || []).filter(([key])=>!homeOnly||['couple','friend'].includes(key)).map(([key, label]) => <button key={key} aria-pressed={group === key} onClick={() => { setGroup(key); setSubgroup('') }}>{label}</button>)}</div>
         {(department === 'wearable' && slot === 'pet' || group === 'pet_supplies') && <div className="shop-filters shop-subfilters" role="group" aria-label={department === 'wearable' ? '펫 종류' : '펫 용품 종류'}><button aria-pressed={!subgroup} onClick={() => setSubgroup('')}>{department === 'wearable' ? '전체 펫' : '전체 펫 용품'}</button>{(department === 'wearable' ? PET_GROUPS : PET_SUPPLY_GROUPS).map(([key, label]) => <button key={key} aria-pressed={subgroup === key} onClick={() => setSubgroup(key)}>{label}</button>)}</div>}
         {!homeOnly && <div className="shop-pair-filter">{department === 'wearable' && <><label><input type="checkbox" checked={pairedOnly} onChange={event => setPairedOnly(event.target.checked)} /> 남녀 모두 존재하는 의상만</label><label><input type="checkbox" checked={hideUnavailable} onChange={event => setHideUnavailable(event.target.checked)} /> 미리보기 불가능 아이템 가리기</label><label><input type="checkbox" checked={hideUnreleased} onChange={event => setHideUnreleased(event.target.checked)} /> 미출시 아이템 가리기</label></>}{department==='functional'&&<label><input type="checkbox" checked={hideUnreleased} onChange={event=>setHideUnreleased(event.target.checked)}/> 미출시 아이템 가리기</label>}</div>}

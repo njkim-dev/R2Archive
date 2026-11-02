@@ -1,0 +1,65 @@
+.shop-admin-page { max-width: 1480px; margin: 0 auto; padding: 24px; color: #e7edf7; }
+.shop-admin-page a { color: #9dcefb; }
+.shop-admin-page h1 { margin: 12px 0 6px; font-size: 26px; }
+.shop-admin-page header p { color: #adbed3; font-size: 13px; }
+.shop-admin-page button, .shop-admin-page select, .shop-admin-page input, .shop-admin-page textarea { border: 1px solid #40516a; border-radius: 7px; background: #233146; color: #e7edf7; padding: 9px; font: inherit; }
+.shop-admin-page button { cursor: pointer; }
+.shop-admin-page button:disabled { opacity: .45; cursor: default; }
+.shop-admin-page button[aria-pressed=true] { border-color: #8fd0ff; background: #305274; }
+.shop-admin-stats { display: flex; flex-wrap: wrap; gap: 10px 20px; min-height: 54px; align-items: center; font-size: 12px; }
+.shop-admin-stats span { white-space: nowrap; }
+.shop-admin-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.shop-admin-filters label { display: grid; gap: 5px; font-size: 12px; }
+.shop-admin-filters button { min-width: 90px; }
+.shop-admin-list-status { height: 66px; overflow: auto; font-size: 12px; color: #aebed1; line-height: 1.7; }
+.shop-admin-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; height: calc(100dvh - 310px); min-height: 600px; }
+.shop-admin-history-list, .shop-admin-detail { min-width: 0; overflow-y: auto; scrollbar-gutter: stable; background: #182231; border: 1px solid #33455d; border-radius: 12px; padding: 14px; }
+.shop-admin-history-list > p { font-size: 13px; }
+.shop-admin-history-row { display: flex; gap: 9px; width: 100%; min-height: 110px; margin-bottom: 10px; text-align: left; }
+.shop-admin-history-row > img { width: 56px; height: 82px; object-fit: contain; background: #0c1623; }
+.shop-admin-history-row > span { display: grid; gap: 5px; min-width: 0; font-size: 11px; overflow-wrap: anywhere; }
+.shop-admin-history-row small { color: #b7c9df; }
+.shop-admin-review-status { height: 72px; overflow: auto; color: #b9cce2; font-size: 12px; line-height: 1.7; }
+.shop-admin-page [role=alert] { color: #ffb3b3; }
+.shop-admin-detail-heading h2 { margin: 0 0 10px; }
+.shop-admin-detail-heading p { font-size: 12px; overflow-wrap: anywhere; color: #aebed1; }
+.shop-admin-review-guide { font-size: 12px; line-height: 1.8; }
+.shop-admin-review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.shop-admin-review-actions button { min-height: 42px; min-width: 86px; font-size: 12px; }
+.shop-admin-review-actions .is-danger { color: #ffb4b4; }
+.shop-admin-review-notes { display: grid; gap: 6px; margin: 14px 0; font-size: 12px; }
+.shop-admin-review-notes textarea { height: 76px; resize: vertical; }
+.shop-admin-detail fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+.image-review-part { padding: 18px 0; border-top: 1px solid #34465e; }
+.image-review-part h3 { margin: 0 0 12px; }
+.image-review-label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 48px; font-size: 12px; }
+.image-review-candidates { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; height: 242px; overflow-y: auto; scrollbar-gutter: stable; }
+.image-review-candidates button { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; font-size: 11px; }
+.image-review-candidates img { width: 90px; height: 90px; object-fit: contain; }
+.image-review-candidates b { overflow-wrap: anywhere; }
+.image-review-candidates p { grid-column: 1 / -1; font-size: 12px; }
+.image-review-catalogue-search { display: grid; gap: 6px; margin: 12px 0 6px; font-size: 12px; }
+.image-review-catalogue-matches { height: 140px; overflow: auto; border: 1px solid #34465e; border-radius: 8px; padding: 8px; }
+.image-review-catalogue-matches p { font-size: 12px; color: #b7c9df; }
+.image-review-catalogue-matches button { display: block; width: 100%; margin-bottom: 6px; font-size: 12px; text-align: left; }
+.image-review-region { margin: 12px 0; }
+.image-review-region-mode { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 54px; font-size: 11px; }
+.image-review-region-mode button { flex-shrink: 0; font-size: 11px; }
+.image-review-image-area { height: 340px; display: flex; align-items: center; justify-content: center; background: #0b1421; border-radius: 8px; overflow: hidden; }
+.image-review-image-area > div { position: relative; max-width: 100%; max-height: 320px; }
+.image-review-image-area img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
+.image-review-image-area svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.image-review-image-area polygon { fill: #5daeff22; stroke: #8fd0ff; stroke-width: 5; vector-effect: non-scaling-stroke; pointer-events: none; }
+.image-review-image-area circle { fill: #b7e0ff; stroke: #193d60; stroke-width: 3; cursor: move; }
+.shop-admin-detail details { margin-top: 15px; font-size: 12px; }
+.shop-admin-detail summary { cursor: pointer; padding: 8px; }
+.shop-admin-detail pre { max-height: 400px; overflow: auto; padding: 12px; background: #0c1623; font-size: 11px; }
+.shop-admin-access { min-height: 240px; }
+@media(max-width:850px) {
+  .shop-admin-page { padding: 16px; }
+  .shop-admin-layout { grid-template-columns: minmax(0,1fr); height: auto; }
+  .shop-admin-history-list { height: 320px; }
+  .shop-admin-detail { height: calc(100dvh - 120px); min-height: 600px; }
+  .shop-admin-stats { min-height: 78px; }
+  .image-review-candidates { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}

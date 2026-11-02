@@ -17,6 +17,7 @@ from security_middleware import BrowserCSRFMiddleware
 from routers import game_repair
 from routers import shop
 from routers import shop_image_search
+from routers import shop_image_history
 from routers import shop_sharing
 from routers import shop_characters
 from routers import shop_couples
@@ -107,6 +108,8 @@ app.include_router(release_history.router)
 app.include_router(game_repair.router)
 app.include_router(shop.router)
 app.include_router(shop_image_search.router)
+app.include_router(shop_image_history.router)
+app.include_router(shop_image_history.admin_router)
 
 if STATIC_DIR.exists():
     app.mount("/static/rnr_image", StaticFiles(directory=str(STATIC_DIR)), name="rnr_image")

@@ -62,16 +62,15 @@ class ImageSearchTests(unittest.TestCase):
     def client(self, admin=True):
         app = FastAPI(); app.include_router(api.router)
         if admin:
-            app.dependency_overrides[api.require_admin] = lambda: {'id': 1, 'is_admin': True}
+            app.dependency_overrides[api.favorite_user] = lambda: 1
         return TestClient(app)
 
-    def test_both_routes_require_a_real_admin_session_before_search(self):
+    def test_both_routes_require_login_and_accept_members(self):
         client = self.client(admin=False)
         with patch.object(auth, 'fetch_user', return_value={'id': 2, 'is_admin': False}) as user, \
              patch.object(core, 'engine') as engine, patch.object(core, 'status') as status, \
              patch.object(api, 'get_conn') as db:
-            for token, expected in [(None, 401), ('invalid', 401),
-                                    (jwt.encode({'sub': '2', 'exp': int(time.time()) + 60}, auth.SESSION_SECRET, algorithm='HS256'), 403)]:
+            for token, expected in [(None, 401), ('invalid', 401)]:
                 cookies = {auth.SESSION_COOKIE: token} if token else {}
                 response = client.get('/api/shop/image-search/status', cookies=cookies)
                 self.assertEqual(response.status_code, expected)
@@ -80,7 +79,7 @@ class ImageSearchTests(unittest.TestCase):
                 self.assertEqual(response.status_code, expected)
             engine.assert_not_called(); status.assert_not_called(); db.assert_not_called()
         token = jwt.encode({'sub': '1', 'exp': int(time.time()) + 60}, auth.SESSION_SECRET, algorithm='HS256')
-        with patch.object(auth, 'fetch_user', return_value={'id': 1, 'is_admin': True}), \
+        with patch('routers.shop.fetch_user', return_value={'id': 1, 'is_admin': False}), \
              patch.object(core, 'status', return_value={'available': True}), \
              patch.object(api, 'find', return_value={'items': [], 'version': 'a'*20}) as find:
             client.cookies.set(auth.SESSION_COOKIE, token)
@@ -102,23 +101,29 @@ class ImageSearchTests(unittest.TestCase):
             engine.assert_not_called(); db.assert_not_called()
 
     def test_busy_worker_rejects_instead_of_queuing(self):
-        with api.capacity.enter('existing-user'), patch.object(core, 'engine') as engine:
+        with api.capacity.enter('existing-user'), api.capacity.enter('second-user'), patch.object(core, 'engine') as engine:
             response = self.client().post('/api/shop/image-search', data={'sex': 'male', 'slot': 'top'}, files={'image': ('a.png', png(), 'image/png')})
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response.headers['retry-after'], '5')
         engine.assert_not_called()
 
-    def test_automatic_search_routes_all_parts_and_keeps_admin_protection(self):
+    def test_automatic_search_routes_all_parts_and_requires_explicit_sex(self):
         with patch.object(api, 'find_outfit', return_value={'groups': [], 'items': []}) as automatic, patch.object(api, 'find') as cpu:
-            response = self.client().post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'},
+            response = self.client().post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'female', 'slot': 'all', 'include_unreleased': 'false'},
                                           files={'image': ('a.png', png(), 'image/png')})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(automatic.call_args.args[1:3], ('auto', 'all'))
+            self.assertEqual(automatic.call_args.args[1:3], ('female', 'all'))
+            self.assertTrue(automatic.call_args.args[4])
+            self.assertEqual(automatic.call_args.args[5], 1)
             cpu.assert_not_called()
         with patch.object(api, 'find_outfit') as automatic:
             response = self.client(admin=False).post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'},
                                                      files={'image': ('a.png', png(), 'image/png')})
             self.assertEqual(response.status_code, 401)
+            automatic.assert_not_called()
+        with patch.object(api, 'find_outfit') as automatic:
+            response = self.client().post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'}, files={'image': ('a.png', png(), 'image/png')})
+            self.assertEqual(response.status_code, 422)
             automatic.assert_not_called()
 
     def test_automatic_results_preserve_database_visibility(self):
@@ -132,7 +137,7 @@ class ImageSearchTests(unittest.TestCase):
              patch.object(api.outfit, 'cached_search', return_value=result) as search:
             actual = api.find_outfit(png(), 'auto', 'all', None, False)
         self.assertEqual([item['id'] for item in actual['items']], ['1'])
-        self.assertIn('AND (show)', cursor.execute.call_args.args[0])
+        self.assertIn('AND (show)', cursor.execute.call_args_list[0].args[0])
         self.assertEqual(set(search.call_args.args[2]), {'1'})
 
     def test_unavailable_model_returns_recoverable_error(self):

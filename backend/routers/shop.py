@@ -34,7 +34,7 @@ def bounded_shop_read(handler):
     return run
 
 
-def favorite_user(request):
+def favorite_user(request: Request):
     uid = require_user_id(request)
     if fetch_user(uid) is None:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다")

@@ -33,6 +33,7 @@ const GameRepairPage = lazy(() => import('./pages/GameRepairPage'))
 const RepairAdminPage = lazy(() => import('./pages/RepairAdminPage'))
 const ArchiveHomePage = lazy(() => import('./pages/ArchiveHomePage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
+const ShopAdminPage = lazy(() => import('./pages/ShopAdminPage'))
 const MyHomePage=lazy(()=>import('./pages/MyHomePage'))
 const ShortLinkPage = lazy(() => import('./pages/ShortLinkPage'))
 
@@ -169,6 +170,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
+          {!xyxMode && <Route path="/shop/admin" element={<ShopAdminPage />} />}
           <Route path="/short/:code" element={<ShortLinkPage />} />
           <Route path="/myhome" element={<MyHomePage/>}/>
           <Route path="/myhome/characters/all" element={<ShopPage allCharacters/>}/>
