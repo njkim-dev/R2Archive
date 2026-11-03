@@ -22,6 +22,9 @@
 .shop-image-search-submit button { width: 164px; padding: 10px 12px; border: 1px solid #6082a6; border-radius: 8px; background: #315d86; color: #fff; cursor: pointer; }
 .shop-image-search-submit button:disabled { opacity: .5; cursor: default; }
 .shop-image-search-status { min-height: 132px; margin: 8px 0 4px; font-size: 12px; line-height: 1.7; color: #b7c7db; white-space: pre-line; }
+.shop-image-search-status.is-result { display: grid; min-height: 0; }
+.shop-image-search-status.is-result::before { content: attr(data-result-message); visibility: hidden; grid-area: 1 / 1; }
+.shop-image-search-status.is-result > span { grid-area: 1 / 1; }
 .shop-image-search-status [role=alert] { color: #ffb6b6; }
 .shop-image-search-results { min-height: 320px; display: flex; flex-direction: column; gap: 14px; }
 .shop-image-search-original { display: block; max-width: 100%; max-height: 350px; object-fit: contain; }
