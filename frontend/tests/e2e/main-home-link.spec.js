@@ -35,6 +35,7 @@ for (const width of [1440, 1024]) test(`sidebar scrolls as one column without cl
   await watcher.expectStable()
   release()
   await expect(sidebar.getByRole('button', { name: '로그아웃', exact: true })).toBeEnabled()
+  await expect(sidebar.getByRole('link', { name: '관리자 도구', exact: true })).toBeAttached()
   await sidebar.evaluate(node => { node.scrollTop = node.scrollHeight })
   await expect(sidebar.getByRole('button', { name: '로그아웃', exact: true })).toBeInViewport()
   await expect(sidebar.getByLabel('BPM 최댓값')).toBeInViewport()
