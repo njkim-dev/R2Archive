@@ -8,7 +8,6 @@ import UserChip from '../components/UserChip'
 import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
-import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import { queueCategoryCreateAfterLogin } from '../components/CreatePersonalCategoryModal'
@@ -209,7 +208,6 @@ export default function PersonalCategoriesPage() {
         <header className="mob-top pcat-mobile-head">
           <div className="mob-top-inner">
             <div className="mob-top-row">
-              <ServerSwitcher className="mob-server-switcher" />
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
                 <button className="mob-icon-btn pcat-mobile-create" onClick={openCreate} data-tooltip="카테고리 만들기" aria-label="카테고리 만들기">
@@ -268,7 +266,6 @@ export default function PersonalCategoriesPage() {
     <div className="app">
       <ArchiveSidebar>
 
-        <ServerSwitcher />
         <PageNavigation />
 
         <div className="side-section">

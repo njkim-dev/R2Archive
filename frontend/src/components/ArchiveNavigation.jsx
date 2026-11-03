@@ -4,14 +4,15 @@ import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil,
 import useStore from '../store/useStore'
 import { archiveSection, navigationTarget } from '../utils/archiveNavigation'
 import PageNavigation from './PageNavigation'
-import ServerSwitcher from './ServerSwitcher'
+import { ARCHIVE_BASE, isXyxMode, SERVER_MODE } from '../utils/serverMode'
+import { makeSearchRestoreState, saveCurrentListState, withRestoreListParam } from '../utils/listState'
 import { lockShopScroll } from './shop/shopModalScroll'
 import { rememberShopReturn } from '../utils/shopUrl'
 
 const ArchiveLoginContext = createContext(null)
 
-const titles = { music: '음악', shop: '상점', home: '마이홈', repair: '게임 복구', feedback: '피드백', admin: '관리자 도구' }
-const primary = [['music', Music2], ['shop', ShoppingBag], ['home', Home]]
+const titles = { music: '음악', kr: '한국 서버 음악', xyx: '중국 서버 음악', shop: '상점', home: '마이홈', repair: '게임 복구', feedback: '피드백', admin: '관리자 도구' }
+const primary = [['kr', Music2], ['xyx', Music2], ['shop', ShoppingBag], ['home', Home]]
 
 function useNativeDialog() {
   const [blocked, setBlocked] = useState(false)
@@ -30,16 +31,24 @@ export function ArchiveBrand() {
 }
 
 function NavigationItem({ section, active, onNavigate, children, className = '' }) {
-  const { user, authLoaded, closeModal } = useStore(), navigate = useNavigate()
+  const { user, authLoaded, closeModal } = useStore(), navigate = useNavigate(), location = useLocation()
   const target = navigationTarget(section)
   const proceed = () => { closeModal(); onNavigate?.() }
+  const follow = event => {
+    proceed()
+    if (!['kr', 'xyx'].includes(section) || section === SERVER_MODE || !ARCHIVE_BASE && !['music', 'feedback'].includes(archiveSection(location.pathname)) || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return
+    event.preventDefault()
+    const state = useStore.getState()
+    saveCurrentListState(state)
+    window.location.href = withRestoreListParam(target.href, makeSearchRestoreState(state))
+  }
   const content = <>{children}</>
   if (section === 'home') return <span className="archive-navigation-anchor" data-tooltip={authLoaded && !user ? '로그인하세요' : undefined} tabIndex={authLoaded && !user ? 0 : undefined}><button className={className} type="button" aria-current={active ? 'page' : undefined} disabled={!authLoaded || !user} onClick={() => { proceed(); if (target.href) window.location.href = target.href; else navigate(target.to) }}>{content}</button></span>
-  return target.href ? <a href={target.href} className={className} aria-current={active ? 'page' : undefined} onClick={proceed}>{content}</a> : <Link to={target.to} className={className} aria-current={active ? 'page' : undefined} onClick={proceed}>{content}</Link>
+  return target.href ? <a href={target.href} className={className} aria-current={active ? 'page' : undefined} onClick={follow}>{content}</a> : <Link to={target.to} className={className} aria-current={active ? 'page' : undefined} onClick={proceed}>{content}</Link>
 }
 
 export function ArchivePrimaryNavigation({ section, onNavigate, className = '' }) {
-  return <nav className={`archive-primary-nav ${className}`} aria-label="주요 페이지">{primary.map(([key, Icon]) => <NavigationItem key={key} section={key} active={section === key || section === 'admin' && key === 'shop'} onNavigate={onNavigate} className="archive-primary-item"><Icon size={18} aria-hidden="true" /><span>{titles[key]}</span></NavigationItem>)}</nav>
+  return <nav className={`archive-primary-nav ${className}`} aria-label="주요 페이지">{primary.map(([key, Icon]) => <NavigationItem key={key} section={key} active={section === 'music' ? key === (isXyxMode() ? 'xyx' : 'kr') : section === key || section === 'admin' && key === 'shop'} onNavigate={onNavigate} className="archive-primary-item"><Icon size={18} aria-hidden="true" /><span>{titles[key]}</span></NavigationItem>)}</nav>
 }
 
 function ArchiveAccount({ onNavigate }) {
@@ -76,7 +85,7 @@ export function ArchiveMobileNavigation({ context, section: override }) {
     return () => { node.close(); release(); setTimeout(() => opener.current?.focus(), 0) }
   }, [open])
   const close = () => setOpen(false)
-  return <><header className="archive-mobile-header" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><button type="button" aria-label="전체 메뉴 열기" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={21} /></button><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><div className="archive-mobile-account"><ArchiveAccount /></div></header><div className="archive-mobile-bottom" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><ArchivePrimaryNavigation section={section} /><button className="archive-more" type="button" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={20} /><span>전체 메뉴</span></button></div><dialog ref={dialog} className="archive-menu-dialog" aria-label="전체 메뉴" onCancel={event => { event.preventDefault(); close() }} onClick={event => { const box = event.currentTarget.getBoundingClientRect(); if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right)) close() }}>{open && <><div className="archive-menu-heading"><ArchiveBrand /><button aria-label="전체 메뉴 닫기" type="button" onClick={close}><X size={21} /></button></div><ArchivePrimaryNavigation section={section} onNavigate={close} /><div className="archive-menu-context" onClick={event => { if (event.target.closest('a,button')) close() }}>{context || (section === 'music' ? <><ServerSwitcher /><PageNavigation onNavigate={close} /></> : null)}</div><ArchiveNavigationFooter section={section} onNavigate={close} /></>}</dialog></>
+  return <><header className="archive-mobile-header" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><button type="button" aria-label="전체 메뉴 열기" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={21} /></button><a href="https://r2archive.com/?refresh=home" aria-label="R2 Archive 메인 홈페이지">R2 ARCHIVE</a><div className="archive-mobile-account"><ArchiveAccount /></div></header><div className="archive-mobile-bottom" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><ArchivePrimaryNavigation section={section} /><button className="archive-more" type="button" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={20} /><span>전체 메뉴</span></button></div><dialog ref={dialog} className="archive-menu-dialog" aria-label="전체 메뉴" onCancel={event => { event.preventDefault(); close() }} onClick={event => { const box = event.currentTarget.getBoundingClientRect(); if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right)) close() }}>{open && <><div className="archive-menu-heading"><ArchiveBrand /><button aria-label="전체 메뉴 닫기" type="button" onClick={close}><X size={21} /></button></div><ArchivePrimaryNavigation section={section} onNavigate={close} /><div className="archive-menu-context" onClick={event => { if (event.target.closest('a,button')) close() }}>{context || (section === 'music' ? <PageNavigation onNavigate={close} /> : null)}</div><ArchiveNavigationFooter section={section} onNavigate={close} /></>}</dialog></>
 }
 
 export function ArchivePageLayout({ children, context, section = 'shop', className = '', headerTools, inactive = false, onLogin }) {

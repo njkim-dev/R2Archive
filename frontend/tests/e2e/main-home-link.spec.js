@@ -42,17 +42,17 @@ for (const width of [1440, 1024]) test(`sidebar scrolls as one column without cl
   await watcher.expectStable()
   await watcher.stop()
   await sidebar.evaluate(node => { node.scrollTop = 0 })
-  await expect(sidebar.getByRole('link', { name: '음악', exact: true })).toBeInViewport()
+  await expect(sidebar.getByRole('link', { name: '한국 서버 음악', exact: true })).toBeInViewport()
 })
 
 for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
   const host='r2archive.com'
-  test(`${archive} sidebar places the main home link above server buttons with stable loading loggedIn=${loggedIn}`, async ({ page, baseURL }, testInfo) => {
+  test(`${archive} uses ordered shared server menus with stable loading loggedIn=${loggedIn}`, async ({ page, baseURL }, testInfo) => {
     const width = testInfo.project.use.viewport.width
     const mobile = width < (archive==='xyx' ? 1100 : 768)
     let release
     const gate = new Promise(resolve => { release = resolve })
-    await page.route(`http://${host}/**`, async route => {
+    await page.route(/^https?:\/\/r2archive\.com\//, async route => {
       const url = new URL(route.request().url())
       const pathname = url.pathname.replace('/api/xyx/', '/api/')
       if (pathname.startsWith('/api/')) {
@@ -70,29 +70,35 @@ for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
     await page.goto(`http://${host}/${archive}/`, { waitUntil: 'domcontentloaded' })
     const shop=page.getByRole('link',{name:'상점',exact:true}),myhome=page.getByRole('button',{name:'마이홈',exact:true})
     await expect(shop).toHaveAttribute('href','https://r2archive.com/shop');if(loggedIn)await expect(myhome).toBeEnabled();else await expect(myhome).toBeDisabled();await expect(myhome).not.toHaveAttribute('title',/.+/)
-    const serverBox=await page.getByRole('button',{name:'중국 서버',exact:true}).boundingBox(),shopBox=await shop.boundingBox();if(mobile)expect(shopBox.y).toBeGreaterThanOrEqual(serverBox.y+serverBox.height);else expect(shopBox.y+shopBox.height).toBeLessThanOrEqual(serverBox.y)
-    if(!loggedIn){await myhome.locator("..").hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0)}
-    if (mobile) {
-      await expect(page.locator('.mob-top .main-home-link')).toBeHidden()
-      await expect(page.getByRole('button', { name: '한국 서버', exact: true })).toBeVisible()
-      await expect(page.getByRole('button', { name: '중국 서버', exact: true })).toBeVisible()
-      release()
-      return
-    }
-    const home = page.getByRole('link', { name: '메인 홈페이지', exact: true })
+    const primary = page.getByRole('navigation', { name: '주요 페이지' })
+    await expect(primary.locator('.archive-primary-item')).toHaveText(['한국 서버 음악', '중국 서버 음악', '상점', '마이홈'])
+    await expect(page.locator('.server-switcher,.main-home-link')).toHaveCount(0)
+    const current = primary.getByRole('link', { name: archive === 'music' ? '한국 서버 음악' : '중국 서버 음악', exact: true })
+    await expect(current).toHaveAttribute('aria-current', 'page')
+    const other = primary.getByRole('link', { name: archive === 'music' ? '중국 서버 음악' : '한국 서버 음악', exact: true })
+    await expect(other).toHaveAttribute('href', archive === 'music' ? 'https://r2archive.com/xyx/' : 'https://r2archive.com/music/')
+    if(!loggedIn){await myhome.locator('..').hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0)}
+    const home = page.getByRole('link', { name: 'R2 Archive 메인 홈페이지', exact: true })
     await expect(home).toBeVisible()
     await expect(home).toHaveAttribute('href', 'https://r2archive.com/?refresh=home')
-    const homeBox = await home.boundingBox()
-    for (const label of ['한국 서버', '중국 서버']) {
-      const buttonBox = await page.getByRole('button', { name: label, exact: true }).boundingBox()
-      expect(homeBox.y + homeBox.height).toBeLessThanOrEqual(buttonBox.y)
+    if (!mobile) {
+      const homeBox = await home.boundingBox(), serverBox = await current.boundingBox()
+      expect(homeBox.y + homeBox.height).toBeLessThanOrEqual(serverBox.y)
     }
-    const watcher = await watchLayout(page, ['.side .server-switcher', '.topbar', '.main'])
+    const watcher = await watchLayout(page, mobile ? ['.archive-mobile-bottom', '.archive-mobile-header', '.app-mobile'] : ['.side .archive-primary-nav', '.topbar', '.main'])
     await watcher.expectStable()
     release()
-    await expect(page.locator('.tbl-row')).toHaveCount(1)
+    if (!mobile) await expect(page.locator('.tbl-row')).toHaveCount(1)
+    else await expect(page.getByText(song.name, { exact: true })).toBeVisible()
     await watcher.expectStable()
     await watcher.stop()
+    if (loggedIn) {
+      await page.getByPlaceholder('검색어 입력, 검색어가 여러 개면 쉼표 사용 가능').fill('Home Link')
+      await other.click()
+      await expect(page).toHaveURL(new RegExp('/' + (archive === 'music' ? 'xyx' : 'music') + '/'))
+      await expect(page.getByPlaceholder('검색어 입력, 검색어가 여러 개면 쉼표 사용 가능')).toHaveValue('Home Link')
+      await expect(other).toHaveAttribute('aria-current', 'page')
+    }
     await page.route('https://r2archive.com/?refresh=home', route => route.fulfill({ contentType: 'text/html', body: '<h1>Main homepage</h1>' }))
     await home.click()
     await expect(page).toHaveURL('https://r2archive.com/?refresh=home')

@@ -1,7 +1,6 @@
 import useStore from '../../store/useStore'
 import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
-import ServerSwitcher from '../ServerSwitcher'
 
 export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearchChange, searchPlaceholder = '제목 · 내용 검색' }) {
   const { user, openLogin, logout, openMyPage, isAdmin } = useStore()
@@ -10,7 +9,6 @@ export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearc
     <header className="mob-top">
       <div className="mob-top-inner">
         <div className="mob-top-row">
-          <ServerSwitcher className="mob-server-switcher" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HelpButton />
             {user ? (

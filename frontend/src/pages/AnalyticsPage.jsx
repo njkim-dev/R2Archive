@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import useStore from '../store/useStore'
 import { getAnalyticsSummary } from '../api/client'
 import { useMobile } from '../hooks/useMobile'
-import ServerSwitcher from '../components/ServerSwitcher'
 import MobilePageNav from '../components/MobilePageNav'
 import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
@@ -17,7 +16,6 @@ function AnalyticsSidebar() {
   return (
     <ArchiveSidebar>
 
-      <ServerSwitcher />
       <PageNavigation />
     </ArchiveSidebar>
   )

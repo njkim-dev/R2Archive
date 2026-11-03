@@ -8,7 +8,6 @@ import { useMobile } from '../hooks/useMobile'
 import GroupsMobileHeader from '../components/groups/GroupsMobileHeader'
 import GroupsMobileList from '../components/groups/GroupsMobileList'
 import { HelpButton } from '../components/HelpTour'
-import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
@@ -234,7 +233,6 @@ export default function GroupsPage() {
       <div className="app">
         <ArchiveSidebar>
 
-          <ServerSwitcher />
           <PageNavigation />
         </ArchiveSidebar>
         <main className="main">
@@ -285,7 +283,6 @@ export default function GroupsPage() {
     <div className="app">
       <ArchiveSidebar>
 
-        <ServerSwitcher />
         <PageNavigation />
 
         <div className="side-section">

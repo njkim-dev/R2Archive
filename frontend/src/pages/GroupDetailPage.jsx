@@ -7,7 +7,6 @@ import UserChip from '../components/UserChip'
 import { useMobile } from '../hooks/useMobile'
 import GroupDetailMobileHeader from '../components/groups/GroupDetailMobileHeader'
 import { HelpButton } from '../components/HelpTour'
-import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import { Hero, TabsStrip } from '../components/groups/GroupDetailHeader'
@@ -58,7 +57,6 @@ export default function GroupDetailPage() {
     <div className="app">
       <ArchiveSidebar>
 
-        <ServerSwitcher />
         <PageNavigation />
       </ArchiveSidebar>
       <main className="main">{content}</main>
@@ -156,7 +154,6 @@ export default function GroupDetailPage() {
     <div className="app">
       <ArchiveSidebar>
 
-        <ServerSwitcher />
         <PageNavigation />
 
         <div className="side-section">

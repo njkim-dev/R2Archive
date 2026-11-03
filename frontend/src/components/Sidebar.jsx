@@ -4,7 +4,6 @@ import { filterSongs } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
 import { SlidersHorizontal } from 'lucide-react'
 import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
-import ServerSwitcher from './ServerSwitcher'
 import PageNavigation from './PageNavigation'
 import { ArchiveSidebar } from './ArchiveNavigation'
 
@@ -84,7 +83,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
   return (
     <ArchiveSidebar>
 
-      <ServerSwitcher />
 
       <PageNavigation onNavigate={closeModal} />
 

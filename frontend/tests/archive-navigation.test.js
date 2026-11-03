@@ -3,6 +3,15 @@ import assert from 'node:assert/strict'
 import { archiveSection, navigationTarget } from '../src/utils/archiveNavigation.js'
 
 test('service navigation escapes music router basenames and preserves server identity', () => {
+  for (const section of ['kr', 'xyx']) {
+    const base = section === 'kr' ? '/music' : '/xyx'
+    assert.deepEqual(navigationTarget(section, { base, host: 'r2archive.com' }), { to: '/' })
+    assert.deepEqual(navigationTarget(section, { base: '', host: 'r2archive.com' }), { href: `https://r2archive.com${base}/` })
+  }
+  assert.deepEqual(navigationTarget('kr', { base: '/xyx', host: 'r2archive.com' }), { href: 'https://r2archive.com/music/' })
+  assert.deepEqual(navigationTarget('xyx', { base: '/music', host: 'r2archive.com' }), { href: 'https://r2archive.com/xyx/' })
+  assert.deepEqual(navigationTarget('kr', { base: '', host: 'localhost', xyx: false }), { to: '/' })
+  assert.deepEqual(navigationTarget('xyx', { base: '', host: 'xyx.r2archive.com', xyx: true }), { to: '/' })
   for (const base of ['/music', '/xyx']) {
     assert.deepEqual(navigationTarget('shop', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/shop' })
     assert.deepEqual(navigationTarget('home', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/myhome' })

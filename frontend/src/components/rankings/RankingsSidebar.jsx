@@ -2,7 +2,6 @@ import { useState } from 'react'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import UserPin from './UserPin'
-import ServerSwitcher from '../ServerSwitcher'
 import PageNavigation from '../PageNavigation'
 import { ArchiveSidebar } from '../ArchiveNavigation'
 
@@ -58,7 +57,6 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
   return (
     <ArchiveSidebar>
 
-      <ServerSwitcher />
 
       <PageNavigation />
 

@@ -32,6 +32,8 @@ for (const width of [1440, 390]) test(`shared service navigation and account res
   await expect(home).toBeDisabled()
   const primary = page.getByRole('navigation', { name: '주요 페이지' })
   await expect(primary).toBeVisible()
+  await expect(primary.locator('.archive-primary-item')).toHaveText(['한국 서버 음악', '중국 서버 음악', '상점', '마이홈'])
+  await expect(page.locator('.server-switcher,.main-home-link')).toHaveCount(0)
   const primarySelector = width > 800 ? '.archive-sidebar .archive-primary-nav' : '.archive-mobile-bottom'
   const watcher = await watchLayout(page, [primarySelector, '.archive-page-topbar', '.shop-grid'])
   release()

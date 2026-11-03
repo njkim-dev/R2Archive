@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import useStore from '../store/useStore'
 import MobilePageNav from './MobilePageNav'
 import { HelpButton } from './HelpTour'
-import ServerSwitcher from './ServerSwitcher'
 import { isXyxMode } from '../utils/serverMode'
 import { detailedFilterCount } from '../utils/catalogFilters'
 
@@ -87,7 +86,6 @@ export default function MobileHeader({ totalFiltered }) {
               <div className="brand-sub">{isXyxMode() ? 'XYX Catalog' : 'Music Catalog'}</div>
             </div>
           </div>
-          <ServerSwitcher className="mob-server-switcher" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HelpButton />
             {user ? (

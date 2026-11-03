@@ -3,7 +3,6 @@ import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
-import ServerSwitcher from '../ServerSwitcher'
 import RankingSpeedTabs from './RankingSpeedTabs'
 
 // 카테고리 별과 내 성과 기호를 구분한다.
@@ -76,7 +75,6 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
     <header className="mob-top">
       <div className="mob-top-inner">
         <div className="mob-top-row">
-          <ServerSwitcher className="mob-server-switcher" />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HelpButton />
             {user ? (

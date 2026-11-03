@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import useStore from '../../store/useStore'
 import { filterPmangSongs } from '../../utils/pmang'
-import ServerSwitcher from '../ServerSwitcher'
 import PageNavigation from '../PageNavigation'
 import { ArchiveSidebar } from '../ArchiveNavigation'
 
@@ -85,7 +84,6 @@ export default function PmangSidebar({
   return (
     <ArchiveSidebar>
 
-      <ServerSwitcher />
 
       <PageNavigation onNavigate={onNavigate} />
 

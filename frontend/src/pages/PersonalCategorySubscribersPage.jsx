@@ -8,7 +8,6 @@ import UserChip from '../components/UserChip'
 import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
-import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
@@ -189,7 +188,6 @@ export default function PersonalCategorySubscribersPage() {
     <div className="app">
       <ArchiveSidebar>
 
-        <ServerSwitcher />
         <PageNavigation />
         <div className="side-section">
           <button className="gd-back-link" onClick={() => navigate(`/personal-categories/${code}`)}>

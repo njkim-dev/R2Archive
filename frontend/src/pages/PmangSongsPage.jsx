@@ -8,7 +8,6 @@ import PmangSidebar from '../components/pmang/PmangSidebar'
 import PmangFilterBar from '../components/pmang/PmangFilterBar'
 import PmangSongsTable from '../components/pmang/PmangSongsTable'
 import { HelpButton } from '../components/HelpTour'
-import ServerSwitcher from '../components/ServerSwitcher'
 import { clearCatalogHash, pmangSongCatalogHash, replaceCatalogHash } from '../utils/catalogUrl'
 
 const PmangSongModal = lazy(() => import('../components/pmang/PmangSongModal'))
@@ -461,7 +460,6 @@ export default function PmangSongsPage() {
           <h1 className="sr-only">R2Music Archive</h1>
           <div className="mob-top-inner">
             <div className="mob-top-row">
-              <ServerSwitcher className="mob-server-switcher" />
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <HelpButton />
                 <button className="mob-icon-btn" onClick={() => setMobileSheetOpen(true)} aria-label="필터" aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>

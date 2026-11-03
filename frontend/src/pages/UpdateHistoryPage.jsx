@@ -5,7 +5,6 @@ import { VariableSizeList } from 'react-window'
 import { ChevronDown, ExternalLink, Search } from 'lucide-react'
 import MobilePageNav from '../components/MobilePageNav'
 import PageNavigation from '../components/PageNavigation'
-import ServerSwitcher from '../components/ServerSwitcher'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import ReleaseDatePicker from '../components/update-history/ReleaseDatePicker'
 import { useMobile } from '../hooks/useMobile'
@@ -18,7 +17,6 @@ function HistorySidebar() {
   return (
     <ArchiveSidebar className="rh-sidebar">
 
-      <ServerSwitcher />
       <PageNavigation />
     </ArchiveSidebar>
   )
@@ -32,7 +30,6 @@ function HistoryMobileHeader() {
           <span className="brand-mark" aria-hidden="true">R2</span>
           <span>R2Music Archive</span>
         </Link>
-        <ServerSwitcher className="rh-mobile-server" />
       </div>
       <MobilePageNav />
     </header>
