@@ -1,4 +1,11 @@
 .shop-search-tools { display: flex; gap: 8px; align-items: stretch; }
+.shop-image-search-select .shop-image-search-no-preview { color: #ffb5ac; font-size: 11px; line-height: 1.5; }
+.shop-image-preview-warning { margin: 0 0 12px; padding: 10px 12px; border: 1px solid #b47c42; border-radius: 8px; color: #ffd39a; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.shop-image-preview-dialog { width: min(640px, calc(100% - 24px)); }
+.shop-image-preview-items { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--shop-muted); font-size: 12px; line-height: 1.7; }
+.shop-image-preview-dialog .shop-preview-toolbar h2 { flex: 1; }
+.shop-image-preview-dialog .shop-couple-actions { width: auto; }
+.shop-image-preview-dialog .shop-preview-toolbar { flex-wrap: nowrap; }
 .shop-search-tools .shop-search { flex: 1; min-width: 0; }
 .shop-image-search-open { border: 1px solid #33465c; border-radius: 9px; padding: 10px 14px; background: #223449; color: #e6eef8; white-space: nowrap; cursor: pointer; }
 .shop-image-search-open:disabled { opacity: .5; cursor: default; }

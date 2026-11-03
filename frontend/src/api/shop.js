@@ -2,6 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api/shop', withCredentials: true })
 export const getShopMeta = version => api.get('/meta', { params: { version } }).then(r => r.data)
+export const getShopImageEstimate = (slot, signal) => api.get('/image-search/estimate', { params: { slot }, signal, timeout: 5000 }).then(r => r.data)
 export const searchShopImage = ({ image, sex, slot, version, mode = 'terra' }, signal) => {
   const data = new FormData()
   data.append('image', image, image.name || 'search.png'); data.append('sex', sex); data.append('slot', slot)

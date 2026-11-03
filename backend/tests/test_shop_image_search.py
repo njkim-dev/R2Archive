@@ -100,6 +100,18 @@ class ImageSearchTests(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
             engine.assert_not_called(); db.assert_not_called()
 
+    def test_estimate_requires_login_validates_slot_and_never_starts_inference(self):
+        with patch.object(api.estimates, 'estimate', return_value={'min_seconds': 10, 'max_seconds': 30}) as estimate, patch.object(core, 'engine') as engine:
+            self.assertEqual(self.client(admin=False).get('/api/shop/image-search/estimate').status_code, 401)
+            self.assertEqual(self.client().get('/api/shop/image-search/estimate?slot=face').status_code, 422)
+            estimate.assert_not_called()
+            response = self.client().get('/api/shop/image-search/estimate?slot=hair')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['max_seconds'], 30)
+            self.assertEqual(response.headers['cache-control'], 'private, no-store')
+            estimate.assert_called_once_with('hair', api.outfit.MODEL, api.history.PIPELINE_VERSION)
+            engine.assert_not_called()
+
     def test_busy_worker_rejects_instead_of_queuing(self):
         with api.capacity.enter('existing-user'), api.capacity.enter('second-user'), patch.object(core, 'engine') as engine:
             response = self.client().post('/api/shop/image-search', data={'sex': 'male', 'slot': 'top'}, files={'image': ('a.png', png(), 'image/png')})

@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -11,6 +12,7 @@ from routers.shop import ACCESSIBLE, ITEM_COLUMNS, SLOT_SQL, catalog, serialize,
 import shop_image_search as search
 import shop_outfit_search as outfit
 import shop_image_history as history
+import shop_image_estimate as estimates
 from work_capacity import WorkCapacity, run_blocking
 
 
@@ -22,6 +24,12 @@ logger = logging.getLogger(__name__)
 @router.get('/status')
 def image_search_status():
     return JSONResponse({**search.status(), 'automatic': outfit.configured()}, headers={'Cache-Control': 'no-store'})
+
+
+@router.get('/estimate')
+@limiter.limit('60/minute', key_func=user_key)
+def image_search_estimate(request: Request, slot: Literal['all', 'hair', 'top', 'bottom', 'shoes'] = 'all'):
+    return JSONResponse(estimates.estimate(slot, outfit.MODEL, history.PIPELINE_VERSION), headers={'Cache-Control': 'private, no-store'})
 
 
 def find_outfit(content, sex, slot, version, include_unreleased, user_id=None, filename='search.png'):
