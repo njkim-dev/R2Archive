@@ -87,3 +87,15 @@
 }
 .archive-context-current{padding:10px 12px;font-size:12px;color:var(--archive-nav-accent)}
 .archive-app .archive-primary-item,.archive-app .archive-context-menu button{justify-content:flex-start;text-align:left}
+
+.archive-page-layout:has(.repair-page){height:100dvh;min-height:0;overflow:hidden}
+.archive-page-layout .repair-page{height:calc(100dvh - 64px);padding:28px clamp(20px,3vw,48px)}
+@media(max-width:800px){.archive-page-layout:has(.repair-page){height:calc(100dvh - var(--archive-mobile-top) - var(--archive-mobile-bottom))}.archive-page-layout .repair-page{height:calc(100dvh - var(--archive-mobile-top) - var(--archive-mobile-bottom) - 48px)}}
+@media(min-width:768px) and (max-width:800px){
+ .archive-app:not(.archive-xyx):not(:has(.archive-page-layout)){padding:0}
+ .archive-app:not(.archive-xyx) .app{grid-template-columns:var(--archive-rail-width) minmax(0,1fr);height:100dvh}
+ .archive-app:not(.archive-xyx) .app>.side.archive-sidebar{display:flex}
+ .archive-app:not(.archive-xyx) .main{height:100dvh}
+ .archive-app:not(.archive-xyx):not(:has(.archive-page-layout))>.archive-mobile-header,.archive-app:not(.archive-xyx):not(:has(.archive-page-layout))>.archive-mobile-bottom{display:none}
+}
+.archive-app .app{max-width:none;margin-inline:0}

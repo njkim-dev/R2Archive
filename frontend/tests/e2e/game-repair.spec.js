@@ -175,6 +175,7 @@ test('single bulk link uses native ZIP download and includes only issues', async
   await expect(page.getByRole('button', { name: '문제 파일 일괄 받기 (ZIP)' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '다운로드 취소' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '설치 폴더 선택 · 검사' })).toBeEnabled()
+  await bulk.scrollIntoViewIfNeeded()
   const watcher = await watchLayout(page, ['.repair-toolbar', '.repair-download-toolbar', '.repair-results'])
   await page.getByLabel('게임 설치 폴더').setInputFiles(await fixture(testInfo))
   await expect(bulk).toBeEnabled()
