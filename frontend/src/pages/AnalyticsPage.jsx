@@ -5,7 +5,7 @@ import { useMobile } from '../hooks/useMobile'
 import ServerSwitcher from '../components/ServerSwitcher'
 import MobilePageNav from '../components/MobilePageNav'
 import PageNavigation from '../components/PageNavigation'
-import ArchiveBrand from '../components/ArchiveBrand'
+import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
 const nf = new Intl.NumberFormat('ko-KR')
 
@@ -15,11 +15,11 @@ function fmt(n) {
 
 function AnalyticsSidebar() {
   return (
-    <aside className="side">
-      <ArchiveBrand />
+    <ArchiveSidebar>
+
       <ServerSwitcher />
       <PageNavigation />
-    </aside>
+    </ArchiveSidebar>
   )
 }
 

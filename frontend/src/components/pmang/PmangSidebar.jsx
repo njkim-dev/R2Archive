@@ -3,7 +3,7 @@ import useStore from '../../store/useStore'
 import { filterPmangSongs } from '../../utils/pmang'
 import ServerSwitcher from '../ServerSwitcher'
 import PageNavigation from '../PageNavigation'
-import ArchiveBrand from '../ArchiveBrand'
+import { ArchiveSidebar } from '../ArchiveNavigation'
 
 const CATEGORIES = [
   {
@@ -83,8 +83,8 @@ export default function PmangSidebar({
   const selectedCount = artists.size
 
   return (
-    <aside className="side">
-      <ArchiveBrand />
+    <ArchiveSidebar>
+
       <ServerSwitcher />
 
       <PageNavigation onNavigate={onNavigate} />
@@ -214,6 +214,6 @@ export default function PmangSidebar({
           ))}
         </div>
       </div>
-    </aside>
+    </ArchiveSidebar>
   )
 }

@@ -4,7 +4,7 @@ import useStore from '../../store/useStore'
 import UserPin from './UserPin'
 import ServerSwitcher from '../ServerSwitcher'
 import PageNavigation from '../PageNavigation'
-import ArchiveBrand from '../ArchiveBrand'
+import { ArchiveSidebar } from '../ArchiveNavigation'
 
 const GROUPS_INITIAL_LIMIT = 5
 
@@ -56,8 +56,8 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
   }
 
   return (
-    <aside className="side">
-      <ArchiveBrand />
+    <ArchiveSidebar>
+
       <ServerSwitcher />
 
       <PageNavigation />
@@ -163,6 +163,6 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
           />
         </div>
       </div>
-    </aside>
+    </ArchiveSidebar>
   )
 }

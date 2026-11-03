@@ -13,7 +13,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
-import ArchiveBrand from '../components/ArchiveBrand'
+import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import CategoryCollaborationToggles from '../components/CategoryCollaborationToggles'
 
 function roleLabel(role) {
@@ -860,8 +860,8 @@ export default function PersonalCategoryDetailPage() {
 
   return (
     <div className={`app song-list-layout${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={levelCategory || undefined}>
-      <aside className="side">
-        <ArchiveBrand />
+      <ArchiveSidebar>
+
         <ServerSwitcher />
         <PageNavigation />
         <div className="side-section">
@@ -888,7 +888,7 @@ export default function PersonalCategoryDetailPage() {
             onReset={resetFilters}
           />
         )}
-      </aside>
+      </ArchiveSidebar>
 
       <main className="main">
         {loading || error || !category ? blocked : (

@@ -47,7 +47,7 @@ test('short links and live public homes preserve outfits while save and removal 
   const shortUrl = await page.evaluate(() => window.__copiedShopUrl), decoded = await copiedShopUrl(page)
   expect(Object.fromEntries(decoded.searchParams)).toMatchObject({ view:'preview',sex:'male',top:'200',pet:'300',angle:'180',zoom:'100',panX:'5',panY:'-3' })
   await preview.getByRole('button', { name: '의상 미리보기 닫기', exact: true }).click()
-  await page.getByRole('tab', { name: '마이홈', exact: true }).click()
+  await page.getByRole('button', { name: '마이홈', exact: true }).click()
   await page.getByRole('button',{name:'남성캐릭터 캐릭터 선택',exact:true}).click()
   await expect(page.getByRole('button', { name: '메인으로 지정', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '내 마이홈 URL 제거', exact: true })).toHaveCount(0)

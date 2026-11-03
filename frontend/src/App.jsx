@@ -16,6 +16,8 @@ import SongModal from './components/SongModal'
 import SongsPage from './pages/SongsPage'
 import PageMetadata from './components/PageMetadata'
 import './styles/archive-backdrop.css'
+import './styles/archive-navigation.css'
+import { ArchiveMobileNavigation, ArchivePageLayout } from './components/ArchiveNavigation'
 import CreatePersonalCategoryModal, { takePendingCategoryCreate } from './components/CreatePersonalCategoryModal'
 
 const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
@@ -89,6 +91,8 @@ export default function App() {
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
   const portalHost = window.location.hostname === 'r2archive.com'&&!ARCHIVE_BASE
+  const navigationVisible = !(portalHost && appLocation.pathname === '/') && !appLocation.pathname.startsWith('/short/')
+  const standaloneNavigation = /^\/(shop|myhome|game-repair)(\/|$)/.test(appLocation.pathname)
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
 
@@ -166,11 +170,13 @@ export default function App() {
       <SyncCatalogUrl />
       <CloseModalOnCataloglessRoutes />
       <AnalyticsTracker />
+      <div className={navigationVisible ? `archive-app${xyxMode ? ' archive-xyx' : ''}` : 'archive-portal'}>
+      {navigationVisible && !standaloneNavigation && <ArchiveMobileNavigation />}
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
-          {!xyxMode && <Route path="/shop/admin" element={<ShopAdminPage />} />}
+          {!xyxMode && <Route path="/shop/admin" element={<ArchivePageLayout section="admin"><ShopAdminPage /></ArchivePageLayout>} />}
           <Route path="/short/:code" element={<ShortLinkPage />} />
           <Route path="/myhome" element={<MyHomePage/>}/>
           <Route path="/myhome/characters/all" element={<ShopPage allCharacters/>}/>
@@ -190,12 +196,13 @@ export default function App() {
           <Route path="/personal-categories/:code" element={<PersonalCategoryDetailPage />} />
           {!xyxMode && <Route path="/feedback" element={<FeedbackPage />} />}
           {!xyxMode && <Route path="/updates" element={<UpdateHistoryPage />} />}
-          {!xyxMode && <Route path="/game-repair" element={<GameRepairPage />} />}
-          <Route path="/game-repair/admin" element={<RepairAdminPage />} />
+          {!xyxMode && <Route path="/game-repair" element={<ArchivePageLayout section="repair"><GameRepairPage /></ArchivePageLayout>} />}
+          <Route path="/game-repair/admin" element={<ArchivePageLayout section="repair"><RepairAdminPage /></ArchivePageLayout>} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </div>
       <SongModal />
       <LoginModal />
       <CreatePersonalCategoryModal />

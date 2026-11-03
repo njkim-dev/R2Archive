@@ -6,7 +6,7 @@ import { ChevronDown, ExternalLink, Search } from 'lucide-react'
 import MobilePageNav from '../components/MobilePageNav'
 import PageNavigation from '../components/PageNavigation'
 import ServerSwitcher from '../components/ServerSwitcher'
-import ArchiveBrand from '../components/ArchiveBrand'
+import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import ReleaseDatePicker from '../components/update-history/ReleaseDatePicker'
 import { useMobile } from '../hooks/useMobile'
 import { filterReleaseHistory, formatReleaseDate, formatReleaseTitle, releaseWeekday } from '../utils/releaseHistory'
@@ -16,11 +16,11 @@ import '../styles/update-history.css'
 
 function HistorySidebar() {
   return (
-    <aside className="side rh-sidebar">
-      <ArchiveBrand />
+    <ArchiveSidebar className="rh-sidebar">
+
       <ServerSwitcher />
       <PageNavigation />
-    </aside>
+    </ArchiveSidebar>
   )
 }
 

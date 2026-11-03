@@ -10,7 +10,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
-import ArchiveBrand from '../components/ArchiveBrand'
+import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
 function roleLabel(role) {
   if (role === 'editor') return '수정 가능'
@@ -187,8 +187,8 @@ export default function PersonalCategorySubscribersPage() {
 
   return (
     <div className="app">
-      <aside className="side">
-        <ArchiveBrand />
+      <ArchiveSidebar>
+
         <ServerSwitcher />
         <PageNavigation />
         <div className="side-section">
@@ -197,7 +197,7 @@ export default function PersonalCategorySubscribersPage() {
             카테고리로
           </button>
         </div>
-      </aside>
+      </ArchiveSidebar>
       <main className="main">
         <div className="topbar">
           <div className="pcat-top-title">

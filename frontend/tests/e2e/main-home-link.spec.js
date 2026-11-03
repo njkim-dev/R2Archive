@@ -30,8 +30,8 @@ for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
     await page.goto(`http://${host}/${archive}/`, { waitUntil: 'domcontentloaded' })
     const shop=page.getByRole('link',{name:'상점',exact:true}),myhome=page.getByRole('button',{name:'마이홈',exact:true})
     await expect(shop).toHaveAttribute('href','https://r2archive.com/shop');if(loggedIn)await expect(myhome).toBeEnabled();else await expect(myhome).toBeDisabled();await expect(myhome).not.toHaveAttribute('title',/.+/)
-    const serverBox=await page.getByRole('button',{name:'중국 서버',exact:true}).boundingBox(),shopBox=await shop.boundingBox();expect(shopBox.y).toBeGreaterThanOrEqual(serverBox.y+serverBox.height)
-    if(!loggedIn){await myhome.hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0)}
+    const serverBox=await page.getByRole('button',{name:'중국 서버',exact:true}).boundingBox(),shopBox=await shop.boundingBox();if(mobile)expect(shopBox.y).toBeGreaterThanOrEqual(serverBox.y+serverBox.height);else expect(shopBox.y+shopBox.height).toBeLessThanOrEqual(serverBox.y)
+    if(!loggedIn){await myhome.locator("..").hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0)}
     if (mobile) {
       await expect(page.locator('.mob-top .main-home-link')).toBeHidden()
       await expect(page.getByRole('button', { name: '한국 서버', exact: true })).toBeVisible()

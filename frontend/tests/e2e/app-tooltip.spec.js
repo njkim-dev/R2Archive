@@ -5,8 +5,8 @@ import {watchLayout} from './layout.js'
 test.beforeEach(async({page},info)=>{if(info.project.use.viewport.width<=768)await page.setViewportSize({width:390,height:900});await setup(page,{loggedIn:false});await page.goto('/shop');await expect(page.locator('.shop-header')).toBeVisible();await expect(page.locator('.shop-grid')).toBeVisible()})
 
 test('logged out myhome uses a custom tooltip over the disabled tab without shifting content',async({page})=>{
-  const button=page.getByRole('tab',{name:'마이홈',exact:true});await expect(button).toBeDisabled();await expect(button).not.toHaveAttribute('title',/.+/)
-  const watcher=await watchLayout(page,['.shop-header','.shop-spaces','.shop-grid']);await button.hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await watcher.expectStable();await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0);await watcher.expectStable();await watcher.stop()
+  const button=page.getByRole('button', { name: '마이홈',exact:true});await expect(button).toBeDisabled();await expect(button).not.toHaveAttribute('title',/.+/)
+  const watcher=await watchLayout(page,['.shop-header','.archive-page-topbar','.shop-grid']);await button.locator("..").hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await watcher.expectStable();await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0);await watcher.expectStable();await watcher.stop()
 })
 
 test('long tooltip escapes transformed clipped dialogs and remains scrollable within the viewport',async({page})=>{

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowUp, Box, Check, Copy, Search, Star, Users, X } from 'lucide-react'
+import { ArchivePageLayout } from '../components/ArchiveNavigation'
 import useStore from '../store/useStore'
 import { getShopItem, getShopItems, getShopMeta } from '../api/shop'
 import { itemShareUrl, outfitShareUrl, readShopUrl, rememberShopReturn, SHOP_SLOTS, SLOT_LABELS, OPTIONAL_SLOT_LABELS } from '../utils/shopUrl'
@@ -47,7 +48,7 @@ function coupleAudio() {
 
 export default function ShopPage({allCharacters=false,partnerHome=false}) {
   const location = useLocation(), { handle,characterId } = useParams()
-  return <div className="shop-app"><ShopImageSession><ShopContent key={`${handle || ''}:${characterId||''}:${allCharacters}:${partnerHome}:${location.search}`} search={location.search} publicHome={partnerHome?'partner:'+characterId:handle || null} characterId={partnerHome?null:characterId||null} privateHome={!partnerHome&&(allCharacters||!!characterId)} partnerOf={partnerHome?characterId:null} /></ShopImageSession></div>
+  return <ShopImageSession><ShopContent key={`${handle || ''}:${characterId||''}:${allCharacters}:${partnerHome}:${location.search}`} search={location.search} publicHome={partnerHome?'partner:'+characterId:handle || null} characterId={partnerHome?null:characterId||null} privateHome={!partnerHome&&(allCharacters||!!characterId)} partnerOf={partnerHome?characterId:null} /></ShopImageSession>
 }
 
 function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
@@ -57,7 +58,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelMode, setPanelMode] = useState('outfit')
   const [awayFromTop, setAwayFromTop] = useState(() => window.scrollY > 600)
-  const { authLoaded, user, isAdmin, adminLoaded, openLogin, logout } = useStore()
+  const { authLoaded, user, isAdmin, adminLoaded, openLogin } = useStore()
   const canSearchImage = authLoaded && !!user
   const sharedToken = new URLSearchParams(search).get('imageResult') || null
   const couples=useCouples(),copyHomeAnchor=useRef(null)
@@ -381,7 +382,6 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     if (unavailable.length) notify(`3D 모델이 없어 적용하지 못한 아이템: ${unavailable.map(item => item.name).join(', ')}`)
   }
   function changeDepartment(next) { setFavoritesOnly(false); setDepartment(next); resetFilters() }
-  function changeSpace(home) { if(home){navigate('/myhome');return} if(privateHome||publicHome){navigate('/shop');return}setHomeOnly(false);setFavoritesOnly(false);setDepartment('wearable');resetFilters() }
   async function chooseMain(item) {
     if(!sex||!owned.ids.has(item.id))return
     const clearing=owned.mains.some(main=>main.item.id===item.id)
@@ -486,11 +486,12 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     {copyFallback && <div className="shop-copy-fallback" role="dialog" aria-label="URL 직접 복사"><div><b>URL 직접 복사</b><button aria-label="URL 직접 복사 닫기" onClick={() => setCopyFallback('')}><X size={16} /></button></div><input aria-label="공유 URL" value={copyFallback} readOnly onFocus={event => event.target.select()} /></div>}
   </>
 
-  if(privateHome&&authLoaded&&!user)return <main className="share-link-status"><p>로그인 후 이용할 수 있습니다.</p><button onClick={openLogin}>로그인</button><Link to="/">홈으로</Link></main>
-  if (publicHome && publicData.error) return <main className="share-link-status"><p role="alert">{publicData.error}</p><Link to="/shop">상점으로 이동</Link></main>
-  return <>{(canSearchImage || sharedToken) && imageSearchOpen && meta && <ShopImageSearch authenticated={authenticated} sharedToken={sharedToken} onSharedVersion={found => { const params = new URLSearchParams(search); params.set('v',found.version); params.set('sex',found.sex); navigate('/shop?'+params.toString(),{replace:true}) }} onRestartShared={gender => navigate('/shop'+(gender ? '?sex='+gender : ''), {state:{imageSearchStart:true}})} restoreHost={imageSearchRestoreHost} version={meta.revision} meta={meta} onFavorite={favorites.addMany} onClose={closeImageSearch} />}<header className="shop-header" aria-hidden={view === 'preview' || undefined} inert={view === 'preview' ? '' : undefined}><Link to="/" className="shop-brand"><b>R2</b> ARCHIVE</Link><nav><a href="/music/">음악</a><span aria-current="page">상점</span><Link to="/game-repair">게임 복구</Link><Link className="shop-admin-menu" to="/shop/admin" style={{ visibility: adminLoaded && isAdmin ? undefined : 'hidden' }} aria-hidden={!isAdmin || undefined} tabIndex={isAdmin ? undefined : -1}>관리자 도구</Link></nav><div className="shop-header-actions"><button className="shop-item-status" onClick={() => openPanel()}><Box size={15} /> 아이템 현황</button><button className="shop-login" disabled={!authLoaded} onClick={user ? logout : login}>{!authLoaded ? '확인 중' : user ? '로그아웃' : '로그인'}</button></div></header><main className="shop-main">
+  const navigationContext = homeOnly ? <nav className="archive-context-menu" aria-label="마이홈 메뉴"><small>마이홈 메뉴</small><Link to="/myhome">내 캐릭터</Link><Link to="/myhome/characters/all" aria-current={!characterId && !publicHome ? 'page' : undefined}>모든 의상</Link>{partnerOf && <Link to={'/myhome/characters/'+partnerOf}>내 마이홈</Link>}{coupleRelation?.status==='accepted' && <Link to={coupleRelation.url} aria-current={partnerOf ? 'page' : undefined}>커플 마이홈</Link>}{characterId && <span className="archive-context-current">{owned.character?.name || '캐릭터 옷장'}</span>}</nav> : <nav className="archive-context-menu" aria-label="상점 메뉴"><small>상점 메뉴</small><button type="button" aria-current={!favoritesOnly ? 'page' : undefined} onClick={() => { setFavoritesOnly(false); setDepartment('wearable'); resetFilters() }}>전체 아이템</button><button type="button" disabled={!authenticated || !favorites.ready} aria-current={favoritesOnly ? 'page' : undefined} onClick={openFavorites}><Star size={15} />즐겨찾기</button></nav>
+  if(privateHome&&authLoaded&&!user)return <ArchivePageLayout className="shop-app" section="home" context={navigationContext}><main className="share-link-status"><p>로그인 후 이용할 수 있습니다.</p><Link to="/shop">상점으로 이동</Link></main></ArchivePageLayout>
+  if (publicHome && publicData.error) return <ArchivePageLayout className="shop-app" section="home" context={navigationContext}><main className="share-link-status"><p role="alert">{publicData.error}</p><Link to="/shop">상점으로 이동</Link></main></ArchivePageLayout>
+  return <ArchivePageLayout className="shop-app" section={homeOnly ? 'home' : 'shop'} context={navigationContext} inactive={view === 'preview'} headerTools={<button className="shop-item-status" onClick={() => openPanel()}><Box size={15} /> 아이템 현황</button>}>{(canSearchImage || sharedToken) && imageSearchOpen && meta && <ShopImageSearch authenticated={authenticated} sharedToken={sharedToken} onSharedVersion={found => { const params = new URLSearchParams(search); params.set('v',found.version); params.set('sex',found.sex); navigate('/shop?'+params.toString(),{replace:true}) }} onRestartShared={gender => navigate('/shop'+(gender ? '?sex='+gender : ''), {state:{imageSearchStart:true}})} restoreHost={imageSearchRestoreHost} version={meta.revision} meta={meta} onFavorite={favorites.addMany} onClose={closeImageSearch} />}<main className="shop-main">
     <div className="shop-title" aria-hidden={view === 'preview' || undefined}><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : publicHome ? `${homeData.character?.name || publicData.handle || publicHome}의 마이홈` : characterId ? `${owned.character?.name||'캐릭터'}의 마이홈` : homeOnly ? '모든 캐릭터' : '아이템 상점'}</h1></div></div>
-    <div className="shop-spaces" hidden={!!publicHome&&!partnerOf} role="tablist" aria-label="상점 공간" aria-hidden={view === 'preview' || undefined} inert={view === 'preview' ? '' : undefined}><button role="tab" aria-selected={!homeOnly} onClick={() => changeSpace(false)}>상점</button><button role="tab" aria-selected={homeOnly&&!partnerOf} disabled={!authenticated} data-tooltip={!authenticated ? '로그인하세요' : undefined} onClick={() => partnerOf?navigate('/myhome/characters/'+partnerOf):changeSpace(true)}>마이홈</button>{coupleRelation?.status==='accepted'&&<button role="tab" aria-selected={!!partnerOf} onClick={()=>navigate(coupleRelation.url)}>커플 마이홈</button>}</div>
+
     {privateHome&&<Link className="shop-back-characters" to="/myhome">← 캐릭터 목록</Link>}
     {!homeOnly&&!publicHome&&<div className="shop-storage-target"><label htmlFor="shop-storage-character">저장할 캐릭터</label><select id="shop-storage-character" value={targetCharacter||''} onChange={e=>selectStorageCharacter(e.target.value)} disabled={!authenticated||!characters.ready||savingOwned}><option value="">캐릭터 선택</option>{characters.items.map(entry=><option key={entry.character.id} value={entry.character.id}>{entry.character.name} ({entry.character.sex==='female'?'여':'남'})</option>)}</select><button onClick={()=>setSaveRequest({mode:'create',ids:[],sex:null})} disabled={!authenticated||!characters.ready||characters.items.length>=17}>새 캐릭터 추가</button></div>}
     <div className="shop-feedback" aria-live="polite"><span role={error || favorites.error || owned.error || sharing.error ? 'alert' : undefined}>{error || favorites.error || owned.error || sharing.error}</span>{favorites.error && <button disabled={favorites.pending.size > 0} onClick={favorites.reload}>즐겨찾기 다시 불러오기</button>}{owned.error && <button disabled={(owned.pending||savingOwned)} onClick={owned.reload}>내 의상 다시 불러오기</button>}</div>
@@ -531,5 +532,5 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     {favoriteSlot && authenticated && applied && meta && <ShopFavoritePicker key={`${user.id}:${favoriteSlot}:${applied.sex}`} slot={favoriteSlot} sex={applied.sex} version={meta.revision} selected={applied.slots[favoriteSlot]} favorites={favorites} onChoose={equipFavorite} onClose={() => setFavoriteSlot(null)} />}
     {coupleOpen && <ShopCouplePreview selection={couple} meta={meta} onStart={startCouple} onClose={() => navigate(-1)} />}
     <footer className="shop-footer"><span>R2 ARCHIVE ㆍ 아이템 미리보기</span></footer>
-  </main></>
+  </main></ArchivePageLayout>
 }

@@ -9,7 +9,7 @@ import GroupDetailMobileHeader from '../components/groups/GroupDetailMobileHeade
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
-import ArchiveBrand from '../components/ArchiveBrand'
+import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import { Hero, TabsStrip } from '../components/groups/GroupDetailHeader'
 import LeaderboardTab from '../components/groups/GroupLeaderboardTab'
 import { FeedTab, FirstsTab, MembersTab } from '../components/groups/GroupActivityTabs'
@@ -56,11 +56,11 @@ export default function GroupDetailPage() {
   )
   const desktopShell = (content) => (
     <div className="app">
-      <aside className="side">
-        <ArchiveBrand />
+      <ArchiveSidebar>
+
         <ServerSwitcher />
         <PageNavigation />
-      </aside>
+      </ArchiveSidebar>
       <main className="main">{content}</main>
     </div>
   )
@@ -154,8 +154,8 @@ export default function GroupDetailPage() {
 
   return (
     <div className="app">
-      <aside className="side">
-        <ArchiveBrand />
+      <ArchiveSidebar>
+
         <ServerSwitcher />
         <PageNavigation />
 
@@ -192,7 +192,7 @@ export default function GroupDetailPage() {
             ))}
           </div>
         </div>
-      </aside>
+      </ArchiveSidebar>
 
       <main className="main">
         <div className="gd-crumb">

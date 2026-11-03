@@ -18,7 +18,7 @@ export default function PageNavigation({ onNavigate }) {
 
   return (
     <div className="side-section" style={{ marginTop: 0 }}>
-      <div className="side-label"><span>페이지</span></div>
+      <div className="side-label"><span>음악 메뉴</span></div>
       <div className="page-nav">
         <NavLink to="/" end className={linkClass} onClick={handleClick()}><span>곡 목록</span></NavLink>
         {!xyxMode && (
@@ -43,10 +43,6 @@ export default function PageNavigation({ onNavigate }) {
           <NavLink to="/analytics" className={linkClass} onClick={handleClick()}><span>접속 통계</span></NavLink>
         )}
         {isAdmin && <NavLink to="/game-repair/admin" className={linkClass} onClick={handleClick()}><span>복구 기능 관리</span></NavLink>}
-        {isAdmin && !xyxMode && <a className="page-nav-item" href="https://r2archive.com/shop"><span>상점 (관리자)</span></a>}
-        {!xyxMode && (
-          <NavLink to="/feedback" className={linkClass} onClick={handleClick()}><span>피드백</span></NavLink>
-        )}
       </div>
     </div>
   )

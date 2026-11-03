@@ -10,7 +10,7 @@ import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
 import ServerSwitcher from '../components/ServerSwitcher'
 import PageNavigation from '../components/PageNavigation'
-import ArchiveBrand from '../components/ArchiveBrand'
+import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import { queueCategoryCreateAfterLogin } from '../components/CreatePersonalCategoryModal'
 
 function fmtDate(value) {
@@ -266,8 +266,8 @@ export default function PersonalCategoriesPage() {
 
   return (
     <div className="app">
-      <aside className="side">
-        <ArchiveBrand />
+      <ArchiveSidebar>
+
         <ServerSwitcher />
         <PageNavigation />
 
@@ -278,7 +278,7 @@ export default function PersonalCategoriesPage() {
             카테고리 만들기
           </button>
         </div>
-      </aside>
+      </ArchiveSidebar>
 
       <main className="main">
         <div className="topbar">

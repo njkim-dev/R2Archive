@@ -1,0 +1,48 @@
+import { test, expect } from '@playwright/test'
+import { setup } from './shopFixtures.js'
+import { watchLayout } from './layout.js'
+
+for (const width of [1440, 390]) test(`shared service navigation and account resolution remain stable at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await setup(page, { authGate: gate })
+  await page.goto('/shop')
+  await expect(page.locator('.shop-grid')).toBeVisible()
+  const home = page.getByRole('button', { name: '마이홈', exact: true })
+  await expect(home).toBeDisabled()
+  const primary = page.getByRole('navigation', { name: '주요 페이지' })
+  await expect(primary).toBeVisible()
+  const primarySelector = width > 800 ? '.archive-sidebar .archive-primary-nav' : '.archive-mobile-bottom'
+  const watcher = await watchLayout(page, [primarySelector, '.archive-page-topbar', '.shop-grid'])
+  release()
+  await expect(home).toBeEnabled()
+  await expect(page.getByRole('button', { name: '마이페이지', exact: true })).toBeVisible()
+  await watcher.expectStable()
+  await watcher.stop()
+  await home.click()
+  await expect(page).toHaveURL(/\/myhome$/)
+  await expect(page.getByRole('button', { name: '마이홈', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('button', { name: '남성캐릭터 캐릭터 선택', exact: true })).toBeVisible()
+  if (width <= 800) {
+    const trigger = page.getByRole('button', { name: '전체 메뉴 열기', exact: true })
+    await trigger.click()
+    const drawer = page.getByRole('dialog', { name: '전체 메뉴', exact: true })
+    await expect(drawer.getByRole('link', { name: '모든 의상', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
+    await expect(trigger).toBeFocused()
+    await trigger.click()
+    await drawer.getByRole('link', { name: '모든 의상', exact: true }).click()
+    await expect(page).toHaveURL(/\/myhome\/characters\/all$/)
+    await expect(drawer).toBeHidden()
+  } else await page.getByRole('link', { name: '모든 의상', exact: true }).click()
+  await page.getByRole('link', { name: '상점', exact: true }).click()
+  await expect(page).toHaveURL(/\/shop$/)
+  await expect(page.getByRole('link', { name: '상점', exact: true })).toHaveAttribute('aria-current', 'page')
+  if (width <= 800) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
+  await page.getByRole('button', { name: '즐겨찾기', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '전체 메뉴', exact: true })).toBeHidden()
+  await expect(page.getByRole('tab', { name: '즐겨찾기', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await page.screenshot({ path: test.info().outputPath(`navigation-${width}.png`), fullPage: true })
+})

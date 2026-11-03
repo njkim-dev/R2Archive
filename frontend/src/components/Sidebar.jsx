@@ -6,7 +6,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import ServerSwitcher from './ServerSwitcher'
 import PageNavigation from './PageNavigation'
-import ArchiveBrand from './ArchiveBrand'
+import { ArchiveSidebar } from './ArchiveNavigation'
 
 const CATEGORIES = [
   {
@@ -82,8 +82,8 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
   const detailCount = detailedFilterCount({ category, quick, levelMin, levelMax, bpmMin, bpmMax, artists, aiMode, listenOnly, removedMode, personalCategoryId }, meta)
 
   return (
-    <aside className="side">
-      <ArchiveBrand />
+    <ArchiveSidebar>
+
       <ServerSwitcher />
 
       <PageNavigation onNavigate={closeModal} />
@@ -193,6 +193,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
         </div>
       )}
 
-    </aside>
+    </ArchiveSidebar>
   )
 }
