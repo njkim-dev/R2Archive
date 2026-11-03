@@ -11,6 +11,7 @@ export function archiveSection(pathname) {
 
 export function navigationTarget(section, { base = ARCHIVE_BASE, host = globalThis.location?.hostname || '', xyx = isXyxMode() } = {}) {
   if (section === 'music') return base || !['r2archive.com', 'xyx.r2archive.com'].includes(host) ? { to: '/' } : { href: xyx ? '/xyx/' : '/music/' }
+  if (section === 'feedback' && ['r2archive.com', 'xyx.r2archive.com'].includes(host)) return base === '/music' ? { to: '/feedback' } : { href: 'https://r2archive.com/music/feedback' }
   const path = { shop: '/shop', home: '/myhome', repair: '/game-repair', feedback: '/feedback', admin: '/shop/admin' }[section]
   return base || host === 'xyx.r2archive.com' ? { href: `https://r2archive.com${path}` } : { to: path }
 }

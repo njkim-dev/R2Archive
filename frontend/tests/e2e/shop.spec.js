@@ -341,7 +341,7 @@ test('public items load while authentication is pending and favorite readiness n
   await expect(star).toBeDisabled()
   const watcher = await watchLayout(page, ['.shop-header','.shop-search','.shop-pair-filter','.shop-grid','.shop-panel'])
   resolveAuth()
-  await expect(page.getByRole('button',{name:'로그아웃',exact:true})).toBeEnabled()
+  await expect(page.getByRole('button',{name:'마이페이지',exact:true})).toBeEnabled()
   await expect(star).toBeDisabled(); await watcher.expectStable()
   resolveFavorites()
   const saved = page.getByRole('button', { name: shirt.name + ' 즐겨찾기 해제', exact: true })

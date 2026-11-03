@@ -2,6 +2,25 @@ import { test, expect } from '@playwright/test'
 import { setup } from './shopFixtures.js'
 import { watchLayout } from './layout.js'
 
+test('shared feedback link retains the music router and a single visible account control', async ({ page, baseURL }) => {
+  if (page.viewportSize().width <= 800) await page.setViewportSize({ width: 390, height: 900 })
+  await setup(page, { loggedIn: false, admin: false })
+  await page.route(/^https?:\/\/r2archive\.com\//, async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.startsWith('/api/')) return route.fallback()
+    const response = await route.fetch({ url: `${baseURL}${url.pathname}${url.search}` })
+    await route.fulfill({ response })
+  })
+  await page.goto('http://r2archive.com/shop')
+  await expect(page.getByRole('heading', { name: '아이템 상점', exact: true })).toBeVisible()
+  if (page.viewportSize().width <= 800) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
+  await page.getByRole('link', { name: '피드백', exact: true }).click()
+  await expect(page).toHaveURL('https://r2archive.com/music/feedback')
+  await expect(page.locator('.fb-tabs')).toBeVisible()
+  await expect(page.getByRole('button', { name: '로그인', exact: true })).toHaveCount(1)
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 for (const width of [1440, 390]) test(`shared service navigation and account resolution remain stable at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   let release

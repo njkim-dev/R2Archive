@@ -11,6 +11,8 @@ test('service navigation escapes music router basenames and preserves server ide
   assert.deepEqual(navigationTarget('music', { base: '', host: 'r2archive.com', xyx: false }), { href: '/music/' })
   assert.deepEqual(navigationTarget('music', { base: '', host: 'xyx.r2archive.com', xyx: true }), { href: '/xyx/' })
   assert.deepEqual(navigationTarget('shop', { base: '', host: 'localhost' }), { to: '/shop' })
+  assert.deepEqual(navigationTarget('feedback', { base: '/music', host: 'r2archive.com' }), { to: '/feedback' })
+  for (const base of ['', '/xyx']) assert.deepEqual(navigationTarget('feedback', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/music/feedback' })
 })
 
 test('active service covers nested character and administration routes', () => {
