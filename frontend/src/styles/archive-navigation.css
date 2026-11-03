@@ -101,3 +101,5 @@ body:has(.archive-app.archive-xyx) .shop-image-search-restore{bottom:calc(var(--
 .archive-app .app{max-width:none;margin-inline:0}
 body:has(.archive-app) .shop-image-search-restore{left:calc(var(--archive-rail-width) + 16px);max-width:calc(100vw - var(--archive-rail-width) - 32px)}
 @media(max-width:800px){body:has(.archive-app) .shop-image-search-restore{left:16px;max-width:calc(100vw - 32px)}.archive-app .shop-toast{bottom:calc(var(--archive-mobile-bottom) + 12px)}}
+
+@media(max-width:800px){.archive-page-layout .archive-page-topbar.shop-header{top:var(--archive-mobile-top);z-index:35}.archive-page-layout .shop-floating-top{bottom:calc(var(--archive-mobile-bottom) + 14px)}}
