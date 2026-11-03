@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil, ShieldCheck, ShoppingBag, UserRound, Wrench, X } from 'lucide-react'
 import useStore from '../store/useStore'
@@ -7,6 +7,8 @@ import PageNavigation from './PageNavigation'
 import ServerSwitcher from './ServerSwitcher'
 import { lockShopScroll } from './shop/shopModalScroll'
 import { rememberShopReturn } from '../utils/shopUrl'
+
+const ArchiveLoginContext = createContext(null)
 
 const titles = { music: '음악', shop: '상점', home: '마이홈', repair: '게임 복구', feedback: '피드백', admin: '관리자 도구' }
 const primary = [['music', Music2], ['shop', ShoppingBag], ['home', Home]]
@@ -42,9 +44,10 @@ export function ArchivePrimaryNavigation({ section, onNavigate, className = '' }
 
 function ArchiveAccount({ onNavigate }) {
   const { authLoaded, user, openLogin, openMyPage, openOnboarding, logout } = useStore()
-  const location = useLocation()
+  const location = useLocation(), customLogin = useContext(ArchiveLoginContext)
   const login = () => {
     onNavigate?.()
+    if (customLogin) { customLogin(); return }
     if (/^\/(shop|myhome)(\/|$)/.test(location.pathname)) rememberShopReturn(location.pathname + location.search + location.hash)
     openLogin()
   }
@@ -76,6 +79,6 @@ export function ArchiveMobileNavigation({ context, section: override }) {
   return <><header className="archive-mobile-header" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><button type="button" aria-label="전체 메뉴 열기" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={21} /></button><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><div className="archive-mobile-account"><ArchiveAccount /></div></header><div className="archive-mobile-bottom" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><ArchivePrimaryNavigation section={section} /><button className="archive-more" type="button" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={20} /><span>전체 메뉴</span></button></div><dialog ref={dialog} className="archive-menu-dialog" aria-label="전체 메뉴" onCancel={event => { event.preventDefault(); close() }} onClick={event => { const box = event.currentTarget.getBoundingClientRect(); if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right)) close() }}>{open && <><div className="archive-menu-heading"><ArchiveBrand /><button aria-label="전체 메뉴 닫기" type="button" onClick={close}><X size={21} /></button></div><ArchivePrimaryNavigation section={section} onNavigate={close} /><div className="archive-menu-context" onClick={event => { if (event.target.closest('a,button')) close() }}>{context || (section === 'music' ? <><ServerSwitcher /><PageNavigation onNavigate={close} /></> : null)}</div><ArchiveNavigationFooter section={section} onNavigate={close} /></>}</dialog></>
 }
 
-export function ArchivePageLayout({ children, context, section = 'shop', className = '', headerTools, inactive = false }) {
-  return <div className={`archive-page-layout ${className}`}><ArchiveSidebar section={section} inactive={inactive}>{context}</ArchiveSidebar><ArchiveMobileNavigation section={section} context={context} /><div className="archive-page-content"><header className="archive-page-topbar shop-header" aria-hidden={inactive || undefined} inert={inactive ? '' : undefined}><div className="archive-breadcrumb"><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><ChevronRight size={14} /><span>{titles[section]}</span></div><div className="shop-header-actions">{headerTools}</div></header>{children}</div></div>
+export function ArchivePageLayout({ children, context, section = 'shop', className = '', headerTools, inactive = false, onLogin }) {
+  return <ArchiveLoginContext.Provider value={onLogin}><div className={`archive-page-layout ${className}`}><ArchiveSidebar section={section} inactive={inactive}>{context}</ArchiveSidebar><ArchiveMobileNavigation section={section} context={context} /><div className="archive-page-content"><header className="archive-page-topbar shop-header" aria-hidden={inactive || undefined} inert={inactive ? '' : undefined}><div className="archive-breadcrumb"><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><ChevronRight size={14} /><span>{titles[section]}</span></div><div className="shop-header-actions">{headerTools}</div></header>{children}</div></div></ArchiveLoginContext.Provider>
 }
