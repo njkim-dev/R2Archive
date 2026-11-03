@@ -27,6 +27,28 @@ class OutfitTests(unittest.TestCase):
         self.assertIn(300, selected)
         self.assertEqual(search.fuse_hair_candidates(np.arange(2), np.zeros(2)).tolist(), [0,1])
 
+    def test_lighting_views_preserve_alpha_and_recover_brightness_changes(self):
+        image = Image.new('RGBA', (256,256), (160,120,80,255))
+        views = search.hair_palette_views(image)
+        self.assertEqual(views.shape, (5,512))
+        np.testing.assert_array_equal(views[0],search.hair_palette(image))
+        darker = Image.new('RGBA',(32,32),(128,96,64,255))
+        np.testing.assert_array_equal(views[1],search.hair_palette(darker))
+        self.assertTrue(np.isfinite(views).all())
+        np.testing.assert_allclose(np.linalg.norm(views,axis=1),1,atol=1e-6)
+        self.assertFalse(search.hair_palette_views(Image.new('RGBA',(64,64))).any())
+
+    def test_augmented_fusion_preserves_ninety_percent_of_baseline_candidates_and_rescues_lighting_match(self):
+        shape = np.arange(400);colors = np.zeros(400);alternate = colors.copy();alternate[300] = 1
+        baseline = search.fuse_hair_candidates(shape,colors)
+        improved = search.fuse_hair_candidates(shape,colors,alternate)
+        np.testing.assert_array_equal(improved[:108],baseline[:108])
+        self.assertNotIn(300,baseline);self.assertIn(300,improved)
+        self.assertEqual(len(improved),120);self.assertEqual(len(set(improved)),120)
+        for count in [0,1,2,60,120]:
+            result = search.fuse_hair_candidates(np.arange(count),np.zeros(count),np.zeros(count))
+            self.assertEqual(sorted(result.tolist()),list(range(count)))
+
     def test_null_or_uncertain_comparison_cannot_be_marked_exact(self):
         model = search.OutfitSearch.__new__(search.OutfitSearch)
         model.thumbnail = MagicMock(return_value=Image.new('RGBA', (32,32)))

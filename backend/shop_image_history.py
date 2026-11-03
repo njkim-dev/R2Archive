@@ -20,7 +20,7 @@ from database import get_conn
 
 
 DIRECTORY = Path(os.environ.get('SHOP_IMAGE_HISTORY_DIR', Path(__file__).resolve().parents[1]/'record_screenshots'/'image-search-history'))
-PIPELINE_VERSION = 'terra-outfit-palette-v2'
+PIPELINE_VERSION = 'terra-outfit-robust-v3'
 _training_lock = Lock()
 _training = {'generation': None, 'rows': []}
 logger = logging.getLogger(__name__)

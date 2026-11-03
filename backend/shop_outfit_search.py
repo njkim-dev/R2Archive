@@ -12,7 +12,7 @@ import time
 
 import httpx
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
 from shop_asset_store import find_asset
 from shop_image_search import BACKGROUND, SEARCH_DIR, engine, image_tensor
@@ -20,7 +20,7 @@ from shop_image_search import BACKGROUND, SEARCH_DIR, engine, image_tensor
 
 SLOTS = ('hair', 'top', 'bottom', 'shoes')
 MODEL = 'gpt-6.1-terra'
-RETRIEVAL_VERSION = 'hair-palette-fusion-v1'
+RETRIEVAL_VERSION = 'hair-palette-views-v2'
 _client = httpx.Client(timeout=httpx.Timeout(65, connect=10), limits=httpx.Limits(max_connections=8, max_keepalive_connections=8))
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='shop-match')
 _results = OrderedDict()
@@ -149,7 +149,7 @@ class OutfitSearch:
         _, _, rgb = self.masked_part(image, info)
         return self.model.session.run(None, {'pixels': image_tensor(rgb, preserve_full=True)})[0][0]
 
-    def shortlist(self, image, info, sex, slot, allowed, examples=()):
+    def shortlist(self, image, info, sex, slot, allowed, examples=(), *, augment_colors=True):
         box, masked, rgb = self.masked_part(image, info)
         vector = self.model.session.run(None, {'pixels': image_tensor(rgb, preserve_full=True)})[0][0]
         indices = np.asarray([self.by_id[item_id] for item_id,row in allowed.items() if item_id in self.by_id
@@ -179,8 +179,9 @@ class OutfitSearch:
         order = np.argsort(-scores, kind='stable')
         if slot == 'hair' and getattr(self, 'hair_palettes', None) is not None and len(indices):
             palette_indices = [self.hair_palette_indices[i] for i in indices]
-            colors = np.einsum('ij,j->i', self.hair_palettes[palette_indices], hair_palette(masked), optimize=False)
-            order = fuse_hair_candidates(order, colors)
+            views = hair_palette_views(masked) if augment_colors else np.asarray([hair_palette(masked)])
+            colors = np.einsum('ij,kj->ik', self.hair_palettes[palette_indices], views, optimize=False)
+            order = fuse_hair_candidates(order, colors[:, 0], colors.max(axis=1) if augment_colors else None)
         else:
             order = order[:120]
         indices = indices[order]
@@ -277,7 +278,8 @@ class OutfitSearch:
                 'calls': calls, 'cost_estimate_usd': sum(c['cost_estimate_usd'] for c in calls), 'shortlists': shortlists,
                 'scored_candidates': scored, 'localization': localized['parts'], 'encoder_sha256': self.encoder_sha256,
                 'approved_example_count': len(examples), 'retrieval_version': RETRIEVAL_VERSION,
-                'hair_palette_ready': self.hair_palettes is not None}
+                'hair_palette_ready': self.hair_palettes is not None,
+                'hair_palette_views': 5 if 'hair' in slots and self.hair_palettes is not None else 0}
 
 
 @lru_cache(maxsize=1)
@@ -317,14 +319,29 @@ def hair_palette(image):
     return hist/max(float(np.linalg.norm(hist)), 1e-9)
 
 
-def fuse_hair_candidates(shape_order, colors):
+def hair_palette_views(image):
+    source = image.convert('RGBA').resize((128, 128), Image.Resampling.BOX)
+    return np.stack([hair_palette(source),
+                     hair_palette(ImageEnhance.Brightness(source).enhance(.8)),
+                     hair_palette(ImageEnhance.Brightness(source).enhance(1.25)),
+                     hair_palette(ImageEnhance.Color(source).enhance(.65)),
+                     hair_palette(ImageEnhance.Color(source).enhance(1.5))])
+
+
+def fuse_hair_candidates(shape_order, colors, alternate_colors=None):
     shape_rank = np.empty(len(shape_order), dtype=np.float32)
     color_rank = np.empty(len(shape_order), dtype=np.float32)
     shape_rank[shape_order] = np.arange(len(shape_order))+1
     color_rank[np.argsort(-colors, kind='stable')] = np.arange(len(shape_order))+1
     fusion = np.argsort(-(1/(60+shape_rank)+1/(60+color_rank)), kind='stable')
     # Keep the strongest visual/approved matches even when lighting changes hair color.
-    return np.asarray(list(dict.fromkeys([*shape_order[:40].tolist(), *fusion.tolist()]))[:120], dtype=np.int64)
+    baseline = list(dict.fromkeys([*shape_order[:40].tolist(), *fusion.tolist()]))[:120]
+    if alternate_colors is None:
+        return np.asarray(baseline, dtype=np.int64)
+    color_rank[np.argsort(-alternate_colors, kind='stable')] = np.arange(len(shape_order))+1
+    alternate = np.argsort(-(1/(60+shape_rank)+1/(60+color_rank)), kind='stable')
+    # Reserve 90% for existing matches; use the remaining slots for lighting variants.
+    return np.asarray(list(dict.fromkeys([*baseline[:108], *alternate.tolist(), *baseline]))[:120], dtype=np.int64)
 
 
 def color_descriptor(image):
