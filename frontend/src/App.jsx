@@ -170,7 +170,7 @@ export default function App() {
       <SyncCatalogUrl />
       <CloseModalOnCataloglessRoutes />
       <AnalyticsTracker />
-      <div className={navigationVisible ? `archive-app${xyxMode ? ' archive-xyx' : ''}` : 'archive-portal'}>
+      <div className={navigationVisible ? `archive-app${xyxMode ? ' archive-xyx' : ''}` : 'archive-root'}>
       {navigationVisible && !standaloneNavigation && <ArchiveMobileNavigation />}
       <Suspense fallback={null}>
         <Routes>
