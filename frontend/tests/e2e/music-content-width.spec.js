@@ -5,7 +5,7 @@ const song = { id: 1, name: 'Centered Catalog', artist: 'Test', level: 8, bpm: 1
 
 test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: 'ignoreErrors' }) })
 
-for (const width of [2560, 1920, 1024, 390]) test(`music content stays centered and capped with a left anchored menu at ${width}px`, async ({ page }) => {
+for (const width of [2560, 1920, 1024, 390]) test(`music content stays centered and capped with adjacent navigation at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   let releaseSongs, releaseDetail, detailRequested = false
   const songsGate = new Promise(resolve => { releaseSongs = resolve })
@@ -32,7 +32,12 @@ for (const width of [2560, 1920, 1024, 390]) test(`music content stays centered 
   const expectedWidth = mobile ? width : Math.min(1600, width - 208)
   expect(before.width).toBeCloseTo(expectedWidth, 1)
   expect(before.x).toBeCloseTo(mobile ? 0 : 208 + (width - 208 - expectedWidth) / 2, 1)
-  if (!mobile) expect((await page.locator('.app>.archive-sidebar').boundingBox()).x).toBe(0)
+  if (!mobile) {
+    const menu = await page.locator('.app>.archive-sidebar').boundingBox()
+    expect(menu.x + menu.width).toBeCloseTo(before.x, 1)
+    const frame = await page.locator('.app').boundingBox()
+    expect(frame.x).toBeCloseTo((width - frame.width) / 2, 1)
+  }
   const loading = await watchLayout(page, mobile ? ['.app-mobile', '.mob-top', '.archive-mobile-bottom'] : ['.app>.main', '.topbar', '.app>.archive-sidebar'])
   await loading.expectStable()
   releaseSongs()
@@ -51,7 +56,10 @@ for (const width of [2560, 1920, 1024, 390]) test(`music content stays centered 
   expect(mainBox.width).toBeLessThanOrEqual(1600)
   expect(mainBox.x + mainBox.width).toBeCloseTo(panelBox.x, 1)
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(width)
-  if (width > 1100) expect((await page.locator('.app>.archive-sidebar').boundingBox()).x).toBe(0)
+  if (width > 1100) {
+    const menu = await page.locator('.app>.archive-sidebar').boundingBox()
+    expect(menu.x + menu.width).toBeCloseTo(mainBox.x, 1)
+  }
   const pending = await watchLayout(page, ['.app>.main', '.topbar', '.table-wrap', '.song-catalog-panel'])
   await pending.expectStable()
   releaseDetail()
@@ -61,6 +69,7 @@ for (const width of [2560, 1920, 1024, 390]) test(`music content stays centered 
   await panel.getByRole('button', { name: '닫기', exact: true }).click()
   await expect(panel).toHaveCount(0)
   expect(await content.boundingBox()).toEqual(before)
-  expect((await page.locator('.app>.archive-sidebar').boundingBox()).x).toBe(0)
+  const restoredMenu = await page.locator('.app>.archive-sidebar').boundingBox()
+  expect(restoredMenu.x + restoredMenu.width).toBeCloseTo(before.x, 1)
   await page.screenshot({ path: test.info().outputPath(`centered-music-${width}.png`) })
 })
