@@ -102,9 +102,7 @@ export default function ShopAdminPage() {
       }).catch(() => {})
     }
     const stop = watchImageFeedback(refresh)
-    historyList.current?.addEventListener('scroll', refresh, { passive: true })
-    const area = historyList.current
-    return () => { active = false; request?.abort(); stop(); area?.removeEventListener('scroll', refresh) }
+    return () => { active = false; request?.abort(); stop() }
   }, [allowed, user?.id, queryKey])
   async function more() {
     if (!listing?.next_cursor || moreBusy) return
