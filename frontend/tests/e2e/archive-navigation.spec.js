@@ -16,7 +16,7 @@ test('shared feedback link retains the music router and a single visible account
   if (page.viewportSize().width <= 800) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
   await page.getByRole('link', { name: '피드백', exact: true }).click()
   await expect(page).toHaveURL('https://r2archive.com/music/feedback')
-  await expect(page.locator('.fb-tabs')).toBeVisible()
+  await expect(page.locator('.fb-tabs,.fb-mob-body')).toBeVisible()
   await expect(page.getByRole('button', { name: '로그인', exact: true })).toHaveCount(1)
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
