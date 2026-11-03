@@ -151,7 +151,8 @@ def shared(token, uid=None):
     return {**{key:row['result'][key] for key in ('items','groups')}, 'version': row['catalog_revision'],
             'sex': row['sex'], 'slot': row['slot'], 'shared': True, 'url': share['url'],
             'image_url': f'/api/shop/image-search/shared/{token}/image', 'selected_ids': share['selected_ids'],
-            'search_id': str(row['id']) if owner else None, 'votes': votes}
+            'search_id': str(row['id']) if owner else None, 'votes': votes,
+            'preview_votes': row['result'].get('preview_votes', []) if owner else []}
 
 
 def shared_image_path(token):
@@ -188,6 +189,28 @@ def action(search_id, uid, action_name, item_ids):
     return {'recorded': True}
 
 
+def preview_vote(search_id, uid, item_ids, value):
+    ids = sorted(set(item_ids), key=int)
+    with transaction(write=True) as cur:
+        row = owner_record(cur, search_id, uid)
+        candidates = {str(item['id']): (group['slot'], item) for group in row['result'].get('groups', []) for item in group.get('items', [])}
+        if len(ids) != len(item_ids) or any(item_id not in candidates or not candidates[item_id][1].get('preview_available')
+                                           or not candidates[item_id][1].get('model') for item_id in ids):
+            raise HTTPException(422, '이 검색 결과에서 미리보기 가능한 아이템만 평가할 수 있습니다.')
+        if len({candidates[item_id][0] for item_id in ids}) != len(ids):
+            raise HTTPException(422, '부위별로 한 아이템만 평가할 수 있습니다.')
+        votes = list(row['result'].get('preview_votes', []))
+        existing = next((vote for vote in votes if vote['item_ids'] == ids), None)
+        if value and not existing and len(votes) >= 64:
+            raise HTTPException(422, '이 검색에서 평가할 수 있는 의상 조합 수를 초과했습니다.')
+        votes = [vote for vote in votes if vote['item_ids'] != ids]
+        saved = {'item_ids': ids, 'value': value, 'updated_at': datetime.now().astimezone().isoformat()}
+        if value:
+            votes.append({**saved, 'created_at': existing['created_at'] if existing else saved['updated_at']})
+        cur.execute("UPDATE shop_image_search_history SET result=jsonb_set(result,'{preview_votes}',%s) WHERE id=%s", (Json(votes), str(search_id)))
+    return saved
+
+
 def json_value(value):
     if isinstance(value, datetime):
         return value.isoformat()
@@ -217,7 +240,7 @@ def listing(status='', sex='', slot='', vote_filter='', before=None, limit=24):
         args.append(str(before))
     with transaction() as cur:
         cur.execute('''SELECT h.id,h.user_id,h.created_at,h.completed_at,h.status,h.sex,h.slot,h.catalog_revision,h.model,
-            h.image_bytes,h.original_filename,h.review_status,h.review_version,h.error,
+            h.image_bytes,h.original_filename,h.review_status,h.review_version,h.error,COALESCE(h.result->'preview_votes','[]'::jsonb) AS preview_votes,
             (SELECT count(*) FROM shop_image_search_votes v WHERE v.search_id=h.id AND value=1) AS likes,
             (SELECT count(*) FROM shop_image_search_votes v WHERE v.search_id=h.id AND value=-1) AS dislikes,
             (SELECT count(*) FROM shop_image_search_examples e WHERE e.search_id=h.id) AS example_count
@@ -248,6 +271,10 @@ def feedback(search_ids):
             if row['value'] is not None:
                 item['votes'].append({key: row[key] for key in ('slot', 'item_id', 'value', 'updated_at')})
                 item['likes' if row['value'] == 1 else 'dislikes'] += 1
+        cur.execute("SELECT id,COALESCE(result->'preview_votes','[]'::jsonb) AS preview_votes FROM shop_image_search_history WHERE id=ANY(%s::uuid[])", (ids,))
+        for row in cur.fetchall():
+            if str(row['id']) in items:
+                items[str(row['id'])]['preview_votes'] = row.get('preview_votes', [])
     return json.loads(json.dumps({'items': list(items.values())}, default=json_value))
 
 

@@ -33,6 +33,12 @@ class Action(BaseModel):
     item_ids: list[Annotated[str, Field(pattern=r'^[1-9][0-9]{0,17}$')]] = Field(min_length=1,max_length=4)
 
 
+class PreviewVote(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    item_ids: list[Annotated[str, Field(pattern=r'^[1-9][0-9]{0,17}$')]] = Field(min_length=1,max_length=4)
+    value: int = Field(ge=-1, le=1, strict=True)
+
+
 class Label(BaseModel):
     model_config = ConfigDict(extra='forbid')
     item_id: str = Field(pattern=r'^[1-9][0-9]{0,17}$')
@@ -83,6 +89,12 @@ def action(request: Request, search_id: UUID, body: Action, uid: int = Depends(f
     if any(not item.isascii() or not item.isdigit() or not 0<int(item)<10**18 for item in body.item_ids):
         raise HTTPException(422, '아이템 번호가 올바르지 않습니다.')
     return JSONResponse(history.action(search_id,uid,body.action,list(dict.fromkeys(body.item_ids))),headers=PRIVATE)
+
+
+@router.put('/{search_id}/preview-votes')
+@limiter.limit('120/minute', key_func=user_key)
+def preview_vote(request: Request, search_id: UUID, body: PreviewVote, uid: int = Depends(favorite_user)):
+    return JSONResponse(history.preview_vote(search_id, uid, body.item_ids, body.value), headers=PRIVATE)
 
 
 @admin_router.get('/history')

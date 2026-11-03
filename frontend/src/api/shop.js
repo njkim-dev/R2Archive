@@ -11,10 +11,10 @@ export const searchShopImage = ({ image, sex, slot, version, mode = 'terra' }, s
   data.append('mode', mode)
   return api.post('/image-search', data, { signal, timeout: 150000 }).then(r => r.data)
 }
-export async function rateShopImage(id, slot, itemId, value) {
-  const response = await fetch(`/api/shop/image-search/history/${id}/votes`, {
+async function saveImageFeedback(id, kind, body) {
+  const response = await fetch(`/api/shop/image-search/history/${id}/${kind}`, {
     method: 'PUT', credentials: 'include', keepalive: true,
-    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot, item_id: itemId, value })
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   })
   const data = await response.json()
   if (!response.ok) {
@@ -24,6 +24,8 @@ export async function rateShopImage(id, slot, itemId, value) {
   }
   return data
 }
+export const rateShopImage = (id, slot, itemId, value) => saveImageFeedback(id, 'votes', { slot, item_id: itemId, value })
+export const rateShopPreview = (id, itemIds, value) => saveImageFeedback(id, 'preview-votes', { item_ids: itemIds, value })
 export const recordShopImageAction = (id, action, items) => api.post(`/image-search/history/${id}/actions`, { action, item_ids: items.map(item => String(item.id)) }).then(r => r.data)
 export const getImageSearchHistory = (params, signal) => api.get('/image-search/admin/history', { params, signal }).then(r => r.data)
 export const getImageSearchHistoryDetail = (id, signal) => api.get(`/image-search/admin/history/${id}`, { signal }).then(r => r.data)

@@ -49,8 +49,16 @@ class HistoryTests(unittest.TestCase):
             result = store.feedback([ID, other, ID])['items']
         self.assertEqual(result[0]['likes'], 1); self.assertEqual(result[0]['dislikes'], 1)
         self.assertEqual(len(result[0]['votes']), 2)
-        self.assertEqual(result[1], {'id':str(other),'likes':0,'dislikes':0,'votes':[]})
+        self.assertEqual(result[1], {'id':str(other),'likes':0,'dislikes':0,'votes':[], 'preview_votes': []})
         self.assertEqual(self.cur.execute.call_args.args[1], ([str(ID),str(other)],))
+
+    def test_live_admin_feedback_includes_combination_votes_separately(self):
+        preview = {'item_ids':['200'],'value':-1,'created_at':'now','updated_at':'now'}
+        self.cur.fetchall.side_effect = [[{'id':ID,'slot':None,'item_id':None,'value':None,'updated_at':None}], [{'id':ID,'preview_votes':[preview]}]]
+        with patch.object(store,'transaction',self.cursor):
+            result=store.feedback([ID])['items'][0]
+        self.assertEqual(result['preview_votes'],[preview])
+        self.assertEqual(result['likes'],0);self.assertEqual(result['dislikes'],0);self.assertEqual(result['votes'],[])
 
     @contextmanager
     def cursor(self, write=False):
@@ -86,6 +94,65 @@ class HistoryTests(unittest.TestCase):
             self.assertIn('ON CONFLICT',self.cur.execute.call_args.args[0])
             store.vote(ID,42,'top','200',0)
             self.assertIn('DELETE',self.cur.execute.call_args.args[0])
+
+    def test_preview_vote_is_owned_validates_rendered_combination_and_preserves_item_votes(self):
+        row = {'user_id':42,'status':'completed','result':{'shares':[{'url':'keep'}], 'groups':[
+            {'slot':'hair','items':[{'id':'100','preview_available':True,'model':'hair'}, {'id':'101','preview_available':True,'model':'other-hair'}]},
+            {'slot':'top','items':[{'id':'200','preview_available':True,'model':'top'}, {'id':'201','preview_available':False,'model':None}]}]}}
+        with patch.object(store,'transaction',self.cursor):
+            self.cur.fetchone.return_value = {**row,'user_id':99}
+            with self.assertRaises(HTTPException) as error: store.preview_vote(ID,42,['100'],1)
+            self.assertEqual(error.exception.status_code,404)
+            self.cur.fetchone.return_value = {**row,'status':'running'}
+            with self.assertRaises(HTTPException) as error: store.preview_vote(ID,42,['100'],1)
+            self.assertEqual(error.exception.status_code,409)
+            self.cur.fetchone.return_value = row
+            for ids in [['999'],['201'],['100','100'],['100','101']]:
+                with self.assertRaises(HTTPException) as error: store.preview_vote(ID,42,ids,1)
+                self.assertEqual(error.exception.status_code,422)
+            saved = store.preview_vote(ID,42,['200','100'],1)
+            self.assertEqual(saved['item_ids'],['100','200'])
+            sql,args = self.cur.execute.call_args.args
+            self.assertIn("jsonb_set(result,'{preview_votes}'",sql)
+            self.assertEqual(args[0].adapted[0]['value'],1)
+            self.assertEqual(row['result']['shares'],[{'url':'keep'}])
+            self.assertFalse(any('shop_image_search_votes' in call.args[0] or 'training_state' in call.args[0] for call in self.cur.execute.call_args_list))
+            row['result']['preview_votes'] = args[0].adapted
+            original_created = row['result']['preview_votes'][0]['created_at']
+            store.preview_vote(ID,42,['100','200'],-1)
+            votes = self.cur.execute.call_args.args[1][0].adapted
+            self.assertEqual(len(votes),1); self.assertEqual(votes[0]['value'],-1)
+            self.assertEqual(votes[0]['created_at'],original_created)
+            row['result']['preview_votes'] = votes
+            store.preview_vote(ID,42,['100','200'],0)
+            self.assertEqual(self.cur.execute.call_args.args[1][0].adapted,[])
+
+    def test_preview_vote_capacity_allows_updates_and_removal(self):
+        row={'user_id':42,'status':'completed','result':{'groups':[{'slot':'top','items':[{'id':'200','preview_available':True,'model':'top'}]}],
+            'preview_votes':[{'item_ids':[str(1000+i)],'value':1,'created_at':'old','updated_at':'old'} for i in range(64)]}}
+        with patch.object(store,'transaction',self.cursor):
+            self.cur.fetchone.return_value=row
+            with self.assertRaises(HTTPException) as error:store.preview_vote(ID,42,['200'],1)
+            self.assertEqual(error.exception.status_code,422)
+            row['result']['preview_votes'][0]['item_ids']=['200']
+            store.preview_vote(ID,42,['200'],-1)
+            self.assertEqual(len(self.cur.execute.call_args.args[1][0].adapted),64)
+            store.preview_vote(ID,42,['200'],0)
+            self.assertEqual(len(self.cur.execute.call_args.args[1][0].adapted),63)
+
+    def test_preview_vote_api_validates_input_and_requires_login(self):
+        path=f'/api/shop/image-search/history/{ID}/preview-votes'
+        with patch.object(store,'preview_vote',return_value={'value':1}) as vote:
+            app=FastAPI();app.include_router(api.router)
+            self.assertEqual(TestClient(app).put(path,json={'item_ids':['200'],'value':1}).status_code,401)
+            client=self.client()
+            for body in [{'item_ids':[],'value':1},{'item_ids':['200']*5,'value':1},{'item_ids':['0'],'value':1},
+                         {'item_ids':['200'],'value':True},{'item_ids':['200'],'value':2},{'item_ids':['200'],'value':1,'extra':1}]:
+                self.assertEqual(client.put(path,json=body).status_code,422)
+            vote.assert_not_called()
+            response=client.put(path,json={'item_ids':['200'],'value':1})
+            self.assertEqual(response.status_code,200);self.assertEqual(response.headers['cache-control'],'private, no-store')
+            vote.assert_called_once_with(ID,42,['200'],1)
 
     def test_feedback_schema_rejects_unbounded_or_invalid_ids_and_boolean_votes(self):
         client = self.client()
@@ -200,14 +267,16 @@ class HistoryTests(unittest.TestCase):
              'image_key':ID.hex+'.png','image_format':'PNG',
              'result':{'items':[{'id':'200'}],'groups':[{'slot':'top','items':[{'id':'200'}]}],
                        'shares':[{'token':token,'selected_ids':['200'],'url':'https://r2archive.com/short/abcd'}]}}
+        row['result']['preview_votes']=[{'item_ids':['200'],'value':1}]
         self.cur.fetchone.return_value=row
         self.cur.fetchall.return_value=[{'slot':'top','item_id':'200','value':1}]
         with patch.object(store,'transaction',self.cursor):
             result=store.shared(token)
-            self.assertIsNone(result['search_id']); self.assertEqual(result['votes'],[])
+            self.assertIsNone(result['search_id']); self.assertEqual(result['votes'],[]);self.assertEqual(result['preview_votes'],[])
             self.assertFalse(set(result)&{'user_id','image_key','original_filename','diagnostics','shares'})
             self.assertEqual(self.cur.execute.call_args.args[1][0],str(ID))
             owner=store.shared(token,42);self.assertEqual(owner['search_id'],str(ID));self.assertEqual(owner['votes'][0]['value'],1)
+            self.assertEqual(owner['preview_votes'],row['result']['preview_votes'])
             for invalid in ['a'*79,'../admin']:
                 with self.assertRaises(HTTPException): store.shared(invalid)
             self.cur.fetchone.return_value=None

@@ -66,7 +66,7 @@ for (const width of [1440, 390]) test(`admin receives saved feedback without los
     if (path.endsWith('/feedback')) {
       feedbackCalls++; expect(url.searchParams.getAll('ids')).toEqual([id])
       if (changed) await new Promise(resolve => { release = resolve })
-      return route.fulfill({ json: { items: [{ id, likes: changed ? 1 : 0, dislikes: changed ? 0 : 1, votes: [{ slot: 'top', item_id: candidate.id, value: changed ? 1 : -1 }] }] } })
+      return route.fulfill({ json: { items: [{ id, likes: changed ? 1 : 0, dislikes: changed ? 0 : 1, votes: [{ slot: 'top', item_id: candidate.id, value: changed ? 1 : -1 }], preview_votes: changed ? [{ item_ids: [candidate.id], value: -1, created_at: '2026-11-03T00:00:00Z', updated_at: '2026-11-03T00:01:00Z' }] : [] }] } })
     }
     return route.fulfill({ json: path.endsWith('/history') ? listing : record })
   })
@@ -83,6 +83,9 @@ for (const width of [1440, 390]) test(`admin receives saved feedback without los
   await watch.expectStable(); release()
   await expect(row).toContainText('좋아요 1 · 싫어요 0')
   await expect(page.getByText('사용자 좋아요', { exact: true })).toBeVisible()
+  await expect(row).toContainText('미리보기 맞아요 0 · 아니에요 1')
+  await expect(page.getByRole('region', { name: '미리보기 평가 기록' })).toContainText('아니에요')
+  await expect(page.getByRole('region', { name: '미리보기 평가 기록' })).toContainText(candidate.name)
   await expect(page.getByLabel('검수 메모', { exact: true })).toHaveValue('저장하지 않은 검수 메모')
   await expect(page.getByRole('button', { name: '승인', exact: true })).toBeEnabled()
   await watch.expectStable(); await watch.stop()

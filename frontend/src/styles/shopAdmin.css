@@ -29,6 +29,12 @@
 .shop-admin-review-actions .is-danger { color: #ffb4b4; }
 .shop-admin-review-notes { display: grid; gap: 6px; margin: 14px 0; font-size: 12px; }
 .shop-admin-review-notes textarea { height: 76px; resize: vertical; }
+.shop-admin-preview-votes { height: 200px; box-sizing: border-box; margin: 14px 0; display: flex; flex-direction: column; border: 1px solid #34465e; border-radius: 8px; padding: 10px; }
+.shop-admin-preview-votes h3 { margin: 0 0 8px; font-size: 14px; }
+.shop-admin-preview-votes > div { flex: 1; min-height: 0; overflow-y: auto; }
+.shop-admin-preview-votes article { padding: 6px 0; border-bottom: 1px solid #34465e; font-size: 12px; }
+.shop-admin-preview-votes time { margin-left: 8px; color: #adbed3; }
+.shop-admin-preview-votes p { margin: 4px 0; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
 .shop-admin-detail fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .image-review-part { padding: 18px 0; border-top: 1px solid #34465e; }
 .image-review-part h3 { margin: 0 0 12px; }

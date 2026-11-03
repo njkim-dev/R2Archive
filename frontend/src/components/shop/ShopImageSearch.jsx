@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ImagePlus, Minus, ThumbsDown, ThumbsUp, X } from 'lucide-react'
-import { getSharedShopImage, getShopImageEstimate, publishShopImage, rateShopImage, recordShopImageAction, searchShopImage } from '../../api/shop'
+import { getSharedShopImage, getShopImageEstimate, publishShopImage, rateShopImage, rateShopPreview, recordShopImageAction, searchShopImage } from '../../api/shop'
 import { lockShopScroll } from './shopModalScroll'
 import ShopSearchCrop from './ShopSearchCrop'
 import ShopImagePreview from './ShopImagePreview'
@@ -12,6 +12,7 @@ import { searchEstimate, searchProgress } from '../../utils/shopImageEstimate'
 const labels = { hair: '머리', top: '상의', bottom: '하의', shoes: '스케이트' }
 const resultMessage = 'AI 검색 결과는 정확하지 않을 수 있습니다.\n결과가 올바르다면 좋아요를, 틀렸다면 싫어요를 눌러주세요.\n여러분의 참여가 품질을 개선하고 다른 사용자에게 더 좋은 서비스를 제공하게 됩니다.'
 const failureText = failure => typeof failure.response?.data?.detail === 'string' ? failure.response.data.detail : failure.response?.status === 429 ? '검색 요청이 많습니다. 잠시 후 다시 시도해주세요.' : failure.message || '요청을 완료하지 못했습니다. 다시 시도해주세요.'
+const previewKey = ids => ids.map(String).sort().join(':')
 
 export default function ShopImageSearch({ version, meta, onFavorite, onClose, restoreHost, authenticated, sharedToken, onRestartShared, onSharedVersion }) {
   const dialog = useRef(null), controller = useRef(null), submitting = useRef(false), loading = useRef(0), minimizedRef = useRef(false), voteLocks = useRef(new Set()), scroll = useRef(0), currentResult = useRef(null), mounted = useRef(true)
@@ -21,6 +22,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState(null), [seconds, setSeconds] = useState(0)
   const [estimate, setEstimate] = useState(null), [activeEstimate, setActiveEstimate] = useState(() => searchEstimate(null))
   const [previewItems, setPreviewItems] = useState(null)
+  const [previewFeedback, setPreviewFeedback] = useState({}), previewLocks = useRef(new Set())
   const [minimized, setMinimized] = useState(false), [selected, setSelected] = useState({}), [votes, setVotes] = useState({}), [votePending, setVotePending] = useState(new Set()), [actionBusy, setActionBusy] = useState(false), [notice, setNotice] = useState(''), [dragOver, setDragOver] = useState(false)
   minimizedRef.current = minimized
   currentResult.current = result?.search_id || null
@@ -46,6 +48,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
       setResult(found); setSex(found.sex); setSlot(found.slot); setSource({ url: found.image_url })
       setSelected(Object.fromEntries(found.groups.flatMap(group => { const item = group.items.find(item => found.selected_ids.includes(item.id)); return item ? [[group.slot,item]] : [] })))
       setVotes(Object.fromEntries((found.votes || []).map(vote => [`${vote.slot}:${vote.item_id}`, vote.value])))
+      setPreviewFeedback(Object.fromEntries((found.preview_votes || []).map(vote => [previewKey(vote.item_ids), { value: vote.value }])))
     }).catch(failure => { if (!request.signal.aborted) setError(failureText(failure)) }).finally(() => { if (!request.signal.aborted) setSharedLoading(false) })
     return () => request.abort()
   }, [sharedToken, authenticated, version])
@@ -62,7 +65,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
     }).catch(() => {})
     return () => request.abort()
   }, [slot, authenticated, sharedToken])
-  function resetResults() { setResult(null); setSelected({}); setVotes({}); setVoteStatus({}); setNotice(''); setError(''); setShareUrl('') }
+  function resetResults() { setResult(null); setSelected({}); setVotes({}); setVoteStatus({}); setPreviewFeedback({}); setNotice(''); setError(''); setShareUrl('') }
   function loadFile(file) {
     if (!file || submitting.current || actionBusy || sharedToken || result) return
     const token = ++loading.current
@@ -135,6 +138,20 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
     finally { voteLocks.current.delete(key); if (mounted.current) setVotePending(new Set(voteLocks.current)) }
   }
   const chosen = Object.values(selected)
+  async function votePreview(items, value) {
+    const ids = items.map(item => String(item.id)), key = previewKey(ids), searchId = result?.search_id, lock = `${searchId}:${key}`
+    if (!authenticated || !searchId || !ids.length || previewLocks.current.has(lock)) return
+    const previous = previewFeedback[key]?.value || 0, next = previous === value ? 0 : value
+    previewLocks.current.add(lock)
+    setPreviewFeedback(old => ({ ...old, [key]: { value: previous, pending: true } }))
+    try {
+      const saved = await rateShopPreview(searchId, ids, next)
+      notifyImageFeedback(searchId)
+      if (mounted.current && currentResult.current === searchId) setPreviewFeedback(old => ({ ...old, [key]: { value: saved.value, message: saved.value ? '평가를 저장했습니다.' : '평가를 취소했습니다.' } }))
+    } catch (failure) {
+      if (mounted.current && currentResult.current === searchId) setPreviewFeedback(old => ({ ...old, [key]: { value: previous, error: true, message: failureText(failure) } }))
+    } finally { previewLocks.current.delete(lock) }
+  }
   async function favorite() {
     if (!authenticated || !chosen.length || actionBusy) return
     setActionBusy(true); setError(''); setNotice('')
@@ -169,7 +186,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
   return <>
     {minimized && createPortal(<button className="shop-image-search-restore" onClick={() => setMinimized(false)}>이미지 검색 다시 열기{busy ? ` · 검색 중 ${seconds}초` : result ? ' · 결과 보기' : ''}</button>, restoreHost || document.body)}
     <dialog ref={dialog} className="shop-image-search-dialog" aria-label="이미지로 아이템 찾기" onCancel={event => { event.preventDefault(); setMinimized(true) }}>
-      <div className="shop-image-search-heading"><h2>이미지로 아이템 찾기</h2><div><button type="button" aria-label="이미지 검색 최소화" onClick={() => setMinimized(true)}><Minus size={20} /></button><button type="button" aria-label="이미지 검색 닫기" onClick={onClose}><X size={20} /></button></div></div>
+      <div className="shop-image-search-heading"><h2>이미지로 아이템 찾기</h2><div><button type="button" aria-label="이미지 검색 최소화" onClick={() => setMinimized(true)}><Minus size={20} /></button><button type="button" aria-label="이미지 검색 닫기" onClick={() => onClose(chosen, sex)}><X size={20} /></button></div></div>
       <form onSubmit={submit}>
         <div id={sexHintId} className={`shop-image-search-sex-notice${needsSex ? ' is-required' : ''}`} role="status"><strong>{needsSex ? '필수 선택' : sex ? '선택 완료' : '확인 중'}</strong><span>{needsSex ? '검색 전 캐릭터 성별을 먼저 선택해주세요.' : sex ? `${sex === 'female' ? '여성' : '남성'} 캐릭터를 선택했습니다.` : '공유 결과의 성별을 불러오고 있습니다.'}</span></div>
         <div className="shop-image-search-controls"><label className={`shop-image-search-sex${needsSex ? ' is-required' : ''}`}><span>캐릭터 성별 <strong>필수</strong></span><select aria-label="검색할 캐릭터 성별" aria-describedby={sexHintId} required value={sex} disabled={busy || !!result || !!sharedToken} onChange={e => { setSex(e.target.value); resetResults() }}><option value="" disabled>성별을 선택해주세요</option><option value="female">여성</option><option value="male">남성</option></select></label><label>찾을 부위<select aria-label="찾을 부위" value={slot} disabled={busy || !!result || !!sharedToken} onChange={e => { setSlot(e.target.value); resetResults() }}><option value="all">전체</option>{Object.entries(labels).map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label><label className="shop-image-search-upload"><ImagePlus size={17} /> 이미지 선택<input aria-label="검색 이미지" type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || !!result || !!sharedToken} onChange={event => { loadFile(event.target.files?.[0]); event.target.value = '' }} /></label></div>
@@ -178,13 +195,13 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
         </div>
         <div className="shop-image-search-submit">{result || sharedToken ? <><button type="button" disabled={!result || shareBusy || sharedLoading} onClick={saveResultUrl}>{shareBusy ? 'URL 저장 중…' : '이 결과 URL 저장'}</button><button type="button" disabled={!authenticated || actionBusy || shareBusy || sharedLoading} onClick={startAgain}>다시 찾기</button></> : <span className="shop-image-search-submit-anchor" data-tooltip={needsSex ? '캐릭터 성별을 먼저 선택해주세요.' : undefined} tabIndex={needsSex ? 0 : undefined} aria-describedby={needsSex ? sexHintId : undefined}><button type="submit" disabled={!authenticated || !source || !crop || !sex || busy}>{busy ? '검색 중…' : '비슷한 아이템 찾기'}</button></span>}</div>
         <div className={`shop-image-search-status${result ? ' is-result' : ''}`} data-result-message={result ? resultMessage : undefined} aria-live="polite"><span role={error ? 'alert' : undefined}>{error || notice || (sharedLoading ? '공유 결과를 불러오는 중입니다.' : busy ? searchProgress(seconds, activeEstimate) : result ? resultMessage : '')}</span>{shareUrl && <label className="shop-image-search-share-url">공유 결과 URL<input aria-label="공유 결과 URL" readOnly value={shareUrl} onFocus={event => event.target.select()} /></label>}</div>
-        <div className="shop-image-search-actions"><button type="button" disabled={!chosen.length || actionBusy || busy} onClick={preview}>해당 의상 입어보기</button><button type="button" disabled={!authenticated || !chosen.length || actionBusy || busy} onClick={favorite}>{actionBusy ? '등록 중…' : '해당 의상 즐겨찾기 등록'}</button></div>
+        <div className="shop-image-search-actions"><button type="button" disabled={!chosen.length || actionBusy || busy} onClick={preview}>선택한 의상 미리보기</button><button type="button" disabled={!authenticated || !chosen.length || actionBusy || busy} onClick={favorite}>{actionBusy ? '등록 중…' : '선택한 의상 즐겨찾기'}</button></div>
         <div className="shop-image-search-results" aria-busy={busy}>{groups.map(group => <section className="shop-image-search-group" key={group.slot}><h3>{labels[group.slot] || '검색 결과'}{group.exact_match_supported === false && <small>일치 여부 확인 필요</small>}</h3><div>{group.items?.length ? group.items.map((item, index) => { const key = `${group.slot}:${item.id}`; return <article className={`shop-image-search-candidate${selected[group.slot]?.id === item.id ? ' is-selected' : ''}`} key={item.id}>
           <button className="shop-image-search-select" type="button" aria-label={`${item.name} 선택`} aria-pressed={selected[group.slot]?.id === item.id} onClick={() => toggle(item, group.slot)}><span>{index + 1}</span><img src={item.thumbnail} alt="" /><strong>{item.name}</strong>{item.is_unreleased && <small>미출시</small>}{(!item.preview_available || !item.model) && <small className="shop-image-search-no-preview">미리보기 불가 · 3D 모델 없음</small>}</button>
           <div className="shop-image-search-votes"><button type="button" aria-label={`${item.name} 좋아요`} aria-pressed={votes[key] === 1} disabled={!authenticated || !result.search_id || votePending.has(key)} onClick={() => vote(item, group.slot, 1)}><ThumbsUp size={15} /> 좋아요</button><button type="button" aria-label={`${item.name} 싫어요`} aria-pressed={votes[key] === -1} disabled={!authenticated || !result.search_id || votePending.has(key)} onClick={() => vote(item, group.slot, -1)}><ThumbsDown size={15} /> 싫어요</button></div><small className="shop-image-search-vote-status" role="status" aria-label={`${item.name} 평가 저장 상태`}>{voteStatus[key] || ''}</small>
         </article> }) : <p>일치하는 후보를 찾지 못했습니다.</p>}</div></section>)}</div>
       </form>
     </dialog>
-    {previewItems && <ShopImagePreview meta={meta} sex={sex} items={previewItems} onClose={() => setPreviewItems(null)} />}
+    {previewItems && <ShopImagePreview meta={meta} sex={sex} items={previewItems} onClose={() => setPreviewItems(null)} canVote={authenticated && !!result?.search_id} feedback={previewFeedback[previewKey(previewItems.filter(item => item.preview_available && item.model).map(item => item.id))]} onVote={votePreview} />}
   </>
 }

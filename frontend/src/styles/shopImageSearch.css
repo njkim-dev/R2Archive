@@ -6,6 +6,14 @@
 .shop-image-preview-dialog .shop-preview-toolbar h2 { flex: 1; }
 .shop-image-preview-dialog .shop-couple-actions { width: auto; }
 .shop-image-preview-dialog .shop-preview-toolbar { flex-wrap: nowrap; }
+.shop-image-preview-feedback { margin-top: 16px; padding-top: 12px; border-top: 1px solid #435167; }
+.shop-image-preview-feedback p { margin: 0 0 10px; font-size: 14px; }
+.shop-image-preview-feedback > div { display: flex; gap: 8px; }
+.shop-image-preview-feedback button { min-height: 40px; flex: 1; padding: 8px 12px; border: 1px solid #6082a6; border-radius: 8px; color: #e7edf7; background: #263c56; cursor: pointer; }
+.shop-image-preview-feedback button[aria-pressed=true] { background: #315d86; border-color: #8fd0ff; }
+.shop-image-preview-feedback button:disabled { opacity: .5; cursor: default; }
+.shop-image-preview-feedback-status { display: block; min-height: 40px; padding-top: 6px; font-size: 12px; line-height: 17px; color: #b7c7db; }
+.shop-image-preview-feedback-status[role=alert] { color: #ffb6b6; }
 .shop-search-tools .shop-search { flex: 1; min-width: 0; }
 .shop-image-search-open { border: 1px solid #33465c; border-radius: 9px; padding: 10px 14px; background: #223449; color: #e6eef8; white-space: nowrap; cursor: pointer; }
 .shop-image-search-open:disabled { opacity: .5; cursor: default; }
