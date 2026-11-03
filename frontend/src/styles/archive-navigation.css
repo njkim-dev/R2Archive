@@ -32,6 +32,7 @@
 .archive-context-menu{display:flex;flex-direction:column;gap:5px}.archive-context-menu>small{font-size:11px;color:var(--archive-nav-muted);padding:0 12px 5px}
 .archive-context-menu a,.archive-context-menu button{display:flex;align-items:center;gap:8px;min-height:36px;padding:8px 12px;border-radius:7px;font:inherit;font-size:12px;text-align:left;color:var(--archive-nav-muted)}
 .archive-context-menu [aria-current=page],.archive-context-menu [aria-pressed=true]{background:var(--archive-nav-soft);color:var(--archive-nav-text)}
+.archive-character-links{display:flex;flex-direction:column;gap:3px;padding-left:12px}.archive-character-links a{min-width:0}.archive-character-links svg{flex-shrink:0;color:var(--archive-nav-muted)}.archive-character-links span{min-width:0;overflow-wrap:anywhere}
 .archive-page-layout .shop-main{max-width:1440px;min-height:0;padding-top:24px}.archive-page-layout .shop-title{min-height:76px}.archive-page-layout .shop-spaces{display:none}
 .archive-page-layout .shop-workspace{grid-template-columns:minmax(0,1fr) 220px;gap:20px}.archive-page-layout .shop-panel{padding:16px}
 .archive-page-layout .shop-admin-page{padding-top:24px}.archive-page-layout .shop-admin-page>header>a{display:none}
