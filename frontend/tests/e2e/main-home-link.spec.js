@@ -5,6 +5,45 @@ const song = { id: 1, name: 'Home Link Test', artist: 'Test', level: 8, bpm: 160
 
 test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: 'ignoreErrors' }) })
 
+for (const width of [1440, 1024]) test(`sidebar scrolls as one column without clipping filters at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 700 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (!path.startsWith('/api/')) return route.continue()
+    let json = []
+    if (path === '/api/songs') json = [song]
+    else if (path === '/api/meta') json = { total_count: 1, level_min: .5, level_max: 12, bpm_min: 60, bpm_max: 400, top_artists: [] }
+    else if (path === '/api/auth/me') { await gate; json = { user: { id: 1, nickname: '관리자', onboarded: true } } }
+    else if (path.endsWith('/admin-status')) json = { is_admin: true }
+    else if (path.endsWith('/flags')) json = { favorites: [], played: [], played_all: [] }
+    await route.fulfill({ json })
+  })
+  await page.goto('/')
+  const sidebar = page.getByRole('complementary', { name: '사이트 탐색' })
+  const context = sidebar.locator('.archive-sidebar-context')
+  await expect(sidebar.getByLabel('BPM 최댓값')).toBeAttached()
+  await expect.poll(() => context.evaluate(node => getComputedStyle(node).overflowY)).toBe('visible')
+  expect(await context.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true)
+  const watcher = await watchLayout(page, ['.main', '.topbar', '.table-wrap'])
+  await sidebar.evaluate(node => { node.scrollTop = node.scrollHeight })
+  await expect(sidebar.getByLabel('BPM 최댓값')).toBeInViewport()
+  await expect(sidebar.locator('.archive-account')).toBeInViewport()
+  expect(await sidebar.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
+  expect(await context.evaluate(node => node.scrollTop)).toBe(0)
+  await watcher.expectStable()
+  release()
+  await expect(sidebar.getByRole('button', { name: '로그아웃', exact: true })).toBeEnabled()
+  await sidebar.evaluate(node => { node.scrollTop = node.scrollHeight })
+  await expect(sidebar.getByRole('button', { name: '로그아웃', exact: true })).toBeInViewport()
+  await expect(sidebar.getByLabel('BPM 최댓값')).toBeInViewport()
+  await watcher.expectStable()
+  await watcher.stop()
+  await sidebar.evaluate(node => { node.scrollTop = 0 })
+  await expect(sidebar.getByRole('link', { name: '음악', exact: true })).toBeInViewport()
+})
+
 for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
   const host='r2archive.com'
   test(`${archive} sidebar places the main home link above server buttons with stable loading loggedIn=${loggedIn}`, async ({ page, baseURL }, testInfo) => {
