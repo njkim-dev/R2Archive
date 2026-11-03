@@ -6,7 +6,7 @@ import ShopViewModes from './ShopViewModes'
 const counterparts = {}
 
 export default function ShopImagePreview({ meta, sex, items, onClose }) {
-  const [camera, setCamera] = useState({ angle: 0, zoom: 100, panX: 0, panY: 0 })
+  const [camera, setCamera] = useState({ angle: 180, zoom: 100, panX: 0, panY: 0 })
   const [mode, setMode] = useState('rotate')
   const available = items.filter(item => item.preview_available && item.model)
   const missing = items.filter(item => !item.preview_available || !item.model)

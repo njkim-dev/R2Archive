@@ -71,6 +71,7 @@ for (const width of [1440, 390]) {
     await expect(preview).toBeVisible()
     await expect(preview.locator('.shop-image-preview-warning')).toContainText(missing.name)
     await expect(preview.locator('.shop-stage-status')).toBeEmpty()
+    await expect(preview.locator('canvas')).toHaveAttribute('data-view-angle', '180')
     expect(requests).toContain(usable.model)
     await expect(preview.locator('.shop-image-preview-items').getByText(usable.name, { exact: true })).toHaveCount(1)
     await expect(preview.locator('.shop-image-preview-items').getByText(missing.name, { exact: true })).toHaveCount(0)
