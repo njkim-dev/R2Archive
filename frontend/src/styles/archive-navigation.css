@@ -86,7 +86,7 @@
 .archive-app.archive-xyx .shop-image-search-restore{bottom:calc(var(--archive-mobile-bottom) + 12px)}
 }
 .archive-context-current{padding:10px 12px;font-size:12px;color:var(--archive-nav-accent)}
-.archive-app .archive-primary-item,.archive-app .archive-context-menu button{justify-content:flex-start;text-align:left}
+.archive-app .archive-sidebar .archive-primary-item,.archive-app .archive-menu-dialog .archive-primary-item,.archive-app .archive-context-menu button{justify-content:flex-start;text-align:left}
 
 .archive-page-layout:has(.repair-page){height:100dvh;min-height:0;overflow:hidden}
 .archive-page-layout .repair-page{height:calc(100dvh - 64px);padding:28px clamp(20px,3vw,48px)}
@@ -99,3 +99,5 @@
  .archive-app:not(.archive-xyx):not(:has(.archive-page-layout))>.archive-mobile-header,.archive-app:not(.archive-xyx):not(:has(.archive-page-layout))>.archive-mobile-bottom{display:none}
 }
 .archive-app .app{max-width:none;margin-inline:0}
+.archive-app .shop-image-search-restore{left:calc(var(--archive-rail-width) + 16px);max-width:calc(100vw - var(--archive-rail-width) - 32px)}
+@media(max-width:800px){.archive-app .shop-image-search-restore{left:16px;max-width:calc(100vw - 32px)}.archive-app .shop-toast{bottom:calc(var(--archive-mobile-bottom) + 12px)}}
