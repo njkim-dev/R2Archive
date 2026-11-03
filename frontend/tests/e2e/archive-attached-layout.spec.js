@@ -2,18 +2,26 @@ import { test, expect } from '@playwright/test'
 import { setup } from './shopFixtures.js'
 import { watchLayout } from './layout.js'
 
-for (const width of [2560, 1920, 1024, 390]) test(`shop and myhome keep navigation beside their centered content at ${width}px`, async ({ page }) => {
+for (const width of [2560, 1920, 1024, 390]) test(`music, shop and myhome keep the same navigation position at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   let release
   const gate = new Promise(resolve => { release = resolve })
   await setup(page, { authGate: gate })
-  await page.goto('/shop')
-  await expect(page.locator('.shop-main')).toBeVisible()
+  await page.goto('/')
   const mobile = width <= 800
+  const selectors = mobile ? ['.archive-mobile-header', '.archive-mobile-bottom'] : ['.archive-sidebar .archive-brand', '.archive-sidebar .archive-primary-nav']
+  await expect(page.locator(selectors[0])).toBeVisible()
+  const originalNavigation = await page.locator(selectors[1]).boundingBox()
+  const transition = await watchLayout(page, selectors)
+  await page.getByRole('link', { name: '상점', exact: true }).click()
+  await expect(page.locator('.shop-main')).toBeVisible()
+  await transition.expectStable()
+  await transition.stop()
   const check = async () => {
+    expect(await page.locator(selectors[1]).boundingBox()).toEqual(originalNavigation)
     const frame = await page.locator('.archive-page-layout').boundingBox()
     const body = await page.locator('.shop-main').boundingBox()
-    expect(frame.width).toBeCloseTo(Math.min(width, 1648), 1)
+    expect(frame.width).toBeCloseTo(Math.min(width, 1808), 1)
     expect(frame.x).toBeCloseTo((width - frame.width) / 2, 1)
     expect(body.width).toBeCloseTo(mobile ? width : Math.min(1440, width - 208), 1)
     const header = await page.locator('.archive-page-topbar').boundingBox()
@@ -34,6 +42,9 @@ for (const width of [2560, 1920, 1024, 390]) test(`shop and myhome keep navigati
   await pending.stop()
   await check()
   if (!mobile) {
+    await page.evaluate(() => { document.documentElement.style.scrollbarGutter = 'stable' })
+    expect(await page.locator(selectors[1]).boundingBox()).toEqual(originalNavigation)
+    await page.evaluate(() => { document.documentElement.style.scrollbarGutter = '' })
     await page.evaluate(() => { document.body.style.paddingRight = '17px' })
     const paddedMenu = await page.locator('.archive-page-layout>.archive-sidebar').boundingBox(), paddedBody = await page.locator('.shop-main').boundingBox()
     expect(paddedMenu.x + paddedMenu.width).toBeCloseTo(paddedBody.x, 1)
@@ -47,4 +58,10 @@ for (const width of [2560, 1920, 1024, 390]) test(`shop and myhome keep navigati
   await expect(page.getByRole('button', { name: '남성캐릭터 캐릭터 선택', exact: true })).toBeVisible()
   await check()
   await page.screenshot({ path: test.info().outputPath(`attached-myhome-${width}.png`) })
+  const returnTransition = await watchLayout(page, selectors)
+  await page.getByRole('link', { name: '한국 서버 음악', exact: true }).click()
+  await expect(page.locator(mobile ? '.app-mobile' : '.app>.main')).toBeVisible()
+  await returnTransition.expectStable()
+  await returnTransition.stop()
+  expect(await page.locator(selectors[1]).boundingBox()).toEqual(originalNavigation)
 })

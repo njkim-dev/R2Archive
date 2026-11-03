@@ -59,6 +59,7 @@ for (const width of [2560, 1920, 1024, 390]) test(`music content stays centered 
   if (width > 1100) {
     const menu = await page.locator('.app>.archive-sidebar').boundingBox()
     expect(menu.x + menu.width).toBeCloseTo(mainBox.x, 1)
+    expect(menu.x + menu.width).toBeCloseTo(before.x, 1)
   }
   const pending = await watchLayout(page, ['.app>.main', '.topbar', '.table-wrap', '.song-catalog-panel'])
   await pending.expectStable()
