@@ -2,7 +2,7 @@
 .shop-search-tools .shop-search { flex: 1; min-width: 0; }
 .shop-image-search-open { border: 1px solid #33465c; border-radius: 9px; padding: 10px 14px; background: #223449; color: #e6eef8; white-space: nowrap; cursor: pointer; }
 .shop-image-search-open:disabled { opacity: .5; cursor: default; }
-.shop-image-search-dialog { position: fixed; inset: 0; margin: auto; width: min(760px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); padding: 22px; border: 1px solid #344357; border-radius: 16px; color: #e7edf7; background: #182231; overflow-y: auto; scrollbar-gutter: stable; box-sizing: border-box; }
+.shop-image-search-dialog { position: fixed; inset: 0; margin: auto; width: min(760px, calc(100vw - 28px)); height: calc(100dvh - 32px); max-height: calc(100dvh - 32px); padding: 22px; border: 1px solid #344357; border-radius: 16px; color: #e7edf7; background: #182231; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
 .shop-image-search-dialog::backdrop { background: #030a15b8; }
 .shop-image-search-heading { position: sticky; top: -22px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; background: #182231; }
 .shop-image-search-heading h2 { margin: 0; font-size: 20px; }
@@ -21,9 +21,9 @@
 .shop-image-search-submit label { font-size: 12px; }
 .shop-image-search-submit button { width: 164px; padding: 10px 12px; border: 1px solid #6082a6; border-radius: 8px; background: #315d86; color: #fff; cursor: pointer; }
 .shop-image-search-submit button:disabled { opacity: .5; cursor: default; }
-.shop-image-search-status { height: 132px; overflow-y: auto; margin: 8px 0 4px; font-size: 12px; line-height: 1.7; color: #b7c7db; white-space: pre-line; }
+.shop-image-search-status { min-height: 132px; margin: 8px 0 4px; font-size: 12px; line-height: 1.7; color: #b7c7db; white-space: pre-line; }
 .shop-image-search-status [role=alert] { color: #ffb6b6; }
-.shop-image-search-results { height: 320px; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 14px; }
+.shop-image-search-results { min-height: 320px; display: flex; flex-direction: column; gap: 14px; }
 .shop-image-search-original { display: block; max-width: 100%; max-height: 350px; object-fit: contain; }
 .shop-image-search-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 16px; }
 .shop-image-search-actions button { min-height: 52px; padding: 8px; border: 1px solid #6082a6; border-radius: 8px; color: white; background: #315d86; cursor: pointer; }
