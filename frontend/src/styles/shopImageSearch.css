@@ -42,6 +42,7 @@
 .shop-image-search-votes button { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 34px; padding: 4px 1px; font-size: 10px; border: 1px solid #435167; border-radius: 6px; background: #182b40; color: #cbd9e9; cursor: pointer; }
 .shop-image-search-votes button[aria-pressed=true] { color: white; background: #315d86; border-color: #8fd0ff; }
 .shop-image-search-votes button:disabled { opacity: .5; cursor: default; }
+.shop-image-search-vote-status { display: block; height: 22px; line-height: 18px; padding: 0 6px 4px; text-align: center; color: #b5d9ef; font-size: 11px; }
 .shop-image-search-open-anchor { display: inline-flex; }
 .shop-image-search-open-anchor > button:disabled { pointer-events: none; }
 .shop-image-search-results img { width: 90px; height: 90px; object-fit: contain; }

@@ -104,9 +104,10 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     const requests = await setup(page, { admin: false, items: [candidate, hair] })
     await page.route('**/api/shop/image-search', route => route.fulfill({ json: result }))
-    let voting = 0
-    await page.route(`**/image-search/history/${searchId}/votes`, route => {
+    let voting = 0, releaseVote
+    await page.route(`**/image-search/history/${searchId}/votes`, async route => {
       voting++
+      if (voting <= 2) await new Promise(resolve => { releaseVote = resolve })
       return route.fulfill(voting === 1 ? { status: 503, json: { detail: '평가 저장 실패' } } : { json: route.request().postDataJSON() })
     })
     await page.goto('/shop?sex=male')
@@ -115,8 +116,15 @@ for (const width of [1440, 390]) {
     await upload(page, 'drop'); await modal.getByLabel('검색할 캐릭터 성별', { exact: true }).selectOption('male')
     await modal.getByRole('button', { name: '비슷한 아이템 찾기', exact: true }).click()
     const like = modal.getByRole('button', { name: `${candidate.name} 좋아요`, exact: true })
-    await like.click(); await expect(modal.getByRole('alert')).toContainText('평가 저장 실패'); await expect(like).toHaveAttribute('aria-pressed', 'false')
-    await like.click(); await expect(like).toHaveAttribute('aria-pressed', 'true'); await expect(like).toBeEnabled()
+    await like.scrollIntoViewIfNeeded()
+    const voteWatch = await watchLayout(page, ['.shop-image-search-candidate', '.shop-image-search-votes', '.shop-image-search-vote-status'])
+    const saved = modal.getByRole('status', { name: `${candidate.name} 평가 저장 상태`, exact: true })
+    await like.click(); await expect.poll(() => voting).toBe(1)
+    await expect(like).toBeDisabled(); await expect(saved).toHaveText('저장 중…'); await voteWatch.expectStable()
+    releaseVote(); await expect(modal.getByRole('alert')).toContainText('평가 저장 실패'); await expect(like).toHaveAttribute('aria-pressed', 'false'); await expect(saved).toHaveText('저장 실패'); await voteWatch.expectStable()
+    await like.click(); await expect.poll(() => voting).toBe(2)
+    await expect(saved).toHaveText('저장 중…'); await voteWatch.expectStable()
+    releaseVote(); await expect(like).toHaveAttribute('aria-pressed', 'true'); await expect(like).toBeEnabled(); await expect(saved).toHaveText('평가 저장됨'); await voteWatch.expectStable(); await voteWatch.stop()
     await modal.getByRole('button', { name: `${candidate.name} 싫어요`, exact: true }).click()
     await expect(like).toHaveAttribute('aria-pressed', 'false')
     for (const item of [hair, candidate]) await modal.getByRole('button', { name: `${item.name} 선택`, exact: true }).click()

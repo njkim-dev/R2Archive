@@ -5,6 +5,7 @@ import { getSharedShopImage, publishShopImage, rateShopImage, recordShopImageAct
 import { lockShopScroll } from './shopModalScroll'
 import ShopSearchCrop from './ShopSearchCrop'
 import { searchCropFile } from '../../utils/shopSearchImage'
+import { notifyImageFeedback } from '../../utils/shopImageFeedback'
 
 const labels = { hair: '머리', top: '상의', bottom: '하의', shoes: '스케이트' }
 const resultMessage = 'AI 검색 결과는 정확하지 않을 수 있습니다.\n결과가 올바르다면 좋아요를, 틀렸다면 싫어요를 눌러주세요.\n여러분의 참여가 품질을 개선하고 다른 사용자에게 더 좋은 서비스를 제공하게 됩니다.'
@@ -12,7 +13,7 @@ const failureText = failure => typeof failure.response?.data?.detail === 'string
 
 export default function ShopImageSearch({ version, onPreview, onFavorite, onClose, restoreHost, authenticated, sharedToken, onRestartShared, onSharedVersion }) {
   const dialog = useRef(null), controller = useRef(null), submitting = useRef(false), loading = useRef(0), minimizedRef = useRef(false), voteLocks = useRef(new Set()), scroll = useRef(0), currentResult = useRef(null), mounted = useRef(true)
-  const [crop, setCrop] = useState(null), [sharedLoading, setSharedLoading] = useState(!!sharedToken), [shareBusy, setShareBusy] = useState(false), [shareUrl, setShareUrl] = useState('')
+  const [crop, setCrop] = useState(null), [sharedLoading, setSharedLoading] = useState(!!sharedToken), [shareBusy, setShareBusy] = useState(false), [shareUrl, setShareUrl] = useState(''), [voteStatus, setVoteStatus] = useState({})
   const resultRef = useRef(null)
   const [sex, setSex] = useState(''), [slot, setSlot] = useState('all'), [source, setSource] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState(null), [seconds, setSeconds] = useState(0)
@@ -49,7 +50,7 @@ export default function ShopImageSearch({ version, onPreview, onFavorite, onClos
     const start = Date.now(), timer = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000)
     return () => clearInterval(timer)
   }, [busy])
-  function resetResults() { setResult(null); setSelected({}); setVotes({}); setNotice(''); setError(''); setShareUrl('') }
+  function resetResults() { setResult(null); setSelected({}); setVotes({}); setVoteStatus({}); setNotice(''); setError(''); setShareUrl('') }
   function loadFile(file) {
     if (!file || submitting.current || actionBusy || sharedToken || result) return
     const token = ++loading.current
@@ -109,8 +110,16 @@ export default function ShopImageSearch({ version, onPreview, onFavorite, onClos
     if (!authenticated || !searchId || voteLocks.current.has(key)) return
     const previous = votes[key] || 0, next = previous === value ? 0 : value
     voteLocks.current.add(key); setVotePending(new Set(voteLocks.current)); setVotes(old => ({ ...old, [key]: next })); setError('')
-    try { await rateShopImage(searchId, groupSlot, item.id, next) }
-    catch (failure) { if (mounted.current && currentResult.current === searchId) { setVotes(old => ({ ...old, [key]: previous })); setError(failureText(failure)) } }
+    setVoteStatus(old => ({ ...old, [key]: '저장 중…' }))
+    try {
+      const saved = await rateShopImage(searchId, groupSlot, item.id, next)
+      notifyImageFeedback(searchId)
+      if (mounted.current && currentResult.current === searchId) {
+        setVotes(old => ({ ...old, [key]: saved.value }))
+        setVoteStatus(old => ({ ...old, [key]: saved.value ? '평가 저장됨' : '평가 취소됨' }))
+      }
+    }
+    catch (failure) { if (mounted.current && currentResult.current === searchId) { setVotes(old => ({ ...old, [key]: previous })); setVoteStatus(old => ({ ...old, [key]: '저장 실패' })); setError(failureText(failure)) } }
     finally { voteLocks.current.delete(key); if (mounted.current) setVotePending(new Set(voteLocks.current)) }
   }
   const chosen = Object.values(selected)
@@ -158,7 +167,7 @@ export default function ShopImageSearch({ version, onPreview, onFavorite, onClos
         <div className="shop-image-search-actions"><button type="button" disabled={!chosen.length || actionBusy || busy} onClick={preview}>해당 의상 입어보기</button><button type="button" disabled={!authenticated || !chosen.length || actionBusy || busy} onClick={favorite}>{actionBusy ? '등록 중…' : '해당 의상 즐겨찾기 등록'}</button></div>
         <div className="shop-image-search-results" aria-busy={busy}>{groups.map(group => <section className="shop-image-search-group" key={group.slot}><h3>{labels[group.slot] || '검색 결과'}{group.exact_match_supported === false && <small>일치 여부 확인 필요</small>}</h3><div>{group.items?.length ? group.items.map((item, index) => { const key = `${group.slot}:${item.id}`; return <article className={`shop-image-search-candidate${selected[group.slot]?.id === item.id ? ' is-selected' : ''}`} key={item.id}>
           <button className="shop-image-search-select" type="button" aria-label={`${item.name} 선택`} aria-pressed={selected[group.slot]?.id === item.id} onClick={() => toggle(item, group.slot)}><span>{index + 1}</span><img src={item.thumbnail} alt="" /><strong>{item.name}</strong>{item.is_unreleased && <small>미출시</small>}</button>
-          <div className="shop-image-search-votes"><button type="button" aria-label={`${item.name} 좋아요`} aria-pressed={votes[key] === 1} disabled={!authenticated || !result.search_id || votePending.has(key)} onClick={() => vote(item, group.slot, 1)}><ThumbsUp size={15} /> 좋아요</button><button type="button" aria-label={`${item.name} 싫어요`} aria-pressed={votes[key] === -1} disabled={!authenticated || !result.search_id || votePending.has(key)} onClick={() => vote(item, group.slot, -1)}><ThumbsDown size={15} /> 싫어요</button></div>
+          <div className="shop-image-search-votes"><button type="button" aria-label={`${item.name} 좋아요`} aria-pressed={votes[key] === 1} disabled={!authenticated || !result.search_id || votePending.has(key)} onClick={() => vote(item, group.slot, 1)}><ThumbsUp size={15} /> 좋아요</button><button type="button" aria-label={`${item.name} 싫어요`} aria-pressed={votes[key] === -1} disabled={!authenticated || !result.search_id || votePending.has(key)} onClick={() => vote(item, group.slot, -1)}><ThumbsDown size={15} /> 싫어요</button></div><small className="shop-image-search-vote-status" role="status" aria-label={`${item.name} 평가 저장 상태`}>{voteStatus[key] || ''}</small>
         </article> }) : <p>일치하는 후보를 찾지 못했습니다.</p>}</div></section>)}</div>
       </form>
     </dialog>

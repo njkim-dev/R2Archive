@@ -92,6 +92,11 @@ def listing(status: Literal['','pending','approved','excluded'] = '', sex: Liter
     return JSONResponse(history.listing(status,sex,slot,vote,before,limit),headers=PRIVATE)
 
 
+@admin_router.get('/feedback')
+def feedback(ids: list[UUID] = Query(min_length=1, max_length=60)):
+    return JSONResponse(history.feedback(ids), headers=PRIVATE)
+
+
 @admin_router.get('/history/{search_id}')
 def detail(search_id: UUID):
     return JSONResponse(history.detail(search_id),headers=PRIVATE)

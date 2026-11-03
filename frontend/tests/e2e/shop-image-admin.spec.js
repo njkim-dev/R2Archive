@@ -20,6 +20,7 @@ for (const width of [1440, 390]) test(`admin correction outside shortlist, appro
   await page.route('**/api/shop/image-search/admin/**', async route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/image')) return route.fulfill({ body: png, contentType: 'image/png' })
+    if (path.endsWith('/feedback')) return route.fulfill({ json: { items: [record] } })
     if (path.endsWith('/history')) {
       if (firstList) { firstList = false; await new Promise(resolve => { releaseList = resolve }) }
       return route.fulfill({ json: { ...listing, items: deleted ? [] : [record] } })
@@ -53,4 +54,37 @@ for (const width of [1440, 390]) test(`admin correction outside shortlist, appro
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '기록과 원본 삭제', exact: true }).click()
   await expect(page.getByText('표시할 검색 기록이 없습니다.')).toBeVisible()
+})
+
+for (const width of [1440, 390]) test(`admin receives saved feedback without losing edits at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1000 })
+  await setup(page, { admin: true, items: [candidate] })
+  let feedbackCalls = 0, release, changed = false
+  await page.route('**/api/shop/image-search/admin/**', async route => {
+    const url = new URL(route.request().url()), path = url.pathname
+    if (path.endsWith('/image')) return route.fulfill({ body: png, contentType: 'image/png' })
+    if (path.endsWith('/feedback')) {
+      feedbackCalls++; expect(url.searchParams.getAll('ids')).toEqual([id])
+      if (changed) await new Promise(resolve => { release = resolve })
+      return route.fulfill({ json: { items: [{ id, likes: changed ? 1 : 0, dislikes: changed ? 0 : 1, votes: [{ slot: 'top', item_id: candidate.id, value: changed ? 1 : -1 }] }] } })
+    }
+    return route.fulfill({ json: path.endsWith('/history') ? listing : record })
+  })
+  await page.goto('/shop/admin')
+  const row = page.locator('.shop-admin-history-row').first()
+  await row.click()
+  await page.getByLabel('검수 메모', { exact: true }).fill('저장하지 않은 검수 메모')
+  await page.locator('.image-review-candidates button').first().click()
+  await expect(page.getByText('사용자 싫어요', { exact: true })).toBeVisible()
+  changed = true
+  const watch = await watchLayout(page, ['.shop-admin-filters', '.shop-admin-list-status', '.shop-admin-layout', '.shop-admin-detail-heading', '.shop-admin-review-actions', '.shop-admin-review-notes', '.image-review-candidates'])
+  await page.evaluate(() => { const channel = new BroadcastChannel('r2-shop-image-feedback'); channel.postMessage('11111111-1111-4111-8111-111111111111'); channel.close() })
+  await expect.poll(() => !!release).toBe(true)
+  await watch.expectStable(); release()
+  await expect(row).toContainText('좋아요 1 · 싫어요 0')
+  await expect(page.getByText('사용자 좋아요', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('검수 메모', { exact: true })).toHaveValue('저장하지 않은 검수 메모')
+  await expect(page.getByRole('button', { name: '승인', exact: true })).toBeEnabled()
+  await watch.expectStable(); await watch.stop()
+  expect(feedbackCalls).toBeGreaterThan(0)
 })

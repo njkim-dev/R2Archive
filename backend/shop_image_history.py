@@ -20,7 +20,7 @@ from database import get_conn
 
 
 DIRECTORY = Path(os.environ.get('SHOP_IMAGE_HISTORY_DIR', Path(__file__).resolve().parents[1]/'record_screenshots'/'image-search-history'))
-PIPELINE_VERSION = 'terra-outfit-review-v1'
+PIPELINE_VERSION = 'terra-outfit-palette-v2'
 _training_lock = Lock()
 _training = {'generation': None, 'rows': []}
 logger = logging.getLogger(__name__)
@@ -232,6 +232,23 @@ def listing(status='', sex='', slot='', vote_filter='', before=None, limit=24):
         stats['generation'] = cur.fetchone()['generation']
     return {'items': [public_record(row) for row in rows[:limit]], 'has_more': len(rows)>limit,
             'next_cursor': str(rows[limit-1]['id']) if len(rows)>limit else None, 'stats': dict(stats)}
+
+
+def feedback(search_ids):
+    ids = list(dict.fromkeys(str(value) for value in search_ids))
+    if not ids:
+        return {'items': []}
+    with transaction() as cur:
+        cur.execute('''SELECT h.id,v.slot,v.item_id::text AS item_id,v.value,v.updated_at
+            FROM shop_image_search_history h LEFT JOIN shop_image_search_votes v ON v.search_id=h.id
+            WHERE h.id=ANY(%s::uuid[]) ORDER BY h.id,v.slot,v.item_id''', (ids,))
+        items = {}
+        for row in cur.fetchall():
+            item = items.setdefault(str(row['id']), {'id': str(row['id']), 'likes': 0, 'dislikes': 0, 'votes': []})
+            if row['value'] is not None:
+                item['votes'].append({key: row[key] for key in ('slot', 'item_id', 'value', 'updated_at')})
+                item['likes' if row['value'] == 1 else 'dislikes'] += 1
+    return json.loads(json.dumps({'items': list(items.values())}, default=json_value))
 
 
 def detail(search_id):

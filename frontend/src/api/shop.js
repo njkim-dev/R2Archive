@@ -10,10 +10,23 @@ export const searchShopImage = ({ image, sex, slot, version, mode = 'terra' }, s
   data.append('mode', mode)
   return api.post('/image-search', data, { signal, timeout: 150000 }).then(r => r.data)
 }
-export const rateShopImage = (id, slot, itemId, value) => api.put(`/image-search/history/${id}/votes`, { slot, item_id: itemId, value }).then(r => r.data)
+export async function rateShopImage(id, slot, itemId, value) {
+  const response = await fetch(`/api/shop/image-search/history/${id}/votes`, {
+    method: 'PUT', credentials: 'include', keepalive: true,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot, item_id: itemId, value })
+  })
+  const data = await response.json()
+  if (!response.ok) {
+    const error = new Error('평가를 저장하지 못했습니다. 다시 시도해주세요.')
+    error.response = { status: response.status, data }
+    throw error
+  }
+  return data
+}
 export const recordShopImageAction = (id, action, items) => api.post(`/image-search/history/${id}/actions`, { action, item_ids: items.map(item => String(item.id)) }).then(r => r.data)
 export const getImageSearchHistory = (params, signal) => api.get('/image-search/admin/history', { params, signal }).then(r => r.data)
 export const getImageSearchHistoryDetail = (id, signal) => api.get(`/image-search/admin/history/${id}`, { signal }).then(r => r.data)
+export const getImageSearchFeedback = (ids, signal) => api.get('/image-search/admin/feedback', { params: { ids }, paramsSerializer: { indexes: null }, signal }).then(r => r.data)
 export const reviewImageSearch = (id, data) => api.put(`/image-search/admin/history/${id}/review`, data).then(r => r.data)
 export const deleteImageSearch = id => api.delete(`/image-search/admin/history/${id}`).then(r => r.data)
 export const publishShopImage = (id, selectedIds) => api.post(`/image-search/history/${id}/share`, { selected_ids: selectedIds }).then(r => r.data)

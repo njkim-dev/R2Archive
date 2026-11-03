@@ -20,6 +20,7 @@ from shop_image_search import BACKGROUND, SEARCH_DIR, engine, image_tensor
 
 SLOTS = ('hair', 'top', 'bottom', 'shoes')
 MODEL = 'gpt-6.1-terra'
+RETRIEVAL_VERSION = 'hair-palette-fusion-v1'
 _client = httpx.Client(timeout=httpx.Timeout(65, connect=10), limits=httpx.Limits(max_connections=8, max_keepalive_connections=8))
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='shop-match')
 _results = OrderedDict()
@@ -110,6 +111,19 @@ class OutfitSearch:
         self.model = engine()
         self.encoder_sha256 = json.loads((SEARCH_DIR/'manifest.json').read_text(encoding='utf8'))['sha256']['encoder.onnx']
         self.by_id = {str(r['id']): i for i,r in enumerate(self.rows)}
+        self.hair_palettes = None
+        if manifest.get('hair_palettes'):
+            path = SEARCH_DIR/'outfit-hair-palettes.npz'
+            with path.open('rb') as stream:
+                if hashlib.file_digest(stream, 'sha256').hexdigest() != manifest['hair_palettes']:
+                    raise ValueError('Hair palette integrity mismatch')
+            with np.load(path, allow_pickle=False) as data:
+                ids, palettes = data['ids'].tolist(), data['palettes']
+            expected = [str(row['id']) for row in self.rows if row['slot'] == 'hair']
+            if ids != expected or palettes.shape != (len(ids), 512) or not np.isfinite(palettes).all():
+                raise ValueError('Invalid hair palette dimensions')
+            self.hair_palettes = palettes.astype(np.float32, copy=False)
+            self.hair_palette_indices = {self.by_id[item]: n for n,item in enumerate(ids)}
         self.font = ImageFont.load_default(size=15)
 
     @lru_cache(maxsize=512)
@@ -162,7 +176,13 @@ class OutfitSearch:
         for n,index in enumerate(indices):
             if index in learned:
                 scores[n] = max(float(scores[n]), learned[index])
-        order = np.argsort(-scores, kind='stable')[:120]
+        order = np.argsort(-scores, kind='stable')
+        if slot == 'hair' and getattr(self, 'hair_palettes', None) is not None and len(indices):
+            palette_indices = [self.hair_palette_indices[i] for i in indices]
+            colors = np.einsum('ij,j->i', self.hair_palettes[palette_indices], hair_palette(masked), optimize=False)
+            order = fuse_hair_candidates(order, colors)
+        else:
+            order = order[:120]
         indices = indices[order]
         scored = [{'id': str(self.rows[i]['id']), 'score': round(float(score), 6)} for i,score in zip(indices,scores[order])]
         return [allowed[str(self.rows[i]['id'])] for i in indices], image.crop(box), scored
@@ -202,7 +222,7 @@ class OutfitSearch:
             alternatives = []
         return {'id': selected, 'alternatives': list(dict.fromkeys(str(i) for i in alternatives if str(i) in ids and str(i) != selected))[:3],
                 'confidence': result.get('confidence') if result.get('confidence') in ('high', 'medium', 'low') else 'low',
-                'exact_match_supported': result.get('exact_match_supported') is True}, usage
+                'exact_match_supported': selected is not None and result.get('confidence') == 'high' and result.get('exact_match_supported') is True}, usage
 
     def search(self, image, allowed, revision, slots=SLOTS, sex_hint=None, examples=()):
         started = time.perf_counter()
@@ -256,7 +276,8 @@ class OutfitSearch:
                 'timing': {'total_seconds': round(time.perf_counter()-started, 3), 'candidate_seconds': round(prepared, 3)},
                 'calls': calls, 'cost_estimate_usd': sum(c['cost_estimate_usd'] for c in calls), 'shortlists': shortlists,
                 'scored_candidates': scored, 'localization': localized['parts'], 'encoder_sha256': self.encoder_sha256,
-                'approved_example_count': len(examples)}
+                'approved_example_count': len(examples), 'retrieval_version': RETRIEVAL_VERSION,
+                'hair_palette_ready': self.hair_palettes is not None}
 
 
 @lru_cache(maxsize=1)
@@ -273,7 +294,7 @@ def cached_search(content, image, allowed, revision, slots, sex_hint=None):
     from shop_image_history import training_snapshot
     generation, examples = training_snapshot()
     visibility = hashlib.sha256(json.dumps(sorted((key,row['thumbnail'],row.get('slot'),row.get('sex')) for key,row in allowed.items())).encode()).hexdigest()
-    key = (hashlib.sha256(content).hexdigest(), revision, tuple(slots), sex_hint, visibility, generation)
+    key = (RETRIEVAL_VERSION, hashlib.sha256(content).hexdigest(), revision, tuple(slots), sex_hint, visibility, generation)
     with _cache_lock:
         cached = _results.get(key)
         if cached and time.monotonic()-cached[0] < 900:
@@ -286,6 +307,24 @@ def cached_search(content, image, allowed, revision, slots, sex_hint=None):
         while len(_results) > 32:
             _results.popitem(last=False)
     return {**result, 'cached': False}
+
+
+def hair_palette(image):
+    pixels = np.asarray(image.convert('RGBA').resize((128, 128), Image.Resampling.BOX))
+    bins = pixels[:, :, :3].astype(np.int32)//32
+    bins = bins[:, :, 0]*64+bins[:, :, 1]*8+bins[:, :, 2]
+    hist = np.bincount(bins[pixels[:, :, 3] > 100], minlength=512).astype(np.float32)
+    return hist/max(float(np.linalg.norm(hist)), 1e-9)
+
+
+def fuse_hair_candidates(shape_order, colors):
+    shape_rank = np.empty(len(shape_order), dtype=np.float32)
+    color_rank = np.empty(len(shape_order), dtype=np.float32)
+    shape_rank[shape_order] = np.arange(len(shape_order))+1
+    color_rank[np.argsort(-colors, kind='stable')] = np.arange(len(shape_order))+1
+    fusion = np.argsort(-(1/(60+shape_rank)+1/(60+color_rank)), kind='stable')
+    # Keep the strongest visual/approved matches even when lighting changes hair color.
+    return np.asarray(list(dict.fromkeys([*shape_order[:40].tolist(), *fusion.tolist()]))[:120], dtype=np.int64)
 
 
 def color_descriptor(image):

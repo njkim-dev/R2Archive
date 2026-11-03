@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useStore from '../store/useStore'
-import { deleteImageSearch, getImageSearchHistory, getImageSearchHistoryDetail, getShopItem, getShopItems, reviewImageSearch } from '../api/shop'
+import { deleteImageSearch, getImageSearchFeedback, getImageSearchHistory, getImageSearchHistoryDetail, getShopItem, getShopItems, reviewImageSearch } from '../api/shop'
+import { watchImageFeedback } from '../utils/shopImageFeedback'
 import '../styles/shopAdmin.css'
 
 const names = { hair: '머리', top: '상의', bottom: '하의', shoes: '스케이트' }
@@ -64,6 +65,8 @@ export default function ShopAdminPage() {
   const [selected, setSelected] = useState(null), [detail, setDetail] = useState(null), [detailBusy, setDetailBusy] = useState(false), [detailError, setDetailError] = useState('')
   const [labels, setLabels] = useState({}), [notes, setNotes] = useState(''), [saving, setSaving] = useState(false), [message, setMessage] = useState('')
   const queryKey = JSON.stringify(filters), current = useRef(''), sequence = useRef(0), detailSequence = useRef(0), owner = useRef(user?.id)
+  const historyList = useRef(null), selectedId = useRef(selected)
+  selectedId.current = selected
   current.current = queryKey; owner.current = user?.id
   useEffect(() => {
     if (!allowed) { setListing(null); setDetail(null); return }
@@ -81,6 +84,28 @@ export default function ShopAdminPage() {
     }).catch(failure => { if (!controller.signal.aborted) setDetailError(errors(failure)) }).finally(() => { if (!controller.signal.aborted) setDetailBusy(false) })
     return () => controller.abort()
   }, [allowed, user?.id, selected, detailEpoch])
+  useEffect(() => {
+    if (!allowed) return
+    let request, active = true
+    const refresh = () => {
+      const area = historyList.current, bounds = area?.getBoundingClientRect()
+      const visible = area ? [...area.querySelectorAll('[data-history-id]')].filter(row => { const box = row.getBoundingClientRect(); return box.bottom > bounds.top && box.top < bounds.bottom }).map(row => row.dataset.historyId) : []
+      const ids = [...new Set([selectedId.current, ...visible].filter(Boolean))].slice(0, 60)
+      if (!ids.length) return
+      request?.abort(); request = new AbortController()
+      const controller = request
+      getImageSearchFeedback(ids, controller.signal).then(data => {
+        if (!active || controller.signal.aborted || !Array.isArray(data.items)) return
+        const rows = new Map(data.items.map(row => [row.id, row]))
+        setListing(old => old ? { ...old, items: old.items.map(row => rows.has(row.id) ? { ...row, likes: rows.get(row.id).likes, dislikes: rows.get(row.id).dislikes } : row) } : old)
+        setDetail(old => old && rows.has(old.id) ? { ...old, votes: rows.get(old.id).votes } : old)
+      }).catch(() => {})
+    }
+    const stop = watchImageFeedback(refresh)
+    historyList.current?.addEventListener('scroll', refresh, { passive: true })
+    const area = historyList.current
+    return () => { active = false; request?.abort(); stop(); area?.removeEventListener('scroll', refresh) }
+  }, [allowed, user?.id, queryKey])
   async function more() {
     if (!listing?.next_cursor || moreBusy) return
     const key = queryKey, request = sequence.current, uid = user.id
@@ -123,13 +148,13 @@ export default function ShopAdminPage() {
       <div className="shop-admin-stats"><span>전체 기록 <b>{listing?.stats.total ?? '—'}</b></span><span>검수 대기 <b>{listing?.stats.pending ?? '—'}</b></span><span>승인 <b>{listing?.stats.approved ?? '—'}</b></span><span>검색 자료 <b>{listing?.stats.examples ?? '—'}</b></span><span>원본 보관 <b>{listing ? `${(listing.stats.image_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</b></span></div>
       <div className="shop-admin-filters">{[['status', '검수 상태', [['', '전체'], ...Object.entries(states)]], ['sex', '성별', [['', '전체'], ['male', '남성'], ['female', '여성']]], ['slot', '부위', [['', '전체 검색'], ['all', '네 부위 동시'], ...Object.entries(names)]], ['vote', '사용자 평가', [['', '모든 평가'], ['like', '좋아요 있음'], ['dislike', '싫어요 있음']]]].map(([key,label,options]) => <label key={key}>{label}<select aria-label={`관리자 ${label}`} value={filters[key]} onChange={event => setFilters(old => ({ ...old, [key]: event.target.value }))}>{options.map(([value,name]) => <option key={value} value={value}>{name}</option>)}</select></label>)}<button disabled={listBusy} onClick={() => setEpoch(old => old + 1)}>새로고침</button></div>
       <p className="shop-admin-list-status" role={listError ? 'alert' : 'status'}>{listError || (listBusy ? '기록을 불러오는 중입니다.' : '원본은 관리자가 삭제할 때까지 보관됩니다. 좋아요·싫어요는 검수 참고 자료이며 정답으로 자동 승인되지 않습니다.')}</p>
-      <div className="shop-admin-layout"><aside className="shop-admin-history-list" aria-label="이미지 검색 기록 목록" aria-busy={listBusy}>{listing?.items.map(row => <button key={row.id} className="shop-admin-history-row" aria-pressed={selected === row.id} onClick={() => { if (!saving) setSelected(row.id) }}><img src={`${row.image_url}?thumbnail=true`} alt="검색 이미지 축소판" loading="lazy" /><span><b>{date(row.created_at)}</b><span>{row.sex === 'male' ? '남성' : '여성'} · {names[row.slot] || '전체'} · 사용자 #{row.user_id ?? '삭제됨'}</span><span>{states[row.review_status]} · {row.status === 'failed' ? '검색 실패' : row.status === 'running' ? '검색 중' : '검색 완료'}</span><small>좋아요 {row.likes} · 싫어요 {row.dislikes}</small></span></button>)}{!listBusy && !listing?.items.length && <p>표시할 검색 기록이 없습니다.</p>}{listing?.has_more && <button disabled={moreBusy} onClick={more}>{moreBusy ? '불러오는 중…' : '더 보기'}</button>}</aside>
+      <div className="shop-admin-layout"><aside ref={historyList} className="shop-admin-history-list" aria-label="이미지 검색 기록 목록" aria-busy={listBusy}>{listing?.items.map(row => <button key={row.id} data-history-id={row.id} className="shop-admin-history-row" aria-pressed={selected === row.id} onClick={() => { if (!saving) setSelected(row.id) }}><img src={`${row.image_url}?thumbnail=true`} alt="검색 이미지 축소판" loading="lazy" /><span><b>{date(row.created_at)}</b><span>{row.sex === 'male' ? '남성' : '여성'} · {names[row.slot] || '전체'} · 사용자 #{row.user_id ?? '삭제됨'}</span><span>{states[row.review_status]} · {row.status === 'failed' ? '검색 실패' : row.status === 'running' ? '검색 중' : '검색 완료'}</span><small>좋아요 {row.likes} · 싫어요 {row.dislikes}</small></span></button>)}{!listBusy && !listing?.items.length && <p>표시할 검색 기록이 없습니다.</p>}{listing?.has_more && <button disabled={moreBusy} onClick={more}>{moreBusy ? '불러오는 중…' : '더 보기'}</button>}</aside>
         <section className="shop-admin-detail" aria-label="검색 기록 검수" aria-busy={detailBusy}>
           <div className="shop-admin-review-status" role={detailError ? 'alert' : 'status'}>{detailError || message || (detailBusy ? '검색 내용을 불러오는 중입니다.' : detail ? `${states[detail.review_status]} · 검수 버전 ${detail.review_version}` : '왼쪽에서 검수할 검색 기록을 선택해주세요.')}</div>
           {detail && <><div className="shop-admin-detail-heading"><h2>검색 기록</h2><p>{date(detail.created_at)} · {detail.model} · {detail.pipeline_version}</p><p>{detail.original_filename} · {detail.image_width}×{detail.image_height} · {(detail.image_bytes / 1024).toFixed(1)} KB</p>{detail.error && <p role="alert">{detail.error}</p>}</div>
             <p className="shop-admin-review-guide">확인한 부위의 정답과 영역을 지정한 뒤 승인하세요. 지정하지 않은 부위는 검색 자료에 추가하지 않습니다. 승인 자료는 후보 검색에 반영되며, 모델 추가 학습은 별도 검토 대상입니다.</p>
             <div className="shop-admin-review-actions"><button disabled={saving || !approvedCount} onClick={() => review('approved')}>승인</button><button disabled={saving} onClick={() => review('excluded')}>학습 제외</button><button disabled={saving} onClick={() => setDetailEpoch(old => old + 1)}>검수 내용 새로고침</button><button className="is-danger" disabled={saving} onClick={remove}>기록과 원본 삭제</button></div>
-            <label className="shop-admin-review-notes">검수 메모<textarea maxLength={2000} value={notes} disabled={saving} onChange={event => setNotes(event.target.value)} /></label>
+            <label className="shop-admin-review-notes">검수 메모<textarea aria-label="검수 메모" maxLength={2000} value={notes} disabled={saving} onChange={event => setNotes(event.target.value)} /></label>
             <fieldset disabled={saving}>{parts.map(slot => <PartReview key={`${detail.id}:${slot}:${detailEpoch}`} slot={slot} record={detail} label={labels[slot]} onChange={label => setLabels(old => ({ ...old, [slot]: label }))} />)}</fieldset>
             <details><summary>분석·후보 순위·시간·토큰·비용 기록</summary><pre>{JSON.stringify(detail.diagnostics, null, 2)}</pre></details>
             <details><summary>사용자 선택·입어보기·즐겨찾기 기록</summary><pre>{JSON.stringify(detail.actions, null, 2)}</pre></details>

@@ -26,6 +26,32 @@ def image_bytes():
 
 
 class HistoryTests(unittest.TestCase):
+    def test_admin_feedback_is_bounded_private_and_admin_only(self):
+        path = '/api/shop/image-search/admin/feedback'
+        with patch.object(store, 'feedback', return_value={'items': []}) as feedback:
+            self.assertEqual(self.client().get(path, params={'ids': str(ID)}).status_code, 401)
+            admin = self.client(admin=True)
+            for params in [{}, {'ids': 'invalid'}, [('ids', str(ID))]*61]:
+                self.assertEqual(admin.get(path, params=params).status_code, 422)
+            feedback.assert_not_called()
+            response = admin.get(path, params={'ids': str(ID)})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers['cache-control'], 'private, no-store')
+            feedback.assert_called_once_with([ID])
+
+    def test_feedback_groups_counts_and_returns_cleared_votes(self):
+        other = uuid.uuid4()
+        self.cur.fetchall.return_value = [
+            {'id':ID, 'slot':'hair','item_id':'1','value':1,'updated_at':None},
+            {'id':ID, 'slot':'top','item_id':'2','value':-1,'updated_at':None},
+            {'id':other,'slot':None,'item_id':None,'value':None,'updated_at':None}]
+        with patch.object(store,'transaction',self.cursor):
+            result = store.feedback([ID, other, ID])['items']
+        self.assertEqual(result[0]['likes'], 1); self.assertEqual(result[0]['dislikes'], 1)
+        self.assertEqual(len(result[0]['votes']), 2)
+        self.assertEqual(result[1], {'id':str(other),'likes':0,'dislikes':0,'votes':[]})
+        self.assertEqual(self.cur.execute.call_args.args[1], ([str(ID),str(other)],))
+
     @contextmanager
     def cursor(self, write=False):
         yield self.cur
@@ -124,6 +150,26 @@ class HistoryTests(unittest.TestCase):
             self.assertNotIn('122',[row['id'] for row in model.shortlist(image,REGION,'male','hair',allowed,[{**sample,**changed}])[0]])
         hidden = {key:value for key,value in allowed.items() if key != '122'}
         self.assertNotIn('122',[row['id'] for row in model.shortlist(image,REGION,'male','hair',hidden,[sample])[0]])
+
+    def test_palette_candidates_respect_sex_slot_visibility_and_current_thumbnail(self):
+        model = outfit.OutfitSearch.__new__(outfit.OutfitSearch)
+        model.rows = [{'id':str(i),'thumbnail':str(i),'sex':'male','slot':'hair'} for i in range(1,141)]
+        model.rows.extend([{'id':'141','thumbnail':'141','sex':'female','slot':'hair'}, {'id':'142','thumbnail':'142','sex':'male','slot':'top'}])
+        model.by_id = {row['id']:i for i,row in enumerate(model.rows)}
+        model.features = np.zeros((142,384),dtype=np.float32); model.features[:,0] = np.linspace(.9,.5,142)
+        model.encoder_sha256 = 'encoder'; model.model = MagicMock()
+        vector = np.zeros((1,384),dtype=np.float32); vector[0,0] = 1
+        model.model.session.run.return_value = [vector]
+        model.hair_palettes = np.zeros((141,512),dtype=np.float32)
+        model.hair_palette_indices = {i:i for i in range(141)}
+        image = Image.new('RGB',(32,64),(210,180,140))
+        model.hair_palettes[139] = outfit.hair_palette(image)
+        allowed = {row['id']:row for row in model.rows}
+        found = [row['id'] for row in model.shortlist(image,REGION,'male','hair',allowed)[0]]
+        self.assertIn('140',found); self.assertNotIn('141',found); self.assertNotIn('142',found)
+        self.assertEqual(found[:40],[str(i) for i in range(1,41)])
+        for hidden in [{k:v for k,v in allowed.items() if k!='140'}, {**allowed,'140':{**allowed['140'],'thumbnail':'stale'}}]:
+            self.assertNotIn('140',[row['id'] for row in model.shortlist(image,REGION,'male','hair',hidden)[0]])
 
     def test_approval_generation_invalidates_cached_search(self):
         outfit._results.clear(); model = MagicMock(); model.search.return_value = {'parts':{}}

@@ -3,12 +3,40 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import httpx
+import numpy as np
 from PIL import Image
 
 import shop_outfit_search as search
 
 
 class OutfitTests(unittest.TestCase):
+    def test_palette_preserves_blonde_hair_and_ignores_transparent_background(self):
+        hair = Image.new('RGBA', (32, 32), (210, 180, 140, 255))
+        padded = Image.new('RGBA', (64, 64), (255, 0, 0, 0)); padded.paste(hair, (16, 16))
+        np.testing.assert_allclose(search.hair_palette(hair), search.hair_palette(padded), atol=.02)
+        self.assertAlmostEqual(float(np.linalg.norm(search.hair_palette(hair))), 1, places=5)
+        self.assertFalse(search.hair_palette(Image.new('RGBA', (32,32))).any())
+
+    def test_hair_fusion_rescues_color_match_without_dropping_strong_shape_matches(self):
+        order = np.arange(400)
+        colors = np.zeros(400); colors[300] = 1
+        selected = search.fuse_hair_candidates(order, colors)
+        self.assertEqual(len(selected), 120)
+        self.assertEqual(len(set(selected)), 120)
+        self.assertEqual(selected[:40].tolist(), list(range(40)))
+        self.assertIn(300, selected)
+        self.assertEqual(search.fuse_hair_candidates(np.arange(2), np.zeros(2)).tolist(), [0,1])
+
+    def test_null_or_uncertain_comparison_cannot_be_marked_exact(self):
+        model = search.OutfitSearch.__new__(search.OutfitSearch)
+        model.thumbnail = MagicMock(return_value=Image.new('RGBA', (32,32)))
+        model.font = search.ImageFont.load_default()
+        for selected, confidence in [(None, 'high'), ('1', 'medium'), ('1', 'invalid')]:
+            answer = {'selected_id': selected, 'confidence': confidence, 'exact_match_supported': True}
+            with patch.object(search, 'call', return_value=(answer, {})):
+                result, _ = model.compare('hair', {}, Image.new('RGB',(32,32)), [{'id':'1','thumbnail':'a'}], 'v')
+            self.assertFalse(result['exact_match_supported'])
+
     def test_standard_tier_no_storage_and_usage_accounting(self):
         payload = {'status': 'completed', 'output': [{'content': [{'type': 'output_text', 'text': '{"ok":true}'}]}],
                    'usage': {'input_tokens': 100, 'output_tokens': 10, 'input_tokens_details': {'cached_tokens': 20, 'cache_write_tokens': 30}}}

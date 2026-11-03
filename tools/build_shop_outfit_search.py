@@ -12,7 +12,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from shop_image_search import image_tensor
-from shop_outfit_search import color_descriptor, SLOTS
+from shop_outfit_search import color_descriptor, hair_palette, SLOTS
 
 
 def main():
@@ -60,8 +60,16 @@ def main():
     np.save(directory/'outfit-colors.npy', np.stack([descriptors[r['thumbnail']][0] for r in rows]), allow_pickle=False)
     np.save(directory/'outfit-aspects.npy', np.asarray([descriptors[r['thumbnail']][1] for r in rows], dtype=np.float32), allow_pickle=False)
     (directory/'outfit-items.json').write_text(json.dumps(rows, ensure_ascii=False), encoding='utf8')
+    hair_rows = [row for row in rows if row['slot'] == 'hair']
+    def palette(row):
+        with Image.open(paths[row['thumbnail']]) as image:
+            return hair_palette(image)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        palettes = np.stack(list(pool.map(palette, hair_rows)))
+    np.savez_compressed(directory/'outfit-hair-palettes.npz', ids=np.asarray([str(row['id']) for row in hair_rows]), palettes=palettes)
     names = ['outfit-features.npy', 'outfit-colors.npy', 'outfit-aspects.npy', 'outfit-items.json']
     manifest = {'schema': 'shop-outfit-search-v1', 'catalog_revision': catalog['revision'], 'count': len(rows),
+                'hair_palettes': hashlib.sha256((directory/'outfit-hair-palettes.npz').read_bytes()).hexdigest(),
                 'sha256': {name: hashlib.sha256((directory/name).read_bytes()).hexdigest() for name in names}}
     (directory/'outfit-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf8')
     print(json.dumps({'ready': True, 'count': len(rows), 'seconds': round(time.perf_counter()-started, 2)}), flush=True)
