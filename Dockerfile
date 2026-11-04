@@ -64,6 +64,6 @@ EXPOSE 3000
 
 USER app
 
-CMD caddy start --config /etc/caddy/Caddyfile && \
-    uvicorn main:app --app-dir /app/backend --host 127.0.0.1 --port 8000 --no-proxy-headers \
-      --limit-concurrency 64 --backlog 128 --timeout-keep-alive 5
+CMD python /app/backend/redacted_process.py caddy run --config /etc/caddy/Caddyfile & \
+    exec uvicorn main:app --app-dir /app/backend --host 127.0.0.1 --port 8000 --no-proxy-headers \
+      --limit-concurrency 64 --backlog 128 --timeout-keep-alive 5 --log-config /app/backend/logging.json

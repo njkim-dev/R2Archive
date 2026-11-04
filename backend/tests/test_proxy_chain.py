@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import socket
+import sys
 import subprocess
 import tempfile
 import threading
@@ -26,6 +27,53 @@ def unused_port():
 
 @unittest.skipUnless(shutil.which("caddy"), "Caddy integration runs in the release image")
 class ProxyChainTests(unittest.TestCase):
+    def test_proxy_errors_keep_diagnostics_without_client_or_upstream_ips(self):
+        port, upstream = unused_port(), unused_port()
+        source = Path(os.environ.get("AUDIT_CADDYFILE", Path(__file__).resolve().parent.parent.parent / "Caddyfile"))
+        if not source.exists(): source = Path("/etc/caddy/Caddyfile")
+        config = source.read_text().replace("{\n", "{\n\tadmin off\n", 1).replace(":3000\n", f"http://127.0.0.1:{port}\n", 1)
+        env = {**os.environ, "API_UPSTREAM": f"127.0.0.1:{upstream}", "TRUSTED_PROXY_CIDRS": "127.0.0.1/32"}
+        process = None
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                path = Path(folder, "Caddyfile")
+                path.write_text(config)
+                with Path(folder, "caddy.log").open("w+") as log:
+                    wrapper = Path(os.environ.get("LOG_PRIVACY_WRAPPER", Path(__file__).parents[1] / "redacted_process.py"))
+                    if not wrapper.exists(): wrapper = Path("/app/backend/redacted_process.py")
+                    process = subprocess.Popen([sys.executable, str(wrapper), "caddy", "run", "--config", str(path)], env=env, stdout=log, stderr=log)
+                    for _ in range(100):
+                        if process.poll() is not None:
+                            log.seek(0)
+                            self.fail(log.read())
+                        try:
+                            with socket.create_connection(("127.0.0.1", port), timeout=.1): break
+                        except OSError: time.sleep(.03)
+                    else: self.fail("Caddy did not start")
+                    client = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    client.request("GET", "/api/log-privacy-check?ip=203.0.113.8", headers={"X-Forwarded-For": "203.0.113.8", "X-Real-IP": "2001:db8::8"})
+                    response = client.getresponse()
+                    self.assertEqual(response.status, 502)
+                    response.read()
+                    client.close()
+                    process.terminate()
+                    process.wait(timeout=10)
+                    process = None
+                    log.seek(0)
+                    output = log.read()
+                    for address in ["127.0.0.1", "203.0.113.8", "2001:db8::8"]:
+                        self.assertNotIn(address, output)
+                    errors = [json.loads(line) for line in output.splitlines() if line.startswith("{") and json.loads(line).get("level") == "error"]
+                    self.assertTrue(errors)
+                    self.assertIn("dial tcp [IP]", errors[0]["msg"])
+                    self.assertEqual(errors[0]["request"]["method"], "GET")
+                    self.assertIn("ip=[IP]", errors[0]["request"]["uri"])
+                    self.assertNotIn("headers", errors[0]["request"])
+        finally:
+            if process is not None:
+                process.terminate()
+                process.wait(timeout=10)
+
     def test_real_proxy_preserves_distinct_ips_and_rejects_untrusted_forwarding(self):
         class Echo(BaseHTTPRequestHandler):
             def do_GET(self):
