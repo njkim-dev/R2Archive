@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { getSessionId } from '../utils/helpers'
 import { apiPath, isXyxMode,ARCHIVE_BASE } from '../utils/serverMode'
+import { isAutomatedBrowser } from '../utils/analyticsTracking'
 
 const api = axios.create({ baseURL: '/api', withCredentials: true })
 export const setRepairAvailability = (enabled) => api.put('/game-repair/admin/status', { enabled }).then(r => r.data)
@@ -97,6 +98,7 @@ export const getYoutubeCandidates = (status = 'pending') =>
 export const getPmangYoutubeCandidates = (status = 'pending') =>
   api.get('/admin/pmang-youtube-candidates', { params: { status } }).then(r => r.data)
 export const trackPageview = async (body) => {
+  if (isAutomatedBrowser()) return { ok: true, ignored: 'automation' }
   const config = { skipRateLimitAlert: true }
   try {
     let response = await api.post('/analytics/pageview', body, config)
@@ -116,6 +118,7 @@ function currentDevice() {
 }
 export const trackSongCatalogView = async (body) => {
   if (!body?.song_id) return null
+  if (isAutomatedBrowser()) return { ok: true, ignored: 'automation' }
   const config = { skipRateLimitAlert: true }
   const payload = {
     path: typeof window === 'undefined' ? '/' : window.location.pathname,

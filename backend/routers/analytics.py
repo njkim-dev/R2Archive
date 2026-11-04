@@ -24,6 +24,11 @@ DOMAIN_SQL = "CASE WHEN path LIKE 'https://r2archive.com/music/%%' OR path='http
 ) + " ELSE 'unknown' END"
 ARCHIVE_REFERRER_SQL = ' OR '.join(f"referrer='{origin}/{prefix}' OR referrer LIKE '{origin}/{prefix}/%%' OR referrer LIKE '{origin}/{prefix}?%%'" for origin in ['https://r2archive.com','http://r2archive.com'] for prefix in ['music','xyx'])
 VALID_DEVICES = {"desktop", "mobile", "tablet", "unknown"}
+AUTOMATION_USER_AGENTS = ("headlesschrome", "playwright", "r2archive-codex-test")
+AUTOMATION_SQL = " OR ".join(
+    f"LOWER(COALESCE(user_agent, '')) LIKE '%%{marker}%%'" for marker in AUTOMATION_USER_AGENTS
+)
+PAGEVIEWS_SOURCE_SQL = f"(SELECT * FROM site_pageviews WHERE NOT ({AUTOMATION_SQL}))"
 CATALOG_COUNT_TABLES = {
     "kr": "songs",
     "xyx": "xyx_songs",
@@ -88,7 +93,7 @@ def _domain_summary(cur, start):
         SELECT {DOMAIN_SQL} AS domain,
                COUNT(*)::int AS pageviews,
                COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
-        FROM site_pageviews
+        FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
         WHERE created_at >= %s
         GROUP BY domain
         ORDER BY pageviews DESC, domain ASC
@@ -99,7 +104,7 @@ def _domain_summary(cur, start):
     cur.execute(
         f"""
         SELECT COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
-        FROM site_pageviews
+        FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
         WHERE created_at >= %s
           AND ({DOMAIN_SQL}) = 'music.r2archive.com'
           AND (referrer IN ('https://r2archive.com', 'http://r2archive.com')
@@ -137,7 +142,7 @@ def _clean_referrer(referrer: str | None) -> str | None:
 
 def _recent_pageviews(cur):
     cur.execute(
-        """
+        f"""
         SELECT
           to_char(p.created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI:SS') AS at,
           p.path,
@@ -146,7 +151,7 @@ def _recent_pageviews(cur):
           p.user_id,
           p.session_id,
           u.nickname
-        FROM site_pageviews p
+        FROM {PAGEVIEWS_SOURCE_SQL} AS p
         LEFT JOIN users u ON u.id = p.user_id
         ORDER BY p.created_at DESC, p.id DESC
         LIMIT 30
@@ -251,10 +256,19 @@ def _is_admin_user(cur, user_id: int | None) -> bool:
     return bool(row and row[0])
 
 
+def _is_automated_request(request: Request) -> bool:
+    user_agent = (request.headers.get("user-agent") or "").lower()
+    return request.headers.get("x-r2archive-test") == "1" or any(
+        marker in user_agent for marker in AUTOMATION_USER_AGENTS
+    )
+
+
 @router.post("/analytics/pageview")
 @limiter.limit(ANALYTICS_GLOBAL_LIMIT, key_func=_analytics_global_key)
 @limiter.limit(ANALYTICS_VISITOR_LIMIT, key_func=_analytics_client_key)
 def create_pageview(request: Request, response: Response, body: PageviewCreate):
+    if _is_automated_request(request):
+        return {"ok": True, "ignored": "automation"}
     session_id = _visitor_id_from_cookie(request)
     if session_id is None:
         session_id = str(uuid.uuid4())
@@ -321,6 +335,8 @@ def create_pageview(request: Request, response: Response, body: PageviewCreate):
 @limiter.limit(ANALYTICS_GLOBAL_LIMIT, key_func=_analytics_global_key)
 @limiter.limit(ANALYTICS_VISITOR_LIMIT, key_func=_analytics_client_key)
 def create_catalog_view(request: Request, response: Response, body: SongCatalogViewCreate):
+    if _is_automated_request(request):
+        return {"ok": True, "ignored": "automation"}
     session_id = _visitor_id_from_cookie(request)
     if session_id is None:
         session_id = str(uuid.uuid4())
@@ -426,7 +442,7 @@ def analytics_summary(request: Request, days: int = 30):
                   COUNT(DISTINCT {VISITOR_KEY_SQL}) FILTER (
                     WHERE created_at >= NOW() - INTERVAL '15 minutes'
                   )::int AS active_15m
-                FROM site_pageviews
+                FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
                 WHERE created_at >= %s
                 """,
                 (start,),
@@ -439,7 +455,7 @@ def analytics_summary(request: Request, days: int = 30):
                   (created_at AT TIME ZONE 'Asia/Seoul')::date::text AS day,
                   COUNT(*)::int AS pageviews,
                   COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
-                FROM site_pageviews
+                FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
                 WHERE created_at >= %s
                 GROUP BY day
                 ORDER BY day
@@ -451,7 +467,7 @@ def analytics_summary(request: Request, days: int = 30):
             cur.execute(
                 f"""
                 SELECT path, COUNT(*)::int AS pageviews, COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
-                FROM site_pageviews
+                FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
                 WHERE created_at >= %s
                 GROUP BY path
                 ORDER BY pageviews DESC, visitors DESC, path ASC
@@ -464,7 +480,7 @@ def analytics_summary(request: Request, days: int = 30):
             cur.execute(
                 f"""
                 SELECT server, COUNT(*)::int AS pageviews, COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
-                FROM site_pageviews
+                FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
                 WHERE created_at >= %s
                 GROUP BY server
                 ORDER BY pageviews DESC
@@ -476,7 +492,7 @@ def analytics_summary(request: Request, days: int = 30):
             cur.execute(
                 f"""
                 SELECT device, COUNT(*)::int AS pageviews, COUNT(DISTINCT {VISITOR_KEY_SQL})::int AS visitors
-                FROM site_pageviews
+                FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
                 WHERE created_at >= %s
                 GROUP BY device
                 ORDER BY pageviews DESC
@@ -487,10 +503,10 @@ def analytics_summary(request: Request, days: int = 30):
             domains, main_to_music = _domain_summary(cur, start)
 
             cur.execute(
-                """
+                f"""
                 SELECT COALESCE(NULLIF(referrer, ''), '(direct)') AS referrer,
                        COUNT(*)::int AS pageviews
-                FROM site_pageviews
+                FROM {PAGEVIEWS_SOURCE_SQL} AS human_views
                 WHERE created_at >= %s
                 GROUP BY COALESCE(NULLIF(referrer, ''), '(direct)')
                 ORDER BY pageviews DESC

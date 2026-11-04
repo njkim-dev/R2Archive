@@ -8,6 +8,7 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL,
+    extraHTTPHeaders: { 'X-R2Archive-Test': '1' },
     channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

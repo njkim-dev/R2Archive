@@ -18,6 +18,34 @@ async function apiData(path, admin = false) {
   return []
 }
 
+for (const automated of [true, false]) test(`analytics ${automated ? 'excludes automation' : 'records ordinary visitors'} for page and song views`, async ({ page }) => {
+  if (!automated) await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false })
+    Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36' })
+  })
+  const events = []
+  const song = { id: 1, name: 'Analytics Check', artist: 'Test', level: 8, bpm: 160, combo: 700, time: '2:00', file_order: 1, aliases: [], artist_aliases: [], user_level_votes: 0 }
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (!path.startsWith('/api/')) return route.continue()
+    if (path.startsWith('/api/analytics/')) {
+      events.push(path)
+      return route.fulfill({ json: { ok: true } })
+    }
+    const json = path === '/api/songs' ? [song] : path === '/api/songs/1' ? { ...song, bpm_timeline: [] } : await apiData(path)
+    await route.fulfill({ json })
+  })
+  await page.goto('/')
+  await expect(page.locator('[data-song-id="1"]')).toBeVisible()
+  await waitForFrames(page, 30)
+  if (!automated) await expect.poll(() => events.filter(path => path.endsWith('/pageview')).length).toBe(1)
+  await page.locator('[data-song-id="1"]').click()
+  await expect(page.locator('.m-stats')).toBeVisible()
+  await waitForFrames(page, 30)
+  if (automated) expect(events).toEqual([])
+  else await expect.poll(() => events.filter(path => path.endsWith('/catalog-view')).length).toBe(1)
+})
+
 test('domain statistics preserve layout through initial load, range refresh, stale response and error', async ({ page }, testInfo) => {
   if (testInfo.project.name.endsWith('768')) await page.setViewportSize({ width: 390, height: 900 })
   const pending = []
@@ -67,6 +95,10 @@ test('domain statistics preserve layout through initial load, range refresh, sta
 })
 
 test('cross-domain entry keeps the referring main domain but SPA navigation uses the previous music URL', async ({ page, baseURL }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false })
+    Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36' })
+  })
   const events = []
   await page.route('**/*', async route => {
     const url = new URL(route.request().url())

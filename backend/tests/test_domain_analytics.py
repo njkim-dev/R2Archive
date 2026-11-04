@@ -41,10 +41,10 @@ class DomainAnalyticsTests(unittest.TestCase):
     def test_recent_visits_include_current_nickname_without_losing_anonymous_or_missing_users(self):
         with sqlite3.connect(":memory:") as db:
             db.execute("CREATE TABLE users(id INTEGER PRIMARY KEY, nickname TEXT, email TEXT)")
-            db.execute("CREATE TABLE site_pageviews(id INTEGER PRIMARY KEY, created_at TEXT, path TEXT, server TEXT, device TEXT, user_id INTEGER, session_id TEXT)")
+            db.execute("CREATE TABLE site_pageviews(id INTEGER PRIMARY KEY, created_at TEXT, path TEXT, server TEXT, device TEXT, user_id INTEGER, session_id TEXT, user_agent TEXT)")
             db.executemany("INSERT INTO users VALUES (?, ?, ?)", [(1, "방문자", "private@example.com"), (2, None, "hidden@example.com")])
             for i in range(1, 36):
-                db.execute("INSERT INTO site_pageviews VALUES (?, ?, ?, ?, ?, ?, ?)", (i, "2026-10-20 10:00:00", "/", "kr", "desktop", [None, 1, 2, 999][i % 4], str(i)))
+                db.execute("INSERT INTO site_pageviews(id, created_at, path, server, device, user_id, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)", (i, "2026-10-20 10:00:00", "/", "kr", "desktop", [None, 1, 2, 999][i % 4], str(i)))
             rows = analytics._recent_pageviews(SqliteCursor(db))
             self.assertEqual([row["session_id"] for row in rows], [str(i) for i in range(35, 5, -1)])
             self.assertTrue(any(row["user_id"] is None for row in rows))
@@ -95,7 +95,7 @@ class DomainAnalyticsTests(unittest.TestCase):
 
     def test_domain_totals_legacy_bucket_and_transition_unique_visitors(self):
         with sqlite3.connect(":memory:") as db:
-            db.execute("CREATE TABLE site_pageviews(path TEXT, user_id INTEGER, session_id TEXT, referrer TEXT, created_at TEXT)")
+            db.execute("CREATE TABLE site_pageviews(path TEXT, user_id INTEGER, session_id TEXT, referrer TEXT, created_at TEXT, user_agent TEXT)")
             rows = [
                 ("https://r2archive.com/", None, "a", None, "2026-10-20"),
                 ("https://music.r2archive.com/", None, "a", "https://r2archive.com", "2026-10-20"),
@@ -108,7 +108,7 @@ class DomainAnalyticsTests(unittest.TestCase):
                 ("/", None, "legacy", "https://r2archive.com", "2026-10-20"),
                 ("https://music.r2archive.com/", None, "old", "https://r2archive.com", "2026-10-19"),
             ]
-            db.executemany("INSERT INTO site_pageviews VALUES (?, ?, ?, ?, ?)", rows)
+            db.executemany("INSERT INTO site_pageviews(path,user_id,session_id,referrer,created_at) VALUES (?, ?, ?, ?, ?)", rows)
             domains, transition = analytics._domain_summary(SqliteCursor(db), "2026-10-20")
         by_domain = {row["domain"]: row for row in domains}
         self.assertEqual(by_domain["music.r2archive.com"], {"domain": "music.r2archive.com", "pageviews": 6, "visitors": 4})
@@ -119,11 +119,11 @@ class DomainAnalyticsTests(unittest.TestCase):
 
     def test_prefix_archives_keep_domain_totals_without_counting_internal_referrals(self):
         with sqlite3.connect(':memory:') as db:
-            db.execute('CREATE TABLE site_pageviews(path TEXT,user_id INTEGER,session_id TEXT,referrer TEXT,created_at TEXT)')
+            db.execute('CREATE TABLE site_pageviews(path TEXT,user_id INTEGER,session_id TEXT,referrer TEXT,created_at TEXT,user_agent TEXT)')
             rows=[('https://r2archive.com/',None,'main',None,'2026-10-20'),('https://r2archive.com/xyx/',None,'xyx',None,'2026-10-20')]
             for session,referrer in [('entry','https://r2archive.com/'),('internal','https://r2archive.com/music/updates'),('server','https://r2archive.com/xyx/'),('query','https://r2archive.com/music?search=test')]:
                 rows.append(('https://r2archive.com/music/',None,session,referrer,'2026-10-20'))
-            db.executemany('INSERT INTO site_pageviews VALUES(?,?,?,?,?)',rows)
+            db.executemany('INSERT INTO site_pageviews(path,user_id,session_id,referrer,created_at) VALUES(?,?,?,?,?)',rows)
             domains,transition=analytics._domain_summary(SqliteCursor(db),'2026-10-20')
         self.assertEqual({row['domain']:row['pageviews'] for row in domains},{'r2archive.com':1,'music.r2archive.com':4,'xyx.r2archive.com':1})
         self.assertEqual(transition,{'visitors':1})
