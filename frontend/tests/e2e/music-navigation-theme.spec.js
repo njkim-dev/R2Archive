@@ -31,11 +31,13 @@ for (const width of [1440, 390]) test(`music navigation shares the archive theme
   const color = await primary.evaluate(node => getComputedStyle(node).color)
   const semantic = []
   for (const [index, key] of ['star', 'moon', 'sun'].entries()) {
-    const transition = await watchLayout(page, selectors)
     const category = page.locator(mobile ? `.mob-chip[data-channel="${key}"]` : `.archive-sidebar .cat-btn[data-channel="${key}"]`)
+    await category.scrollIntoViewIfNeeded()
+    const transition = await watchLayout(page, selectors)
     await category.click()
     await expect(category).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator(`[data-song-id="${index + 1}"]`)).toBeVisible()
+    await category.evaluate(node => Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => {}))))
     semantic.push(await category.evaluate(node => getComputedStyle(node).color))
     await transition.expectStable()
     await transition.stop()
