@@ -17,13 +17,14 @@
 
 :is(.archive-sidebar-context,.archive-menu-context) .side-section { margin-top:20px; }
 :is(.archive-sidebar-context,.archive-menu-context) .side-label { padding-inline:12px;margin-bottom:8px;color:var(--fg-4);font-size:10.5px;letter-spacing:.02em; }
-:is(.archive-sidebar-context,.archive-menu-context) .page-nav,
-:is(.archive-sidebar-context,.archive-menu-context) .nav { gap:4px; }
+:is(.archive-sidebar-context,.archive-menu-context) .page-nav { gap:4px; }
+:is(.archive-sidebar-context,.archive-menu-context) .nav { gap:1px; }
 :is(.archive-sidebar-context,.archive-menu-context) .page-nav-item,
 :is(.archive-sidebar-context,.archive-menu-context) .nav button {
   min-height:36px;padding:8px 12px;border-radius:8px;gap:9px;
   color:var(--archive-nav-muted);font-size:12px;font-weight:500;line-height:20px;
 }
+:is(.archive-sidebar-context,.archive-menu-context) .nav button { min-height:32px;padding-block:6px; }
 :is(.archive-sidebar-context,.archive-menu-context) .page-nav-item svg { flex-shrink:0; }
 :is(.archive-sidebar-context,.archive-menu-context) .page-nav-item:hover,
 :is(.archive-sidebar-context,.archive-menu-context) .nav button:hover { background:var(--archive-nav-soft);color:var(--archive-nav-text); }
