@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import useStore from '../store/useStore'
 import { filterSongs } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
-import { SlidersHorizontal } from 'lucide-react'
+import { LockKeyhole, SlidersHorizontal } from 'lucide-react'
 import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
 import PageNavigation from './PageNavigation'
 import { ArchiveSidebar } from './ArchiveNavigation'
@@ -108,7 +108,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
                 aria-disabled={disabled}
               >
                 <span>{label}</span>
-                <span className="tag">{disabled ? '—' : loading ? '…' : error ? '—' : count.toLocaleString()}</span>
+                <span className="tag">{disabled ? <><span>—</span><LockKeyhole className="archive-filter-lock" size={11} aria-hidden="true" /></> : loading ? '…' : error ? '—' : count.toLocaleString()}</span>
               </button>
             )
           })}
@@ -122,6 +122,7 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
             <button
               key={key}
               className={`cat-btn${category === key ? ' active' : ''}`}
+              data-channel={key}
               onClick={() => setCategory(key)}
               data-tooltip={`${label} (난이도 ${rng})`}
               aria-pressed={category === key}

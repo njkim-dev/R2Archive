@@ -17,6 +17,7 @@ import SongsPage from './pages/SongsPage'
 import PageMetadata from './components/PageMetadata'
 import './styles/archive-backdrop.css'
 import './styles/archive-navigation.css'
+import './styles/music-navigation.css'
 import { ArchiveMobileNavigation, ArchivePageLayout } from './components/ArchiveNavigation'
 import CreatePersonalCategoryModal, { takePendingCategoryCreate } from './components/CreatePersonalCategoryModal'
 

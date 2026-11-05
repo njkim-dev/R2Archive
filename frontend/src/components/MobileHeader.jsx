@@ -162,6 +162,7 @@ export default function MobileHeader({ totalFiltered }) {
               <button
                 key={key}
                 className={`mob-chip${isOn ? ' on' : ''}`}
+                data-channel={range ? key : undefined}
                 onClick={() => handleChip(key)}
                 aria-pressed={isOn}
               >
