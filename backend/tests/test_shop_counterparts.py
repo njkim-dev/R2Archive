@@ -8,6 +8,14 @@ from shop_counterparts import REVIEWED_PAIRS, counterpart_sql, load_reviewed_pai
 
 
 class ShopCounterpartTests(unittest.TestCase):
+    def test_november_release_keeps_differently_named_imperial_outfit_pairs_visible(self):
+        lookup={row['male']:row for row in REVIEWED_PAIRS}
+        for male,female,slot in [(30210530,30220790,'hair'),(30310695,30320801,'top'),(30410134,30420378,'bottom'),(30510030,30520164,'shoes')]:
+            pair=lookup[male]
+            self.assertEqual((pair['female'],pair['slot'],pair['family']),(female,slot,'standard'))
+            self.assertIn('흑요황정',pair['previous_male_name']);self.assertIn('흑요황정',pair['previous_female_name'])
+            self.assertIn(str(male),reviewed_pair_sql());self.assertIn(str(female),reviewed_pair_sql())
+
     def test_requested_faces_are_reciprocal_reviewed_pairs(self):
         lookup = {p['male']: p for p in REVIEWED_PAIRS}
         self.assertEqual(lookup[1010034]['female'], 1020035)

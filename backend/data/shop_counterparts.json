@@ -1,7 +1,7 @@
 {
   "schema": "shop-reviewed-counterparts-v1",
-  "reviewed_on": "2026-10-31",
-  "reviewed_catalog": "db743b0b62111c3afa1e",
+  "reviewed_on": "2026-11-12",
+  "reviewed_catalog": "0022d250cbfa8a408b3b",
   "pairs": [
     {
       "male": 210018,
@@ -1909,6 +1909,62 @@
       "male_category": "304",
       "female_name": "트랜디한 후드티 여성 신발",
       "female_category": "404"
+    },
+    {
+      "male": 30210530,
+      "female": 30220790,
+      "slot": "hair",
+      "family": "standard",
+      "evidence": "previous_gendered_names_and_visual",
+      "male_name": "흑요황궁 올림머리(남)",
+      "male_category": "301",
+      "female_name": "흑요황궁 영애헤어(여)",
+      "female_category": "401",
+      "previous_male_name": "흑요황정 남성 머리",
+      "previous_female_name": "흑요황정 여성 머리",
+      "reviewed_on": "2026-11-12"
+    },
+    {
+      "male": 30310695,
+      "female": 30320801,
+      "slot": "top",
+      "family": "standard",
+      "evidence": "previous_gendered_names_and_visual",
+      "male_name": "흑요황궁 제복자켓(남)",
+      "male_category": "302",
+      "female_name": "흑요황궁 오프숄더(여)",
+      "female_category": "402",
+      "previous_male_name": "흑요황정 남성 상의",
+      "previous_female_name": "흑요황정 여성 상의",
+      "reviewed_on": "2026-11-12"
+    },
+    {
+      "male": 30410134,
+      "female": 30420378,
+      "slot": "bottom",
+      "family": "standard",
+      "evidence": "previous_gendered_names_and_visual",
+      "male_name": "흑요황궁 제복바지(남)",
+      "male_category": "303",
+      "female_name": "흑요황궁 스커트(여)",
+      "female_category": "403",
+      "previous_male_name": "흑요황정 남성 바지",
+      "previous_female_name": "흑요황정 여성 치마",
+      "reviewed_on": "2026-11-12"
+    },
+    {
+      "male": 30510030,
+      "female": 30520164,
+      "slot": "shoes",
+      "family": "standard",
+      "evidence": "previous_gendered_names_and_visual",
+      "male_name": "흑요황궁 제복부츠(남)",
+      "male_category": "304",
+      "female_name": "흑요황궁 슈즈(여)",
+      "female_category": "404",
+      "previous_male_name": "흑요황정 남성 신발",
+      "previous_female_name": "흑요황정 여성 신발",
+      "reviewed_on": "2026-11-12"
     }
   ]
 }
