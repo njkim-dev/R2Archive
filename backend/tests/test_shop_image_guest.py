@@ -27,10 +27,12 @@ class GuestSearchTests(unittest.TestCase):
     def setUp(self):
         limiter = patch.object(api.limiter, 'enabled', False)
         limiter.start(); self.addCleanup(limiter.stop)
+        memory = patch.object(guest, 'ip_allowance', guest.IPAllowance())
+        memory.start(); self.addCleanup(memory.stop)
 
-    def client(self):
+    def client(self, peer='198.51.100.20'):
         app = FastAPI(); app.include_router(api.router)
-        return TestClient(app, base_url='https://testserver')
+        return TestClient(app, base_url='https://testserver', client=(peer, 50000))
 
     def test_signed_cookie_is_private_and_tampering_cannot_start_a_search(self):
         client = self.client()
@@ -107,3 +109,35 @@ class GuestSearchTests(unittest.TestCase):
         app.add_middleware(BrowserCSRFMiddleware)
         response = TestClient(app).post('/api/shop/image-search',headers={'Cookie':guest.COOKIE+'=token','Origin':'https://untrusted.example'})
         self.assertEqual(response.status_code,403)
+
+
+    def test_cookie_deletion_and_separate_browsers_share_ip_allowance(self):
+        with patch.object(history, 'guest_usage', return_value=guest.usage(0)), patch.object(api, 'find_guest', return_value={'groups': []}) as find:
+            for index in range(5):
+                browser = self.client()
+                self.assertEqual(browser.get('/api/shop/image-search/access').json()['remaining'], 5-index)
+                response = browser.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['guest_usage']['remaining'], 4-index)
+            browser.cookies.clear()
+            private = self.client()
+            for current in [browser, private]:
+                self.assertEqual(current.get('/api/shop/image-search/access').json()['remaining'], 0)
+                response = current.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
+                self.assertEqual(response.status_code, 429)
+                self.assertEqual(response.json()['detail'], guest.LIMIT_MESSAGE)
+            self.assertEqual(find.call_count, 5)
+            self.assertEqual(self.client('198.51.100.21').get('/api/shop/image-search/access').json()['remaining'], 5)
+            self.assertNotIn('198.51.100.20', repr(find.call_args_list))
+            self.assertNotIn('198.51.100.20', repr(guest.ip_allowance._entries))
+
+    def test_failed_guest_search_refunds_ip_slot_and_member_never_reserves_one(self):
+        with patch.object(history, 'guest_usage', return_value=guest.usage(0)), patch.object(api, 'find_guest', side_effect=[HTTPException(503,'failed'), {'groups':[]}]) as find:
+            browser = self.client(); browser.get('/api/shop/image-search/access')
+            response = browser.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(browser.get('/api/shop/image-search/access').json()['remaining'], 5)
+            response = browser.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
+            self.assertEqual(response.json()['guest_usage']['remaining'], 4)
+            self.assertEqual(find.call_count, 2)
+        self.assertEqual(len(guest.ip_allowance._entries), 1)

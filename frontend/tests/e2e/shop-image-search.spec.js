@@ -38,7 +38,7 @@ const hair = { ...shirt, id: '220', name: '테스트 머리(남)', slot: 'hair',
 const result = { search_id: searchId, items: [hair, candidate], version, groups: ['hair', 'top', 'bottom', 'shoes'].map(slot => ({ slot, items: slot === 'hair' ? [hair] : slot === 'top' ? [candidate] : [], exact_match_supported: true })) }
 
 for (const width of [1440, 390]) {
-  test(`guest allowance loads without moving the catalog and exhaustion survives reload at ${width}px`, async ({ page }) => {
+  test(`guest IP exhaustion survives cookie deletion and private browsing without moving the catalog at ${width}px`, async ({ page, browser }) => {
     await page.setViewportSize({ width, height: 1000 })
     await setup(page, { loggedIn: false, admin: false })
     let release, used = 0
@@ -58,10 +58,21 @@ for (const width of [1440, 390]) {
     await expect(button).toBeDisabled()
     await page.locator('.shop-image-search-open-anchor').hover()
     await expect(page.getByRole('tooltip')).toContainText('비로그인 사용자는 이미지 검색이 5회로 제한됩니다')
+    await page.context().clearCookies()
     await page.reload()
     await expect(button).toBeDisabled()
     await page.locator('.shop-image-search-open-anchor').hover()
     await expect(page.getByRole('tooltip')).toHaveText('비로그인 사용자는 이미지 검색이 5회로 제한됩니다')
+    const privateContext = await browser.newContext({ viewport: { width, height: 1000 }, extraHTTPHeaders: { 'X-R2Archive-Test': '1' } })
+    try {
+      const privatePage = await privateContext.newPage()
+      await setup(privatePage, { loggedIn: false, admin: false })
+      await privatePage.route('**/api/shop/image-search/access', route => route.fulfill({json:{authenticated:false,limit:5,used,remaining:5-used}}))
+      await privatePage.goto('/shop?sex=male')
+      await expect(privatePage.getByRole('button', { name: '이미지로 찾기', exact: true })).toBeDisabled()
+      await privatePage.locator('.shop-image-search-open-anchor').hover()
+      await expect(privatePage.getByRole('tooltip')).toHaveText('비로그인 사용자는 이미지 검색이 5회로 제한됩니다')
+    } finally { await privateContext.close() }
   })
   test(`guests can complete five searches, retry a failure and view the final result at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 })

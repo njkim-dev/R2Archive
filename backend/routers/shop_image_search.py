@@ -33,7 +33,8 @@ def image_search_access(request: Request, uid: int | None = Depends(search_user)
     if uid is not None:
         return JSONResponse({'authenticated': True, 'limit': None, 'used': None, 'remaining': None}, headers={'Cache-Control': 'private, no-store'})
     guest_id = guest.identity(request) or guest.new_identity()
-    response = JSONResponse(history.guest_usage(guest_id), headers={'Cache-Control': 'private, no-store'})
+    cookie_usage = history.guest_usage(guest_id)
+    response = JSONResponse(guest.ip_allowance.usage(guest.ip_allowance.key(request), cookie_usage['used']), headers={'Cache-Control': 'private, no-store'})
     guest.initialize(response, guest_id)
     return response
 
@@ -159,16 +160,25 @@ async def image_search(request: Request, image: UploadFile = File(...), sex: str
     with capacity.enter('guest:' + guest_id if guest_id else user_key(request)):
         content = await image.read(search.MAX_BYTES + 1)
         if guest_id:
-            result = await run_blocking(find_guest, content, sex, slot, version or None, mode, guest_id, image.filename or 'search.png')
+            ip_key = guest.ip_allowance.key(request)
+            result = await run_blocking(find_ip_guest, ip_key, content, sex, slot, version or None, mode, guest_id, image.filename or 'search.png')
+            cookie_used = 0
             try:
-                result['guest_usage'] = await run_blocking(history.guest_usage, guest_id)
+                cookie_used = (await run_blocking(history.guest_usage, guest_id))['used']
             except Exception:
                 logger.exception('Could not refresh anonymous image search allowance')
+            result['guest_usage'] = guest.ip_allowance.usage(ip_key, cookie_used)
         elif mode == 'terra':
             result = await run_blocking(find_outfit, content, sex, slot, version or None, True, uid, image.filename or 'search.png')
         else:
             result = await run_blocking(find, content, sex, slot, version or None, True)
         return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
+
+def find_ip_guest(ip_key, *args):
+    # Commit inside the shielded worker even when the browser disconnects.
+    with guest.ip_allowance.reserve(ip_key):
+        return find_guest(*args)
 
 
 def find_guest(content, sex, slot, version, mode, guest_id, filename):
