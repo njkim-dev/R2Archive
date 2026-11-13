@@ -169,7 +169,7 @@ class HistoryTests(unittest.TestCase):
             search_id = store.create(raw,42,'male','top','v','C:\\private\\image.png','test')
             files = list(Path(directory).iterdir()); self.assertEqual(len(files),1); self.assertEqual(files[0].read_bytes(),raw)
             self.assertEqual(files[0].stem,uuid.UUID(search_id).hex)
-            self.assertEqual(self.cur.execute.call_args.args[1][-1],'image.png')
+            self.assertEqual(self.cur.execute.call_args.args[1][-2],'image.png')
             self.cur.execute.side_effect = RuntimeError('insert failed')
             with self.assertRaises(RuntimeError): store.create(raw,42,'male','top','v','image.png','test')
             self.assertEqual(len(list(Path(directory).iterdir())),1)

@@ -17,6 +17,7 @@ from PIL import Image
 from psycopg2.extras import Json, RealDictCursor
 
 from database import get_conn
+import shop_image_guest as guest
 
 
 DIRECTORY = Path(os.environ.get('SHOP_IMAGE_HISTORY_DIR', Path(__file__).resolve().parents[1]/'record_screenshots'/'image-search-history'))
@@ -50,7 +51,17 @@ def file_path(image_key):
     return DIRECTORY/image_key
 
 
-def create(content, uid, sex, slot, revision, filename, model):
+def guest_used(cur, guest_id):
+    cur.execute("SELECT count(*) AS used FROM shop_image_search_history WHERE user_id IS NULL AND diagnostics->>'guest_id'=%s AND status IN ('running','completed')", (guest_id,))
+    return cur.fetchone()['used']
+
+
+def guest_usage(guest_id):
+    with transaction() as cur:
+        return guest.usage(guest_used(cur, guest_id))
+
+
+def create(content, uid, sex, slot, revision, filename, model, guest_id=None):
     search_id = uuid.uuid4()
     with Image.open(BytesIO(content)) as image:
         image_format, (width,height) = image.format, image.size
@@ -63,12 +74,17 @@ def create(content, uid, sex, slot, revision, filename, model):
             stream.write(content)
         path.chmod(0o600)
         with transaction(write=True) as cur:
+            if guest_id:
+                # Serialize quota reservation across workers before starting paid inference.
+                cur.execute('SELECT pg_advisory_xact_lock(%s)', (int.from_bytes(sha256(guest_id.encode()).digest()[:8], 'big', signed=True),))
+                if guest_used(cur, guest_id) >= guest.LIMIT:
+                    raise guest.exhausted()
             cur.execute('''INSERT INTO shop_image_search_history
                 (id,user_id,status,sex,slot,catalog_revision,model,pipeline_version,image_key,source_sha256,image_format,
-                 image_bytes,image_width,image_height,original_filename)
-                VALUES(%s,%s,'running',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+                 image_bytes,image_width,image_height,original_filename,diagnostics)
+                VALUES(%s,%s,'running',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                 (str(search_id),uid,sex,slot,revision,model,PIPELINE_VERSION,image_key,sha256(content).hexdigest(),image_format,
-                 len(content),width,height,Path(filename.replace('\\','/')).name[:255]))
+                 len(content),width,height,Path(filename.replace('\\','/')).name[:255],Json({'guest_id': guest_id} if guest_id else {})))
     except BaseException:
         path.unlink(missing_ok=True)
         raise
@@ -77,7 +93,7 @@ def create(content, uid, sex, slot, revision, filename, model):
 
 def finish(search_id, result=None, diagnostics=None, error=''):
     with transaction(write=True) as cur:
-        cur.execute('''UPDATE shop_image_search_history SET status=%s,completed_at=now(),result=%s,diagnostics=%s,error=%s
+        cur.execute('''UPDATE shop_image_search_history SET status=%s,completed_at=now(),result=%s,diagnostics=diagnostics || %s,error=%s
                        WHERE id=%s''', ('failed' if error else 'completed',Json(result or {}),Json(diagnostics or {}),error[:500],search_id))
 
 
@@ -239,7 +255,7 @@ def listing(status='', sex='', slot='', vote_filter='', before=None, limit=24):
         clauses.append('(h.created_at,h.id)<(SELECT created_at,id FROM shop_image_search_history WHERE id=%s)')
         args.append(str(before))
     with transaction() as cur:
-        cur.execute('''SELECT h.id,h.user_id,h.created_at,h.completed_at,h.status,h.sex,h.slot,h.catalog_revision,h.model,
+        cur.execute('''SELECT h.id,h.user_id,(h.diagnostics ? 'guest_id') AS is_guest,h.created_at,h.completed_at,h.status,h.sex,h.slot,h.catalog_revision,h.model,
             h.image_bytes,h.original_filename,h.review_status,h.review_version,h.error,COALESCE(h.result->'preview_votes','[]'::jsonb) AS preview_votes,
             (SELECT count(*) FROM shop_image_search_votes v WHERE v.search_id=h.id AND value=1) AS likes,
             (SELECT count(*) FROM shop_image_search_votes v WHERE v.search_id=h.id AND value=-1) AS dislikes,

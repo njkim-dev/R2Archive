@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from starlette.responses import JSONResponse
 
 from auth import SESSION_COOKIE
+from shop_image_guest import COOKIE as IMAGE_GUEST_COOKIE
 
 _UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _DEFAULT_TRUSTED_ORIGINS = (
@@ -50,7 +51,7 @@ def _has_session_cookie(raw_cookie: str) -> bool:
     try:
         cookies = SimpleCookie()
         cookies.load(raw_cookie)
-        return SESSION_COOKIE in cookies
+        return SESSION_COOKIE in cookies or IMAGE_GUEST_COOKIE in cookies
     except Exception:
         return False
 

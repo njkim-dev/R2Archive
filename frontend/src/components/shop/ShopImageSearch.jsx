@@ -7,6 +7,7 @@ import ShopSearchCrop from './ShopSearchCrop'
 import ShopImagePreview from './ShopImagePreview'
 import { searchCropFile } from '../../utils/shopSearchImage'
 import { notifyImageFeedback } from '../../utils/shopImageFeedback'
+import { GUEST_IMAGE_LIMIT_MESSAGE } from './useShopImageAccess'
 import { searchEstimate, searchProgress } from '../../utils/shopImageEstimate'
 
 const labels = { hair: '머리', top: '상의', bottom: '하의', shoes: '스케이트' }
@@ -14,7 +15,7 @@ const resultMessage = 'AI 검색 결과는 정확하지 않을 수 있습니다.
 const failureText = failure => typeof failure.response?.data?.detail === 'string' ? failure.response.data.detail : failure.response?.status === 429 ? '검색 요청이 많습니다. 잠시 후 다시 시도해주세요.' : failure.message || '요청을 완료하지 못했습니다. 다시 시도해주세요.'
 const previewKey = ids => ids.map(String).sort().join(':')
 
-export default function ShopImageSearch({ version, meta, onFavorite, onClose, restoreHost, authenticated, sharedToken, onRestartShared, onSharedVersion }) {
+export default function ShopImageSearch({ version, meta, onFavorite, onClose, restoreHost, authenticated, imageAccess, sharedToken, onRestartShared, onSharedVersion }) {
   const dialog = useRef(null), controller = useRef(null), submitting = useRef(false), loading = useRef(0), minimizedRef = useRef(false), voteLocks = useRef(new Set()), scroll = useRef(0), currentResult = useRef(null), mounted = useRef(true)
   const [crop, setCrop] = useState(null), [sharedLoading, setSharedLoading] = useState(!!sharedToken), [shareBusy, setShareBusy] = useState(false), [shareUrl, setShareUrl] = useState(''), [voteStatus, setVoteStatus] = useState({})
   const resultRef = useRef(null)
@@ -58,7 +59,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
     return () => clearInterval(timer)
   }, [busy])
   useEffect(() => {
-    if (!authenticated || sharedToken) return
+    if (sharedToken) return
     const request = new AbortController()
     getShopImageEstimate(slot, request.signal).then(value => {
       if (!request.signal.aborted) setEstimate({ slot, value: searchEstimate(value, slot) })
@@ -92,7 +93,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
     return () => document.removeEventListener('paste', paste)
   }, [])
   function startAgain() {
-    if (!authenticated || busy || actionBusy || shareBusy || sharedLoading) return
+    if (!imageAccess.allowed || busy || actionBusy || shareBusy || sharedLoading) return
     if (sharedToken) { onRestartShared(sex); return }
     setCrop(null)
     loading.current++; setSource(null); setSex(''); setSlot('all'); resetResults(); setSeconds(0); scroll.current = 0
@@ -100,19 +101,24 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
   }
   async function submit(event) {
     event.preventDefault()
-    if (!authenticated || !source || !crop || !sex || submitting.current || result || sharedToken) return
+    if (!imageAccess.allowed || !source || !crop || !sex || submitting.current || result || sharedToken) return
     submitting.current = true; setActiveEstimate(estimate?.slot === slot ? estimate.value : searchEstimate(null, slot)); setBusy(true); setSeconds(0); resetResults()
     controller.current = new AbortController()
     try {
+      if (!authenticated) {
+        const access = await imageAccess.refresh()
+        if (!access || access.remaining === 0) { if (mounted.current) setError(access ? GUEST_IMAGE_LIMIT_MESSAGE : '이용 가능 횟수를 확인하지 못했습니다. 다시 시도해주세요.'); return }
+      }
       const image = await searchCropFile(source, crop, controller.current.signal)
       const found = await searchShopImage({ image, sex, slot, version, mode: 'terra' }, controller.current.signal)
+      if (found.guest_usage) imageAccess.update(found.guest_usage)
       if (mounted.current) { setSource({ url: URL.createObjectURL(image), file: image }); setResult(found) }
     } catch (failure) {
       if (failure.code !== 'ERR_CANCELED' && failure.name !== 'AbortError' && mounted.current) setError(failureText(failure))
-    } finally { submitting.current = false; if (mounted.current) setBusy(false) }
+    } finally { submitting.current = false; if (mounted.current) setBusy(false); if (!authenticated) imageAccess.refresh() }
   }
   function logAction(action, items) {
-    if (!result?.search_id) return
+    if (!authenticated || !result?.search_id) return
     recordShopImageAction(result.search_id, action, items).catch(() => {})
   }
   function toggle(item, groupSlot) {
@@ -193,7 +199,7 @@ export default function ShopImageSearch({ version, meta, onFavorite, onClose, re
         <div className={`shop-image-search-dropzone${dragOver ? ' is-dragging' : ''}`} onDragOver={event => { if (Array.from(event.dataTransfer.types).includes('Files')) { event.preventDefault(); if (!busy && !result && !sharedToken) setDragOver(true) } }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(false) }} onDrop={event => { event.preventDefault(); setDragOver(false); if (!busy && !result && !sharedToken) loadFile(event.dataTransfer.files?.[0]) }}>
           {result ? <div className="shop-image-search-crop-summary"><p className="shop-image-search-crop-prompt">검색에 사용한 영역</p><div className="shop-image-search-workspace"><img className="shop-image-search-original" src={source?.url} alt="검색에 사용한 이미지" /></div></div> : <ShopSearchCrop source={source} crop={crop} onChange={setCrop} disabled={busy || !!sharedToken}><p>검색할 이미지를 끌어오세요. Ctrl + V로 붙여넣을 수도 있습니다.<br /><small>PNG · JPG · WEBP, 원본 최대 32MB</small></p></ShopSearchCrop>}
         </div>
-        <div className="shop-image-search-submit">{result || sharedToken ? <><button type="button" disabled={!result || shareBusy || sharedLoading} onClick={saveResultUrl}>{shareBusy ? 'URL 저장 중…' : '이 결과 URL 저장'}</button><button type="button" disabled={!authenticated || actionBusy || shareBusy || sharedLoading} onClick={startAgain}>다시 찾기</button></> : <span className="shop-image-search-submit-anchor" data-tooltip={needsSex ? '캐릭터 성별을 먼저 선택해주세요.' : undefined} tabIndex={needsSex ? 0 : undefined} aria-describedby={needsSex ? sexHintId : undefined}><button type="submit" disabled={!authenticated || !source || !crop || !sex || busy}>{busy ? '검색 중…' : '비슷한 아이템 찾기'}</button></span>}</div>
+        <div className="shop-image-search-submit">{result || sharedToken ? <><button type="button" disabled={!result || (!authenticated && !result.shared) || shareBusy || sharedLoading} onClick={saveResultUrl}>{shareBusy ? 'URL 저장 중…' : '이 결과 URL 저장'}</button><span className="shop-image-search-submit-anchor" data-tooltip={imageAccess.tooltip} tabIndex={imageAccess.tooltip ? 0 : undefined}><button type="button" disabled={!imageAccess.allowed || actionBusy || shareBusy || sharedLoading} onClick={startAgain}>다시 찾기</button></span></> : <span className="shop-image-search-submit-anchor" data-tooltip={imageAccess.tooltip || (needsSex ? '캐릭터 성별을 먼저 선택해주세요.' : undefined)} tabIndex={imageAccess.tooltip || needsSex ? 0 : undefined} aria-describedby={needsSex ? sexHintId : undefined}><button type="submit" disabled={!imageAccess.allowed || !source || !crop || !sex || busy}>{busy ? '검색 중…' : '비슷한 아이템 찾기'}</button></span>}</div>
         <div className={`shop-image-search-status${result ? ' is-result' : ''}`} data-result-message={result ? resultMessage : undefined} aria-live="polite"><span role={error ? 'alert' : undefined}>{error || notice || (sharedLoading ? '공유 결과를 불러오는 중입니다.' : busy ? searchProgress(seconds, activeEstimate) : result ? resultMessage : '')}</span>{shareUrl && <label className="shop-image-search-share-url">공유 결과 URL<input aria-label="공유 결과 URL" readOnly value={shareUrl} onFocus={event => event.target.select()} /></label>}</div>
         <div className="shop-image-search-actions"><button type="button" disabled={!chosen.length || actionBusy || busy} onClick={preview}>선택한 의상 미리보기</button><button type="button" disabled={!authenticated || !chosen.length || actionBusy || busy} onClick={favorite}>{actionBusy ? '등록 중…' : '선택한 의상 즐겨찾기'}</button></div>
         <div className="shop-image-search-results" aria-busy={busy}>{groups.map(group => <section className="shop-image-search-group" key={group.slot}><h3>{labels[group.slot] || '검색 결과'}{group.exact_match_supported === false && <small>일치 여부 확인 필요</small>}</h3><div>{group.items?.length ? group.items.map((item, index) => { const key = `${group.slot}:${item.id}`; return <article className={`shop-image-search-candidate${selected[group.slot]?.id === item.id ? ' is-selected' : ''}`} key={item.id}>

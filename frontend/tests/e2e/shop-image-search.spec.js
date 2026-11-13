@@ -38,15 +38,69 @@ const hair = { ...shirt, id: '220', name: '테스트 머리(남)', slot: 'hair',
 const result = { search_id: searchId, items: [hair, candidate], version, groups: ['hair', 'top', 'bottom', 'shoes'].map(slot => ({ slot, items: slot === 'hair' ? [hair] : slot === 'top' ? [candidate] : [], exact_match_supported: true })) }
 
 for (const width of [1440, 390]) {
-  test(`image search requires login and exposes a custom tooltip at ${width}px`, async ({ page }) => {
+  test(`guest allowance loads without moving the catalog and exhaustion survives reload at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 })
     await setup(page, { loggedIn: false, admin: false })
+    let release, used = 0
+    const gate = new Promise(resolve => { release = resolve })
+    await page.route('**/api/shop/image-search/access', async route => {
+      await gate
+      await route.fulfill({ json: { authenticated: false, limit: 5, used, remaining: 5-used } })
+    })
     await page.goto('/shop?sex=male')
     const button = page.getByRole('button', { name: '이미지로 찾기', exact: true })
     await expect(button).toBeDisabled()
+    await expect.poll(() => !!release).toBe(true)
+    const layout = await watchLayout(page, ['.shop-search-tools', '.shop-grid'])
+    release(); await expect(button).toBeEnabled(); await layout.expectStable(); await layout.stop()
+    used = 5
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(button).toBeDisabled()
     await page.locator('.shop-image-search-open-anchor').hover()
-    await expect(page.getByRole('tooltip')).toContainText('이미지로 찾기 기능은 로그인이 필요합니다.')
-    await expect(page.getByRole('link', { name: '관리자 도구', exact: true })).not.toBeVisible()
+    await expect(page.getByRole('tooltip')).toContainText('비로그인 사용자는 이미지 검색이 5회로 제한됩니다')
+    await page.reload()
+    await expect(button).toBeDisabled()
+    await page.locator('.shop-image-search-open-anchor').hover()
+    await expect(page.getByRole('tooltip')).toHaveText('비로그인 사용자는 이미지 검색이 5회로 제한됩니다')
+  })
+  test(`guests can complete five searches, retry a failure and view the final result at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 })
+    await setup(page, { loggedIn: false, admin: false, items: [candidate, hair] })
+    let used = 0, calls = 0
+    await page.route('**/api/shop/image-search/access', route => route.fulfill({json:{authenticated:false,limit:5,used,remaining:5-used}}))
+    await page.route('**/api/shop/image-search', route => {
+      calls++
+      if (calls === 1) return route.fulfill({status:503,json:{detail:'잠시 후 다시 시도해주세요.'}})
+      used++
+      return route.fulfill({json:{...result,guest_usage:{authenticated:false,limit:5,used,remaining:5-used}}})
+    })
+    await page.goto('/shop?sex=male')
+    await page.getByRole('button', {name:'이미지로 찾기',exact:true}).click()
+    const modal=page.getByRole('dialog',{name:'이미지로 아이템 찾기'})
+    for(let index=0;index<5;index++) {
+      await modal.getByLabel('검색할 캐릭터 성별',{exact:true}).selectOption('male')
+      await upload(page)
+      await modal.getByRole('button',{name:'비슷한 아이템 찾기',exact:true}).click()
+      if(index===0) {
+        await expect(modal.getByRole('alert')).toContainText('잠시 후 다시 시도해주세요.')
+        await expect(modal.getByRole('button',{name:'비슷한 아이템 찾기',exact:true})).toBeEnabled()
+        await modal.getByRole('button',{name:'비슷한 아이템 찾기',exact:true}).click()
+      }
+      await expect(modal.getByRole('button',{name:`${candidate.name} 선택`,exact:true})).toBeVisible()
+      const restart=modal.getByRole('button',{name:'다시 찾기',exact:true})
+      if(index<4) { await expect(restart).toBeEnabled(); await restart.click() }
+      else {
+        await expect(restart).toBeDisabled()
+        await restart.locator('..').hover()
+        await expect(page.getByRole('tooltip')).toHaveText('비로그인 사용자는 이미지 검색이 5회로 제한됩니다')
+        await modal.getByRole('button',{name:`${candidate.name} 선택`,exact:true}).click()
+        await expect(modal.getByRole('button',{name:'선택한 의상 미리보기',exact:true})).toBeEnabled()
+        await expect(modal.getByRole('button',{name:'선택한 의상 즐겨찾기',exact:true})).toBeDisabled()
+      }
+    }
+    expect(calls).toBe(6)
+    await modal.getByRole('button',{name:'이미지 검색 닫기',exact:true}).click()
+    await expect(page.getByRole('button',{name:'이미지로 찾기',exact:true})).toBeDisabled()
   })
   test(`member search preserves layout through failure and retry at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 })

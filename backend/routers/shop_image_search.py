@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 from psycopg2.extras import RealDictCursor
 
 from database import get_conn
+from auth import get_current_user_id
+import shop_image_guest as guest
 from rate_limit import limiter, user_key
 from routers.shop import ACCESSIBLE, ITEM_COLUMNS, SLOT_SQL, catalog, serialize, favorite_user
 import shop_image_search as search
@@ -16,9 +18,24 @@ import shop_image_estimate as estimates
 from work_capacity import WorkCapacity, run_blocking
 
 
-router = APIRouter(prefix='/api/shop/image-search', tags=['shop'], dependencies=[Depends(favorite_user)])
+router = APIRouter(prefix='/api/shop/image-search', tags=['shop'])
 capacity = WorkCapacity(2)
 logger = logging.getLogger(__name__)
+
+
+def search_user(request: Request):
+    return favorite_user(request) if get_current_user_id(request) is not None else None
+
+
+@router.get('/access')
+@limiter.limit('60/minute', key_func=user_key)
+def image_search_access(request: Request, uid: int | None = Depends(search_user)):
+    if uid is not None:
+        return JSONResponse({'authenticated': True, 'limit': None, 'used': None, 'remaining': None}, headers={'Cache-Control': 'private, no-store'})
+    guest_id = guest.identity(request) or guest.new_identity()
+    response = JSONResponse(history.guest_usage(guest_id), headers={'Cache-Control': 'private, no-store'})
+    guest.initialize(response, guest_id)
+    return response
 
 
 @router.get('/status')
@@ -32,7 +49,7 @@ def image_search_estimate(request: Request, slot: Literal['all', 'hair', 'top', 
     return JSONResponse(estimates.estimate(slot, outfit.MODEL, history.PIPELINE_VERSION), headers={'Cache-Control': 'private, no-store'})
 
 
-def find_outfit(content, sex, slot, version, include_unreleased, user_id=None, filename='search.png'):
+def find_outfit(content, sex, slot, version, include_unreleased, user_id=None, filename='search.png', search_id=None):
     try:
         image = search.decode_image(content)
     except ValueError as exc:
@@ -40,7 +57,6 @@ def find_outfit(content, sex, slot, version, include_unreleased, user_id=None, f
     if not outfit.configured():
         image.close()
         raise HTTPException(503, '자동 이미지 검색을 준비 중입니다. 잠시 후 다시 시도해주세요.')
-    search_id = None
     try:
         with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
             current = catalog(cur, version)
@@ -130,17 +146,49 @@ def find(content, sex, slot, version, include_unreleased):
 @limiter.limit('10/minute', key_func=user_key)
 async def image_search(request: Request, image: UploadFile = File(...), sex: str = Form(...),
                        slot: str = Form(...), version: str = Form(''), include_unreleased: bool = Form(True),
-                       mode: str = Form('cpu'), uid: int = Depends(favorite_user)):
+                       mode: str = Form('cpu'), uid: int | None = Depends(search_user)):
     if mode not in ('cpu', 'terra'):
         raise HTTPException(422, '검색 방식이 올바르지 않습니다.')
     if (mode == 'cpu' and (sex not in ('male', 'female') or slot not in ('hair', 'top'))) or (mode == 'terra' and (sex not in ('male', 'female') or slot not in ('all', *outfit.SLOTS))):
         raise HTTPException(422, '성별과 찾을 부위를 선택해주세요.')
     if version and not re.fullmatch(r'[a-f0-9]{12,64}', version):
         raise HTTPException(422, '상점 데이터 버전이 올바르지 않습니다.')
-    with capacity.enter(user_key(request)):
+    guest_id = guest.identity(request) if uid is None else None
+    if uid is None and not guest_id:
+        raise HTTPException(428, '이미지 검색 창을 다시 열어주세요.')
+    with capacity.enter('guest:' + guest_id if guest_id else user_key(request)):
         content = await image.read(search.MAX_BYTES + 1)
-        if mode == 'terra':
+        if guest_id:
+            result = await run_blocking(find_guest, content, sex, slot, version or None, mode, guest_id, image.filename or 'search.png')
+            try:
+                result['guest_usage'] = await run_blocking(history.guest_usage, guest_id)
+            except Exception:
+                logger.exception('Could not refresh anonymous image search allowance')
+        elif mode == 'terra':
             result = await run_blocking(find_outfit, content, sex, slot, version or None, True, uid, image.filename or 'search.png')
         else:
             result = await run_blocking(find, content, sex, slot, version or None, True)
         return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
+
+def find_guest(content, sex, slot, version, mode, guest_id, filename):
+    try:
+        with search.decode_image(content):
+            pass
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if mode == 'terra' and not outfit.configured():
+        raise HTTPException(503, '자동 이미지 검색을 준비 중입니다. 잠시 후 다시 시도해주세요.')
+    with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
+        current = catalog(cur, version)
+    search_id = history.create(content, None, sex, slot, current['revision'], filename,
+                               outfit.MODEL if mode == 'terra' else 'cpu', guest_id=guest_id)
+    try:
+        if mode == 'terra':
+            return find_outfit(content, sex, slot, current['revision'], True, search_id=search_id)
+        result = {**find(content, sex, slot, current['revision'], True), 'search_id': search_id}
+        history.finish(search_id, result)
+        return result
+    except Exception:
+        history.finish(search_id, error='이미지 검색을 완료하지 못했습니다.')
+        raise

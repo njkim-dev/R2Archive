@@ -23,6 +23,10 @@ def png(size=(64, 64)):
 
 
 class ImageSearchTests(unittest.TestCase):
+    def setUp(self):
+        limiter = patch.object(api.limiter, 'enabled', False)
+        limiter.start(); self.addCleanup(limiter.stop)
+
     def test_upload_validation_rejects_invalid_oversized_and_extreme_dimensions(self):
         for content in [b'not an image', b'x' * (core.MAX_BYTES + 1), png((8, 64)), png((4097, 16))]:
             with self.assertRaises(ValueError):
@@ -62,31 +66,19 @@ class ImageSearchTests(unittest.TestCase):
     def client(self, admin=True):
         app = FastAPI(); app.include_router(api.router)
         if admin:
-            app.dependency_overrides[api.favorite_user] = lambda: 1
+            app.dependency_overrides[api.search_user] = lambda: 1
         return TestClient(app)
 
-    def test_both_routes_require_login_and_accept_members(self):
+    def test_public_status_and_cookie_initialization_required_before_guest_search(self):
         client = self.client(admin=False)
-        with patch.object(auth, 'fetch_user', return_value={'id': 2, 'is_admin': False}) as user, \
-             patch.object(core, 'engine') as engine, patch.object(core, 'status') as status, \
-             patch.object(api, 'get_conn') as db:
-            for token, expected in [(None, 401), ('invalid', 401)]:
-                cookies = {auth.SESSION_COOKIE: token} if token else {}
-                response = client.get('/api/shop/image-search/status', cookies=cookies)
-                self.assertEqual(response.status_code, expected)
-                response = client.post('/api/shop/image-search', cookies=cookies, data={'sex': 'male', 'slot': 'top'},
-                                       files={'image': ('a.png', png(), 'image/png')})
-                self.assertEqual(response.status_code, expected)
-            engine.assert_not_called(); status.assert_not_called(); db.assert_not_called()
-        token = jwt.encode({'sub': '1', 'exp': int(time.time()) + 60}, auth.SESSION_SECRET, algorithm='HS256')
-        with patch('routers.shop.fetch_user', return_value={'id': 1, 'is_admin': False}), \
-             patch.object(core, 'status', return_value={'available': True}), \
-             patch.object(api, 'find', return_value={'items': [], 'version': 'a'*20}) as find:
-            client.cookies.set(auth.SESSION_COOKIE, token)
-            response = client.get('/api/shop/image-search/status')
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.headers['cache-control'], 'no-store')
+        with patch.object(core, 'status', return_value={'available': True}), patch.object(api, 'find') as find:
+            self.assertEqual(client.get('/api/shop/image-search/status').status_code, 200)
             response = client.post('/api/shop/image-search', data={'sex': 'male', 'slot': 'top'},
+                                   files={'image': ('a.png', png(), 'image/png')})
+            self.assertEqual(response.status_code, 428)
+            find.assert_not_called()
+        with patch.object(api, 'find', return_value={'items': [], 'version': 'a'*20}) as find:
+            response = self.client().post('/api/shop/image-search', data={'sex': 'male', 'slot': 'top'},
                                    files={'image': ('a.png', png(), 'image/png')})
             self.assertEqual(response.status_code, 200)
             find.assert_called_once()
@@ -100,12 +92,11 @@ class ImageSearchTests(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
             engine.assert_not_called(); db.assert_not_called()
 
-    def test_estimate_requires_login_validates_slot_and_never_starts_inference(self):
+    def test_estimate_is_public_validates_slot_and_never_starts_inference(self):
         with patch.object(api.estimates, 'estimate', return_value={'min_seconds': 10, 'max_seconds': 30}) as estimate, patch.object(core, 'engine') as engine:
-            self.assertEqual(self.client(admin=False).get('/api/shop/image-search/estimate').status_code, 401)
             self.assertEqual(self.client().get('/api/shop/image-search/estimate?slot=face').status_code, 422)
             estimate.assert_not_called()
-            response = self.client().get('/api/shop/image-search/estimate?slot=hair')
+            response = self.client(admin=False).get('/api/shop/image-search/estimate?slot=hair')
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['max_seconds'], 30)
             self.assertEqual(response.headers['cache-control'], 'private, no-store')
@@ -131,7 +122,7 @@ class ImageSearchTests(unittest.TestCase):
         with patch.object(api, 'find_outfit') as automatic:
             response = self.client(admin=False).post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'},
                                                      files={'image': ('a.png', png(), 'image/png')})
-            self.assertEqual(response.status_code, 401)
+            self.assertEqual(response.status_code, 422)
             automatic.assert_not_called()
         with patch.object(api, 'find_outfit') as automatic:
             response = self.client().post('/api/shop/image-search', data={'mode': 'terra', 'sex': 'auto', 'slot': 'all'}, files={'image': ('a.png', png(), 'image/png')})

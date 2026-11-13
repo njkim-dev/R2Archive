@@ -87,6 +87,7 @@ export async function setup(page,{admin=true,loggedIn=true,metaGate,listGate,ite
     if(path==='/api/shop/favorites'&&method==='DELETE'){const slot=url.searchParams.get('slot'),removed=[...savedFavorites].filter(id=>!slot||allItems().some(item=>item.id===id&&item.slot===slot));removed.forEach(id=>savedFavorites.delete(id));return route.fulfill({json:{removed_ids:removed,count:removed.length}})}
     if(path==='/api/shop/favorites'){if(favoriteGate)await favoriteGate;return route.fulfill({json:{ids:[...savedFavorites]}})}
     if(path.startsWith('/api/shop/favorites/')){const id=path.split('/').at(-1);if(method==='POST')savedFavorites.add(id);else savedFavorites.delete(id);return route.fulfill({json:{id,favorite:savedFavorites.has(id)}})}
+    if(path==='/api/shop/image-search/access')return route.fulfill({json:{authenticated:loggedIn,limit:loggedIn?null:5,used:loggedIn?null:0,remaining:loggedIn?null:5}})
     if(path==='/api/shop/meta'){if(metaGate)await metaGate;return route.fulfill({json:{revision:version,texture_revision:textureRevision,bases:{male:`${root}/models/${'d'.repeat(64)}.json.gz`,female:`${root}/models/${'e'.repeat(64)}.json.gz`},counts:{wearable:2,functional:1,other:0},admin_only:false}})}
     if(path==='/api/shop/items'){
       if(listGate)await listGate
