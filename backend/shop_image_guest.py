@@ -2,6 +2,7 @@ import re
 import secrets
 import hmac
 from contextlib import contextmanager
+from dataclasses import dataclass
 from ipaddress import ip_address
 from threading import Lock
 
@@ -15,6 +16,15 @@ from rate_limit import client_ip
 COOKIE = 'r2_shop_image_guest'
 LIMIT = 5
 LIMIT_MESSAGE = '비로그인 사용자는 이미지 검색이 5회로 제한됩니다'
+
+
+def has_candidates(result):
+    return bool(result.get('items')) or any(group.get('items') for group in result.get('groups', []) or [])
+
+
+@dataclass
+class Reservation:
+    consume: bool = True
 
 
 class IPAllowance:
@@ -61,8 +71,9 @@ class IPAllowance:
             entry[1] += 1
         completed = False
         try:
-            yield
-            completed = True
+            reservation = Reservation()
+            yield reservation
+            completed = reservation.consume
         finally:
             with self._lock:
                 entry[1] -= 1

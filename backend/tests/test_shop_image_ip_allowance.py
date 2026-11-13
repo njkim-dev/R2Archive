@@ -73,7 +73,7 @@ class IPAllowanceTests(unittest.TestCase):
         memory = guest.IPAllowance(); key = memory.key(request())
         started, finish = Event(), Event()
         def find(*args):
-            started.set(); self.assertTrue(finish.wait(3)); return {'groups':[]}
+            started.set(); self.assertTrue(finish.wait(3)); return {'items':[{'id':'1'}]}
         async def scenario():
             task = asyncio.create_task(run_blocking(api.find_ip_guest,key,b'image','male','all',None,'terra','random-cookie-id','a.png'))
             for _ in range(200):
@@ -85,3 +85,11 @@ class IPAllowanceTests(unittest.TestCase):
         with patch.object(guest,'ip_allowance',memory), patch.object(api,'find_guest',side_effect=find):
             asyncio.run(scenario())
         self.assertEqual(memory.usage(key)['used'],1)
+
+
+    def test_empty_cpu_and_automatic_results_do_not_consume_ip_allowance(self):
+        memory = guest.IPAllowance(); key = memory.key(request())
+        for result, expected in [({'items':[]},0), ({'items':[], 'groups':[{'items':[]}]},0), ({'groups':[{'items':[]}]},0), ({'items':[{'id':'1'}]},1), ({'groups':[{'items':[]},{'items':[{'id':'2'}]}]},2)]:
+            with self.subTest(result=result), patch.object(guest,'ip_allowance',memory), patch.object(api,'find_guest',return_value=result):
+                self.assertEqual(api.find_ip_guest(key),result)
+                self.assertEqual(memory.usage(key)['used'],expected)

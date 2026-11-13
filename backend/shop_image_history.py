@@ -52,7 +52,10 @@ def file_path(image_key):
 
 
 def guest_used(cur, guest_id):
-    cur.execute("SELECT count(*) AS used FROM shop_image_search_history WHERE user_id IS NULL AND diagnostics->>'guest_id'=%s AND status IN ('running','completed')", (guest_id,))
+    cur.execute("""SELECT count(*) AS used FROM shop_image_search_history
+        WHERE user_id IS NULL AND diagnostics->>'guest_id'=%s
+        AND (status='running' OR (status='completed' AND
+            (jsonb_path_exists(result,'$.items[*]') OR jsonb_path_exists(result,'$.groups[*].items[*]'))))""", (guest_id,))
     return cur.fetchone()['used']
 
 

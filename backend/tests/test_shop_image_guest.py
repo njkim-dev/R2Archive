@@ -59,7 +59,7 @@ class GuestSearchTests(unittest.TestCase):
         context = MagicMock()
         with patch.object(history, 'guest_usage', side_effect=lambda value: guest.usage(used)), patch.object(history, 'create', side_effect=reserve), \
              patch.object(api, 'get_conn', return_value=context), patch.object(api, 'catalog', return_value={'revision':'a'*20}), \
-             patch.object(api.outfit, 'configured', return_value=True), patch.object(api, 'find_outfit', return_value={'groups':[]}) as find:
+             patch.object(api.outfit, 'configured', return_value=True), patch.object(api, 'find_outfit', return_value={'items':[{'id':'1'}]}) as find:
             client.get('/api/shop/image-search/access')
             for count in range(1, 6):
                 response = client.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
@@ -78,7 +78,7 @@ class GuestSearchTests(unittest.TestCase):
             history.create(png(), None, 'male','all','v','a.png','terra',guest_id='a'*32)
             queries = [call.args[0] for call in cursor.execute.call_args_list]
             self.assertIn('pg_advisory_xact_lock', queries[0]); self.assertIn('SELECT count(*)', queries[1]); self.assertIn('INSERT INTO', queries[2])
-            self.assertIn("'running','completed'", queries[1])
+            self.assertIn("status='running'", queries[1]); self.assertIn("status='completed'", queries[1]); self.assertIn("jsonb_path_exists", queries[1])
             self.assertEqual(cursor.execute.call_args.args[1][-1].adapted, {'guest_id':'a'*32})
             cursor.fetchone.return_value = {'used':5}
             with self.assertRaises(HTTPException) as failure:
@@ -112,7 +112,7 @@ class GuestSearchTests(unittest.TestCase):
 
 
     def test_cookie_deletion_and_separate_browsers_share_ip_allowance(self):
-        with patch.object(history, 'guest_usage', return_value=guest.usage(0)), patch.object(api, 'find_guest', return_value={'groups': []}) as find:
+        with patch.object(history, 'guest_usage', return_value=guest.usage(0)), patch.object(api, 'find_guest', return_value={'items':[{'id':'1'}]}) as find:
             for index in range(5):
                 browser = self.client()
                 self.assertEqual(browser.get('/api/shop/image-search/access').json()['remaining'], 5-index)
@@ -132,7 +132,7 @@ class GuestSearchTests(unittest.TestCase):
             self.assertNotIn('198.51.100.20', repr(guest.ip_allowance._entries))
 
     def test_failed_guest_search_refunds_ip_slot_and_member_never_reserves_one(self):
-        with patch.object(history, 'guest_usage', return_value=guest.usage(0)), patch.object(api, 'find_guest', side_effect=[HTTPException(503,'failed'), {'groups':[]}]) as find:
+        with patch.object(history, 'guest_usage', return_value=guest.usage(0)), patch.object(api, 'find_guest', side_effect=[HTTPException(503,'failed'), {'items':[{'id':'1'}]}]) as find:
             browser = self.client(); browser.get('/api/shop/image-search/access')
             response = browser.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
             self.assertEqual(response.status_code, 503)
@@ -141,3 +141,22 @@ class GuestSearchTests(unittest.TestCase):
             self.assertEqual(response.json()['guest_usage']['remaining'], 4)
             self.assertEqual(find.call_count, 2)
         self.assertEqual(len(guest.ip_allowance._entries), 1)
+
+
+    def test_empty_results_refund_last_ip_slot_and_partial_results_consume_it(self):
+        browser = self.client()
+        empty = {'items': [], 'groups': [{'slot': slot, 'items': []} for slot in ['hair','top','bottom','shoes']]}
+        partial = {'groups': [{'slot': 'hair', 'items': []}, {'slot': 'top', 'items': [{'id':'1'}]}]}
+        with patch.object(history, 'guest_usage', return_value=guest.usage(4)), patch.object(api, 'find_guest', side_effect=[empty, empty, partial]) as find:
+            self.assertEqual(browser.get('/api/shop/image-search/access').json()['remaining'], 1)
+            for _ in range(2):
+                response = browser.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.json()['guest_usage']['remaining'],1)
+                self.assertEqual(browser.get('/api/shop/image-search/access').json()['remaining'],1)
+            response = browser.post('/api/shop/image-search', data={'mode':'terra','sex':'male','slot':'all'}, files={'image':('a.png',png(),'image/png')})
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json()['guest_usage']['remaining'],0)
+            browser.cookies.clear()
+            self.assertEqual(browser.get('/api/shop/image-search/access').json()['remaining'],0)
+            self.assertEqual(find.call_count,3)

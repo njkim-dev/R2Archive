@@ -177,8 +177,10 @@ async def image_search(request: Request, image: UploadFile = File(...), sex: str
 
 def find_ip_guest(ip_key, *args):
     # Commit inside the shielded worker even when the browser disconnects.
-    with guest.ip_allowance.reserve(ip_key):
-        return find_guest(*args)
+    with guest.ip_allowance.reserve(ip_key) as reservation:
+        result = find_guest(*args)
+        reservation.consume = guest.has_candidates(result)
+        return result
 
 
 def find_guest(content, sex, slot, version, mode, guest_id, filename):
