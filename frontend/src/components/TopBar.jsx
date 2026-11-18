@@ -35,7 +35,7 @@ function useElementWidth() {
   return [ref, width]
 }
 
-export default function TopBar({ filteredCount, totalCount, loading = false, error = null, showOriginalBpmToggle = false, originalBpmAvailable = true, showMyPerceivedToggle = false, showCategoryListToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
+export default function TopBar({ filteredCount, totalCount, loading = false, error = null, searchScope, showOriginalBpmToggle = false, originalBpmAvailable = true, showMyPerceivedToggle = false, showCategoryListToggle = false, myPerceivedStatus = 'idle', onRetryMyPerceived }) {
   const { search, setSearch, searchMode, setSearchMode, excludeSearch, setExcludeSearch, showOriginalBpm, setShowOriginalBpm, showMyPerceived, setShowMyPerceived, showSongCategories, setShowSongCategories, meta, sort, openLogin, user, logout, openOnboarding, openMyPage, modalOpen } = useStore()
   const inputRef = useRef(null)
   const [modeOpen, setModeOpen] = useState(false)
@@ -127,25 +127,30 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
             <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
           </svg>
           <input
+            id="catalog-search-input"
             ref={inputRef}
             className="search-input"
             type="text"
             placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
             aria-label={`${currentMode.label} 검색`}
+            aria-describedby={searchScope ? 'catalog-search-scope' : undefined}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
         <div className="search-options-row">
-          <label className={`search-exclude${search.trim() ? '' : ' disabled'}`}>
-            <input
-              type="checkbox"
-              checked={excludeSearch}
-              disabled={!search.trim()}
-              onChange={e => setExcludeSearch(e.target.checked)}
-            />
-            <span>입력한 검색어만 제외하기</span>
-          </label>
+          <div className="catalog-search-options">
+            <label className={`search-exclude${search.trim() ? '' : ' disabled'}`}>
+              <input
+                type="checkbox"
+                checked={excludeSearch}
+                disabled={!search.trim()}
+                onChange={e => setExcludeSearch(e.target.checked)}
+              />
+              <span>입력한 검색어만 제외하기</span>
+            </label>
+            {searchScope}
+          </div>
           {(showOriginalBpmToggle || showMyPerceivedToggle || showCategoryListToggle) && (
             <>
               <hr className="search-options-divider" />
@@ -198,15 +203,15 @@ export default function TopBar({ filteredCount, totalCount, loading = false, err
         <>
           <div className="topbar-meta">
             <HelpButton className="topbar-help-control" />
-            <span className="count topbar-count-control">
+            {!searchScope && <span className="count topbar-count-control">
               {loading
                 ? <span role="status">불러오는 중…</span>
                 : error
                   ? <span className="topbar-error">불러오기 실패</span>
                   : <><b>{filteredCount.toLocaleString()}</b>{' '}<span style={{ color: 'var(--fg-3)' }}>/ {(totalCount ?? meta?.total_count ?? 0).toLocaleString()} 곡</span></>
               }
-            </span>
-            {!loading && !error && (
+            </span>}
+            {(searchScope || !loading && !error) && (
               <>
                 <span className="topbar-sort-control topbar-sort-divider" />
                 <span className="topbar-sort-control">

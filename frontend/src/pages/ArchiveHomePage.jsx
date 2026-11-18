@@ -6,7 +6,9 @@ import logoImage from '../assets/archive-home/r2beat-logo-transparent.png'
 import '../styles/archive-home.css'
 
 export default function ArchiveHomePage() {
-  const {user,authLoaded}=useStore(),navigate=useNavigate()
+  const { user, authLoaded, openLogin } = useStore()
+  const navigate = useNavigate()
+  const myHomeAction = user ? '마이홈 둘러보기' : '로그인하고 마이홈 열기'
   return <main className="archive-portal">
     <picture className="artwork" aria-hidden="true"><source media="(max-aspect-ratio: 4/3)" srcSet={portraitBackground} /><img src={wideBackground} alt="" width="1672" height="941" /></picture>
     <svg className="game-logo" viewBox="40 55 2120 595" role="img" aria-label="R2Beat" xmlns="http://www.w3.org/2000/svg"><image href={logoImage} width="2172" height="724"/></svg>
@@ -37,7 +39,13 @@ export default function ArchiveHomePage() {
           <span className="service-cta">파일 검사 시작 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </Link>
         <Link className="service shop-service" to="/shop" aria-label="아이템 상점 둘러보기"><span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M16 23h32l4 32H12l4-32ZM23 24V16a9 9 0 0 1 18 0v8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/></svg><i /></span><span className="service-kicker">ITEM SHOP</span><h2>아이템 상점</h2><p>아이템을 찾아보고,<br />나만의 의상을 미리 확인해보세요.</p><span className="service-cta">상점 둘러보기 →</span></Link>
-        <button className="service myhome-service" disabled={!authLoaded||!user} onClick={()=>navigate('/myhome')} aria-label="마이홈 둘러보기"><span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M10 30 32 10l22 20v25H10V30ZM25 55V36h14v19" stroke="currentColor" strokeWidth="4" strokeLinejoin="round"/></svg></span><span className="service-kicker">MY HOME</span><h2>마이홈</h2><p>내 의상을 저장해서 언제든지 불러오고 친구에게 공유할 수 있어요</p><span className="service-cta">마이홈 둘러보기 →</span></button>
+        <button type="button" className="service myhome-service" disabled={!authLoaded} onClick={() => user ? navigate('/myhome') : openLogin('/myhome')} aria-label={myHomeAction}>
+          <span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M10 30 32 10l22 20v25H10V30ZM25 55V36h14v19" stroke="currentColor" strokeWidth="4" strokeLinejoin="round"/></svg></span>
+          <span className="service-kicker">MY HOME</span>
+          <h2>마이홈</h2>
+          <p>내 의상을 저장해서 언제든지 불러오고 친구에게 공유할 수 있어요</p>
+          <span className="service-cta">{myHomeAction}</span>
+        </button>
       </div>
       <p className="small-note"><span aria-hidden="true">♫</span> 음악을 찾고, 다시 신나게 달려보세요.</p>
     </section>

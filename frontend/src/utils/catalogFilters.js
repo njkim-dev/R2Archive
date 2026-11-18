@@ -1,5 +1,5 @@
 export const QUICK_FILTERS = [
-  { key: 'all', label: '전체 곡' },
+  { key: 'all', label: '전체 곡 유형' },
   { key: 'new', label: '신곡' },
   { key: 'variants', label: '변속곡' },
   { key: 'popular', label: '인기순', adminOnly: true },

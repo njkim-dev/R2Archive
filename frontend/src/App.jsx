@@ -116,10 +116,8 @@ export default function App() {
       const cleaned = location.pathname + location.hash
       history.replaceState(null, '', cleaned)
       refreshUser()
-      if (!fail) {
-        const shopReturn = takeShopReturn()
-        if (shopReturn) navigate(shopReturn, { replace: true })
-      }
+      const shopReturn = takeShopReturn()
+      if (!fail && shopReturn) navigate(shopReturn, { replace: true })
     }
   }, [])  // eslint-disable-line
 

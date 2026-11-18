@@ -86,6 +86,51 @@ async function mockCatalog(page, data = songs, {
   }
 }
 
+test('catalog search shows its scope and offers recovery without moving the toolbar', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'chromium-768'
+  if (mobile) await page.setViewportSize({ width: 390, height: 900 })
+  const control = await mockCatalog(page, [
+    song(1, 8, 'Northern Sky'),
+    song(2, 5, 'Cobalt Waltz'),
+  ], {
+    clearDefaultCategory: false,
+    deferRemoved: true,
+    removedSongs: [{ ...song(90, 8, 'Retired Melody'), is_removed: true }],
+  })
+  const scope = page.locator('#catalog-search-scope')
+  const search = page.locator('#catalog-search-input')
+  const empty = page.locator('.search-empty')
+  await expect(scope).toHaveText('해 · 1 / 2곡')
+  const layout = await watchLayout(page, mobile
+    ? ['.mob-search', '.mob-chips', '.mob-meta', '.mob-list-wrap']
+    : ['.search-field', '.topbar', '.tbl-header', '.table-wrap'])
+  await search.fill('Retired Melody')
+  await expect(scope).toHaveText('해 · 0 / 2곡')
+  await control.waitForRemovedRequest()
+  await expect(empty.getByRole('button', { name: '검색어 지우기' })).toBeVisible()
+  await layout.expectStable()
+  control.releaseRemovedRequest()
+  await expect(empty.getByRole('button', { name: '상세필터 열기' })).toBeVisible()
+  await layout.expectStable()
+  await search.fill('Cobalt Waltz')
+  await empty.getByRole('button', { name: '전체 난이도로 검색' }).click()
+  await expect(search).toHaveValue('Cobalt Waltz')
+  await expect(scope).toHaveText('전체 난이도 · 1 / 2곡')
+  await expect(page.locator('[data-song-id="2"]')).toBeVisible()
+  await search.fill('xyz no catalog match xyz')
+  await empty.getByRole('button', { name: '검색어 지우기' }).click()
+  await expect(search).toBeFocused()
+  await expect(search).toHaveValue('')
+  await expect(scope).toHaveText('전체 난이도 · 2 / 2곡')
+  await layout.expectStable()
+  await layout.stop()
+  if (!mobile) {
+    await page.locator('.cat-group [data-channel="sun"]').click()
+    await page.getByRole('button', { name: '모두 초기화' }).click()
+    await expect(scope).toHaveText('전체 난이도 · 2 / 2곡')
+  }
+})
+
 test('play column selects YouTube or internal views by channel policy and omits the obsolete quick filter', async ({ page }) => {
   await mockCatalog(page)
   const youtubeCell = page.locator('[data-song-id="1"] [data-column="play_count"]')

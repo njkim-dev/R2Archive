@@ -24,12 +24,26 @@ import {
 
 const SEPARATOR = { __type: 'separator' }
 
-function SearchEmptyState({ search, isMobile }) {
+function SearchEmptyState({ search, isMobile, showSearchActions, onClearDifficulty, removedSuggestion, categorySuggestion }) {
+  const setSearch = useStore(state => state.setSearch)
   const hasSearch = !!search.trim()
+  const resetSearch = () => {
+    setSearch('')
+    document.getElementById('catalog-search-input')?.focus()
+  }
   return (
     <div className={`search-empty${isMobile ? ' mobile' : ''}`}>
-      <div className="search-empty-icon">♩</div>
-      <div className="search-empty-title">{hasSearch ? '검색 결과가 없습니다.' : '조건에 맞는 곡이 없어요'}</div>
+      <div className="search-empty-icon" aria-hidden="true">♩</div>
+      <div className="search-empty-title" role="status">{hasSearch ? '검색 결과가 없습니다.' : '조건에 맞는 곡이 없어요'}</div>
+      {removedSuggestion && <p className="search-empty-desc">{removedSuggestion.message}</p>}
+      {categorySuggestion?.message && <p className="search-empty-desc">{categorySuggestion.message}</p>}
+      {showSearchActions && (onClearDifficulty || hasSearch || removedSuggestion) && (
+        <div className="search-empty-actions">
+          {onClearDifficulty && <button type="button" className="search-empty-action" onClick={onClearDifficulty}>{hasSearch ? '전체 난이도로 검색' : '전체 난이도로 보기'}</button>}
+          {removedSuggestion && <button type="button" className="search-empty-action" onClick={removedSuggestion.onApply}>{removedSuggestion.actionLabel}</button>}
+          {hasSearch && <button type="button" className="search-empty-action secondary" onClick={resetSearch}>검색어 지우기</button>}
+        </div>
+      )}
     </div>
   )
 }
@@ -58,6 +72,8 @@ export default function SongsTable({
   onDeleteSong,
   categorySuggestion = null,
   removedSuggestion = null,
+  onClearDifficulty,
+  showSearchActions = false,
   catalogOpen = false,
   myPerceivedLevels = null,
   showCategoryLabels = false,
@@ -294,20 +310,22 @@ export default function SongsTable({
     )
   }, [items, handleRowClick, isMobile, favorites, canFav, toggleFavorite, isAdmin, tableMode, canDeleteSongs, onDeleteSong, showKoreaName, showPlayCount, showFavoriteCount, showOriginalBpmColumn, myPerceivedLevels, hiddenColumns, colTemplate, compact, activeSongId, categoriesBySongId])
 
+  const totalCount = exact.length + fuzzy.length
+  const empty = totalCount === 0
+  const inlineSuggestions = showSearchActions && empty
+  const suggestions = !inlineSuggestions && <><SearchFilterHint suggestion={removedSuggestion} empty={empty} /><SearchFilterHint suggestion={categorySuggestion} empty={empty} /></>
+  const emptyState = <SearchEmptyState search={search} isMobile={isMobile} showSearchActions={showSearchActions} onClearDifficulty={onClearDifficulty} removedSuggestion={inlineSuggestions ? removedSuggestion : null} categorySuggestion={inlineSuggestions ? categorySuggestion : null} />
+
   if (isMobile) {
-    const totalCount = exact.length + fuzzy.length
     return (
       <div className="mob-list-wrap">
         <div className="mob-meta">
-          <span><b>{totalCount.toLocaleString()}</b> 곡</span>
+          {!showSearchActions && <span><b>{totalCount.toLocaleString()}</b> 곡</span>}
           <MobileSortButton />
         </div>
-        <SearchFilterHint suggestion={removedSuggestion} empty={totalCount === 0} />
-        <SearchFilterHint suggestion={categorySuggestion} empty={totalCount === 0} />
-        {totalCount === 0
-          ? (
-            <SearchEmptyState search={search} isMobile />
-          )
+        {suggestions}
+        {empty
+          ? emptyState
           : (
             <div style={{ flex: 1 }}>
               <AutoSizer>
@@ -337,12 +355,9 @@ export default function SongsTable({
   return (
     <div ref={tableRef} className={`table-wrap${compact ? ' compact' : ''}`} role="table" aria-label="곡 목록" aria-rowcount={items.length + 1}>
       <TableHeader sort={effectiveSort} onSort={setSort} headers={headers} colTemplate={colTemplate} />
-      <SearchFilterHint suggestion={removedSuggestion} empty={items.length === 0} />
-      <SearchFilterHint suggestion={categorySuggestion} empty={items.length === 0} />
-      <div className={`tbl-body${items.length === 0 ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
-        {items.length === 0 ? (
-          <SearchEmptyState search={search} />
-        ) : (
+      {suggestions}
+      <div className={`tbl-body${empty ? ' tbl-body-empty' : ''}`} style={{ flex: 1, overflow: 'hidden' }} role="rowgroup">
+        {empty ? emptyState : (
           <AutoSizer>
             {({ height, width }) => {
               listHeightRef.current = height

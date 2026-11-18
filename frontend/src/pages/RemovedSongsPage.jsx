@@ -114,7 +114,7 @@ export default function RemovedSongsPage() {
   if (isMobile) {
     return (
       <div className="app-mobile" data-cat={category || undefined}>
-        <MobileHeader totalFiltered={totalFiltered} />
+        <MobileHeader />
         {stateMessage ? (
           <div className="grp-empty" style={{ minHeight: 260 }}>
             <div className="grp-empty-icon">♪</div>

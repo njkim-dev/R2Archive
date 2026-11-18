@@ -1,6 +1,6 @@
 import { expect,test } from '@playwright/test'
 import { watchLayout } from './layout.js'
-import { setup,shirt,femaleShirt,pet,hero,version,copiedShopUrl } from './shopFixtures.js'
+import { setup,shirt,femaleShirt,pet,hero,version,copiedShopUrl,openShopFilters } from './shopFixtures.js'
 import { coupleFixture } from './coupleFixtures.js'
 
 test.use({launchOptions:{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}})
@@ -71,6 +71,7 @@ test('public ID all remains available without colliding with the private aggrega
 test('unreleased couple and best friend rings use the default hide filter and can be saved without mains',async({page})=>{
   await viewport(page);const ring={...hero,id:'30890',category:'507',group:'couple',name:'미출시 커플링',is_unreleased:true,is_new:true},friend={...ring,id:'1200088',category:'508',group:'friend',name:'미출시 단짝링'}
   const requests=await setup(page,{items:[ring,friend]});await page.goto('/shop?sex=female');await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click()
+  await openShopFilters(page)
   await expect(page.getByRole('checkbox',{name:'미출시 아이템 가리기',exact:true})).toBeChecked();await expect(page.locator('.shop-card')).toHaveCount(0)
   await page.getByRole('checkbox',{name:'미출시 아이템 가리기',exact:true}).uncheck();await expect(page.locator('.shop-card')).toHaveCount(2)
   await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('2');const card=page.locator('[data-item-id="30890"]');await expect(card.locator('.shop-unreleased-tag')).toHaveText('미출시');await expect(card.locator('.shop-card-price')).toHaveText('');await expect(card.locator('.shop-new-tag')).toHaveCount(0)

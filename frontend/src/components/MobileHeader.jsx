@@ -25,7 +25,7 @@ const CHIPS = [
   { key: 'no_music', label: '음악 없음', flag: true, adminOnly: true },
 ]
 
-export default function MobileHeader({ totalFiltered }) {
+export default function MobileHeader({ searchScope }) {
   const {
     search, setSearch,
     category, setCategory,
@@ -134,22 +134,23 @@ export default function MobileHeader({ totalFiltered }) {
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
           <input
+            id="catalog-search-input"
             type="search"
             placeholder="검색어 입력, 검색어가 여러 개면 쉼표 사용 가능"
             aria-label="곡명과 아티스트 검색"
+            aria-describedby={searchScope ? 'catalog-search-scope' : undefined}
             value={search}
             onChange={e => setSearch(e.target.value)}
             autoComplete="off"
           />
-          {search && (
-            <button className="mob-search-clear" onClick={() => setSearch('')} aria-label="검색 지우기">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <path d="M18 6 6 18M6 6l12 12"/>
-              </svg>
-            </button>
-          )}
+          <button type="button" className="mob-search-clear" onClick={() => setSearch('')} aria-label="검색 지우기" disabled={!search}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </label>
 
+        {searchScope}
         <div className="mob-chips" role="group" aria-label="곡 필터">
           {CHIPS.filter(c => (!c.needLogin || user) && (!c.adminOnly || isAdmin) && (!c.krOnly || !isXyxMode())).map(({ key, label, icon, range, flag }) => {
             let isOn

@@ -285,6 +285,7 @@ const useStore = create((set, get) => ({
   feedbackOpen: false,
 
   loginOpen: false,
+  loginReturnTo: null,
   categoryCreateOpen: false,
   categoryCreateSource: null,
 
@@ -390,7 +391,7 @@ const useStore = create((set, get) => ({
   clearAllFilters: () => set(s => ({
     search: '', excludeSearch: false, levelMin: s.meta?.level_min, levelMax: s.meta?.level_max,
     bpmMin: s.meta?.bpm_min, bpmMax: s.meta?.bpm_max,
-    category: 'sun', quick: 'all', artists: new Set(),
+    category: null, quick: 'all', artists: new Set(),
     personalCategoryId: null,
     aiMode: 'show', listenOnly: false,
     flagNew: false, flagVariants: false, flagFavorite: false, flagMyPlayed: false,
@@ -427,8 +428,8 @@ const useStore = create((set, get) => ({
   openFeedback: (song) => set({ feedbackSong: song, feedbackOpen: true }),
   closeFeedback: () => set({ feedbackOpen: false, feedbackSong: null }),
 
-  openLogin: () => set({ loginOpen: true }),
-  closeLogin: () => set({ loginOpen: false }),
+  openLogin: (returnTo) => set({ loginOpen: true, loginReturnTo: typeof returnTo === 'string' ? returnTo : null }),
+  closeLogin: () => set({ loginOpen: false, loginReturnTo: null }),
 
   openCategoryCreate: (source = 'directory') => set({ categoryCreateOpen: true, categoryCreateSource: source }),
   closeCategoryCreate: () => set({ categoryCreateOpen: false, categoryCreateSource: null }),

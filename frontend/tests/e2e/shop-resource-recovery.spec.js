@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test'
 import {coupleFixture,coupleRing} from './coupleFixtures.js'
-import {version,copiedShopUrl} from './shopFixtures.js'
+import {version,copiedShopUrl, openShopFilters } from './shopFixtures.js'
 import {watchLayout} from './layout.js'
 
 test('recovered unreleased ring opens without an unavailable tag and preserves outfits and layout while loading',async({page})=>{
@@ -14,6 +14,7 @@ test('recovered unreleased ring opens without an unavailable tag and preserves o
   await page.getByRole('button',{name:'커플링',exact:true}).click()
   const card=page.locator('[data-item-id="30999"]')
   await expect(card).toHaveCount(0)
+  await openShopFilters(page)
   await page.getByRole('checkbox',{name:'미출시 아이템 가리기',exact:true}).uncheck()
   await expect(card.locator('.shop-unreleased-tag')).toHaveText('미출시')
   await expect(card.locator('.shop-preview-unavailable')).toHaveCount(0)

@@ -115,3 +115,9 @@ export async function copiedShopUrl(page) {
   const data = await page.evaluate(code => fetch('/api/share/short/' + code).then(response => response.json()), raw.pathname.split('/').at(-1))
   return new URL(data.target, 'https://r2archive.com')
 }
+
+export async function openShopFilters(page) {
+  await page.locator('.shop-advanced-filters').waitFor()
+  const disclosure = page.locator('.shop-advanced-filters:not([open]) > summary')
+  if (await disclosure.isVisible()) await disclosure.click()
+}

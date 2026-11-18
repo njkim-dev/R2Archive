@@ -44,15 +44,19 @@ export function coupleShareUrl({ version, sex, slots, item, partner, angle = 180
   return url.href
 }
 
+function isShopReturn(url) {
+  return typeof url === 'string' && url.length < 4096 && (url === '/myhome' || /^\/shop(?:\?|$)/.test(url))
+}
+
 export function rememberShopReturn(url = location.pathname + location.search) {
-  try { if (/^\/shop(?:\?|$)/.test(url) && url.length < 4096) sessionStorage.setItem('r2_shop_return', JSON.stringify({ url, at: Date.now() })) } catch {}
+  try { if (isShopReturn(url)) sessionStorage.setItem('r2_shop_return', JSON.stringify({ url, at: Date.now() })) } catch {}
 }
 
 export function takeShopReturn() {
   try {
     const saved = JSON.parse(sessionStorage.getItem('r2_shop_return'))
     sessionStorage.removeItem('r2_shop_return')
-    if (saved && /^\/shop(?:\?|$)/.test(saved.url) && saved.url.length < 4096 && Date.now() - saved.at < 900000) return saved.url
+    if (saved && isShopReturn(saved.url) && Date.now() - saved.at < 900000) return saved.url
   } catch {}
   return null
 }

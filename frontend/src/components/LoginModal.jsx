@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import useStore from '../store/useStore'
 import { oauthLoginUrl } from '../api/client'
+import { rememberShopReturn } from '../utils/shopUrl'
 
 export default function LoginModal() {
-  const { loginOpen, closeLogin } = useStore()
+  const { loginOpen, loginReturnTo, closeLogin } = useStore()
   const [remember, setRemember] = useState(true)
   const [lastProvider, setLastProvider] = useState(null)
 
@@ -15,6 +16,7 @@ export default function LoginModal() {
   if (!loginOpen) return null
 
   const go = (provider) => {
+    if (loginReturnTo) rememberShopReturn(loginReturnTo)
     location.href = oauthLoginUrl(provider, remember)
   }
 

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { watchLayout } from './layout.js'
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } })
-import { version, hash, root, hero, shirt, femaleShirt, pet, mesh, petMesh, png, setup, copiedShopUrl } from './shopFixtures.js'
+import { version, hash, root, hero, shirt, femaleShirt, pet, mesh, petMesh, png, setup, copiedShopUrl, openShopFilters } from './shopFixtures.js'
 
 async function setViewerAngle(page, target) {
   const canvas = page.locator('.shop-stage canvas')
@@ -25,6 +25,8 @@ test('unreleased clothes are hidden by default suppress NEW and all prices and p
   const items = [{ ...femaleShirt, is_new: true }, hidden, { ...hero, id: '30807', is_unreleased: true }]
   await setup(page, { loggedIn: false, items })
   await page.goto('/shop?sex=female')
+  await openShopFilters(page)
+
   await expect(page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true })).toBeChecked()
   await expect(page.locator(`[data-item-id="${hidden.id}"]`)).toHaveCount(0)
   await expect(page.getByRole('button', { name: '마이홈', exact: true })).toBeDisabled()
@@ -32,7 +34,7 @@ test('unreleased clothes are hidden by default suppress NEW and all prices and p
   let release
   const gate = new Promise(resolve => { release = resolve })
   await page.route(/\/api\/shop\/items\?/, async route => { if (new URL(route.request().url()).searchParams.get('include_unreleased') === 'true') await gate; return route.fallback() })
-  const watcher = await watchLayout(page, ['.archive-page-topbar', '.shop-search', '.shop-grid', '.shop-pair-filter', '.shop-panel'])
+  const watcher = await watchLayout(page, ['.archive-page-topbar', '.shop-search', '.shop-grid', '.shop-advanced-filters', '.shop-panel'])
   await page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true }).uncheck()
   await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
   await watcher.expectStable(); release()
@@ -49,9 +51,52 @@ test('unreleased clothes are hidden by default suppress NEW and all prices and p
   expect(url.searchParams.has('price')).toBe(false)
   await page.goto(url.pathname + url.search)
   await expect(page.locator('.shop-slots')).toContainText(hidden.name)
+  await openShopFilters(page)
+
   await expect(page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true })).not.toBeChecked()
   await expect(page.locator('.shop-price-options')).toHaveCount(0)
   await expect(page.locator('.shop-detail-price')).toHaveCount(0)
+})
+
+test('guest item browsing keeps the first results above the mobile navigation', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.use.viewport.width <= 768
+  if (mobile) await page.setViewportSize({ width: 390, height: 900 })
+  let releaseAuth, releaseList
+  const authGate = new Promise(resolve => { releaseAuth = resolve })
+  const listGate = new Promise(resolve => { releaseList = resolve })
+  await setup(page, { loggedIn: false, items: [femaleShirt], authGate, listGate })
+  await page.goto('/shop')
+  await expect(page.locator('.shop-list-status')).toHaveText('성별을 먼저 선택해주세요.')
+  await expect(page.getByLabel('저장할 캐릭터')).toHaveCount(0)
+  const disclosure = page.locator('.shop-advanced-filters > summary')
+  const filter = page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true })
+  if (mobile) {
+    await expect(disclosure).toBeVisible()
+    await expect(filter).toBeHidden()
+  } else {
+    await expect(filter).toBeVisible()
+  }
+  const layout = await watchLayout(page, ['.shop-header', '.shop-gender-row', '.shop-search', '.shop-advanced-filters', '.shop-list-status'])
+  await page.getByRole('button', { name: '여성', exact: true }).click()
+  await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
+  await layout.expectStable()
+  releaseAuth()
+  await expect(page.getByRole('button', { name: '로그인', exact: true })).toBeEnabled()
+  await layout.expectStable()
+  releaseList()
+  const card = page.locator('[data-item-id="201"]')
+  await expect(card).toBeVisible()
+  await layout.expectStable()
+  await layout.stop()
+  if (mobile) {
+    const title = await card.locator('strong').boundingBox()
+    const bottom = await page.locator('.archive-mobile-bottom').boundingBox()
+    expect(title.y + title.height).toBeLessThan(bottom.y)
+    await disclosure.click()
+    await expect(filter).toBeChecked()
+    await disclosure.click()
+    await expect(filter).toBeHidden()
+  }
 })
 
 test('my home saves first mains preserves later additions switches mains and restores defaults without changing shared outfits', async ({ page }) => {
@@ -234,7 +279,7 @@ test('browser back restores the loaded catalog filters selection and scroll and 
   await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '24')
   await expect(page.getByRole('button', { name: '상의', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.shop-slots')).toContainText(items[0].name)
-  const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-pair-filter'])
+  const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-advanced-filters'])
   release(); await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '48')
   await watcher.expectStable(); await watcher.stop()
   await page.goForward(); await expect(page.locator('.shop-stage-status')).toHaveText('')
@@ -257,7 +302,7 @@ test('item status and top controls preserve catalog geometry and mobile header s
     const status = await page.getByRole('button', { name: '아이템 현황', exact: true }).boundingBox()
     expect(status.x + status.width).toBeLessThanOrEqual(page.viewportSize().width)
     expect(status.y).toBeGreaterThanOrEqual(56)
-    const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-pair-filter'])
+    const watcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-advanced-filters'])
     await openOutfitPanel(page)
     const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
     await expect(panel.getByRole('heading', { name: '선택한 의상', exact: true })).toBeVisible()
@@ -301,6 +346,8 @@ test('common pets remain visible in the matching gender filter and selection is 
     await page.getByRole('button', { name: sex, exact: true }).click()
     await expect(page.locator('.shop-card')).toHaveCount(2)
     await page.getByRole('button', { name: pet.name + ' 의상 선택', exact: true }).click()
+    await openShopFilters(page)
+
     await page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만', exact: true }).check()
     await expect(page.locator('.shop-card')).toHaveCount(2)
     await expect(page.locator('.shop-slots')).toContainText(pet.name)
@@ -339,7 +386,7 @@ test('public items load while authentication is pending and favorite readiness n
   const star = page.getByRole('button', { name: shirt.name + ' 즐겨찾기 추가', exact: true })
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(star).toBeDisabled()
-  const watcher = await watchLayout(page, ['.shop-header','.shop-search','.shop-pair-filter','.shop-grid','.shop-panel'])
+  const watcher = await watchLayout(page, ['.shop-header','.shop-search','.shop-advanced-filters','.shop-grid','.shop-panel'])
   resolveAuth()
   await expect(page.getByRole('button',{name:'마이페이지',exact:true})).toBeEnabled()
   await expect(star).toBeDisabled(); await watcher.expectStable()
@@ -363,7 +410,7 @@ test('favorite stars persist for members and failed parallel saves restore only 
   await page.goto('/shop?sex=male')
   const first = page.locator('[data-item-id="200"] .shop-favorite-button'), second = page.locator('[data-item-id="202"] .shop-favorite-button')
   await expect(first).toBeEnabled()
-  const watcher = await watchLayout(page, ['.shop-search','.shop-pair-filter','.shop-grid','.shop-panel'])
+  const watcher = await watchLayout(page, ['.shop-search','.shop-advanced-filters','.shop-grid','.shop-panel'])
   await first.click(); await expect(first).toBeDisabled(); await expect(first).toHaveAttribute('aria-pressed','true')
   await second.click(); await expect(second).toBeEnabled(); await expect(second).toHaveAttribute('aria-pressed','true')
   await watcher.expectStable(); release()
@@ -463,6 +510,8 @@ test('NEW and unavailable badges leave room for hover favorites without moving t
   const missing = { ...shirt, id: '205', name: '새 미지원 상의', preview_available: false, model: null, is_new: true }
   await setup(page, { admin: false, items: [fresh, missing] })
   await page.goto('/shop?sex=male')
+  await openShopFilters(page)
+
   await page.getByRole('checkbox', { name: '미리보기 불가능 아이템 가리기', exact: true }).uncheck()
   await expect(page.locator('.shop-card')).toHaveCount(2)
   await expect(page.locator('.shop-footer')).toHaveText('R2 ARCHIVE ㆍ 아이템 미리보기')
@@ -593,7 +642,8 @@ for (const [maleId, femaleId, maleName, femaleName] of [['1010034', '1020035', '
       await page.goto(`/shop?sex=${sex}`)
       await page.getByRole('button', { name: '성형', exact: true }).click()
       await expect(page.locator('.shop-card')).toHaveCount(2)
-      const listWatcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-pair-filter'])
+      await openShopFilters(page)
+      const listWatcher = await watchLayout(page, ['.shop-header', '.shop-search', '.shop-advanced-filters'])
       await page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만', exact: true }).check()
       await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
       await listWatcher.expectStable(); releaseList()
@@ -935,7 +985,7 @@ test('pending catalog and search responses never move the item toolbar or grid',
   await page.goto('/shop')
   await expect(page.locator('.shop-grid')).toBeVisible()
   await page.getByRole('button', { name: '남성', exact: true }).click()
-  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-pair-filter'])
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-advanced-filters'])
   releaseMeta()
   await expect(page.locator('.shop-list-status')).toContainText('아이템을 불러오는 중입니다.')
   await watcher.expectStable()
@@ -1016,7 +1066,7 @@ test('clipboard failure and recovery keep the catalog geometry stable', async ({
   await page.goto(`/shop?item=1000208&v=${version}&price=P7`)
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await page.getByRole('button', { name: '이 아이템 URL 복사', exact: true }).scrollIntoViewIfNeeded()
-  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-pair-filter'])
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-advanced-filters'])
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw Error('Clipboard denied') } } }))
   await page.getByRole('button', { name: '이 아이템 URL 복사', exact: true }).click()
   await expect(page.getByLabel('공유 URL')).toHaveValue(/^https:\/\/r2archive\.com\/short\/[a-z0-9]{4}$/)
@@ -1040,7 +1090,7 @@ test('copy confirmation is a small toast that closes without moving the catalog'
   await expect(page.locator('.shop-card')).toHaveCount(1)
   const copy = page.getByRole('button', { name: '이 아이템 URL 복사', exact: true })
   await copy.scrollIntoViewIfNeeded()
-  const watcher = await watchLayout(page, ['.shop-search', '.shop-pair-filter', '.shop-grid'])
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-advanced-filters', '.shop-grid'])
   await copy.click()
   await expect(page.locator('.shop-toast')).toHaveText('URL을 복사했습니다')
   await watcher.expectStable()
@@ -1067,7 +1117,7 @@ test('infinite loading keeps the DOM bounded, caches images and preserves select
   await expect(page.locator('.shop-grid')).toHaveAttribute('aria-busy', 'true')
   const last = page.locator('[data-item-id="2023"]')
   await expect(last).toBeAttached()
-  const watcher = await watchLayout(page, ['[data-item-id="2023"]', '.shop-search', '.shop-pair-filter'])
+  const watcher = await watchLayout(page, ['[data-item-id="2023"]', '.shop-search', '.shop-advanced-filters'])
   release()
   await expect(page.locator('.shop-grid')).toHaveAttribute('data-loaded-count', '48')
   await watcher.expectStable()
@@ -1093,6 +1143,8 @@ test('matching-gender filter affects the catalog while preserving the selected c
   await page.goto('/shop?sex=male')
   await expect(page.locator('.shop-card')).toHaveCount(2)
   await page.getByRole('button', { name: `${unpaired.name} 의상 선택` }).click()
+  await openShopFilters(page)
+
   await page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만' }).check()
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(page.locator('.shop-card')).toContainText(shirt.name)
@@ -1132,6 +1184,8 @@ test('unavailable previews are tagged over images before selection and non-cash 
   const gate = new Promise(resolve => { release = resolve })
   await page.route('**/thumbnails/**', async route => { await gate; return route.fulfill({ body: png, contentType: 'image/png' }) })
   await page.goto('/shop?sex=male')
+  await openShopFilters(page)
+
   await page.getByRole('checkbox', { name: '미리보기 불가능 아이템 가리기', exact: true }).click()
   await expect(page.locator('.shop-card')).toHaveCount(3)
   const card = page.locator('[data-item-id="403"]'), tag = card.locator('.shop-preview-unavailable')
@@ -1147,7 +1201,7 @@ test('unavailable previews are tagged over images before selection and non-cash 
   })
   expect(inside).toBe(true)
   await card.getByRole('button', { name: `${unavailable.name} 자세히 보기`, exact: true }).scrollIntoViewIfNeeded()
-  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-pair-filter', '[data-item-id="403"] .shop-card-image', '[data-item-id="403"] .shop-preview-unavailable'])
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-advanced-filters', '[data-item-id="403"] .shop-card-image', '[data-item-id="403"] .shop-preview-unavailable'])
   await watcher.expectStable()
   release()
   await expect(card.locator('img')).toBeVisible()
@@ -1236,6 +1290,8 @@ test('unavailable items are hidden by default and the toggle keeps selection and
   const unavailable = { ...shirt, id: '700', name: '미지원 장식', slot: 'accessory', preview_available: false, model: null }
   await setup(page, { items: [shirt, unavailable] })
   await page.goto('/shop?sex=male')
+  await openShopFilters(page)
+
   const toggle = page.getByRole('checkbox', { name: '미리보기 불가능 아이템 가리기', exact: true })
   const paired = page.getByRole('checkbox', { name: '남녀 모두 존재하는 의상만', exact: true })
   await expect(toggle).toBeChecked()
@@ -1259,7 +1315,7 @@ test('unavailable items are hidden by default and the toggle keeps selection and
     await gate; return route.fallback()
   })
   await toggle.scrollIntoViewIfNeeded()
-  const watcher = await watchLayout(page, ['.shop-search', '.shop-filters', '.shop-pair-filter', '.shop-grid'])
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-filters', '.shop-advanced-filters', '.shop-grid'])
   await toggle.click()
   await expect(toggle).not.toBeChecked()
   await expect(page.locator('.shop-list-status')).toContainText('불러오는 중')
@@ -1284,7 +1340,7 @@ test('unavailable items are hidden by default and the toggle keeps selection and
   await watcher.expectStable(); await watcher.stop()
   await expect(page.locator('.shop-slots')).toContainText(shirt.name)
   await page.goto(`/shop?item=700&v=${version}`)
-  await expect(toggle).not.toBeChecked()
+  await expect(page.getByLabel('미리보기 불가능 아이템 가리기', { exact: true })).not.toBeChecked()
   await expect(page.locator('[data-item-id="700"]')).toBeVisible()
   await expect(page.locator('.shop-detail h3')).toHaveText(unavailable.name)
 })

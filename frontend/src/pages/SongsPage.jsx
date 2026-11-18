@@ -14,6 +14,7 @@ import { isXyxMode } from '../utils/serverMode'
 import { getSongs } from '../api/client'
 
 let removedSongLookupPromise = null
+const difficultyNames = { star: '별', moon: '달', sun: '해' }
 
 function loadRemovedSongLookup() {
   if (!removedSongLookupPromise) {
@@ -74,7 +75,7 @@ export default function SongsPage() {
     category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed,
     artists, sort, favorites, played, playedAll, aiMode, listenOnly, removedMode,
     personalCategoryId, personalCategoryFilters,
-    meta, setCategory, setQuick, openMobileSheet, isAdmin, modalOpen,
+    meta, setCategoryDirect, setQuick, openMobileSheet, isAdmin, modalOpen,
     loading, error, loadCatalog, showMyPerceived,
     authLoaded, adminLoaded, user,
   } = useStore()
@@ -106,6 +107,15 @@ export default function SongsPage() {
   }, [songs, search, searchMode, effectiveExcludeSearch, levelMin, levelMax, bpmMin, bpmMax, category, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, sort, favorites, played, playedAll, myPerceived.levels, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
 
   const totalFiltered = filtered.exact.length + filtered.fuzzy.length
+  const hasLevelRange = meta && (levelMin !== meta.level_min || levelMax !== meta.level_max)
+  const difficulty = difficultyNames[category] || (hasLevelRange ? `Lv ${levelMin}–${levelMax}` : '전체 난이도')
+  const searchScope = (
+    <span className="catalog-search-scope" id="catalog-search-scope">
+      <strong>{difficulty}</strong>
+      <span> · {loading ? '불러오는 중…' : error ? '불러오기 실패' : `${totalFiltered.toLocaleString()} / ${songs.length.toLocaleString()}곡`}</span>
+    </span>
+  )
+  const clearDifficulty = category || hasLevelRange ? () => setCategoryDirect(null) : undefined
 
   useEffect(() => {
     if (isXyxMode() || effectiveExcludeSearch || removedMode !== 'exclude' || !search.trim() || removedSearchSongs) return
@@ -178,19 +188,21 @@ export default function SongsPage() {
     const expandedDistinct = distinctSongCount([...result.exact, ...result.fuzzy])
     if (expandedDistinct <= currentDistinct) return null
     return {
-      onApply: () => setCategory(category),
+      onApply: () => setCategoryDirect(null),
+      message: '다른 난이도에도 일치하는 곡이 있어요.',
+      actionLabel: '전체 난이도로 검색',
     }
-  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategory, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
+  }, [search, effectiveExcludeSearch, category, meta, levelMin, levelMax, bpmMin, bpmMax, songs, searchMode, quick, flagNew, flagVariants, flagFavorite, flagMyPlayed, artists, favorites, played, filtered.exact, filtered.fuzzy, setCategoryDirect, aiMode, listenOnly, removedMode, personalCategoryId, personalCategorySongIds])
 
   if (isMobile) {
     return (
       <div className="app-mobile" data-cat={category || undefined}>
-        <MobileHeader totalFiltered={totalFiltered} />
+        <MobileHeader searchScope={searchScope} />
         {loading
           ? <CatalogLoadingState isMobile />
           : error
             ? <CatalogErrorState message={error} onRetry={loadCatalog} isMobile />
-            : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} removedSuggestion={removedSuggestion} />
+            : <SongsTable exact={filtered.exact} fuzzy={filtered.fuzzy} isMobile categorySuggestion={categorySuggestion} removedSuggestion={removedSuggestion} onClearDifficulty={clearDifficulty} showSearchActions />
         }
         <DetailedFilters songs={songs} isMobile showRemovedFilter={!isXyxMode()} />
       </div>
@@ -208,6 +220,7 @@ export default function SongsPage() {
           totalCount={songs.length}
           loading={loading}
           error={error}
+          searchScope={searchScope}
           showOriginalBpmToggle
           originalBpmAvailable={isXyxMode() || originalBpmAvailable}
           showMyPerceivedToggle={!isXyxMode()}
@@ -225,6 +238,8 @@ export default function SongsPage() {
                 fuzzy={filtered.fuzzy}
                 categorySuggestion={categorySuggestion}
                 removedSuggestion={removedSuggestion}
+                onClearDifficulty={clearDifficulty}
+                showSearchActions
                 catalogOpen={catalogPanelOpen}
                 myPerceivedLevels={myPerceived.levels}
                 showCategoryLabels

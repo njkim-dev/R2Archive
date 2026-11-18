@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { watchLayout } from './layout.js'
 
 async function portalRoute(page, baseURL, gate) {
-  await page.route('http://r2archive.com/**', async route => {
+  await page.route('https://r2archive.com/**', async route => {
     const url = new URL(route.request().url())
     if (url.pathname === '/api/game-repair/status') return route.fulfill({ json: { enabled: true, revision: 'initial', message: '' } })
     if (url.pathname.startsWith('/api/')) return route.fulfill({ json: { user: null } })
@@ -19,7 +19,7 @@ for (const portrait of [false, true]) {
     let release
     const gate = new Promise(resolve => { release = resolve })
     await portalRoute(page, baseURL, gate)
-    await page.goto('http://r2archive.com/', { waitUntil: 'domcontentloaded' })
+    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading', { name: '함께 즐기는, 알투비트의 모든 순간.' })).toBeVisible()
     const watcher = await watchLayout(page, ['.archive-portal .masthead', '.archive-portal .intro', '.archive-portal .services', '.archive-portal footer'])
     await watcher.expectStable()
@@ -55,6 +55,40 @@ for (const portrait of [false, true]) {
     await page.unrouteAll({ behavior: 'wait' })
   })
 }
+
+test('guest My Home card starts login and returns to My Home', async ({ page, baseURL }, testInfo) => {
+  if (testInfo.project.use.viewport.width <= 768) await page.setViewportSize({ width: 390, height: 900 })
+  let releaseAuth, signedIn = false
+  const gate = new Promise(resolve => { releaseAuth = resolve })
+  await portalRoute(page, baseURL)
+  await page.route('**/api/auth/me', async route => {
+    await gate
+    await route.fulfill({ json: { user: signedIn ? { id: 1, nickname: '테스터', onboarded: true } : null } })
+  })
+  await page.route('**/api/auth/google/login?*', async route => {
+    signedIn = true
+    await route.fulfill({ status: 204 })
+  })
+  await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
+  const card = page.getByRole('button', { name: '로그인하고 마이홈 열기' })
+  await card.scrollIntoViewIfNeeded()
+  await expect(card).toBeDisabled()
+  const layout = await watchLayout(page, ['.archive-portal .masthead', '.archive-portal .services', '.myhome-service'])
+  releaseAuth()
+  await expect(card).toBeEnabled()
+  await layout.expectStable()
+  await card.click()
+  const login = page.locator('.login-modal')
+  await expect(login).toBeVisible()
+  await layout.expectStable()
+  await layout.stop()
+  await login.getByRole('button', { name: 'Google로 계속하기' }).click()
+  await expect.poll(() => signedIn).toBe(true)
+  await page.goto('https://r2archive.com/?auth=ok')
+  await expect(page).toHaveURL('https://r2archive.com/myhome')
+  await expect(page.getByRole('heading', { name: '마이홈', exact: true })).toBeVisible()
+  await expect(page.getByText('로그인 후 이용할 수 있습니다.')).toHaveCount(0)
+})
 
 test('cache-only reset removes an old permanent redirect and preserves settings', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1920', 'Same caching behavior at every width')
