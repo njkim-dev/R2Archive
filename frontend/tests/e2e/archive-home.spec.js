@@ -104,7 +104,7 @@ test.describe('OpenJDK security notice', () => {
     const notice = page.getByRole('dialog', { name: 'OpenJDK 보안 이슈 안내' })
     await expect(notice).toBeVisible()
     await expect(notice).toContainText('CVE-2026-114938')
-    await expect(notice).toContainText('필요한 보안 업데이트를 신속히 적용하는 데 최선을 다하겠습니다.')
+    await expect(notice.locator('p').last()).toHaveText('앞으로도 R2 Archive를 안심하고 이용하실 수 있도록 운영 환경을 꾸준히 점검하고, 필요한 보안 업데이트를 신속히 적용하겠습니다.')
     await expect(notice.getByRole('link', { name: 'KISA 보안 공지 보기' })).toHaveAttribute('href', /nttId=72313/)
     const confirm = notice.getByRole('button', { name: '확인' })
     await expect(confirm).toBeFocused()
