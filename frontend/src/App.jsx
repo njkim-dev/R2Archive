@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import useStore from './store/useStore'
 import { isXyxMode,ARCHIVE_BASE,archivePath } from './utils/serverMode'
@@ -20,6 +20,7 @@ import './styles/archive-navigation.css'
 import './styles/music-navigation.css'
 import { ArchiveMobileNavigation, ArchivePageLayout } from './components/ArchiveNavigation'
 import CreatePersonalCategoryModal, { takePendingCategoryCreate } from './components/CreatePersonalCategoryModal'
+import SecurityNotice, { shouldOpenSecurityNotice } from './components/SecurityNotice'
 
 const RemovedSongsPage = lazy(() => import('./pages/RemovedSongsPage'))
 const PmangSongsPage = lazy(() => import('./pages/PmangSongsPage'))
@@ -89,6 +90,7 @@ function openSongFromHash(song) {
 export default function App() {
   const navigate = useNavigate()
   const appLocation = useLocation()
+  const [securityNoticeOpen, setSecurityNoticeOpen] = useState(shouldOpenSecurityNotice)
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
   const portalHost = window.location.hostname === 'r2archive.com'&&!ARCHIVE_BASE
@@ -173,7 +175,7 @@ export default function App() {
       {navigationVisible && !standaloneNavigation && <ArchiveMobileNavigation />}
       <Suspense fallback={null}>
         <Routes>
-          <Route path="/" element={portalHost ? <ArchiveHomePage /> : <SongsPage />} />
+          <Route path="/" element={portalHost ? <ArchiveHomePage onOpenSecurityNotice={() => setSecurityNoticeOpen(true)} /> : <SongsPage />} />
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
           {!xyxMode && <Route path="/shop/admin" element={<ArchivePageLayout section="admin"><ShopAdminPage /></ArchivePageLayout>} />}
           <Route path="/short/:code" element={<ShortLinkPage />} />
@@ -209,6 +211,7 @@ export default function App() {
       <FeedbackModal />
       <MyPageModal />
       <HelpTour />
+      {securityNoticeOpen && <SecurityNotice onClose={() => setSecurityNoticeOpen(false)} />}
     </>
   )
 }

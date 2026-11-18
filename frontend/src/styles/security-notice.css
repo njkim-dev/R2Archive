@@ -1,0 +1,95 @@
+.security-notice {
+  position: fixed;
+  inset: 0;
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: clamp(18px, 5vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-1);
+  color: var(--fg);
+  box-shadow: 0 20px 72px #0008;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.security-notice::backdrop {
+  background: #090e18ad;
+}
+
+.security-notice header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.security-notice header svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.security-notice h2 {
+  font-size: 19px;
+  line-height: 1.4;
+}
+
+.security-notice p {
+  color: var(--fg-2);
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.security-notice p + p {
+  margin-top: 12px;
+}
+
+.security-notice footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+.security-notice footer a,
+.security-notice footer button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.security-notice footer a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.security-notice footer button {
+  justify-content: center;
+  min-width: 78px;
+  padding-inline: 14px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.security-notice :focus-visible,
+.archive-portal .security-notice-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.archive-portal .security-notice-link {
+  padding: 0 2px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}

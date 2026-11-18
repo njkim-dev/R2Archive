@@ -5,7 +5,7 @@ import portraitBackground from '../assets/archive-home/r2beat-aquarium-portrait.
 import logoImage from '../assets/archive-home/r2beat-logo-transparent.png'
 import '../styles/archive-home.css'
 
-export default function ArchiveHomePage() {
+export default function ArchiveHomePage({ onOpenSecurityNotice }) {
   const { user, authLoaded, openLogin } = useStore()
   const navigate = useNavigate()
   const myHomeAction = user ? '마이홈 둘러보기' : '로그인하고 마이홈 열기'
@@ -49,6 +49,9 @@ export default function ArchiveHomePage() {
       </div>
       <p className="small-note"><span aria-hidden="true">♫</span> 음악을 찾고, 다시 신나게 달려보세요.</p>
     </section>
-    <footer><span>R2 Archive <span className="footer-caption">· 알투비트를 함께 즐기는 공간</span></span><span>r2archive.com</span></footer>
+    <footer>
+      <span>R2 Archive <span className="footer-caption">· 알투비트를 함께 즐기는 공간</span></span>
+      <button type="button" className="security-notice-link" onClick={onOpenSecurityNotice}>보안 안내</button>
+    </footer>
   </main>
 }

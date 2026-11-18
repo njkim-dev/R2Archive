@@ -90,6 +90,63 @@ test('guest My Home card starts login and returns to My Home', async ({ page, ba
   await expect(page.getByText('로그인 후 이용할 수 있습니다.')).toHaveCount(0)
 })
 
+test.describe('OpenJDK security notice', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  test('shows once, keeps the portal stable and can be reopened after expiry', async ({ page, baseURL }, testInfo) => {
+    if (testInfo.project.use.viewport.width <= 768) await page.setViewportSize({ width: 390, height: 844 })
+    await page.clock.setFixedTime(new Date('2026-11-18T12:00:00+09:00'))
+    let releaseArtwork
+    const gate = new Promise(resolve => { releaseArtwork = resolve })
+    await portalRoute(page, baseURL, gate)
+    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
+
+    const notice = page.getByRole('dialog', { name: 'OpenJDK 보안 이슈 안내' })
+    await expect(notice).toBeVisible()
+    await expect(notice).toContainText('CVE-2026-114938')
+    await expect(notice).toContainText('필요한 보안 업데이트를 신속히 적용하는 데 최선을 다하겠습니다.')
+    await expect(notice.getByRole('link', { name: 'KISA 보안 공지 보기' })).toHaveAttribute('href', /nttId=72313/)
+    const confirm = notice.getByRole('button', { name: '확인' })
+    await expect(confirm).toBeFocused()
+    const layout = await watchLayout(page, ['.masthead', '.services', '.archive-portal footer'])
+    await layout.expectStable()
+    releaseArtwork()
+    await expect.poll(() => page.locator('.artwork img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
+    await layout.expectStable()
+    await confirm.click()
+    await expect(notice).toHaveCount(0)
+    await layout.expectStable()
+    await layout.stop()
+
+    await page.reload()
+    const noticeLink = page.getByRole('button', { name: '보안 안내', exact: true })
+    await expect(noticeLink).toBeVisible()
+    await expect(notice).toHaveCount(0)
+    await page.evaluate(() => localStorage.removeItem('r2archive:notice:CVE-2026-114938'))
+    await page.clock.setFixedTime(new Date('2026-11-25T00:00:00+09:00'))
+    await page.reload()
+    await expect(noticeLink).toBeVisible()
+    await expect(notice).toHaveCount(0)
+    await noticeLink.click()
+    await expect(notice).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(notice).toHaveCount(0)
+  })
+
+  test('appears on direct shop entry and Escape dismisses it across pages', async ({ page, baseURL }) => {
+    await page.clock.setFixedTime(new Date('2026-11-18T12:00:00+09:00'))
+    await portalRoute(page, baseURL)
+    await page.goto('https://r2archive.com/shop', { waitUntil: 'domcontentloaded' })
+    const notice = page.getByRole('dialog', { name: 'OpenJDK 보안 이슈 안내' })
+    await expect(notice).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(notice).toHaveCount(0)
+    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('button', { name: '보안 안내', exact: true })).toBeVisible()
+    await expect(notice).toHaveCount(0)
+  })
+})
+
 test('cache-only reset removes an old permanent redirect and preserves settings', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1920', 'Same caching behavior at every width')
   let legacy = true
