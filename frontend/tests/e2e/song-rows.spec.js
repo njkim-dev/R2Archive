@@ -317,6 +317,8 @@ test('released removed songs can be shown without shifting the catalog', async (
 
 test('searching for a removed song offers the detailed filter shortcut', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  const checkHighlightExpiry = testInfo.project.name === 'chromium-1920'
+  if (checkHighlightExpiry) await page.clock.install()
   const removedSong = { ...song(90, 5, 'Deleted Secret'), is_removed: true }
   await mockCatalog(page, songs, { removedSongs: [removedSong] })
 
@@ -328,12 +330,11 @@ test('searching for a removed song offers the detailed filter shortcut', async (
   const removedSection = page.locator('.detailed-removed-section')
   await expect(removedSection).toHaveClass(/is-highlighted/)
   await expect(removedSection).toBeFocused()
-  await page.waitForTimeout(200)
   expect(await removedSection.evaluate(element => getComputedStyle(element).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)')
-  if (testInfo.project.name === 'chromium-1920') {
-    await page.waitForTimeout(4000)
+  if (checkHighlightExpiry) {
+    await page.clock.fastForward(2500)
     await expect(removedSection).toHaveClass(/is-highlighted/)
-    await page.waitForTimeout(1000)
+    await page.clock.fastForward(2500)
     await expect(removedSection).not.toHaveClass(/is-highlighted/)
   }
 })
