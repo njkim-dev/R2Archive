@@ -10,6 +10,26 @@ import shop_outfit_search as search
 
 
 class OutfitTests(unittest.TestCase):
+    def test_catalog_transition_accepts_only_declared_revisions_before_paid_analysis(self):
+        primary, previous, unknown = 'c69768318bc4be6f8098', '0022d250cbfa8a408b3b', 'f' * 20
+        model = search.OutfitSearch.__new__(search.OutfitSearch)
+        model.catalog_revisions = search.catalog_revisions({'catalog_revision': primary, 'compatible_catalog_revisions': [previous]})
+        for revision in (primary, previous):
+            with patch.object(search, 'call', side_effect=search.SearchUnavailable('test-stop')) as call:
+                with self.assertRaisesRegex(search.SearchUnavailable, 'test-stop'):
+                    model.search(Image.new('RGB', (32, 32)), {}, revision)
+                call.assert_called_once()
+        with patch.object(search, 'call') as call:
+            with self.assertRaises(search.SearchUnavailable):
+                model.search(Image.new('RGB', (32, 32)), {}, unknown)
+            call.assert_not_called()
+        self.assertEqual(search.catalog_revisions({'catalog_revision': primary}), {primary})
+
+    def test_catalog_compatibility_rejects_malformed_manifest(self):
+        for compatible in ('abc', None, ['../catalog'], [True], ['f' * 20] * 9):
+            with self.assertRaises(ValueError):
+                search.catalog_revisions({'catalog_revision': 'c69768318bc4be6f8098', 'compatible_catalog_revisions': compatible})
+
     def test_palette_preserves_blonde_hair_and_ignores_transparent_background(self):
         hair = Image.new('RGBA', (32, 32), (210, 180, 140, 255))
         padded = Image.new('RGBA', (64, 64), (255, 0, 0, 0)); padded.paste(hair, (16, 16))

@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 import math
 import os
+import re
 from threading import Lock
 import time
 
@@ -26,6 +27,17 @@ _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='shop-match')
 _results = OrderedDict()
 _cache_lock = Lock()
 _engine_lock = Lock()
+
+
+def catalog_revisions(manifest):
+    primary = manifest['catalog_revision']
+    compatible = manifest.get('compatible_catalog_revisions', [])
+    if not isinstance(compatible, list) or len(compatible) > 8 or any(
+        not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{12,64}', value)
+        for value in [primary, *compatible]
+    ):
+        raise ValueError('Invalid compatible catalog revisions')
+    return frozenset([primary, *compatible])
 
 
 class SearchUnavailable(Exception):
@@ -101,6 +113,7 @@ class OutfitSearch:
                 if hashlib.file_digest(stream, 'sha256').hexdigest() != manifest.get('sha256', {}).get(name):
                     raise ValueError('Outfit index integrity mismatch')
         self.revision = manifest['catalog_revision']
+        self.catalog_revisions = catalog_revisions(manifest)
         self.rows = json.loads((SEARCH_DIR/'outfit-items.json').read_text(encoding='utf8'))
         self.features = np.load(SEARCH_DIR/'outfit-features.npy', mmap_mode='r', allow_pickle=False)
         self.colors = np.load(SEARCH_DIR/'outfit-colors.npy', mmap_mode='r', allow_pickle=False)
@@ -227,7 +240,7 @@ class OutfitSearch:
 
     def search(self, image, allowed, revision, slots=SLOTS, sex_hint=None, examples=()):
         started = time.perf_counter()
-        if revision != self.revision:
+        if revision not in self.catalog_revisions:
             raise SearchUnavailable('현재 상점 버전의 이미지 검색 데이터를 준비 중입니다.')
         original = image_content(image)
         prompt = ('Analyze this whole video game screenshot and locate these wearable parts: '+', '.join(slots)+'. '
