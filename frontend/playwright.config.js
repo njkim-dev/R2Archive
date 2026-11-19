@@ -12,7 +12,10 @@ export default defineConfig({
       cookies: [],
       origins: ['http://r2archive.com', 'https://r2archive.com'].map(origin => ({
         origin,
-        localStorage: [{ name: 'r2archive:notice:CVE-2026-114938', value: '1' }],
+        localStorage: [
+          { name: 'r2archive:notice:CVE-2026-114938', value: '1' },
+          { name: 'r2archive:notice:nginx-http2-2026-11-19', value: '1' },
+        ],
       })),
     },
     extraHTTPHeaders: { 'X-R2Archive-Test': '1' },

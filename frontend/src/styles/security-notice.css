@@ -35,6 +35,21 @@
   line-height: 1.4;
 }
 
+.security-notice section + section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.security-notice-heading {
+  margin-bottom: 8px;
+}
+
+.security-notice h3 {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 .security-notice p {
   color: var(--fg-2);
   font-size: 14px;
@@ -51,20 +66,21 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px 14px;
   margin-top: 18px;
   font-size: 13px;
 }
 
-.security-notice footer a,
+.security-notice-source,
 .security-notice footer button {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
 }
 
-.security-notice footer a {
+.security-notice-source {
+  font-size: 13px;
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;

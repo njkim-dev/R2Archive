@@ -90,7 +90,7 @@ function openSongFromHash(song) {
 export default function App() {
   const navigate = useNavigate()
   const appLocation = useLocation()
-  const [securityNoticeOpen, setSecurityNoticeOpen] = useState(shouldOpenSecurityNotice)
+  const [securityNoticeMode, setSecurityNoticeMode] = useState(() => shouldOpenSecurityNotice() ? 'unread' : null)
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
   const portalHost = window.location.hostname === 'r2archive.com'&&!ARCHIVE_BASE
@@ -175,7 +175,7 @@ export default function App() {
       {navigationVisible && !standaloneNavigation && <ArchiveMobileNavigation />}
       <Suspense fallback={null}>
         <Routes>
-          <Route path="/" element={portalHost ? <ArchiveHomePage onOpenSecurityNotice={() => setSecurityNoticeOpen(true)} /> : <SongsPage />} />
+          <Route path="/" element={portalHost ? <ArchiveHomePage onOpenSecurityNotice={() => setSecurityNoticeMode('all')} /> : <SongsPage />} />
           {!xyxMode && <Route path="/shop" element={<ShopPage />} />}
           {!xyxMode && <Route path="/shop/admin" element={<ArchivePageLayout section="admin"><ShopAdminPage /></ArchivePageLayout>} />}
           <Route path="/short/:code" element={<ShortLinkPage />} />
@@ -211,7 +211,7 @@ export default function App() {
       <FeedbackModal />
       <MyPageModal />
       <HelpTour />
-      {securityNoticeOpen && <SecurityNotice onClose={() => setSecurityNoticeOpen(false)} />}
+      {securityNoticeMode && <SecurityNotice showAll={securityNoticeMode === 'all'} onClose={() => setSecurityNoticeMode(null)} />}
     </>
   )
 }
