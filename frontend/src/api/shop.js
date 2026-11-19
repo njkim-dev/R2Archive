@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api/shop', withCredentials: true })
 export const getShopImageAccess = () => api.get('/image-search/access', { timeout: 10000 }).then(r => r.data)
-export const getShopMeta = version => api.get('/meta', { params: { version } }).then(r => r.data)
+export const getShopMeta = (version, signal) => api.get('/meta', { params: { version }, signal }).then(r => r.data)
 export const getShopImageEstimate = (slot, signal) => api.get('/image-search/estimate', { params: { slot }, signal, timeout: 5000 }).then(r => r.data)
 export const searchShopImage = ({ image, sex, slot, version, mode = 'terra' }, signal) => {
   const data = new FormData()
@@ -36,7 +36,7 @@ export const deleteImageSearch = id => api.delete(`/image-search/admin/history/$
 export const publishShopImage = (id, selectedIds) => api.post(`/image-search/history/${id}/share`, { selected_ids: selectedIds }).then(r => r.data)
 export const getSharedShopImage = (token, signal) => api.get(`/image-search/shared/${encodeURIComponent(token)}`, { signal }).then(r => r.data)
 export const getShopItems = (params, signal) => api.get('/items', { params, signal }).then(r => r.data)
-export const getShopItem = (id, version) => api.get(`/items/${id}`, { params: { version } }).then(r => r.data)
+export const getShopItem = (id, version, signal) => api.get(`/items/${id}`, { params: { version }, signal }).then(r => r.data)
 export const getShopFavorites = signal => api.get('/favorites', { signal }).then(r => r.data)
 export const saveShopFavorite = (id, version) => api.post(`/favorites/${id}`, null, { params: { version } }).then(r => r.data)
 export const deleteShopFavorite = id => api.delete(`/favorites/${id}`).then(r => r.data)

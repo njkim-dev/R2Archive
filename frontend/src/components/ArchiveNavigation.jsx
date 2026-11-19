@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil, ShieldCheck, ShoppingBag, UserRound, Wrench, X } from 'lucide-react'
+import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil, ShieldCheck, ShoppingBag, Store, UserRound, Wrench, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { archiveSection, navigationTarget } from '../utils/archiveNavigation'
 import PageNavigation from './PageNavigation'
@@ -11,8 +11,8 @@ import { rememberShopReturn } from '../utils/shopUrl'
 
 const ArchiveLoginContext = createContext(null)
 
-const titles = { music: '음악', kr: '한국 서버 음악', xyx: '중국 서버 음악', shop: '상점', home: '마이홈', repair: '게임 복구', feedback: '피드백', admin: '관리자 도구' }
-const primary = [['kr', Music2], ['xyx', Music2], ['shop', ShoppingBag], ['home', Home]]
+const titles = { music: '음악', kr: '한국 서버 음악', xyx: '중국 서버 음악', encore: '앙코르 상점', shop: '상점', home: '마이홈', repair: '게임 복구', feedback: '피드백', admin: '관리자 도구' }
+const primary = [['kr', Music2], ['xyx', Music2], ['encore', Store], ['shop', ShoppingBag], ['home', Home]]
 
 function useNativeDialog() {
   const [blocked, setBlocked] = useState(false)

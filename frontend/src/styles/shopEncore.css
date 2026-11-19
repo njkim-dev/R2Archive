@@ -1,0 +1,318 @@
+.encore-main {
+  min-height: 0;
+  padding: 24px clamp(16px, 3vw, 40px) 48px;
+}
+
+.encore-main h1 {
+  font-size: 29px;
+  margin: 0 0 18px;
+}
+
+.encore-main h2, .encore-main p {
+  margin: 0;
+}
+
+.encore-round, .encore-preview {
+  border: 1px solid var(--shop-line);
+  background: var(--shop-surface);
+  border-radius: 12px;
+}
+
+.encore-round {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 12px 15px;
+}
+
+.encore-round > svg, .encore-round a, .encore-motion-link {
+  color: var(--shop-accent);
+}
+
+.encore-round a, .encore-motion-link, .encore-offer-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.encore-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.encore-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.encore-filter button, .encore-parts button, .encore-list-status button, .encore-stage-placeholder button {
+  padding: 8px 12px;
+  min-height: 36px;
+  background: var(--shop-surface);
+  border: 1px solid var(--shop-line);
+}
+
+.encore-app button[aria-pressed=true]:is(.encore-filter button, .encore-offer, .encore-parts button) {
+  background: var(--shop-tint);
+  border-color: var(--shop-accent);
+  color: var(--shop-accent);
+}
+
+.encore-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  min-height: 37px;
+  background: var(--shop-surface);
+  border: 1px solid var(--shop-line);
+  border-radius: 8px;
+  color: var(--shop-muted);
+}
+
+.encore-search input {
+  width: clamp(130px, 16vw, 240px);
+  min-width: 0;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--shop-text);
+}
+
+.encore-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 1fr);
+  gap: clamp(14px, 2vw, 26px);
+  align-items: start;
+}
+
+.encore-list-heading, .encore-preview-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.encore-list-heading {
+  margin: 0 0 10px;
+}
+
+.encore-list-heading h2, .encore-preview-heading h2 {
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.encore-list-heading span, .encore-preview-heading span, .encore-offer-name small, .encore-parts small {
+  color: var(--shop-muted);
+  font-size: 12px;
+}
+
+.encore-list-status {
+  color: var(--shop-muted);
+  padding: 20px 0;
+}
+
+.encore-list-status button, .encore-stage-placeholder button {
+  margin-top: 8px;
+}
+
+.encore-offers, .encore-parts ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.encore-app button.encore-offer {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  gap: 12px;
+  text-align: left;
+  min-height: 72px;
+  width: 100%;
+  padding: 7px 11px;
+  background: var(--shop-surface);
+  border: 1px solid var(--shop-line);
+}
+
+.encore-offer-art {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  background: var(--shop-soft);
+  color: var(--shop-muted);
+}
+
+.encore-offer-art img, .encore-parts img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.encore-offer-name strong, .encore-offer-name small, .encore-parts small {
+  display: block;
+}
+
+.encore-offer-name strong {
+  color: var(--shop-text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.encore-offer-action {
+  white-space: nowrap;
+  color: var(--shop-accent);
+  font-size: 12px;
+}
+
+.encore-aside {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.encore-preview {
+  padding: 14px;
+}
+
+.encore-preview-heading {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.encore-stage {
+  --encore-stage-height: clamp(275px, 46dvh, 410px);
+  height: var(--encore-stage-height);
+}
+
+.encore-stage .shop-stage, .encore-stage .shop-stage canvas {
+  width: 100%;
+  height: var(--encore-stage-height);
+}
+
+.encore-stage-placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  border: 1px solid var(--shop-line);
+  border-radius: 13px;
+  color: var(--shop-muted);
+  background: var(--shop-soft);
+}
+
+.encore-stage-placeholder img {
+  object-fit: contain;
+}
+
+.encore-preview-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 46px;
+}
+
+.encore-controls-pending {
+  visibility: hidden;
+}
+
+.encore-preview-note {
+  color: var(--shop-muted);
+  min-height: 20px;
+}
+
+.encore-parts {
+  border-top: 1px solid var(--shop-line);
+}
+
+.encore-parts summary {
+  padding: 10px 0 5px;
+  cursor: pointer;
+}
+
+.encore-parts summary span {
+  color: var(--shop-muted);
+}
+
+.encore-parts ul {
+  margin-top: 8px;
+}
+
+.encore-app .encore-parts li button {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+}
+
+.encore-parts img {
+  height: 32px;
+}
+
+@media (max-width: 800px) {
+  .encore-main {
+    padding: 16px 14px 30px;
+  }
+
+  .encore-main h1 {
+    font-size: 24px;
+    margin-bottom: 13px;
+  }
+
+  .encore-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .encore-app .encore-dialog {
+    width: min(560px, calc(100% - 20px));
+    padding: 14px;
+  }
+
+  .encore-dialog .encore-preview {
+    border: 0;
+    padding: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .encore-search, .encore-search input {
+    width: 100%;
+  }
+
+  .encore-filter button, .encore-search, .encore-parts summary, .encore-parts li button {
+    min-height: 44px;
+  }
+
+  .encore-search input {
+    font-size: 16px;
+  }
+
+  .encore-app button.encore-offer {
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .encore-offer-art {
+    width: 46px;
+    height: 46px;
+  }
+
+  .encore-offer-action svg {
+    display: none;
+  }
+}

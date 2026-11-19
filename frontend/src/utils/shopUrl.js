@@ -45,7 +45,7 @@ export function coupleShareUrl({ version, sex, slots, item, partner, angle = 180
 }
 
 function isShopReturn(url) {
-  return typeof url === 'string' && url.length < 4096 && (url === '/myhome' || /^\/shop(?:\?|$)/.test(url))
+  return typeof url === 'string' && url.length < 4096 && (url === '/myhome' || /^\/shop(?:\/encore\/?)?(?:\?|$)/.test(url))
 }
 
 export function rememberShopReturn(url = location.pathname + location.search) {

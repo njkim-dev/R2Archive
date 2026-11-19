@@ -71,7 +71,7 @@ for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
     const shop=page.getByRole('link',{name:'상점',exact:true}),myhome=page.getByRole('button',{name:'마이홈',exact:true})
     await expect(shop).toHaveAttribute('href','https://r2archive.com/shop');if(loggedIn)await expect(myhome).toBeEnabled();else await expect(myhome).toBeDisabled();await expect(myhome).not.toHaveAttribute('title',/.+/)
     const primary = page.getByRole('navigation', { name: '주요 페이지' })
-    await expect(primary.locator('.archive-primary-item')).toHaveText(['한국 서버 음악', '중국 서버 음악', '상점', '마이홈'])
+    await expect(primary.locator('.archive-primary-item')).toHaveText(['한국 서버 음악', '중국 서버 음악', '앙코르 상점', '상점', '마이홈'])
     await expect(page.locator('.server-switcher,.main-home-link')).toHaveCount(0)
     const current = primary.getByRole('link', { name: archive === 'music' ? '한국 서버 음악' : '중국 서버 음악', exact: true })
     await expect(current).toHaveAttribute('aria-current', 'page')

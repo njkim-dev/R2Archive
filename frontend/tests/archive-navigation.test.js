@@ -14,12 +14,14 @@ test('service navigation escapes music router basenames and preserves server ide
   assert.deepEqual(navigationTarget('xyx', { base: '', host: 'xyx.r2archive.com', xyx: true }), { to: '/' })
   for (const base of ['/music', '/xyx']) {
     assert.deepEqual(navigationTarget('shop', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/shop' })
+    assert.deepEqual(navigationTarget('encore', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/shop/encore' })
     assert.deepEqual(navigationTarget('home', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/myhome' })
     assert.deepEqual(navigationTarget('music', { base, host: 'r2archive.com' }), { to: '/' })
   }
   assert.deepEqual(navigationTarget('music', { base: '', host: 'r2archive.com', xyx: false }), { href: '/music/' })
   assert.deepEqual(navigationTarget('music', { base: '', host: 'xyx.r2archive.com', xyx: true }), { href: '/xyx/' })
   assert.deepEqual(navigationTarget('shop', { base: '', host: 'localhost' }), { to: '/shop' })
+  assert.deepEqual(navigationTarget('encore', { base: '', host: 'r2archive.com' }), { to: '/shop/encore' })
   assert.deepEqual(navigationTarget('feedback', { base: '/music', host: 'r2archive.com' }), { to: '/feedback' })
   for (const base of ['', '/xyx']) assert.deepEqual(navigationTarget('feedback', { base, host: 'r2archive.com' }), { href: 'https://r2archive.com/music/feedback' })
 })
