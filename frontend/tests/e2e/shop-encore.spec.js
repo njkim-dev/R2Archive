@@ -5,7 +5,8 @@ import { watchLayout } from './layout.js'
 
 const round = JSON.parse(readFileSync(new URL('../../src/data/encore-shop.json', import.meta.url), 'utf8'))
 const showcase = round.offers[0]
-const wearable = showcase.items.filter(item => item.preview).map(item => ({
+const wearable = [showcase, ...round.offers.filter(offer => offer.kind === 'wearable')]
+  .flatMap(offer => offer.items).filter(item => item.preview).map(item => ({
   ...shirt, id: item.id, name: item.name, slot: item.slot, sex: item.sex,
 }))
 const setName = '블랙 수트 · 블랙 드레스'
@@ -16,7 +17,7 @@ for (const width of [1440, 390]) test(`Encore navigation, stable loading and set
   let releaseCatalog, releaseModels
   const catalogGate = new Promise(resolve => { releaseCatalog = resolve })
   const modelGate = new Promise(resolve => { releaseModels = resolve })
-  await setup(page, { items: wearable, loggedIn: false, admin: false, modelGate })
+  const requests = await setup(page, { items: wearable, loggedIn: false, admin: false, modelGate })
   await page.route(/\/encore-shop(?:-[\w-]+)?\.json(?:\?.*)?$/, async route => {
     if (route.request().resourceType() !== 'fetch') return route.fallback()
     await catalogGate
@@ -34,7 +35,7 @@ for (const width of [1440, 390]) test(`Encore navigation, stable loading and set
   await layout.expectStable()
   releaseCatalog()
   await expect(page.getByText('2026년 11월 회차')).toBeVisible()
-  await expect(page.locator('.encore-offer')).toHaveCount(20)
+  await expect(page.locator('.encore-offer')).toHaveCount(26)
   await layout.expectStable()
   await layout.stop()
 
@@ -63,12 +64,31 @@ for (const width of [1440, 390]) test(`Encore navigation, stable loading and set
   await expect(page.locator('.encore-offer')).toHaveCount(1)
   await search.clear()
   await page.getByRole('button', { name: '기능성', exact: true }).click()
-  await expect(page.locator('.encore-offer')).toHaveCount(4)
+  await expect(page.locator('.encore-offer')).toHaveCount(7)
   const motion = page.getByRole('button', { name: '릴리 앤 리본 미리보기', exact: true })
   await motion.click()
   await expect(preview.getByRole('link', { name: '커플 모션 미리보기' })).toHaveAttribute('href', /view=couple.*item=30835/)
   if (mobile) await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '찬란한 별 미리보기', exact: true }).click()
-  await expect(preview.getByText('미리보기 이미지 없음')).toBeVisible()
+  await expect(preview.locator('.encore-stage-placeholder img')).toHaveAttribute('src', /688f9705d31ff67f95d0bb5d42a083957/)
+  if (mobile) await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: '백금성령 미리보기', exact: true }).click()
+  await expect(preview.getByRole('link', { name: '커플 모션 미리보기' })).toHaveAttribute('href', /view=couple.*item=30810/)
+  if (mobile) await page.keyboard.press('Escape')
+  for (const [name, id] of [['섬 여행 닉네임팩', 11000464], ['동적 캐릭터 슬롯-바다풍경', 11000694]]) {
+    await page.getByRole('button', { name: name + ' 미리보기', exact: true }).click()
+    const icon = preview.locator('.encore-stage-placeholder img')
+    await expect(icon).toHaveAttribute('src', new RegExp(`/assets/encore-${id}-`))
+    await expect.poll(() => icon.evaluate(image => image.complete && image.naturalWidth === 128)).toBe(true)
+    if (mobile) await page.keyboard.press('Escape')
+  }
+  await page.getByRole('button', { name: '펫·효과', exact: true }).click()
+  await expect(page.locator('.encore-offer')).toHaveCount(3)
+  for (const [name, id] of [['슬라임 보글보글', 11000673], ['캐릭터 효과-별이 빛나는', 11000463], ['파란 토끼/빨간 토끼', 600515]]) {
+    await page.getByRole('button', { name: name + ' 미리보기', exact: true }).click()
+    await expect(preview.locator('.shop-stage-status')).toBeEmpty()
+    expect(requests).toContain(`/api/shop/items/${id}`)
+    if (mobile) await page.keyboard.press('Escape')
+  }
   await expect(page.getByText(/할인율|습득확률/)).toHaveCount(0)
 })

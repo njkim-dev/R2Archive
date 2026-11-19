@@ -1352,12 +1352,103 @@
       "kind": "utility",
       "items": [
         {
-          "id": null,
+          "id": "1200116",
           "name": "찬란한 별",
           "sex": "common",
           "slot": null,
-          "thumbnail": null,
+          "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/688f9705d31ff67f95d0bb5d42a083957c8cb48f7798800c22170f5c9da32616.webp",
           "preview": false
+        }
+      ]
+    },
+    {
+      "id": "platinum-spirit",
+      "name": "백금성령",
+      "kind": "utility",
+      "items": [
+        {
+          "id": "30810",
+          "name": "백금성령",
+          "sex": "common",
+          "slot": null,
+          "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/e0fcfd117f120513acf1ab8488f4bcf74f06e4f6b744b078a694bc8e59dfaf4a.webp",
+          "preview": false,
+          "motion": true
+        }
+      ]
+    },
+    {
+      "id": "slime-bubbles",
+      "name": "슬라임 보글보글",
+      "kind": "wearable",
+      "items": [
+        {
+          "id": "11000673",
+          "name": "슬라임 보글보글",
+          "sex": "common",
+          "slot": "summon",
+          "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/cee2dd378677acbb83747976ffae07caed4ef1bf64128effd628c2606240dfc9.webp",
+          "preview": true
+        }
+      ]
+    },
+    {
+      "id": "island-name-pack",
+      "name": "섬 여행 닉네임팩",
+      "kind": "utility",
+      "items": [
+        {
+          "id": "11000464",
+          "name": "섬 여행 닉네임팩",
+          "sex": "common",
+          "slot": null,
+          "thumbnail": "/assets/encore-11000464-06d35f38aa2e0369.webp",
+          "preview": false
+        }
+      ]
+    },
+    {
+      "id": "starlit-effect",
+      "name": "캐릭터 효과-별이 빛나는",
+      "kind": "wearable",
+      "items": [
+        {
+          "id": "11000463",
+          "name": "캐릭터 효과-별이 빛나는",
+          "sex": "common",
+          "slot": "summon",
+          "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/4cf3c2cfd1dcd6c0d910dda3c8505a8938d6181d0274fa20ce984f70f23411de.webp",
+          "preview": true
+        }
+      ]
+    },
+    {
+      "id": "ocean-slot",
+      "name": "동적 캐릭터 슬롯-바다풍경",
+      "kind": "utility",
+      "items": [
+        {
+          "id": "11000694",
+          "name": "동적 캐릭터 슬롯-바다풍경",
+          "sex": "common",
+          "slot": null,
+          "thumbnail": "/assets/encore-11000694-5c24c1eb09e610f3.webp",
+          "preview": false
+        }
+      ]
+    },
+    {
+      "id": "blue-red-rabbit",
+      "name": "파란 토끼/빨간 토끼",
+      "kind": "wearable",
+      "items": [
+        {
+          "id": "600515",
+          "name": "파란 토끼/빨간 토끼",
+          "sex": "common",
+          "slot": "pet",
+          "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/4e3d5af1b3e572c5bdaf97455cb0a4fadc92ad23732f1b76f03e2d0314485394.webp",
+          "preview": true
         }
       ]
     }

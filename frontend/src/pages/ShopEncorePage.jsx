@@ -11,13 +11,19 @@ import { coupleShareUrl, SLOT_LABELS } from '../utils/shopUrl'
 import '../styles/shop.css'
 import '../styles/shopEncore.css'
 
-const filters = [['all', '전체'], ['outfit', '의상'], ['utility', '기능성']]
+const filters = [['all', '전체'], ['outfit', '의상'], ['wearable', '펫·효과'], ['utility', '기능성']]
 const sexes = [['female', '여성'], ['male', '남성']]
 const cameraDefault = { angle: 180, zoom: 100, panX: 0, panY: 0 }
 const empty = {}
 const thumbnail = offer => offer.items.find(item => item.sex === 'female' && item.slot === 'top' && item.thumbnail)
   || offer.items.find(item => item.thumbnail)
 const normalize = value => value.normalize('NFKC').replace(/\s+/g, '').toLowerCase()
+
+function offerType(offer) {
+  if (offer.kind === 'outfit') return '의상 세트'
+  if (offer.kind === 'wearable') return offer.items[0].slot === 'pet' ? '펫' : '캐릭터 효과'
+  return offer.items.some(item => item.motion) ? '커플 아이템' : '기능성 아이템'
+}
 
 function EncoreThumb({ item }) {
   return item?.thumbnail
@@ -70,8 +76,8 @@ function EncorePreview({ offer, version, sex, onSex }) {
 
   return <div className="encore-preview">
     <div className="encore-preview-heading">
-      <div><span>{offer.kind === 'outfit' ? '의상 세트' : motionItem ? '커플 아이템' : '기능성 아이템'}</span><h2>{offer.name}</h2></div>
-      {offer.kind === 'outfit' && <div className="encore-filter" role="group" aria-label="캐릭터 성별">
+      <div><span>{offerType(offer)}</span><h2>{offer.name}</h2></div>
+      {(offer.kind === 'outfit' || offer.kind === 'wearable') && <div className="encore-filter" role="group" aria-label="캐릭터 성별">
         {sexes.filter(([value]) => offer.items.some(item => item.sex === value || item.sex === 'common')).map(([value, label]) =>
           <button key={value} type="button" aria-pressed={sex === value} onClick={() => chooseSex(value)}>{label}</button>)}
       </div>}
@@ -180,7 +186,7 @@ export default function ShopEncorePage() {
                     <span className="encore-offer-name"><strong>{offer.name}</strong>
                       <small>{offer.kind === 'outfit'
                         ? `의상 세트 · ${offer.items.filter(item => item.sex === 'female' || item.sex === 'common').length || offer.items.length}부위`
-                        : offer.items.some(item => item.motion) ? '커플 아이템' : '기능성 아이템'}</small>
+                        : offerType(offer)}</small>
                     </span>
                     <span className="encore-offer-action">미리보기 <ChevronRight size={14} aria-hidden="true" /></span>
                   </button>
