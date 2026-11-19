@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { watchLayout } from './layout.js'
 
+test.afterEach(async ({ page, context }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await context.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 const song = { id: 1, name: '배경 가독성 확인', artist: 'Test', level: 8, bpm: 160, combo: 100, time: '1:00', image: '', youtube_url: '', file_order: 1, aliases: [], artist_aliases: [], user_level_votes: 0 }
 for (const archive of ['music','xyx']) {
   const host='r2archive.com'

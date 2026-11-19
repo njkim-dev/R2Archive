@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { watchLayout, waitForFrames } from './layout.js'
 
+test.afterEach(async ({ page, context }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await context.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 function summary(days, count = 5) {
   return { days, totals: { today_visitors: count, today_pageviews: 9, visitors: count, pageviews: 9 }, series: [{ day: '2026-10-20', pageviews: 9, visitors: count }], domains: [
     { domain: 'r2archive.com', visitors: count, pageviews: 8 },

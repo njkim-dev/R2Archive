@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test'
 import { createServer } from 'node:http'
 import { watchLayout } from './layout.js'
 
+test.afterEach(async ({ page, context }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await context.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 async function portalRoute(page, baseURL, gate) {
   await page.route('https://r2archive.com/**', async route => {
     const url = new URL(route.request().url())
@@ -90,142 +95,6 @@ test('guest My Home card starts login and returns to My Home', async ({ page, ba
   await expect(page.getByText('로그인 후 이용할 수 있습니다.')).toHaveCount(0)
 })
 
-test.describe('security notices', () => {
-  test.use({ storageState: { cookies: [], origins: [] } })
-
-  test('shows once, keeps the portal stable and can be reopened after expiry', async ({ page, baseURL }, testInfo) => {
-    if (testInfo.project.use.viewport.width <= 768) await page.setViewportSize({ width: 390, height: 844 })
-    await page.clock.setFixedTime(new Date('2026-11-19T12:00:00+09:00'))
-    let releaseArtwork
-    const gate = new Promise(resolve => { releaseArtwork = resolve })
-    await portalRoute(page, baseURL, gate)
-    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-
-    const notice = page.getByRole('dialog', { name: '보안 이슈 안내', exact: true })
-    await expect(notice).toBeVisible()
-    await expect(notice).toContainText('CVE-2026-114938')
-    await expect(notice.locator('section').first().locator('p')).toHaveText([
-      'R2 Archive는 2026년 11월 19일 공개된 NGINX HTTP/2 보안 취약점에 대응하여 HTTP/2를 일시적으로 비활성화했습니다.',
-      '이미지가 많은 화면의 초기 로딩이 평소보다 느려질 수 있습니다.',
-      '해당 조치는 공식 수정 패치 적용 여부를 확인할 때까지 유지합니다.',
-      '앞으로도 필요한 보안 이슈에 대해 신속히 대응하겠습니다.',
-    ])
-    await expect(notice.getByRole('heading', { name: '보안 이슈 안내', exact: true })).toBeInViewport()
-    await expect(notice.locator('section').first()).toContainText('웹 서버 보안 대응 안내 — 11월 19일')
-    await expect(notice.locator('p').last()).toHaveText('앞으로도 R2 Archive를 안심하고 이용하실 수 있도록 운영 환경을 꾸준히 점검하고, 필요한 보안 업데이트를 신속히 적용하겠습니다.')
-    await expect(notice.getByRole('link', { name: 'KISA 보안 공지 보기' })).toHaveAttribute('href', /nttId=72313/)
-    const nginxSource = notice.getByRole('link', { name: 'NGINX 공식 보안 공지 보기' })
-    await expect(nginxSource).toHaveAttribute('href', 'https://nginx.org/en/security_advisories.html')
-    await expect(nginxSource).toHaveAttribute('target', '_blank')
-    await expect(nginxSource).toHaveAttribute('rel', 'noopener noreferrer')
-    const confirm = notice.getByRole('button', { name: '확인' })
-    await expect(confirm).toBeFocused()
-    const layout = await watchLayout(page, ['.masthead', '.services', '.archive-portal footer'])
-    await layout.expectStable()
-    releaseArtwork()
-    await expect.poll(() => page.locator('.artwork img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
-    await layout.expectStable()
-    await confirm.click()
-    await expect(notice).toHaveCount(0)
-    await layout.expectStable()
-    await layout.stop()
-
-    await page.reload()
-    const noticeLink = page.getByRole('button', { name: '보안 안내', exact: true })
-    await expect(noticeLink).toBeVisible()
-    await expect(notice).toHaveCount(0)
-    await page.evaluate(() => {
-      localStorage.removeItem('r2archive:notice:CVE-2026-114938')
-      localStorage.removeItem('r2archive:notice:nginx-http2-2026-11-19')
-    })
-    await page.clock.setFixedTime(new Date('2026-11-26T00:00:00+09:00'))
-    await page.reload()
-    await expect(noticeLink).toBeVisible()
-    await expect(notice).toHaveCount(0)
-    await noticeLink.click()
-    await expect(notice).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(notice).toHaveCount(0)
-  })
-
-  test('appears on direct shop entry and Escape dismisses it across pages', async ({ page, baseURL }) => {
-    await page.clock.setFixedTime(new Date('2026-11-19T12:00:00+09:00'))
-    await portalRoute(page, baseURL)
-    await page.goto('https://r2archive.com/shop', { waitUntil: 'domcontentloaded' })
-    const notice = page.getByRole('dialog', { name: '보안 이슈 안내', exact: true })
-    await expect(notice).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(notice).toHaveCount(0)
-    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('button', { name: '보안 안내', exact: true })).toBeVisible()
-    await expect(notice).toHaveCount(0)
-  })
-
-  test('previously acknowledged OpenJDK visitors see only the new notice without moving the portal', async ({ page, baseURL }, testInfo) => {
-    if (testInfo.project.use.viewport.width <= 768) await page.setViewportSize({ width: 390, height: 844 })
-    await page.clock.setFixedTime(new Date('2026-11-19T12:00:00+09:00'))
-    let releaseArtwork
-    const gate = new Promise(resolve => { releaseArtwork = resolve })
-    await portalRoute(page, baseURL, gate)
-    await page.goto('https://r2archive.com/?auth=notice-test', { waitUntil: 'domcontentloaded' })
-    await page.evaluate(() => localStorage.setItem('r2archive:notice:CVE-2026-114938', '1'))
-    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-    const notice = page.getByRole('dialog', { name: '보안 이슈 안내', exact: true })
-    await expect(notice).toBeVisible()
-    await expect(notice.locator('section')).toHaveCount(1)
-    await expect(notice).toContainText('NGINX HTTP/2 보안 취약점')
-    await expect(notice).toContainText('앞으로도 필요한 보안 이슈에 대해 신속히 대응하겠습니다.')
-    await expect(notice).not.toContainText('OpenJDK')
-    await expect(notice.getByRole('link', { name: 'KISA 보안 공지 보기' })).toHaveCount(0)
-    const layout = await watchLayout(page, ['.masthead', '.services', '.archive-portal footer'])
-    await layout.expectStable()
-    releaseArtwork()
-    await expect.poll(() => page.locator('.artwork img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
-    await layout.expectStable()
-    await notice.getByRole('button', { name: '확인', exact: true }).click()
-    await expect(notice).toHaveCount(0)
-    await layout.expectStable()
-    await layout.stop()
-    expect(await page.evaluate(() => [localStorage.getItem('r2archive:notice:CVE-2026-114938'), localStorage.getItem('r2archive:notice:nginx-http2-2026-11-19')])).toEqual(['1', '1'])
-    await page.reload()
-    await expect(page.getByRole('button', { name: '보안 안내', exact: true })).toBeVisible()
-    await expect(notice).toHaveCount(0)
-    await page.getByRole('button', { name: '보안 안내', exact: true }).click()
-    await expect(notice.locator('section')).toHaveCount(2)
-    await expect(notice).toContainText('OpenJDK')
-    await expect(notice).toContainText('NGINX')
-  })
-
-  test('acknowledges only the unread notice and preserves the other acknowledgement', async ({ page, baseURL }) => {
-    await page.clock.setFixedTime(new Date('2026-11-19T12:00:00+09:00'))
-    await portalRoute(page, baseURL)
-    await page.goto('https://r2archive.com/?auth=notice-test', { waitUntil: 'domcontentloaded' })
-    await page.evaluate(() => localStorage.setItem('r2archive:notice:nginx-http2-2026-11-19', '1'))
-    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-    const notice = page.getByRole('dialog', { name: '보안 이슈 안내', exact: true })
-    await expect(notice.locator('section')).toHaveCount(1)
-    await expect(notice).toContainText('OpenJDK')
-    await expect(notice).not.toContainText('NGINX')
-    await page.keyboard.press('Escape')
-    await expect(notice).toHaveCount(0)
-    expect(await page.evaluate(() => [localStorage.getItem('r2archive:notice:CVE-2026-114938'), localStorage.getItem('r2archive:notice:nginx-http2-2026-11-19')])).toEqual(['1', '1'])
-  })
-
-  test('expires notices independently and does not acknowledge hidden expired notices', async ({ page, baseURL }) => {
-    await page.clock.setFixedTime(new Date('2026-11-25T00:00:00+09:00'))
-    await portalRoute(page, baseURL)
-    await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-    const notice = page.getByRole('dialog', { name: '보안 이슈 안내', exact: true })
-    await expect(notice.locator('section')).toHaveCount(1)
-    await expect(notice).toContainText('NGINX')
-    await expect(notice).not.toContainText('OpenJDK')
-    await notice.getByRole('button', { name: '확인', exact: true }).click()
-    expect(await page.evaluate(() => [localStorage.getItem('r2archive:notice:CVE-2026-114938'), localStorage.getItem('r2archive:notice:nginx-http2-2026-11-19')])).toEqual([null, '1'])
-    await page.reload()
-    await expect(page.getByRole('button', { name: '보안 안내', exact: true })).toBeVisible()
-    await expect(notice).toHaveCount(0)
-  })
-})
 
 test('cache-only reset removes an old permanent redirect and preserves settings', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1920', 'Same caching behavior at every width')

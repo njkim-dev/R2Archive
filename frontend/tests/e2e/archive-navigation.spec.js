@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test'
 import { setup } from './shopFixtures.js'
 import { watchLayout } from './layout.js'
 
+test.afterEach(async ({ page, context }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await context.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('shared feedback link retains the music router and a single visible account control', async ({ page, baseURL }) => {
   if (page.viewportSize().width <= 800) await page.setViewportSize({ width: 390, height: 900 })
   await setup(page, { loggedIn: false, admin: false })

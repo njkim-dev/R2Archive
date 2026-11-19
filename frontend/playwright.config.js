@@ -15,6 +15,7 @@ export default defineConfig({
         localStorage: [
           { name: 'r2archive:notice:CVE-2026-114938', value: '1' },
           { name: 'r2archive:notice:nginx-http2-2026-11-19', value: '1' },
+          { name: 'r2archive:notice:nginx-traefik-2026-11-20', value: '1' },
         ],
       })),
     },

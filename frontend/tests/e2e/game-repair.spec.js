@@ -5,6 +5,11 @@ import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { watchLayout } from './layout.js'
 
+test.afterEach(async ({ page, context }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await context.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 const entry = (name, content) => ({ name, size: Buffer.byteLength(content), sha256: createHash('sha256').update(content).digest('hex') })
 const manifest = { version: '10659', snapshot: '10659-test', files: [entry('Game.exe', 'game'), entry('hv.dll', 'good'), entry('steam_api.dll', 'good'), entry('rnr_boost_mode.pak', 'good'), entry('rnr_music1.pak', 'good'), entry('other.dll', 'good')] }
 async function fixture(testInfo, version = '10659', includePatch = true) {

@@ -109,3 +109,9 @@
   text-underline-offset: 3px;
   white-space: nowrap;
 }
+
+.security-notice footer .security-notice-nav {
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
