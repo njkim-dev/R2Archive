@@ -283,6 +283,14 @@
     padding: 14px;
   }
 
+  .encore-dialog .shop-couple-heading h2 {
+    flex: 0 1 auto;
+  }
+
+  .encore-dialog .shop-couple-actions {
+    width: auto;
+  }
+
   .encore-dialog .encore-preview {
     border: 0;
     padding: 0;
