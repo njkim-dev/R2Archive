@@ -212,7 +212,8 @@
           "sex": "female",
           "slot": "top",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/d30750929fd1262e3c64224580eab6011498555afff5a88438fbeda681590370.webp",
-          "preview": false
+          "preview": true,
+          "previewModel": "/api/shop/assets/3203e91416c769d922a5/models/98066a0e2cf5674b57d0fd002dad838d7197c9a019df834931b19fb4eadcfb83.json.gz"
         },
         {
           "id": "410834",
@@ -323,7 +324,8 @@
           "sex": "male",
           "slot": "accessory",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/c1da2664c6ea19e886dd3f051b5df5e3e16f99fddfb5b1f536af72f00bfc3c19.webp",
-          "preview": false
+          "preview": true,
+          "previewModel": "/api/shop/assets/3203e91416c769d922a5/models/23b37ff803f9435ef55360967cab121d38ebebb3bd73e815d5d232aeb1e0394c.json.gz"
         },
         {
           "id": "920774",
@@ -1342,7 +1344,13 @@
           "sex": "common",
           "slot": null,
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/140ca9374046739ce2e6c818dfd12994b149ccdee62e7f4541eaf94f7113ffed.webp",
-          "preview": false
+          "preview": false,
+          "effectPreview": {
+            "duration": 4.8,
+            "model": "/api/shop/assets/3203e91416c769d922a5/models/2a328981c372f911d628b5b1fc9653339da7abc88e70c222056d72ef4a2839b8.json.gz",
+            "animation": "/api/shop/assets/3203e91416c769d922a5/motions/295f43210ae615d65560ef10cf23fa6073622ef0bedbd8aaf43b848cbfa3f26d.json.gz",
+            "particles": "/api/shop/assets/3203e91416c769d922a5/motions/bb46152cea93cddab95f866733bfc48b3f78c2f94e78a6ee38f3127f72fa1a58.json.gz"
+          }
         }
       ]
     },
@@ -1357,7 +1365,13 @@
           "sex": "common",
           "slot": null,
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/688f9705d31ff67f95d0bb5d42a083957c8cb48f7798800c22170f5c9da32616.webp",
-          "preview": false
+          "preview": false,
+          "effectPreview": {
+            "duration": 17.0,
+            "model": "/api/shop/assets/3203e91416c769d922a5/models/0b4ff33bd6c751b29d3b29492feb88d105da131d3bc183fc17eb68abc80f6be4.json.gz",
+            "animation": "/api/shop/assets/3203e91416c769d922a5/motions/014ddba06c0d20d36a7db209d6cc078132a37d585dff12c9824c1e6e2858be99.json.gz",
+            "particles": "/api/shop/assets/3203e91416c769d922a5/motions/6632409e908c2a1445122bcbc67cc3c2e37d03c92aba9c44d385ddcc1cee6909.json.gz"
+          }
         }
       ]
     },
@@ -1403,7 +1417,23 @@
           "sex": "common",
           "slot": null,
           "thumbnail": "/assets/encore-11000464-06d35f38aa2e0369.webp",
-          "preview": false
+          "preview": false,
+          "imagePreview": {
+            "variants": [
+              {
+                "label": "대기실",
+                "url": "/api/shop/assets/3203e91416c769d922a5/thumbnails/4da1724e9d159cb5858b5980a5763448ac10907f7609c3404b6eab3c16eb3b16.webp"
+              },
+              {
+                "label": "채팅",
+                "url": "/api/shop/assets/3203e91416c769d922a5/thumbnails/0ec76c3a8a1a1b2641972b169a9b597b67f9c4dcc5b83b5b2627de0bb0a8bec5.webp"
+              },
+              {
+                "label": "메신저",
+                "url": "/api/shop/assets/3203e91416c769d922a5/thumbnails/4a9ca8db9e219e1d49e7d7310e6341891d85cd28ded8e43fe6eb778bbe9ea5ac.webp"
+              }
+            ]
+          }
         }
       ]
     },
@@ -1433,7 +1463,11 @@
           "sex": "common",
           "slot": null,
           "thumbnail": "/assets/encore-11000694-5c24c1eb09e610f3.webp",
-          "preview": false
+          "preview": false,
+          "imagePreview": {
+            "still": "/api/shop/assets/3203e91416c769d922a5/thumbnails/6390122373285142be35e7ef34a099122b63ebc65dc1f056a1d4b0a3429ded8d.webp",
+            "animated": "/api/shop/assets/3203e91416c769d922a5/thumbnails/2d5b766082439a1c4014159509ab762867d933f400a6013c435d95d731e0c077.webp"
+          }
         }
       ]
     },

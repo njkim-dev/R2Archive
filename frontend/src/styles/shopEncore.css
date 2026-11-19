@@ -218,11 +218,34 @@
   object-fit: contain;
 }
 
+.encore-image-stage {
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  border: 1px solid var(--shop-line);
+  border-radius: 13px;
+  background: var(--shop-soft);
+}
+
+.encore-image-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(var(--encore-stage-height) - 28px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
 .encore-preview-controls {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 46px;
+}
+
+.encore-source-controls {
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .encore-controls-pending {

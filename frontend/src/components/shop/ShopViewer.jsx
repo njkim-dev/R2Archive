@@ -35,10 +35,11 @@ async function model(url) {
   return modelCache.get(url)
 }
 
-export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange, onReady, onFailure, partnerSex,disposeContext=false }) {
+export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, effectPreview = null, effectPlaying = true, audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange, onReady, onFailure, partnerSex,disposeContext=false }) {
   const otherSex=partnerSex||(sex==='male'?'female':'male')
   const canvasRef = useRef(null)
   const rendererRef = useRef(null)
+  const effectClock = useRef({ elapsed: 0, started: null })
   usePreviewInteraction(canvasRef, angle, zoom, panX, panY, mode, onViewChange)
   const [status, setStatus] = useState('3D 모델을 준비 중입니다.')
   const callbacks=useRef({onReady,onFailure});callbacks.current={onReady,onFailure}
@@ -52,13 +53,16 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
     setStatus('3D 모델을 준비 중입니다.')
     setFailed(false)
     rendererRef.current = null
+    effectClock.current = { elapsed: 0, started: null }
     async function load() {
       const gl = canvas.getContext('webgl', { alpha: true, antialias: true, preserveDrawingBuffer: true })
       context=gl
       if (!gl) throw new Error('이 브라우저는 3D 미리보기를 지원하지 않습니다.')
-      const sources = [meta.bases[sex], ...Object.values(slots).filter(Boolean).map(item => item.model)]
+      const sources = effectPreview ? [] : [meta.bases[sex], ...Object.values(slots).filter(Boolean).map(item => item.model)]
       if (pair) sources.push(meta.bases[otherSex], ...Object.values(counterparts).filter(Boolean).map(item => item.model))
-      const effectSpecs = [...(motion?.effects || []).filter(effect => effect.model !== couplePreview?.ornament?.model).map(effect => ({ ...effect, kind: 'scene' })), ...(couplePreview?.ornament ? [{ ...couplePreview.ornament, kind: 'ornament' }] : [])]
+      const ornamentSpec = effectPreview || couplePreview?.ornament
+      if (effectPreview && (!Number.isFinite(effectPreview.duration) || effectPreview.duration <= 0)) throw new Error('단짝 효과 재생 시간이 올바르지 않습니다.')
+      const effectSpecs = [...(motion?.effects || []).filter(effect => effect.model !== ornamentSpec?.model).map(effect => ({ ...effect, kind: 'scene' })), ...(ornamentSpec ? [{ ...ornamentSpec, kind: 'ornament' }] : [])]
       sources.push(...effectSpecs.map(effect => effect.model))
       const models = Object.fromEntries(await Promise.all([...new Set(sources)].map(async url => [url, await model(url)])))
       if (cancelled) return
@@ -93,7 +97,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
       if (cancelled) return
       const ornament = effects.find(effect => effect.kind === 'ornament')
       const sceneEffects = effects.filter(effect => effect.kind === 'scene')
-      const ornamentPose = ornament ? ornamentPlacement(ornament.data.bounds) : null
+      const ornamentPose = ornament ? (effectPreview ? identityPose : ornamentPlacement(ornament.data.bounds)) : null
       canvas.dataset.coupleSceneModels = String(sceneEffects.length)
       canvas.dataset.coupleOrnament = ornament ? '1' : '0'
       canvas.dataset.coupleModelPlacement = ornament ? 'main' : 'none'
@@ -131,16 +135,17 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           lighting=.76+.24*max(dot(normalize(n),normalize(vec3(-.35,.65,1.))),0.);
         }
       `))
-      gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `precision mediump float;uniform sampler2D map;uniform float effect,particleAdditive;varying vec2 texcoord;varying float lighting;varying vec4 tint;void main(){vec4 t=texture2D(map,texcoord)*tint;if(t.a<(effect>1.5?.005:effect>.5?.03:.43))discard;float a=t.a*(particleAdditive>.5?max(t.r,max(t.g,t.b)):1.);gl_FragColor=effect>1.5?vec4(t.rgb*t.a,a):effect>.5?t:vec4(t.rgb*lighting,1.);}`))
+      gl.attachShader(program, shader(gl.FRAGMENT_SHADER, `precision mediump float;uniform sampler2D map;uniform float effect,particleAdditive,particleOpacity;varying vec2 texcoord;varying float lighting;varying vec4 tint;void main(){vec4 t=texture2D(map,texcoord)*tint;if(effect>1.5)t.a*=particleOpacity;if(t.a<(effect>1.5?.005:effect>.5?.03:.43))discard;float a=t.a*(particleAdditive>.5?max(t.r,max(t.g,t.b)):1.);gl_FragColor=effect>1.5?vec4(t.rgb*t.a,a):effect>.5?t:vec4(t.rgb*lighting,1.);}`))
       gl.linkProgram(program)
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('3D 화면 초기화에 실패했습니다.')
       gl.useProgram(program); gl.enable(gl.DEPTH_TEST)
       const attrs = Object.fromEntries(['position', 'normal', 'uv', 'color'].map(key => [key, gl.getAttribLocation(program, key)]))
-      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose', 'effect', 'particleAdditive', 'worldOffsets', 'panX', 'panY'].map(key => [key, gl.getUniformLocation(program, key)]))
+      const uniforms = Object.fromEntries(['angle', 'aspect', 'halfHeight', 'halfDepth', 'centerX', 'centerY', 'centerZ', 'offsetX', 'attachmentPose', 'effect', 'particleAdditive', 'particleOpacity', 'worldOffsets', 'panX', 'panY'].map(key => [key, gl.getUniformLocation(program, key)]))
       gl.uniform1f(uniforms.worldOffsets, clip ? 1 : 0)
+      gl.uniform1f(uniforms.particleOpacity, effectPreview ? .16 : 1)
       const textures = {}
       function textureUrl(payload, mesh) {
-        const revision = payload.texture_revision || meta.texture_revision || meta.revision
+        const revision = payload.texture_revision || meta?.texture_revision || meta?.revision
         if (!/^[a-f0-9]{12,64}$/.test(revision) || !/^[a-f0-9]{64}\.webp$/.test(mesh.texture)) throw new Error('텍스처 자료가 올바르지 않습니다.')
         return `/api/shop/assets/${revision}/textures/${mesh.texture}`
       }
@@ -258,21 +263,23 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
           }
           return [left, right]
         }
-        const elapsed = clip ? Math.max(0, audioContext.currentTime - startedAt) : (performance.now() - previewStartedAt) / 1000
+        const clock = effectClock.current
+        const elapsed = effectPreview ? clock.elapsed + (clock.started == null ? 0 : (performance.now() - clock.started) / 1000)
+          : clip ? Math.max(0, audioContext.currentTime - startedAt) : (performance.now() - previewStartedAt) / 1000
         const frame = clip ? Math.min(clip.frame_count - 1, Math.floor(elapsed % buffer.duration / buffer.duration * clip.frame_count)) : 0
-        const ornamentDuration = ornament ? (clip ? buffer.duration : couplePreview.duration) * (ornament.data.relative_duration || 1) : 1
+        const ornamentDuration = ornament ? (effectPreview?.duration ?? (clip ? buffer.duration : couplePreview.duration)) * (ornament.data.relative_duration || 1) : 1
         const ornamentFrame = ornament ? Math.floor(elapsed % ornamentDuration / ornamentDuration * ornament.data.frame_count) : 0
         const particleFrame = particleBuffer ? Math.floor(elapsed * 30) : 0
         const activeFrame = `${frame}:${ornamentFrame}:${particleFrame}`
         if ((clip || ornament) && activeFrame === previousFrame && rotation === previousRotation && scale === previousScale && offsetX === previousPanX && offsetY === previousPanY && !resized) return
         previousFrame = activeFrame; previousRotation = rotation; previousScale = scale; previousPanX = offsetX; previousPanY = offsetY
         if (clip) canvas.dataset.motionFrame = String(frame)
-        if (cachedFrame !== frame) { cachedFrame = frame; cachedPrimary = figure(sex, slots, frame,clip?.actors.a?'a':sex); cachedSecondary = pair ? figure(otherSex, counterparts, frame,clip?.actors.b?'b':otherSex) : null; canvas.dataset.poseBuilds = String(++poseBuilds) }
+        if (!effectPreview && cachedFrame !== frame) { cachedFrame = frame; cachedPrimary = figure(sex, slots, frame,clip?.actors.a?'a':sex); cachedSecondary = pair ? figure(otherSex, counterparts, frame,clip?.actors.b?'b':otherSex) : null; canvas.dataset.poseBuilds = String(++poseBuilds) }
         const primary = cachedPrimary, secondary = cachedSecondary
         const hasAttachments = !!(slots.accessory || slots.summon || pair && (counterparts.accessory || counterparts.summon))
         const spacing = pair && hasAttachments && !clip ? Math.max(65, (horizontalBounds(primary)[1] - horizontalBounds(secondary)[0] + 20) / 2) : 65
         const primaryOffset=clip?(sex==='male'?-65:65):pair?-spacing:0,secondaryOffset=clip?(otherSex==='male'?-65:65):spacing
-        const scene = [{ meshes: primary, offset: primaryOffset }]
+        const scene = effectPreview ? [] : [{ meshes: primary, offset: primaryOffset }]
         if (pair) scene.push({ meshes: secondary, offset: secondaryOffset })
         for (const effect of sceneEffects) scene.push({ meshes: effectMeshes(effect, frame), offset: effect.sex === sex ? primaryOffset : secondaryOffset, effect: true })
         if (ornament) scene.push({ meshes: effectMeshes(ornament, ornamentFrame), offset: 0, effect: true })
@@ -305,7 +312,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         const bounds = envelope ? envelope.map(values => [...values]) : [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]]
         if (ornament) {
           const framing = posedBounds(ornament.data.bounds, ornamentPose)
-          framing[1][1] += effects.some(effect => effect.particleData) ? 80 : 0
+          if (effects.some(effect => effect.particleData)) framing[1][1] += effectPreview ? Math.max(14, (framing[1][1] - framing[0][1]) * .15) : 80
           for (const x of [framing[0][0], framing[1][0]]) for (const y of [framing[0][1], framing[1][1]]) for (const z of [framing[0][2], framing[1][2]]) {
             const point = [-c * x - s * z, y - 148, -s * x + c * z]
             for (let axis = 0; axis < 3; axis++) { bounds[0][axis] = Math.min(bounds[0][axis], point[axis]); bounds[1][axis] = Math.max(bounds[1][axis], point[axis]) }
@@ -327,7 +334,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         gl.uniform1f(uniforms.halfHeight, halfHeight)
         gl.uniform1f(uniforms.halfDepth, Math.max(500, (bounds[1][2] - bounds[0][2]) / 2 + 10))
         const labelPositions = []
-        for (const [index, group] of scene.slice(0, pair ? 2 : 1).entries()) {
+        for (const [index, group] of scene.slice(0, effectPreview ? 0 : pair ? 2 : 1).entries()) {
           const gender = index ? otherSex : sex
           const actorKey=clip?.actors.a?(index?'b':'a'):gender
           const side = clip?.actors[actorKey]?.side
@@ -344,7 +351,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
         if (ornament) canvas.dataset.ornamentFrame = String(ornamentFrame)
         const particleGroups = effects.filter(effect => effect.particleData)
         let particleCount = 0
-        for (const effect of particleGroups) particleCount += paintParticles(effect, elapsed, effect.kind === 'ornament' ? ornamentDuration : buffer.duration, radians, effect.kind === 'ornament' ? 0 : effect.sex === sex ? primaryOffset : secondaryOffset, Math.floor(320 / particleGroups.length))
+        for (const effect of particleGroups) particleCount += paintParticles(effect, elapsed, effect.kind === 'ornament' ? ornamentDuration : buffer.duration, radians, effect.kind === 'ornament' ? 0 : effect.sex === sex ? primaryOffset : secondaryOffset, Math.floor((effectPreview ? 30 : 320) / particleGroups.length))
         canvas.dataset.particleCount = String(particleCount)
         if (particleBuffer) canvas.dataset.particleFrame = String(particleFrame)
       }
@@ -360,23 +367,32 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
     }
     load().catch(error => { if (!cancelled) { setStatus(error.message); setFailed(true);callbacks.current.onFailure?.(error) } })
     return () => { cancelled = true; abort.abort(); rendererRef.current = null; resources.forEach(dispose => dispose());if(disposeContext)requestAnimationFrame(()=>{if(!canvas.isConnected)context?.getExtension('WEBGL_lose_context')?.loseContext()}) }
-  }, [meta, sex, otherSex,slots, counterparts, pair, motion, couplePreview, audioContext, audioReady])
+  }, [meta, sex, otherSex,slots, counterparts, pair, motion, couplePreview, effectPreview, audioContext, audioReady])
+  useEffect(() => {
+    if (!effectPreview || !effectPlaying || status) return
+    const clock = effectClock.current
+    clock.started = performance.now()
+    return () => {
+      clock.elapsed += (performance.now() - clock.started) / 1000
+      clock.started = null
+    }
+  }, [effectPreview, effectPlaying, status])
   useEffect(() => {
     const draw = () => rendererRef.current?.(angle, zoom, panX, panY)
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(canvasRef.current)
     let frame
-    if ((motion || couplePreview?.ornament) && !status) {
+    if ((motion || couplePreview?.ornament || effectPreview && effectPlaying) && !status) {
       const tick = () => { draw(); frame = requestAnimationFrame(tick) }
       frame = requestAnimationFrame(tick)
     }
     return () => { observer.disconnect(); cancelAnimationFrame(frame) }
-  }, [angle, zoom, panX, panY, status, motion, couplePreview])
+  }, [angle, zoom, panX, panY, status, motion, couplePreview, effectPreview, effectPlaying])
   useEffect(()=>{if(status)return;const frame=requestAnimationFrame(()=>callbacks.current.onReady?.(canvasRef.current));return()=>cancelAnimationFrame(frame)},[status])
   return <div className="shop-stage">
-    <canvas ref={canvasRef} tabIndex={0} data-view-mode={mode} role="img" aria-label={pair ? '두 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
+    <canvas ref={canvasRef} tabIndex={0} data-view-mode={mode} role="img" aria-label={effectPreview ? '단짝 효과 3D 미리보기' : pair ? '두 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
-    <div className="shop-character-labels"><span data-actor="primary">{sex==='male'?'남성':'여성'} ㆍ {sex===selectedSex?'선택한 의상':'대응 의상'}</span>{pair&&<span data-actor="partner">{otherSex==='male'?'남성':'여성'} ㆍ 대응 의상</span>}</div>
+    {!effectPreview && <div className="shop-character-labels"><span data-actor="primary">{sex==='male'?'남성':'여성'} ㆍ {sex===selectedSex?'선택한 의상':'대응 의상'}</span>{pair&&<span data-actor="partner">{otherSex==='male'?'남성':'여성'} ㆍ 대응 의상</span>}</div>}
   </div>
 }

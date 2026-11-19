@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, CalendarDays, ChevronRight, Image, Search } from 'lucide-react'
 import { getShopItem, getShopMeta } from '../api/shop'
 import { ArchivePageLayout } from '../components/ArchiveNavigation'
+import EncoreSourcePreview from '../components/shop/EncoreSourcePreview'
 import ShopOutfitPreview from '../components/shop/ShopOutfitPreview'
 import ShopViewer from '../components/shop/ShopViewer'
 import ShopViewModes from '../components/shop/ShopViewModes'
@@ -22,6 +23,7 @@ const normalize = value => value.normalize('NFKC').replace(/\s+/g, '').toLowerCa
 function offerType(offer) {
   if (offer.kind === 'outfit') return '의상 세트'
   if (offer.kind === 'wearable') return offer.items[0].slot === 'pet' ? '펫' : '캐릭터 효과'
+  if (offer.items.some(item => item.effectPreview)) return '단짝 효과'
   return offer.items.some(item => item.motion) ? '커플 아이템' : '기능성 아이템'
 }
 
@@ -52,13 +54,16 @@ function EncorePreview({ offer, version, sex, onSex }) {
   const missing = part ? 0 : items.length - wearable.length + (result?.missing || 0)
   const motionItem = items.find(item => item.motion)
   const displayed = part || thumbnail(offer) || items[0]
+  const sourcePreview = displayed?.effectPreview || displayed?.imagePreview
 
   useEffect(() => {
     if (!wearable.length) return
     const controller = new AbortController()
     Promise.allSettled([
       getShopMeta(version, controller.signal),
-      ...wearable.map(item => getShopItem(item.id, version, controller.signal)),
+      ...wearable.map(item => item.previewModel
+        ? Promise.resolve({ ...item, model: item.previewModel, preview_available: true })
+        : getShopItem(item.id, version, controller.signal)),
     ]).then(([meta, ...entries]) => {
       if (controller.signal.aborted) return
       const models = entries.flatMap(({ status, value }, index) => status === 'fulfilled'
@@ -82,23 +87,25 @@ function EncorePreview({ offer, version, sex, onSex }) {
           <button key={value} type="button" aria-pressed={sex === value} onClick={() => chooseSex(value)}>{label}</button>)}
       </div>}
     </div>
-    <div className="encore-stage">
-      {ready ? <ShopViewer meta={result.meta} slots={slots} sex={sex} counterparts={empty} pair={false}
-        {...camera} mode={mode} onViewChange={setCamera} disposeContext />
-        : <div className="encore-stage-placeholder">
-          {pending ? <p role="status">의상을 불러오는 중입니다.</p>
-            : <><EncoreThumb item={displayed} />
-              {target.length > 0 ? <div role="status"><p>미리보기를 불러오지 못했습니다.</p>
-                <button type="button" onClick={() => setRetry(value => value + 1)}>다시 불러오기</button></div>
-                : <p>{motionItem ? '커플 모션' : displayed?.thumbnail ? '3D 미리보기 미지원' : '미리보기 이미지 없음'}</p>}</>}
-        </div>}
-    </div>
-    <div className="encore-preview-controls">
-      {wearable.length > 0 && <div inert={ready ? undefined : ''} className={ready ? '' : 'encore-controls-pending'}><ShopViewModes mode={mode} onChange={setMode} /></div>}
-      {motionItem && <a className="encore-motion-link"
-        href={coupleShareUrl({ version, sex, slots: empty, item: motionItem })} target="_blank" rel="noopener noreferrer">
-        커플 모션 미리보기 <ArrowUpRight size={15} aria-hidden="true" /></a>}
-    </div>
+    {sourcePreview ? <EncoreSourcePreview key={displayed.id} item={displayed} /> : <>
+      <div className="encore-stage">
+        {ready ? <ShopViewer meta={result.meta} slots={slots} sex={sex} counterparts={empty} pair={false}
+          {...camera} mode={mode} onViewChange={setCamera} disposeContext />
+          : <div className="encore-stage-placeholder">
+            {pending ? <p role="status">의상을 불러오는 중입니다.</p>
+              : <><EncoreThumb item={displayed} />
+                {target.length > 0 ? <div role="status"><p>미리보기를 불러오지 못했습니다.</p>
+                  <button type="button" onClick={() => setRetry(value => value + 1)}>다시 불러오기</button></div>
+                  : <p>{motionItem ? '커플 모션' : displayed?.thumbnail ? '3D 미리보기 미지원' : '미리보기 이미지 없음'}</p>}</>}
+          </div>}
+      </div>
+      <div className="encore-preview-controls">
+        {wearable.length > 0 && <div inert={ready ? undefined : ''} className={ready ? '' : 'encore-controls-pending'}><ShopViewModes mode={mode} onChange={setMode} /></div>}
+        {motionItem && <a className="encore-motion-link"
+          href={coupleShareUrl({ version, sex, slots: empty, item: motionItem })} target="_blank" rel="noopener noreferrer">
+          커플 모션 미리보기 <ArrowUpRight size={15} aria-hidden="true" /></a>}
+      </div>
+    </>}
     {offer.kind === 'outfit' && <p className="encore-preview-note" aria-live="polite">
       {missing > 0 ? `미리보기가 지원되지 않는 부위가 ${missing}개 있습니다.` : ''}
     </p>}
