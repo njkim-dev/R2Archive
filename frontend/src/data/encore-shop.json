@@ -1,7 +1,7 @@
 {
   "label": "2026년 11월 회차",
   "sourceUrl": "https://www.orvvit.com/page/r2beat/annae-26nyeon-11wol-angkoleu-seuto-eo-panmaemoglog-mich-hwaglyul-annae",
-  "catalogVersion": "c69768318bc4be6f8098",
+  "catalogVersion": "34a4cd4d6e1d4882af01",
   "offers": [
     {
       "id": "black-formal",
@@ -491,7 +491,7 @@
           "sex": "female",
           "slot": "shoes",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/b85fb90796dca6afdc160b583b83b07cd01a2b2e275078e0e569724ec7fdd4cd.webp",
-          "preview": false
+          "preview": true
         }
       ]
     },
@@ -530,7 +530,7 @@
           "sex": "female",
           "slot": "top",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/4f06423f63a7eb1fd9ade797047dd30f2bc6d34b84192a6f247a9dca65bda547.webp",
-          "preview": false
+          "preview": true
         },
         {
           "id": "20410873",
@@ -949,7 +949,7 @@
           "sex": "female",
           "slot": "bottom",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/121001ac0dd72189c6ee777d9ac5d528e007d43d37a17a2cf5e84df6faa8b28a.webp",
-          "preview": false
+          "preview": true
         },
         {
           "id": "10510283",
@@ -996,7 +996,7 @@
           "sex": "male",
           "slot": "top",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/cb63d4816314cf3b11be108ee6e72f55dc7d698043f3c525fba0f74f87d4e13b.webp",
-          "preview": false
+          "preview": true
         },
         {
           "id": "10320560",
@@ -1297,7 +1297,7 @@
           "sex": "female",
           "slot": "accessory",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/bbf899eaa8d6ceaefcb1560a2ad007649fca043085fc5d979331609cdb2a72c8.webp",
-          "preview": false,
+          "preview": true,
           "effectPreview": {
             "model": "/api/shop/assets/78d88aec19bc473464ed/models/60a4e6f3fa00401569970b8b221f9dd3bf5aaad925f1d2a354fa201c3e4644f9.json.gz",
             "animation": "/api/shop/assets/78d88aec19bc473464ed/motions/eb2fa531ba78fe7d480265a6b316718a9dc3c2e5a04497c312adf8e3204ab791.json.gz",

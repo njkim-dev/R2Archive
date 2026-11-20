@@ -5,12 +5,13 @@ import { waitForFrames, watchLayout } from './layout.js'
 
 const round = JSON.parse(readFileSync(new URL('../../src/data/encore-shop.json', import.meta.url), 'utf8'))
 const showcase = round.offers[0]
+const restored = new Set(['20520532', '30320532', '10420533', '10310508', '920532'])
+const sourceItem = id => round.offers.flatMap(offer => offer.items).find(item => item.id === id)
 const wearable = [showcase, ...round.offers.filter(offer => offer.kind === 'wearable')]
   .flatMap(offer => offer.items).filter(item => item.preview).map(item => ({
   ...shirt, id: item.id, name: item.name, slot: item.slot, sex: item.sex,
 }))
 const setName = '블랙 수트 · 블랙 드레스'
-const sourceItem = id => round.offers.flatMap(offer => offer.items).find(item => item.id === id)
 const bind = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const shifted = [...bind.slice(0, 12), 6, 10, 0, 1]
 const standAloneMotion = {
@@ -20,6 +21,38 @@ const standAloneMotion = {
 const standAloneParticles = {
   schema: 'shop-particles-v1', frame_count: 2, source_duration: 2, texture_revision: version, anchors: {}, emitters: [],
 }
+
+test('a recovered Encore garment can be viewed separately while the set preview stays in place', async ({ page }) => {
+  const width = test.info().project.use.viewport.width <= 768 ? 390 : 1440
+  await page.setViewportSize({ width, height: 940 })
+  for (const id of restored) expect(sourceItem(id).preview).toBe(true)
+  const offer = round.offers.find(entry => entry.id === 'balsam')
+  const garment = sourceItem('20520532')
+  const items = offer.items.filter(item => item.preview).map(item => ({ ...shirt, ...item, model: shirt.model }))
+  await setup(page, { items, loggedIn: false })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route(`**/api/shop/items/${garment.id}?**`, async route => {
+    await gate
+    return route.fallback()
+  })
+  await page.goto('/shop/encore')
+  await page.getByRole('searchbox', { name: '판매 아이템 이름 검색' }).fill(offer.name)
+  await page.getByRole('button', { name: `${offer.name} 미리보기`, exact: true }).click()
+  const preview = width === 390 ? page.getByRole('dialog', { name: '의상 미리보기' }) : page.getByRole('complementary', { name: '착용 미리보기' })
+  await expect(preview.getByText('의상을 불러오는 중입니다.')).toBeVisible()
+  const stage = await watchLayout(page, ['.encore-preview-heading', '.encore-stage', '.encore-preview-controls'])
+  await stage.expectStable()
+  release()
+  await expect(preview.locator('.shop-stage-status')).toHaveText('')
+  await stage.expectStable()
+  await stage.stop()
+  await preview.getByText('구성 아이템', { exact: false }).click()
+  const part = preview.getByRole('button', { name: new RegExp(garment.name.replace(/[()]/g, '\\$&')) })
+  await part.click()
+  await expect(part).toHaveAttribute('aria-pressed', 'true')
+  await expect(preview.locator('canvas')).toBeVisible()
+})
 
 for (const width of [1440, 390]) test(`Encore navigation, stable loading and set preview at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
