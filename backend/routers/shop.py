@@ -119,6 +119,7 @@ def serialize(row):
 
 ITEM_COLUMNS = f"revision, item_id AS id, name, category, ({DEPARTMENT_SQL}) AS department, ({SLOT_SQL}) AS slot, sex, description, prices, thumbnail, model, preview_available, {counterpart_sql()} AS counterpart_id, (COALESCE(attributes->>'New', '0') = '1') AS is_new, NOT show AS is_unreleased, ({GROUP_SQL}) AS item_group, ({SUBGROUP_SQL}) AS item_subgroup"
 ACCESSIBLE = f"(show OR ({DEPARTMENT_SQL}) = 'wearable' OR category='507' OR category='508' AND ({GROUP_SQL})='friend')"
+SHOP_ITEM_VISIBLE = "item_id <> 30851"
 
 
 @router.get("/meta")
@@ -126,7 +127,7 @@ ACCESSIBLE = f"(show OR ({DEPARTMENT_SQL}) = 'wearable' OR category='507' OR cat
 def meta(request: Request, version: str | None = Query(None, max_length=64)):
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         result = catalog(cur, version)
-        cur.execute(f"SELECT ({DEPARTMENT_SQL}) AS department, count(*)::int AS count FROM shop_items WHERE revision = %s AND show GROUP BY 1", (result["revision"],))
+        cur.execute(f"SELECT ({DEPARTMENT_SQL}) AS department, count(*)::int AS count FROM shop_items WHERE revision = %s AND {SHOP_ITEM_VISIBLE} AND show GROUP BY 1", (result["revision"],))
         result["counts"] = {r["department"]: r["count"] for r in cur.fetchall()}
         pose = pose_catalog()
         remapped = pose and any(name in pose['models'] for name in result['bases'].values())
@@ -179,7 +180,7 @@ def items(
             character=require_character(cur,uid,character_id)
             if owned_only:sex=character['sex']
         current = catalog(cur, version)
-        conditions = ["revision = %s", ACCESSIBLE if include_unreleased else "show"]
+        conditions = ["revision = %s", SHOP_ITEM_VISIBLE, ACCESSIBLE if include_unreleased else "show"]
         args = [current["revision"]]
         if q.strip():
             conditions.append("position(lower(%s) in lower(name)) > 0")
@@ -295,7 +296,7 @@ def add_favorite(request: Request, item_id: int, version: str | None = Query(Non
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         favorite_storage(cur)
         current = catalog(cur, version)
-        cur.execute(f"SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND {ACCESSIBLE}", (current['revision'], item_id))
+        cur.execute(f"SELECT item_id FROM shop_items WHERE revision = %s AND item_id = %s AND {SHOP_ITEM_VISIBLE} AND {ACCESSIBLE}", (current['revision'], item_id))
         if cur.fetchone() is None:
             raise HTTPException(status_code=404, detail="즐겨찾기에 추가할 수 없는 아이템입니다")
         cur.execute('INSERT INTO shop_favorites (user_id, item_id) VALUES (%s, %s) ON CONFLICT DO NOTHING', (uid, item_id))
@@ -358,7 +359,7 @@ def select_character_first(request:Request,item_id:int|None=None):
 def item(request: Request, item_id: int, version: str | None = Query(None, max_length=64)):
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         current = catalog(cur, version)
-        cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision = %s AND item_id = %s AND {ACCESSIBLE}", (current["revision"], item_id))
+        cur.execute(f"SELECT {ITEM_COLUMNS} FROM shop_items WHERE revision = %s AND item_id = %s AND {SHOP_ITEM_VISIBLE} AND {ACCESSIBLE}", (current["revision"], item_id))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="표시할 수 없는 아이템입니다")

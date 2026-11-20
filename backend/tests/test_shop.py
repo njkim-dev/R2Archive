@@ -133,6 +133,24 @@ class ShopTests(unittest.TestCase):
             self.assertIn("show", call.args[0])
             self.assertIn(query, call.args[1])
 
+    def test_duplicate_unreleased_ring_is_excluded_from_catalog_reads(self):
+        version = 'a' * 20
+        cursor, context = self.database([{'revision': version, 'id': 30850, 'name': '부자의 꿈2(공용)'}])
+        client = self.client()
+        with patch.object(shop, 'catalog', return_value={'revision': version, 'bases': {}}), patch.object(shop, 'get_conn', return_value=context):
+            for include_unreleased in [False, True]:
+                cursor.reset_mock()
+                response = client.get('/api/shop/items', params={'include_unreleased': include_unreleased, 'q': '부자의 꿈2(공용)'})
+                self.assertEqual([item['id'] for item in response.json()['items']], ['30850'])
+                self.assertEqual(len(cursor.execute.call_args_list), 2)
+                for query in cursor.execute.call_args_list:
+                    self.assertIn('item_id <> 30851', query.args[0])
+
+            cursor.fetchone.return_value = None
+            self.assertEqual(client.get('/api/shop/items/30851').status_code, 404)
+            self.assertIn('item_id <> 30851', cursor.execute.call_args.args[0])
+            self.assertEqual(cursor.execute.call_args.args[1], (version, 30851))
+
     def test_cursor_pages_use_a_stable_tiebreaker_and_do_not_repeat_counts(self):
         version = "a" * 20
         rows = [{"revision": version, "id": 101, "name": "성형2", "_sort_order": 10}, {"revision": version, "id": 100, "name": "성형", "_sort_order": 10}]

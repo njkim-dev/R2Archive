@@ -3,6 +3,39 @@ import {coupleFixture,coupleRing,coupleRoot} from './coupleFixtures.js'
 import {version,copiedShopUrl,openShopFilters,mesh,root} from './shopFixtures.js'
 import {watchLayout} from './layout.js'
 
+test('the released ring remains the only exact match when unreleased items are included', async ({page}) => {
+  await page.setViewportSize({width:test.info().project.use.viewport.width<=768?390:1440,height:1000})
+  const ring = {...coupleRing,id:'30850',name:'부자의 꿈2(공용)'}
+  await coupleFixture(page,{loggedIn:false,extraItems:[ring]})
+  let release, received
+  const pending = new Promise(resolve => {received = resolve})
+  const gate = new Promise(resolve => {release = resolve})
+  await page.route('**/api/shop/items?*',async route => {
+    const params = new URL(route.request().url()).searchParams
+    if (params.get('include_unreleased')==='true' && params.get('q')===ring.name) {
+      received()
+      await gate
+    }
+    await route.fallback()
+  })
+  await page.goto(`/shop?v=${version}`)
+  await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click()
+  await page.getByRole('button',{name:'커플링',exact:true}).click()
+  await page.getByRole('searchbox',{name:'아이템 이름으로 검색'}).fill(ring.name)
+  await expect(page.locator('.shop-list-status')).toHaveText('아이템 1개')
+  await openShopFilters(page)
+  const layout = await watchLayout(page,['.shop-search-tools','.shop-filters','.shop-list-status'])
+  await page.getByRole('checkbox',{name:'미출시 아이템 가리기',exact:true}).uncheck()
+  await pending
+  await layout.expectStable()
+  release()
+  await expect(page.locator('.shop-list-status')).toHaveText('아이템 1개')
+  await expect(page.locator('[data-item-id="30850"]')).toBeVisible()
+  await expect(page.locator('[data-item-id="30851"]')).toHaveCount(0)
+  await layout.expectStable()
+  await layout.stop()
+})
+
 test('recovered unreleased ring opens without an unavailable tag and preserves outfits and layout while loading',async({page})=>{
   await page.setViewportSize({width:test.info().project.use.viewport.width<=768?390:1440,height:1000})
   let release
