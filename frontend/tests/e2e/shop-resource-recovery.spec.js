@@ -1,7 +1,37 @@
 import {test,expect} from '@playwright/test'
 import {coupleFixture,coupleRing,coupleRoot} from './coupleFixtures.js'
-import {version,copiedShopUrl,openShopFilters,mesh,root} from './shopFixtures.js'
+import {version,copiedShopUrl,openShopFilters,mesh,root,setup,femaleShirt} from './shopFixtures.js'
 import {watchLayout} from './layout.js'
+
+test('recovered clothes stay in the available list and their shared preview loads without moving the viewer', async ({ page }) => {
+  const width = test.info().project.use.viewport.width <= 768 ? 390 : 1440
+  await page.setViewportSize({ width, height: 1000 })
+  const recovered = { ...femaleShirt, id: '80320118', name: '네온 스트리트 상의(여)', model: `${root}/models/${'f'.repeat(64)}.json.gz` }
+  const missing = { ...femaleShirt, id: '80320120', model: null, preview_available: false }
+  await setup(page, { loggedIn: false, items: [recovered, missing] })
+  let releaseModel, modelRequested
+  const gate = new Promise(resolve => { releaseModel = resolve })
+  const pending = new Promise(resolve => { modelRequested = resolve })
+  await page.route(`**${recovered.model}`, async route => {
+    modelRequested()
+    await gate
+    return route.fallback()
+  })
+  await page.goto(`/shop?v=${version}&sex=female`)
+  await expect(page.getByRole('button', { name: `${recovered.name} 의상 선택`, exact: true })).toBeVisible()
+  await expect(page.locator(`[data-item-id="${missing.id}"]`)).toHaveCount(0)
+  await page.goto(`/shop?v=${version}&view=preview&sex=female&top=${recovered.id}`)
+  await pending
+  const dialog = page.getByRole('dialog', { name: '의상 미리보기', exact: true })
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  const layout = await watchLayout(page, ['.shop-header', '.shop-outfit-dialog .shop-couple-heading', '.shop-outfit-dialog .shop-stage'])
+  await layout.expectStable()
+  releaseModel()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  await layout.expectStable()
+  await layout.stop()
+  await expect(page.locator('.shop-slots')).toContainText(recovered.name)
+})
 
 test('the released ring remains the only exact match when unreleased items are included', async ({page}) => {
   await page.setViewportSize({width:test.info().project.use.viewport.width<=768?390:1440,height:1000})

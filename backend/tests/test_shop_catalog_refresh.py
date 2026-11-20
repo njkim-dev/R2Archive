@@ -6,6 +6,7 @@ tools=Path(__file__).resolve().parents[2]/'tools'
 sys.path.insert(0,str(tools))
 try:
     from refresh_shop_catalog import merge_items
+    from recover_shop_previews import apply_previews
 finally:
     sys.path.remove(str(tools))
 
@@ -30,3 +31,18 @@ class CatalogRefreshTests(unittest.TestCase):
         male,female=self.item(),self.item(2,'female');result=merge_items([male,female],[male,{**female,'name':'다른 이름'}],reviewed_pairs=[(1,2)])
         self.assertEqual([row['counterpart_id'] for row in result],[2,1]);self.assertIsNone(male['counterpart_id'])
         with self.assertRaises(ValueError):merge_items([male,female],[male,{**female,'slot':'hair'}],reviewed_pairs=[(1,2)])
+
+    def test_recovery_only_changes_the_model_and_preview_flag(self):
+        current = self.item()
+        missing = {**self.item(2, 'female'), 'slot': None, 'category': '405',
+                   'model': None, 'preview_available': False, 'sort_order': 1}
+        model = 'a' * 64 + '.json.gz'
+        catalog = {'items': [current, missing]}
+        entry = {'model': model, 'slot': 'accessory', 'sex': 'female'}
+
+        self.assertEqual(apply_previews(catalog, {2: entry}),
+                         [current, {**missing, 'model': model, 'preview_available': True}])
+        self.assertIsNone(missing['model'])
+        for wrong in [{1: entry}, {3: entry}, {2: {**entry, 'slot': 'top'}}, {2: {**entry, 'model': '../asset.json.gz'}}]:
+            with self.subTest(previews=wrong), self.assertRaises(ValueError):
+                apply_previews(catalog, wrong)
