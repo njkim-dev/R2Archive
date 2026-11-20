@@ -45,7 +45,7 @@ class CouplePreviewTests(unittest.TestCase):
             (Path(folder) / 'couple-catalog.json').write_text(json.dumps(data), encoding='utf8')
             self.assertIsNone(catalog(folder))
 
-    def test_extension_adds_actions_same_sex_and_standalone_effects(self):
+    def test_extension_adds_actions_and_filters_preview_types(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(shop, 'SHOP_DIR', Path(folder)):
             base = self.manifest(folder)
             revision = 'f' * 20
@@ -60,7 +60,7 @@ class CouplePreviewTests(unittest.TestCase):
                     for sex, digit in [('male', '1'), ('female', '2')]
                 }},
                 'ornaments': {'30120': effect},
-                'effects': {'30852': {**effect, 'duration': 2}},
+                'effects': {item_id: {**effect, 'duration': 2} for item_id in ['30852', '1200091']},
             }
             path = Path(folder) / 'couple-preview-extension.json'
             path.write_text(json.dumps(extra), encoding='utf8')
@@ -70,12 +70,14 @@ class CouplePreviewTests(unittest.TestCase):
             self.assertEqual(action['couple_preview']['bindings'], original['bindings'])
             updated = preview(folder, 30120)
             self.assertEqual(updated['motion'], original['motion'])
-            self.assertIn(revision, updated['same_sex_motions']['female'])
+            self.assertNotIn('same_sex_motions', updated)
             self.assertIn(revision, updated['ornament']['model'])
             ornament = shop.serialize({**row, 'id': 30852, 'category': '507'})
             self.assertIsNone(ornament['couple_preview'])
-            self.assertEqual(ornament['effect_preview']['duration'], 2)
+            self.assertNotIn('effect_preview', ornament)
             self.assertFalse(ornament['preview_available'])
+            friend = shop.serialize({**row, 'id': 1200091, 'category': '508'})
+            self.assertEqual(friend['effect_preview']['duration'], 2)
             extra['effects']['30852']['animation'] = '../../private'
             path.write_text(json.dumps(extra), encoding='utf8')
             self.assertEqual(preview(folder, 30120), original)

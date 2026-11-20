@@ -23,17 +23,8 @@ def _effect(effect):
     )
 
 
-def _same_sex(entries):
-    return isinstance(entries, dict) and entries.keys() == SEXES and all(
-        isinstance(entry, dict) and REVISION.fullmatch(entry.get('revision', '')) and MOTION.fullmatch(entry.get('motion', ''))
-        for entry in entries.values()
-    )
-
-
 def _motion(item):
     if not isinstance(item, dict) or not MOTION.fullmatch(item.get('motion', '')) or not AUDIO.fullmatch(item.get('audio', '')) or not _duration(item.get('duration')):
-        return False
-    if 'same_sex' in item and not _same_sex(item['same_sex']):
         return False
     effects = item.get('effects', [])
     return isinstance(effects, list) and len(effects) <= 8 and all(
@@ -66,7 +57,6 @@ def _load_extension(path, modified, size):
         return None
     sections = {
         'motions': _motion,
-        'same_sex': _same_sex,
         'ornaments': _effect,
         'effects': lambda entry: _effect(entry) and _duration(entry.get('duration')),
     }
@@ -111,10 +101,6 @@ def preview(shop_dir, item_id):
         return None
     prefix = f'/api/shop/assets/{revision}'
     result = {'motion': f"{prefix}/motions/{item['motion']}", 'bindings': f"/api/shop/assets/{data['revision']}/motions/{data['bindings']}", 'audio': f"{prefix}/audio/{item['audio']}", 'duration': item['duration']}
-    same_sex = item.get('same_sex') or extra.get('same_sex', {}).get(item_id)
-    if same_sex:
-        result['same_sex_motions'] = {sex: f"/api/shop/assets/{entry['revision']}/motions/{entry['motion']}" for sex, entry in same_sex.items()}
-        result['actor_roles'] = item.get('actor_roles', {})
     ornament = extra.get('ornaments', {}).get(item_id)
     if ornament:
         result['ornament'] = _effect_urls(extra['revision'], ornament)

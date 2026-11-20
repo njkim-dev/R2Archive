@@ -84,15 +84,15 @@ async function openNormalCouple(page,sex,id){
   await page.getByRole('tab',{name:'기능성ㆍ소모품',exact:true}).click();await page.locator(`[data-item-id="${id}"] .shop-card-select`).click();await page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true}).click()
   await expect(page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true}).locator('.shop-stage-status')).toHaveText('')
 }
-for(const sex of ['male','female'])test(`same-sex ${sex} couple imports native roles and snapshots both outfits independently from later mains`,async({page})=>{
-  await viewport(page);const original=sex==='female'?femaleShirt:shirt,other={...original,id:'202',name:'친구 의상'},entry={id:'1',name:'친구캐릭터',sex,ids:[original.id,'202'],mains:[{sex,slot:'top',item:other}]}
-  await coupleFixture(page,{sameSex:true,characters:[entry],extraItems:[other]});await openNormalCouple(page,sex,'30854')
+for(const sex of ['male','female'])test(`mixed ${sex} couple imports opposite-sex clothes and snapshots both outfits independently from later mains`,async({page})=>{
+  await viewport(page);const original=sex==='female'?shirt:femaleShirt,other={...original,id:'202',name:'친구 의상'},entry={id:'1',name:'친구캐릭터',sex:original.sex,ids:[original.id,'202'],mains:[{sex:original.sex,slot:'top',item:other}]}
+  await coupleFixture(page,{characters:[entry],extraItems:[other]});await openNormalCouple(page,sex,'30120')
   await page.evaluate(()=>fetch('/api/share/myhome',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'friend',character_id:1})}))
   await page.getByRole('button',{name:'내 커플 의상 불러오기',exact:true}).click();const importer=page.getByRole('dialog',{name:'내 커플 의상 불러오기',exact:true})
   await importer.getByLabel('친구 캐릭터의 마이홈 URL').fill('https://r2archive.com/myhome/friend');await importer.getByRole('button',{name:'의상 불러오기',exact:true}).click();await expect(importer).toHaveCount(0)
   const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true});await expect(dialog.locator('.shop-stage-status')).toHaveText('');await expect(dialog.locator('.shop-character-labels span')).toHaveCount(2)
-  await expect(dialog.locator('.shop-character-labels span').nth(1)).toContainText(sex==='female'?'여성':'남성');await expect.poll(()=>dialog.locator('canvas').getAttribute('data-motion-frame')).not.toBeNull()
-  await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page);expect(url.searchParams.get('partnerSex')).toBe(sex);expect(url.searchParams.get('partner_top')).toBe('202')
+  await expect(dialog.locator('.shop-character-labels span').nth(1)).toContainText(original.sex==='female'?'여성':'남성');await expect.poll(()=>dialog.locator('canvas').getAttribute('data-motion-frame')).not.toBeNull()
+  await dialog.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page);expect(url.searchParams.get('partnerSex')).toBe(original.sex);expect(url.searchParams.get('partner_top')).toBe('202')
   await page.evaluate(id=>fetch('/api/shop/characters/1/mains/'+id,{method:'PUT'}),original.id)
   await page.goto(url.pathname+url.search);await expect(page.getByRole('button',{name:'내 캐릭터 의상 불러오기',exact:true})).toBeVisible();await page.getByRole('button',{name:'커플 모션 시작',exact:true}).click()
   await expect(page.locator('.shop-stage-status')).toHaveText('');await page.getByRole('button',{name:'URL 복사',exact:true}).click();expect((await copiedShopUrl(page)).searchParams.get('partner_top')).toBe('202')
@@ -104,7 +104,7 @@ test('unsupported same-sex import alerts without changing the partner and shared
   await viewport(page);await coupleFixture(page,{characters:[{id:'1',name:'친구',sex:'female',ids:['201'],mains:[{sex:'female',slot:'top',item:femaleShirt}]}]});await openNormalCouple(page,'female','30120')
   await page.evaluate(()=>fetch('/api/share/myhome',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'friend',character_id:1})}))
   await page.getByRole('button',{name:'내 커플 의상 불러오기',exact:true}).click();const importer=page.getByRole('dialog',{name:'내 커플 의상 불러오기',exact:true});await importer.getByLabel('친구 캐릭터의 마이홈 URL').fill('https://r2archive.com/myhome/friend')
-  page.once('dialog',async alert=>{expect(alert.message()).toBe('동성 커플이 불가능한 반지입니다.');await alert.accept()});await importer.getByRole('button',{name:'의상 불러오기',exact:true}).click();await importer.getByRole('button',{name:'닫기',exact:true}).click()
+  page.once('dialog',async alert=>{expect(alert.message()).toBe('커플 모션은 남녀 조합으로 재생됩니다.');await alert.accept()});await importer.getByRole('button',{name:'의상 불러오기',exact:true}).click();await importer.getByRole('button',{name:'닫기',exact:true}).click()
   await expect(page.locator('.shop-character-labels [data-actor="partner"]')).toContainText('남성')
   await page.getByRole('button',{name:'URL 복사',exact:true}).click();const url=await copiedShopUrl(page)
   await page.route('**/api/auth/me',route=>route.fulfill({json:{user:null}}));await page.goto(url.pathname+url.search)

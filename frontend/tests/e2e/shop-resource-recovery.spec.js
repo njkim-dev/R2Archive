@@ -88,35 +88,37 @@ test('recovered couple action opens from its item and restores from its shared U
   await expect(dialog.getByText(action.name,{exact:true})).toBeVisible()
 })
 
-test('the composition controls change both actors and preserve the shared combination', async ({page}) => {
-  await coupleFixture(page,{sameSex:true,loggedIn:false})
-  await page.goto(`/shop?v=${version}&view=couple&item=30854&sex=male`)
+for(const sex of ['male','female'])test(`an old same-sex link only plays the mixed motion and hides the composition controls (${sex})`, async ({page}) => {
+  let release
+  const gate = new Promise(resolve => {release = resolve})
+  await coupleFixture(page,{sameSex:true,loggedIn:false,motionGate:gate})
+  const motionRequests = []
+  page.on('request',request => {
+    const path = new URL(request.url()).pathname
+    if (path.startsWith(coupleRoot)) motionRequests.push(path)
+  })
+  await page.goto(`/shop?v=${version}&view=couple&item=30854&sex=${sex}&partnerSex=${sex}`)
   const dialog = page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true})
-  const group = dialog.getByRole('group',{name:'커플 조합'})
-  await group.getByRole('button',{name:'여여',exact:true}).click()
-  await expect(group.getByRole('button',{name:'여여',exact:true})).toHaveAttribute('aria-pressed','true')
-  await expect(dialog.locator('[data-actor="primary"]')).toContainText('여성')
-  await expect(dialog.locator('[data-actor="partner"]')).toContainText('여성')
+  const primary = sex==='female'?'여성':'남성', partner = sex==='female'?'남성':'여성'
+  await expect(dialog.locator('[data-actor="primary"]')).toContainText(primary)
+  await expect(dialog.locator('[data-actor="partner"]')).toContainText(partner)
+  await expect(dialog.getByRole('group',{name:'커플 조합'})).toHaveCount(0)
+  const layout = await watchLayout(page,['.shop-couple-heading','.shop-couple-viewport','.shop-couple-note'])
   await dialog.getByRole('button',{name:'커플 모션 시작',exact:true}).click()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  await layout.expectStable()
+  release()
   await expect(dialog.locator('canvas')).toHaveAttribute('data-motion-frame',/\d+/)
-  await group.getByRole('button',{name:'남남',exact:true}).click()
-  await expect(dialog.locator('[data-actor="primary"]')).toContainText('남성')
-  await expect(dialog.locator('[data-actor="partner"]')).toContainText('남성')
-  await expect(dialog.locator('.shop-stage-status')).toHaveText('')
-  await dialog.getByRole('button',{name:'URL 복사',exact:true}).click()
-  const shared = await copiedShopUrl(page)
-  expect(Object.fromEntries(shared.searchParams)).toMatchObject({sex:'male',partnerSex:'male'})
-  await page.goto(shared.pathname+shared.search)
-  await expect(group.getByRole('button',{name:'남남',exact:true})).toHaveAttribute('aria-pressed','true')
-  await group.getByRole('button',{name:'남녀',exact:true}).click()
-  await expect(dialog.locator('[data-actor="partner"]')).toContainText('여성')
+  expect(motionRequests.sort()).toEqual(['1','2'].map(digit=>coupleRoot+digit.repeat(64)+'.json.gz'))
+  await layout.expectStable()
+  await layout.stop()
 })
 
-test('an ornament-only ring opens without audio and its loading state keeps the layout stable', async ({page}) => {
+test('a standalone friend effect opens without audio and its loading state keeps the layout stable', async ({page}) => {
   let release
   const gate = new Promise(resolve => {release = resolve})
   const effect = {model:root+'/models/'+'e'.repeat(64)+'.json.gz',animation:coupleRoot+'f'.repeat(64)+'.json.gz',duration:1}
-  const ring = {...coupleRing,id:'30852',name:'브릴리언트 스타즈',couple_preview:null,effect_preview:effect}
+  const ring = {...coupleRing,id:'1200091',name:'에메랄드',category:'508',group:'friend',couple_preview:null,effect_preview:effect}
   await coupleFixture(page,{loggedIn:false,extraItems:[ring]})
   const matrices = Array.from({length:2},() => [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]).flat()
   await page.route('**'+effect.model,route => route.fulfill({json:{...mesh,texture_revision:version}}))

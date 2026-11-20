@@ -112,7 +112,7 @@ def serialize(row):
         item['couple_preview'] = couple_preview(SHOP_DIR, item['id'])
     elif item.get('category') == '504' and (motion := couple_preview(SHOP_DIR, item['id'])):
         item['couple_preview'] = motion
-    if effect := effect_preview(SHOP_DIR, item['id']):
+    if item.get('category') != '507' and (effect := effect_preview(SHOP_DIR, item['id'])):
         item['effect_preview'] = effect
     return item
 
@@ -195,7 +195,7 @@ def items(
         if preview_only:
             effects = effect_item_ids(SHOP_DIR) if not (favorites_only or paired_only) else []
             if effects:
-                conditions.append('((preview_available AND model IS NOT NULL) OR item_id = ANY(%s))')
+                conditions.append("((preview_available AND model IS NOT NULL) OR (category <> '507' AND item_id = ANY(%s)))")
                 args.append(effects)
             else:
                 conditions.append('preview_available AND model IS NOT NULL')

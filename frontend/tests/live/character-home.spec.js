@@ -41,10 +41,11 @@ for(const archive of ['music','xyx'])test(`live ${archive} legacy redirect prese
   await expect(page.locator('body')).not.toContainText('Application error')
 })
 
-for(const id of ['30855','30854','30846'])for(const sex of ['female','male'])test(`live ${id} ${sex} native same-sex motion audio and camera`,async({page,request})=>{
+for(const id of ['30855','30854','30846'])for(const sex of ['female','male'])test(`live ${id} ${sex} legacy same-sex link plays mixed motion, audio and camera`,async({page,request})=>{
   const meta=await (await request.get('/api/shop/meta')).json()
   const detail=await (await request.get(`/api/shop/items/${id}?version=${meta.revision}`)).json()
-  expect(detail.couple_preview.same_sex_motions[sex]).toBeTruthy()
+  expect(detail.couple_preview.motion).toBeTruthy()
+  expect(detail.couple_preview.same_sex_motions).toBeUndefined()
   const url=`/shop?view=couple&item=${id}&v=${meta.revision}&sex=${sex}&partnerSex=${sex}&angle=180&zoom=100&panX=3&panY=-2`
   await page.goto(url)
   const dialog=page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true}),canvas=dialog.locator('canvas')
@@ -55,7 +56,7 @@ for(const id of ['30855','30854','30846'])for(const sex of ['female','male'])tes
   await expect(canvas).toHaveAttribute('data-envelope-builds','1',{timeout:60000})
   await expect(dialog.locator('.shop-stage-status')).toHaveText('')
   await expect(dialog.locator('.shop-character-labels [data-actor="primary"]')).toHaveText(`${sex==='female'?'여성':'남성'} ㆍ 선택한 의상`)
-  await expect(dialog.locator('.shop-character-labels [data-actor="partner"]')).toHaveText(`${sex==='female'?'여성':'남성'} ㆍ 대응 의상`)
+  await expect(dialog.locator('.shop-character-labels [data-actor="partner"]')).toHaveText(`${sex==='female'?'남성':'여성'} ㆍ 대응 의상`)
   await expect.poll(()=>page.evaluate(()=>window.__liveAudio.starts)).toBeGreaterThan(0)
   const box=await canvas.boundingBox(),angle=Number(await canvas.getAttribute('data-view-angle'))
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+30,box.y+box.height/2);await page.mouse.up()
