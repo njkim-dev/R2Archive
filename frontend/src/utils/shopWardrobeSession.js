@@ -1,5 +1,18 @@
 import { SHOP_SLOTS } from './shopUrl'
 
+const characterKey = 'r2_active_character'
+
+export function readStorageCharacter() {
+  try { return sessionStorage.getItem(characterKey) || null } catch { return null }
+}
+
+export function writeStorageCharacter(id) {
+  try {
+    if (id) sessionStorage.setItem(characterKey, id)
+    else sessionStorage.removeItem(characterKey)
+  } catch {}
+}
+
 export function readWardrobeSession(version) {
   try {
     const data = JSON.parse(sessionStorage.getItem(`r2_shop_wardrobe:${version}`))

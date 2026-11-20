@@ -3,9 +3,30 @@
   padding: 24px clamp(16px, 3vw, 40px) 48px;
 }
 
-.encore-main h1 {
+.encore-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 54px;
+  margin-bottom: 14px;
+}
+
+.encore-title h1 {
   font-size: 29px;
-  margin: 0 0 18px;
+  margin: 0;
+}
+
+.encore-title .shop-storage-target {
+  display: flex;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.encore-title .shop-storage-target select {
+  width: clamp(104px, 34vw, 180px);
+  min-height: 34px;
+  border-radius: 8px;
 }
 
 .encore-main h2, .encore-main p {
@@ -27,11 +48,11 @@
   padding: 12px 15px;
 }
 
-.encore-round > svg, .encore-round a, .encore-motion-link {
+.encore-round > svg, .encore-round a {
   color: var(--shop-accent);
 }
 
-.encore-round a, .encore-motion-link, .encore-offer-action {
+.encore-round a, .encore-offer-action {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -243,6 +264,14 @@
   min-height: 46px;
 }
 
+.encore-app button.encore-motion-button {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--shop-line);
+  background: var(--shop-tint);
+  color: var(--shop-accent);
+}
+
 .encore-source-controls {
   flex-wrap: wrap;
   gap: 8px;
@@ -292,9 +321,8 @@
     padding: 16px 14px 30px;
   }
 
-  .encore-main h1 {
+  .encore-title h1 {
     font-size: 24px;
-    margin-bottom: 13px;
   }
 
   .encore-workspace {
@@ -317,6 +345,18 @@
   .encore-dialog .encore-preview {
     border: 0;
     padding: 0;
+  }
+}
+
+@media (max-width: 550px) {
+  .encore-title .shop-storage-target {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+
+  .encore-title .shop-storage-target select {
+    font-size: 16px;
   }
 }
 

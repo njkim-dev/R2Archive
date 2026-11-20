@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { mesh, setup, shirt, version } from './shopFixtures.js'
+import { copiedShopUrl, femaleShirt, mesh, setup, shirt, version } from './shopFixtures.js'
+import { coupleFixture, coupleRing } from './coupleFixtures.js'
 import { waitForFrames, watchLayout } from './layout.js'
 
 const round = JSON.parse(readFileSync(new URL('../../src/data/encore-shop.json', import.meta.url), 'utf8'))
@@ -21,6 +22,68 @@ const standAloneMotion = {
 const standAloneParticles = {
   schema: 'shop-particles-v1', frame_count: 2, source_duration: 2, texture_revision: version, anchors: {}, emitters: [],
 }
+
+test('Encore opens a same-page couple modal with the selected character and their partner', async ({ page }) => {
+  const width = test.info().project.use.viewport.width <= 768 ? 390 : 1440
+  await page.setViewportSize({ width, height: 940 })
+  await page.addInitScript(() => sessionStorage.setItem('r2_active_character', '1'))
+  const wardrobe = { ...shirt, id: '211', name: '두 번째 캐릭터 메인' }
+  const partnerTop = { ...femaleShirt, id: '212', name: '커플 캐릭터 메인' }
+  const first = { id: '1', name: '첫 번째 캐릭터', sex: 'female', ids: ['201'], mains: [{ sex: 'female', slot: 'top', item: femaleShirt }] }
+  const second = { id: '2', name: '두 번째 캐릭터', sex: 'male', ids: ['211'], mains: [{ sex: 'male', slot: 'top', item: wardrobe }] }
+  const partner = { id: '81', name: '커플 캐릭터', sex: 'female' }
+  const ring = { ...coupleRing, id: '30835', name: '릴리 앤 리본' }
+  await coupleFixture(page, { characters: [first, second], extraItems: [ring, wardrobe, partnerTop] })
+  await page.route(/\/encore-shop(?:-[\w-]+)?\.json(?:\?.*)?$/, route => route.request().resourceType() === 'fetch'
+    ? route.fulfill({ json: { ...round, catalogVersion: version } }) : route.fallback())
+  await page.route('**/api/shop/couples', route => route.fulfill({ json: { relationships: [
+    { id: '41', status: 'accepted', character: { id: first.id, sex: first.sex } },
+    { id: '42', status: 'accepted', character: { id: second.id, sex: second.sex }, partner },
+  ] } }))
+  await page.route('**/api/shop/couples/2/home?**', route => route.fulfill({ json: { character: partner, mains: [{ slot: 'top', item: partnerTop }] } }))
+  let releaseList, releaseMotion
+  const listGate = new Promise(resolve => { releaseList = resolve })
+  const motionGate = new Promise(resolve => { releaseMotion = resolve })
+  await page.route('**/api/shop/characters?**', async route => { await listGate; return route.fallback() })
+  await page.route(`**/api/shop/items/${ring.id}?**`, async route => { await motionGate; return route.fallback() })
+  await page.goto('/shop/encore')
+
+  const characters = page.getByLabel('저장할 캐릭터', { exact: true })
+  await expect(characters).toBeDisabled()
+  const listing = await watchLayout(page, ['.encore-title', '.encore-round', '.encore-toolbar', '.encore-list-heading'])
+  await listing.expectStable()
+  releaseList()
+  await expect(characters).toHaveValue('1')
+  await listing.expectStable()
+  await listing.stop()
+  await characters.selectOption(second.id)
+  expect(await page.evaluate(() => sessionStorage.getItem('r2_active_character'))).toBe(second.id)
+
+  await page.getByRole('button', { name: `${ring.name} 미리보기`, exact: true }).click()
+  const offerPreview = width === 390 ? page.getByRole('dialog', { name: '의상 미리보기', exact: true })
+    : page.getByRole('complementary', { name: '착용 미리보기' })
+  await offerPreview.getByRole('button', { name: '커플 모션 미리보기', exact: true }).click()
+  const motion = page.getByRole('dialog', { name: '커플 모션 미리보기', exact: true })
+  await expect(motion.locator('.shop-stage-status')).toHaveText('선택한 의상을 준비 중입니다.')
+  const layout = await watchLayout(page, ['dialog[aria-label="커플 모션 미리보기"] .shop-couple-heading', '.shop-couple-viewport', '.shop-couple-note'])
+  await layout.expectStable()
+  releaseMotion()
+  await expect(motion.locator('.shop-stage-status')).toHaveText('')
+  await layout.expectStable()
+  await layout.stop()
+  await expect(motion.locator('[data-actor="primary"]')).toContainText('남성')
+  await expect(motion.locator('[data-actor="partner"]')).toContainText('여성')
+  await motion.getByRole('button', { name: 'URL 복사', exact: true }).click()
+  const shared = await copiedShopUrl(page)
+  expect(Object.fromEntries(shared.searchParams)).toMatchObject({ item: ring.id, sex: 'male', top: wardrobe.id, partnerSex: 'female', partner_top: partnerTop.id })
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1)?.starts)).toBe(1)
+  await motion.getByRole('button', { name: '커플 모션 미리보기 닫기', exact: true }).click()
+  await expect(motion).toBeHidden()
+  await expect(offerPreview.getByRole('button', { name: '커플 모션 미리보기', exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.__coupleAudio.at(-1)?.context.state)).toBe('closed')
+  await expect(page).toHaveURL(/\/shop\/encore$/)
+  expect(page.context().pages()).toHaveLength(1)
+})
 
 test('a recovered Encore garment can be viewed separately while the set preview stays in place', async ({ page }) => {
   const width = test.info().project.use.viewport.width <= 768 ? 390 : 1440
@@ -122,7 +185,7 @@ for (const width of [1440, 390]) test(`Encore navigation, stable loading and set
   await expect(page.locator('.encore-offer')).toHaveCount(7)
   const motion = page.getByRole('button', { name: '릴리 앤 리본 미리보기', exact: true })
   await motion.click()
-  await expect(preview.getByRole('link', { name: '커플 모션 미리보기' })).toHaveAttribute('href', /view=couple.*item=30835/)
+  await expect(preview.getByRole('button', { name: '커플 모션 미리보기' })).toHaveAttribute('aria-haspopup', 'dialog')
   if (mobile) await page.keyboard.press('Escape')
   for (const [name, id] of [['찬란한 별', '1200116'], ['별의 동공', '1200127']]) {
     const card = page.getByRole('button', { name: name + ' 미리보기', exact: true })
@@ -148,7 +211,7 @@ for (const width of [1440, 390]) test(`Encore navigation, stable loading and set
     if (mobile) await page.keyboard.press('Escape')
   }
   await page.getByRole('button', { name: '백금성령 미리보기', exact: true }).click()
-  await expect(preview.getByRole('link', { name: '커플 모션 미리보기' })).toHaveAttribute('href', /view=couple.*item=30810/)
+  await expect(preview.getByRole('button', { name: '커플 모션 미리보기' })).toBeEnabled()
   if (mobile) await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '섬 여행 닉네임팩 미리보기', exact: true }).click()
   const sprite = preview.locator('.encore-image-stage img')

@@ -9,7 +9,7 @@ import { itemShareUrl, outfitShareUrl, readShopUrl, rememberShopReturn, SHOP_SLO
 import { SHOP_GROUPS, PET_GROUPS, PET_SUPPLY_GROUPS } from '../utils/shopCategories'
 import ShopOutfitPreview from '../components/shop/ShopOutfitPreview'
 import ShopImageSearch from '../components/shop/ShopImageSearch'
-import { readWardrobeSession, saveWardrobeSession } from '../utils/shopWardrobeSession'
+import { readStorageCharacter, writeStorageCharacter, readWardrobeSession, saveWardrobeSession } from '../utils/shopWardrobeSession'
 import ShopViewModes from '../components/shop/ShopViewModes'
 import ShopViewer from '../components/shop/ShopViewer'
 import ItemImage, { ShopImageSession } from '../components/shop/ShopImage'
@@ -22,7 +22,7 @@ import useShopWardrobe from '../components/shop/useShopWardrobe'
 import ShopMobilePanel from '../components/shop/ShopMobilePanel'
 import ShopCouplePreview from '../components/shop/ShopCouplePreview'
 import { ShopEffectDialog } from '../components/shop/ShopEffectPreview'
-import { canPreviewItem } from '../utils/shopPreview'
+import { canPreviewItem, startCoupleAudio } from '../utils/shopPreview'
 import ShopHomeIdDialog,{HOME_DISCLOSURE} from '../components/shop/ShopHomeIdDialog'
 import ShopCoupleActions from '../components/shop/ShopCoupleActions'
 import {useCouples} from '../components/shop/ShopCouplesContext'
@@ -35,6 +35,7 @@ import '../styles/shopCharacters.css'
 import '../styles/shopImageSearch.css'
 import useCharacters from '../components/shop/useCharacters'
 import ShopCharacterPicker from '../components/shop/ShopCharacterPicker'
+import ShopStorageCharacterSelect from '../components/shop/ShopStorageCharacterSelect'
 import { saveCharacterItems,removeCharacterItem,setCharacterPrivacy } from '../api/shopCharacters'
 
 const emptySlots = () => Object.fromEntries(SHOP_SLOTS.map(slot => [slot, null]))
@@ -42,13 +43,6 @@ const DEPARTMENTS = [['wearable', '꾸미기ㆍ펫'], ['functional', '기능성�
 const currency = value => value === 'cash' ? '캐시' : '알코인'
 const defaultPrice = item => item?.is_unreleased ? null : item?.prices?.find(p => p.key === 'PI') || item?.prices?.find(p => p.key === 'P30') || item?.prices?.[0]
 const errorText = error => typeof error?.response?.data?.detail === 'string' ? error.response.data.detail : Array.isArray(error?.response?.data?.detail) ? '검색어나 공유 URL을 확인해주세요.' : error?.message || '상점 정보를 불러오지 못했습니다.'
-function coupleAudio() {
-  const Audio = window.AudioContext || window.webkitAudioContext
-  let audioContext, audioReady
-  try { audioContext = new Audio(); audioReady = audioContext.resume().then(() => true, () => false) } catch { audioReady = Promise.resolve(false) }
-  return { audioContext, audioReady, started: true }
-}
-
 export default function ShopPage({allCharacters=false,partnerHome=false}) {
   const location = useLocation(), { handle,characterId } = useParams()
   return <ShopImageSession><ShopContent key={`${handle || ''}:${characterId||''}:${allCharacters}:${partnerHome}:${location.search}`} search={location.search} publicHome={partnerHome?'partner:'+characterId:handle || null} characterId={partnerHome?null:characterId||null} privateHome={!partnerHome&&(allCharacters||!!characterId)} partnerOf={partnerHome?characterId:null} /></ShopImageSession>
@@ -74,7 +68,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   useEffect(() => { setFavoriteSlot(null) }, [user?.id])
   const initial = useRef(readShopUrl(search)).current
   const [meta, setMeta] = useState(null)
-  const [targetCharacter,setTargetCharacter]=useState(()=>{try{return sessionStorage.getItem('r2_active_character')||null}catch{return null}})
+  const [targetCharacter,setTargetCharacter]=useState(readStorageCharacter)
   const [saveRequest,setSaveRequest]=useState(null)
   const [savingOwned,setSavingOwned]=useState(false),saveLock=useRef(false)
   const storageCharacter=characterId||(!privateHome?targetCharacter:null)
@@ -144,11 +138,11 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function openCouple() {
     if (!detail?.couple_preview) return
     const previewCharacter=publicHome?null:characterId||targetCharacter
-    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:previewCharacter,useCharacterMains:homeOnly&&!!previewCharacter,disableAutoPartner:!!publicHome, ...coupleAudio() })
+    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:previewCharacter,useCharacterMains:homeOnly&&!!previewCharacter,disableAutoPartner:!!publicHome, ...startCoupleAudio() })
     navigate(location.pathname + location.search, { state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
   }
   function startCouple() {
-    if (couple && !couple.started) setCouple({ ...couple, ...coupleAudio() })
+    if (couple && !couple.started) setCouple({ ...couple, ...startCoupleAudio() })
   }
   const listRequest = useRef(null)
   const scrollPosition = useRef(0)
@@ -163,7 +157,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const visibleTotal = Math.max(0, listing.total - (listing.items.length - visibleItems.length))
   const listKey = JSON.stringify([ready, meta?.revision, department, listSex, slot, group, subgroup, query, pairedOnly, hideUnavailable, hideUnreleased, favoritesOnly, homeOnly,characterId,homeOnly?[...owned.ids].join(','):'', (favoritesOnly || homeOnly) ? user?.id : null, favoritesOnly && favorites.ready, homeOnly && homeData.ready, publicHome, publicData.epoch])
   useEffect(()=>{setSaveRequest(null)},[user?.id])
-  useEffect(()=>{const active=characterId||targetCharacter;if(!active||!authenticated||partnerOf)return;if(!characterId&&characters.ready&&!characters.items.some(entry=>entry.character.id===active)){setTargetCharacter(null);return}try{sessionStorage.setItem('r2_active_character',active)}catch{}},[characterId,targetCharacter,authenticated,characters.ready,characters.items,partnerOf])
+  useEffect(()=>{const active=characterId||targetCharacter;if(!active||!authenticated||partnerOf)return;if(!characterId&&characters.ready&&!characters.items.some(entry=>entry.character.id===active)){setTargetCharacter(null);return}writeStorageCharacter(active)},[characterId,targetCharacter,authenticated,characters.ready,characters.items,partnerOf])
   useEffect(()=>{if(homeOnly&&homeData.character?.sex)setSex(homeData.character.sex)},[homeOnly,homeData.character?.sex,sex])
   useEffect(() => { if (!authenticated) { setFavoritesOnly(false); if (!publicHome&&!privateHome) setHomeOnly(false) } }, [authenticated, publicHome,privateHome])
   useEffect(() => () => clearTimeout(toastTimer.current), [])
@@ -282,6 +276,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   }
   function selectStorageCharacter(value){
     const id=value||null;pendingStorageCharacter.current=id;if(id)touched.current={male:new Set(),female:new Set()}
+    if (!id) writeStorageCharacter(null)
     if(id===targetCharacter&&owned.ready&&owned.character?.id===id){pendingStorageCharacter.current=null;applyStorageCharacter(owned)}
     setTargetCharacter(id)
   }
@@ -500,11 +495,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     <div className="shop-title" aria-hidden={view === 'preview' || undefined}><div><span>ITEM ARCHIVE</span><h1>{view === 'preview' ? '의상 미리보기' : publicHome ? `${homeData.character?.name || publicData.handle || publicHome}의 마이홈` : characterId ? `${owned.character?.name||'캐릭터'}의 마이홈` : homeOnly ? '모든 캐릭터' : '아이템 상점'}</h1></div>
       {!homeOnly && !publicHome && authenticated && view !== 'preview' && (
         <div className="shop-storage-target">
-          <label htmlFor="shop-storage-character">저장할 캐릭터</label>
-          <select id="shop-storage-character" value={targetCharacter || ''} onChange={e => selectStorageCharacter(e.target.value)} disabled={!characters.ready || savingOwned}>
-            <option value="">캐릭터 선택</option>
-            {characters.items.map(entry => <option key={entry.character.id} value={entry.character.id}>{entry.character.name} ({entry.character.sex === 'female' ? '여' : '남'})</option>)}
-          </select>
+          <ShopStorageCharacterSelect id="shop-storage-character" characters={characters} value={targetCharacter} onChange={selectStorageCharacter} disabled={savingOwned} />
           <button onClick={() => setSaveRequest({ mode: 'create', ids: [], sex: null })} disabled={!characters.ready || characters.items.length >= 17}>새 캐릭터 추가</button>
         </div>
       )}

@@ -3,13 +3,20 @@ import { ArrowUpRight, CalendarDays, ChevronRight, Image, Search } from 'lucide-
 import { getShopItem, getShopMeta } from '../api/shop'
 import { ArchivePageLayout } from '../components/ArchiveNavigation'
 import EncoreSourcePreview from '../components/shop/EncoreSourcePreview'
+import ShopCouplePreview from '../components/shop/ShopCouplePreview'
 import ShopOutfitPreview from '../components/shop/ShopOutfitPreview'
+import ShopStorageCharacterSelect from '../components/shop/ShopStorageCharacterSelect'
 import ShopViewer from '../components/shop/ShopViewer'
 import ShopViewModes from '../components/shop/ShopViewModes'
+import useCharacters from '../components/shop/useCharacters'
 import roundUrl from '../data/encore-shop.json?url&no-inline'
 import { useMobile } from '../hooks/useMobile'
-import { coupleShareUrl, SLOT_LABELS } from '../utils/shopUrl'
+import useStore from '../store/useStore'
+import { startCoupleAudio } from '../utils/shopPreview'
+import { SLOT_LABELS } from '../utils/shopUrl'
+import { readStorageCharacter, writeStorageCharacter } from '../utils/shopWardrobeSession'
 import '../styles/shop.css'
+import '../styles/shopCharacters.css'
 import '../styles/shopEncore.css'
 
 const filters = [['all', '전체'], ['outfit', '의상'], ['wearable', '펫·효과'], ['utility', '기능성']]
@@ -33,7 +40,7 @@ function EncoreThumb({ item }) {
     : <Image size={22} aria-hidden="true" />
 }
 
-function EncorePreview({ offer, version, sex, onSex }) {
+function EncorePreview({ offer, version, sex, onSex, onCouple, characterPending }) {
   const [partName, setPartName] = useState('')
   const [loaded, setLoaded] = useState(null)
   const [retry, setRetry] = useState(0)
@@ -101,9 +108,8 @@ function EncorePreview({ offer, version, sex, onSex }) {
       </div>
       <div className="encore-preview-controls">
         {wearable.length > 0 && <div inert={ready ? undefined : ''} className={ready ? '' : 'encore-controls-pending'}><ShopViewModes mode={mode} onChange={setMode} /></div>}
-        {motionItem && <a className="encore-motion-link"
-          href={coupleShareUrl({ version, sex, slots: empty, item: motionItem })} target="_blank" rel="noopener noreferrer">
-          커플 모션 미리보기 <ArrowUpRight size={15} aria-hidden="true" /></a>}
+        {motionItem && <button type="button" className="encore-motion-button" aria-haspopup="dialog"
+          disabled={characterPending} onClick={() => onCouple(motionItem)}>커플 모션 미리보기</button>}
       </div>
     </>}
     {offer.kind === 'outfit' && <p className="encore-preview-note" aria-live="polite">
@@ -134,6 +140,35 @@ export default function ShopEncorePage() {
   const [selectedId, setSelectedId] = useState(null)
   const [preferredSex, setPreferredSex] = useState('female')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [targetCharacter, setTargetCharacter] = useState(readStorageCharacter)
+  const [couple, setCouple] = useState(null)
+  const { authLoaded, user } = useStore()
+  const userId = authLoaded ? user?.id : null
+  const characters = useCharacters(userId, round?.catalogVersion)
+  const character = characters.items.find(entry => entry.character.id === targetCharacter)?.character
+  const characterPending = !!targetCharacter && (!authLoaded || !!userId && !characters.ready)
+  const motionItemId = couple?.item.id
+  const audioContext = couple?.audioContext
+
+  useEffect(() => () => {
+    if (audioContext && audioContext.state !== 'closed') audioContext.close().catch(() => {})
+  }, [audioContext])
+
+  useEffect(() => {
+    if (!motionItemId || !round?.catalogVersion) return
+    const controller = new AbortController()
+    const version = round.catalogVersion
+    Promise.all([getShopMeta(version, controller.signal), getShopItem(motionItemId, version, controller.signal)])
+      .then(([meta, item]) => {
+        if (controller.signal.aborted) return
+        if (!item.couple_preview) throw new Error('커플 모션 미리보기를 제공하지 않는 아이템입니다.')
+        setCouple(current => current && { ...current, item, meta })
+      }).catch(error => {
+        if (!controller.signal.aborted) setCouple(current => current && { ...current,
+          loadError: error.response ? '커플 모션을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' : error.message })
+      })
+    return () => controller.abort()
+  }, [motionItemId, round?.catalogVersion])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -159,12 +194,27 @@ export default function ShopEncorePage() {
     if (mobile) setPreviewOpen(true)
   }
 
+  function chooseCharacter(value) {
+    setTargetCharacter(value || null)
+    writeStorageCharacter(value)
+  }
+
+  function openCouple(item) {
+    setCouple({ item, sex: character?.sex || sex, slots: empty, characterId: character?.id,
+      useCharacterMains: !!character, disableAutoPartner: !character, ...startCoupleAudio() })
+  }
+
   const preview = selected && <EncorePreview key={selected.id} offer={selected} version={round.catalogVersion}
-    sex={sex} onSex={setPreferredSex} />
+    sex={sex} onSex={setPreferredSex} onCouple={openCouple} characterPending={characterPending} />
 
   return <ArchivePageLayout section="encore" className="shop-app encore-app">
     <main className="shop-main encore-main">
-      <h1>앙코르 상점</h1>
+      <header className="encore-title">
+        <h1>앙코르 상점</h1>
+        {userId && <div className="shop-storage-target">
+          <ShopStorageCharacterSelect id="encore-storage-character" characters={characters} value={character?.id} onChange={chooseCharacter} />
+        </div>}
+      </header>
       <section className="encore-round" aria-label="판매 회차" aria-busy={!round && !loadingError}>
         <CalendarDays size={22} aria-hidden="true" />
         <strong>{round?.label || '판매 회차'}</strong>
@@ -203,5 +253,7 @@ export default function ShopEncorePage() {
       </div>
       {mobile && previewOpen && preview && <ShopOutfitPreview onClose={() => setPreviewOpen(false)} className="encore-dialog">{preview}</ShopOutfitPreview>}
     </main>
+    {couple && <ShopCouplePreview selection={couple} meta={couple.meta} loadError={couple.loadError}
+      onClose={() => setCouple(null)} />}
   </ArchivePageLayout>
 }
