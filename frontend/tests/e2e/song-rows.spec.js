@@ -330,7 +330,7 @@ test('searching for a removed song offers the detailed filter shortcut', async (
   const removedSection = page.locator('.detailed-removed-section')
   await expect(removedSection).toHaveClass(/is-highlighted/)
   await expect(removedSection).toBeFocused()
-  expect(await removedSection.evaluate(element => getComputedStyle(element).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)')
+  await expect(removedSection).not.toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
   if (checkHighlightExpiry) {
     await page.clock.fastForward(2500)
     await expect(removedSection).toHaveClass(/is-highlighted/)
