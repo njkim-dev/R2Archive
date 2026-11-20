@@ -7,9 +7,18 @@ import '../styles/shopAdmin.css'
 
 const names = { hair: '머리', top: '상의', bottom: '하의', shoes: '스케이트' }
 const states = { pending: '검수 대기', approved: '승인됨', excluded: '학습 제외' }
+const fullImageRegion = { bbox_xyxy: [0, 0, 1000, 1000], polygon_xy: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]] }
 const errors = error => typeof error.response?.data?.detail === 'string' ? error.response.data.detail : '요청을 완료하지 못했습니다. 다시 시도해주세요.'
 const date = value => value ? new Date(value).toLocaleString('ko-KR') : '—'
 const previewCount = (votes, value) => (votes || []).filter(vote => vote.value === value).length
+
+function hasReviewRegion(region) {
+  const { bbox_xyxy: box, polygon_xy: polygon } = region ?? {}
+  const coordinate = value => Number.isFinite(value) && value >= 0 && value <= 1000
+  return Array.isArray(box) && box.length === 4 && box.every(coordinate) && box[0] < box[2] && box[1] < box[3]
+    && Array.isArray(polygon) && polygon.length >= 3 && polygon.length <= 64
+    && polygon.every(point => Array.isArray(point) && point.length === 2 && point.every(coordinate))
+}
 
 function PreviewFeedback({ record }) {
   const candidates = new Map((record.result.groups || []).flatMap(group => group.items || []).map(item => [String(item.id), item]))
@@ -21,9 +30,8 @@ function PreviewFeedback({ record }) {
   </div></section>
 }
 
-function RegionEditor({ src, value, onChange }) {
+function RegionEditor({ src, region, onChange }) {
   const area = useRef(null), drag = useRef(null), [points, setPoints] = useState(false)
-  const region = value || { bbox_xyxy: [0, 0, 1000, 1000], polygon_xy: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]] }
   const position = event => { const bounds = area.current.getBoundingClientRect(); return [Math.round(Math.max(0, Math.min(1000, (event.clientX - bounds.left) / bounds.width * 1000))), Math.round(Math.max(0, Math.min(1000, (event.clientY - bounds.top) / bounds.height * 1000)))] }
   function move(event) {
     if (!drag.current) return
@@ -58,13 +66,14 @@ function PartReview({ slot, record, label, onChange }) {
     }, 250)
     return () => { clearTimeout(timer); controller.abort() }
   }, [query, record.id, record.catalog_revision, record.sex, slot])
-  const region = label?.region || record.diagnostics.localization?.[slot]
-  const choose = item => onChange({ item_id: String(item.id), name: item.name, region: region || { bbox_xyxy: [0, 0, 1000, 1000], polygon_xy: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]] } })
+  const detectedRegion = record.diagnostics?.localization?.[slot]
+  const region = [label?.region, detectedRegion].find(hasReviewRegion) ?? fullImageRegion
+  const choose = item => onChange({ item_id: String(item.id), name: item.name, region })
   return <section className="image-review-part"><h3>{names[slot]}</h3><p className="image-review-label">확정 정답: <strong>{label?.item_id ? `${label.name || ''} #${label.item_id}` : '지정하지 않음'}</strong><button type="button" disabled={!label?.item_id} onClick={() => onChange(null)}>정답 해제</button></p>
     <div className="image-review-candidates">{group?.items?.map(item => <button type="button" key={item.id} aria-pressed={label?.item_id === item.id} onClick={() => choose(item)}><img src={item.thumbnail} alt="" /><b>{item.name}</b><span>#{item.id}</span><small>{votes.get(item.id) === 1 ? '사용자 좋아요' : votes.get(item.id) === -1 ? '사용자 싫어요' : '사용자 평가 없음'}</small><span>정답으로 지정</span></button>)}{!group?.items?.length && <p>검색 후보가 없습니다. 아래에서 정답을 찾아 지정할 수 있습니다.</p>}</div>
     <label className="image-review-catalogue-search">후보 밖에서 정답 찾기<input aria-label={`${names[slot]} 정답 아이템 검색`} value={query} maxLength={120} placeholder="아이템 이름 또는 번호" onChange={event => setQuery(event.target.value)} /></label>
     <div className="image-review-catalogue-matches" aria-busy={busy}>{busy ? <p>아이템을 찾고 있습니다.</p> : error ? <p role="alert">{error}</p> : matches.length ? matches.map(item => <button type="button" key={item.id} onClick={() => choose(item)}>{item.name} · #{item.id}</button>) : <p>{query ? '찾은 아이템이 없습니다.' : '검색어를 입력하면 카탈로그에서 정답을 찾습니다.'}</p>}</div>
-    <RegionEditor src={record.image_url} value={region} onChange={region => onChange({ ...(label || {}), region })} />
+    <RegionEditor src={record.image_url} region={region} onChange={region => onChange({ ...(label || {}), region })} />
   </section>
 }
 

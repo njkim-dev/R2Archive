@@ -13,6 +13,40 @@ for (const loggedIn of [false, true]) test(`admin history is not requested by ${
   await expect(page.getByText('관리자만 이용할 수 있습니다.')).toBeVisible()
   expect(requests.filter(path => path.startsWith('/api/shop/image-search/admin'))).toEqual([])
 })
+
+for (const width of [1440, 390]) test(`admin opens a failed all-part search with missing outline at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1000 })
+  await setup(page, { admin: true, items: [candidate] })
+  const failed = {
+    ...record,
+    status: 'failed', slot: 'all', result: {}, votes: [], error: '부위를 인식하지 못했습니다.',
+    diagnostics: { localization: { top: region, shoes: { bbox_xyxy: null, polygon_xy: null } } },
+  }
+  let releaseDetail
+  await page.route('**/api/shop/image-search/admin/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/image')) return route.fulfill({ body: png, contentType: 'image/png' })
+    if (path.endsWith('/history')) return route.fulfill({ json: { ...listing, items: [failed] } })
+    await new Promise(resolve => { releaseDetail = resolve })
+    return route.fulfill({ json: failed })
+  })
+  await page.goto('/shop/admin')
+  const row = page.getByRole('button', { name: /검색 실패/ })
+  await expect(row).toBeVisible()
+  const watch = await watchLayout(page, ['.shop-admin-filters', '.shop-admin-list-status', '.shop-admin-layout', '.shop-admin-history-list', '.shop-admin-detail'])
+  await row.click()
+  await expect.poll(() => !!releaseDetail).toBe(true)
+  await expect(page.getByText('검색 내용을 불러오는 중입니다.')).toBeVisible()
+  await watch.expectStable()
+  releaseDetail()
+  await expect(page.getByRole('alert')).toHaveText(failed.error)
+  await expect(page.getByRole('heading', { name: '검색 기록', exact: true })).toBeVisible()
+  await expect(page.locator('.image-review-part').filter({ has: page.getByRole('heading', { name: '상의', exact: true }) }).locator('polygon')).toHaveAttribute('points', '100,200 900,200 900,600 100,600')
+  await expect(page.locator('.image-review-part').filter({ has: page.getByRole('heading', { name: '스케이트', exact: true }) }).locator('polygon')).toHaveAttribute('points', '0,0 1000,0 1000,1000 0,1000')
+  await watch.expectStable()
+  await watch.stop()
+})
+
 for (const width of [1440, 390]) test(`admin correction outside shortlist, approval, exclusion and deletion at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 })
   await setup(page, { admin: true, items: [candidate, correct] })
