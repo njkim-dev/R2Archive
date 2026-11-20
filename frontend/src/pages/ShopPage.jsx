@@ -21,6 +21,7 @@ import useShopImageAccess from '../components/shop/useShopImageAccess'
 import useShopWardrobe from '../components/shop/useShopWardrobe'
 import ShopMobilePanel from '../components/shop/ShopMobilePanel'
 import ShopCouplePreview from '../components/shop/ShopCouplePreview'
+import { ShopEffectDialog } from '../components/shop/ShopEffectPreview'
 import { canPreviewItem } from '../utils/shopPreview'
 import ShopHomeIdDialog,{HOME_DISCLOSURE} from '../components/shop/ShopHomeIdDialog'
 import ShopCoupleActions from '../components/shop/ShopCoupleActions'
@@ -125,6 +126,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const [toast, setToast] = useState('')
   const [copyFallback, setCopyFallback] = useState('')
   const [couple, setCouple] = useState(null)
+  const [effectItem, setEffectItem] = useState(null)
   const coupleWasOpen = useRef(false)
   const previousCoupleNavigation = useRef(false)
   const coupleOpen = !!couple && location.state?.shopCoupleMotion === navigationOwner
@@ -228,8 +230,9 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
             if (!initial.item) throw new Error('공유된 커플링 정보를 확인해주세요.')
             const item = await getShopItem(initial.item, catalog.revision)
             if (cancelled) return
-            if (item.category !== '507' || !item.couple_preview) throw new Error('공유된 커플링은 모션 미리보기를 지원하지 않습니다.')
-            setDepartment('functional'); setGroup('couple'); setDetail(item); setQuery(item.name.slice(0, 120))
+            if (!item.couple_preview) throw new Error('공유된 커플링은 모션 미리보기를 지원하지 않습니다.')
+            setDepartment(item.department); setGroup(item.group || ''); setDetail(item); setQuery(item.name.slice(0, 120))
+            if (item.is_unreleased) setHideUnreleased(false)
             let partner=null
             if(initial.partner){const otherSlots=emptySlots();await Promise.all(SHOP_SLOTS.map(async key=>{const id=initial.partner.slots[key];if(!id)return;const other=await getShopItem(id,catalog.revision);if(other.slot!==key||!other.preview_available||!other.model||!['common',initial.partner.sex].includes(other.sex))throw new Error('공유된 상대 의상을 확인해주세요.');otherSlots[key]=other}));if(cancelled)return;partner={sex:initial.partner.sex,slots:otherSlots}}
             setCouple({ item, sex: gender, slots: chosen, partner, shared:true, angle: initial.angle, zoom: initial.zoom, panX: initial.panX, panY: initial.panY, started: false })
@@ -241,7 +244,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
           const gender = item.sex === 'common' ? initial.sex || saved?.sex || 'male' : item.sex
           setDepartment(item.department); setSex(gender); setSlots(remembered[gender]); setDetail(item)
           if (item.is_unreleased) setHideUnreleased(false)
-          if (item.department === 'wearable' && (!item.preview_available || !item.model)) setHideUnavailable(false)
+          if (item.department === 'wearable' && !canPreviewItem(item)) setHideUnavailable(false)
           if (item.department !== 'wearable' && SHOP_GROUPS[item.department]?.some(([key]) => key === item.group)) {
             setGroup(item.group)
             if (item.group === 'pet_supplies') setSubgroup(item.subgroup || '')
@@ -546,7 +549,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
       </section>{framePanel(<aside className="shop-panel">
         {panelHeading(panelShowsOutfit ? '선택한 의상' : '아이템 정보')}{panelTabs}
         {panelShowsOutfit ? <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
-        {detail && <section className="shop-detail" hidden={mobile && !detailOnly && panelMode !== 'detail'} aria-label="선택한 아이템 정보">{!detailOnly&&<h2>아이템 정보</h2>}<div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}{!homeOnly&&<><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p></>}{detail.category === '507' && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>선택한 커플링 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
+        {detail && <section className="shop-detail" hidden={mobile && !detailOnly && panelMode !== 'detail'} aria-label="선택한 아이템 정보">{!detailOnly&&<h2>아이템 정보</h2>}<div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}{!homeOnly&&<><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p></>}{(detail.couple_preview || detail.category === '507' && !detail.effect_preview) && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>{detail.category === '507' ? '선택한 커플링 미리보기' : '커플액션 미리보기'}</button>}{detail.effect_preview && <button className="shop-couple-preview-button" onClick={() => setEffectItem(detail)}>장식 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
         {!detail && !panelShowsOutfit && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
       </aside>)}</div>
     </>}
@@ -555,6 +558,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     {idDialog && authenticated && !publicHome && <ShopHomeIdDialog anchorRef={copyHomeAnchor} onClose={() => setIdDialog(false)} onPublished={copyHome} characterId={characterId} initialName={owned.character?.name||''} />}
     {saveRequest&&authenticated&&<ShopCharacterPicker characters={{...characters,items:['remove','privacy'].includes(saveRequest.mode)?characters.items.filter(entry=>saveRequest.ids.some(id=>entry.ids.includes(id))).map(entry=>({...entry,privacyLabel:saveRequest.mode==='privacy'?((entry.private_ids||[]).includes(saveRequest.ids[0])?'현재 비공개':'현재 공개'):null})):characters.items}} version={meta?.revision} title={saveRequest.mode==='privacy'?'공개 상태를 변경할 캐릭터 선택':saveRequest.mode==='remove'?'제거할 캐릭터 선택':'저장할 캐릭터 선택'} sexFilter={saveRequest.sex} create={saveRequest.mode==='create'||characters.ready&&!characters.items.length} allowCreate={!['remove','privacy'].includes(saveRequest.mode)} onChoose={entry=>writeToCharacter(saveRequest,entry)} onClose={()=>setSaveRequest(null)}/>}
     {favoriteSlot && authenticated && applied && meta && <ShopFavoritePicker key={`${user.id}:${favoriteSlot}:${applied.sex}`} slot={favoriteSlot} sex={applied.sex} version={meta.revision} selected={applied.slots[favoriteSlot]} favorites={favorites} onChoose={equipFavorite} onClose={() => setFavoriteSlot(null)} />}
+    {effectItem && <ShopEffectDialog item={effectItem} onClose={() => setEffectItem(null)} />}
     {coupleOpen && <ShopCouplePreview selection={couple} meta={meta} onStart={startCouple} onClose={() => navigate(-1)} />}
     <footer className="shop-footer"><span>R2 ARCHIVE ㆍ 아이템 미리보기</span></footer>
   </main></ArchivePageLayout>

@@ -14,7 +14,7 @@ from auth import fetch_user, require_user_id
 from database import get_conn
 from shop_categories import DEPARTMENT_SQL, SLOT_SQL, GROUP_SQL, GROUPS, SUBGROUP_SQL, SUBGROUPS, department_sql, slot_sql
 from shop_counterparts import counterpart_sql, reviewed_pair_sql
-from shop_couple import preview as couple_preview
+from shop_couple import effect_item_ids, effect_preview, preview as couple_preview
 from shop_asset_store import find_asset
 from shop_sharing import public_home_owner
 
@@ -110,6 +110,10 @@ def serialize(row):
         item['is_new'] = False
     if item.get('category') == '507':
         item['couple_preview'] = couple_preview(SHOP_DIR, item['id'])
+    elif item.get('category') == '504' and (motion := couple_preview(SHOP_DIR, item['id'])):
+        item['couple_preview'] = motion
+    if effect := effect_preview(SHOP_DIR, item['id']):
+        item['effect_preview'] = effect
     return item
 
 
@@ -188,7 +192,12 @@ def items(
             conditions.append("sex IN (%s, 'common')")
             args.append(sex)
         if preview_only:
-            conditions.append('preview_available AND model IS NOT NULL')
+            effects = effect_item_ids(SHOP_DIR) if not (favorites_only or paired_only) else []
+            if effects:
+                conditions.append('((preview_available AND model IS NOT NULL) OR item_id = ANY(%s))')
+                args.append(effects)
+            else:
+                conditions.append('preview_available AND model IS NOT NULL')
         if favorites_only:
             conditions.append('EXISTS (SELECT 1 FROM shop_favorites AS favorite WHERE favorite.user_id = %s AND favorite.item_id = shop_items.item_id)')
             args.append(uid)

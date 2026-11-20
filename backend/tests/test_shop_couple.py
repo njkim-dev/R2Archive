@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 os.environ.setdefault('SESSION_SECRET', 'couple-preview-test-session-secret-at-least-32-characters')
 from routers import shop
-from shop_couple import catalog, preview
+from shop_couple import EXTENSION_SCHEMA, catalog, preview
 
 
 class CouplePreviewTests(unittest.TestCase):
@@ -44,6 +44,42 @@ class CouplePreviewTests(unittest.TestCase):
             data['rings']['30120']['audio'] = '../../secret.mp3'
             (Path(folder) / 'couple-catalog.json').write_text(json.dumps(data), encoding='utf8')
             self.assertIsNone(catalog(folder))
+
+    def test_extension_adds_actions_same_sex_and_standalone_effects(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(shop, 'SHOP_DIR', Path(folder)):
+            base = self.manifest(folder)
+            revision = 'f' * 20
+            original = preview(folder, 30120)
+            effect = {'model': 'e' * 64 + '.json.gz', 'animation': original['motion'].split('/')[-1]}
+            extra = {
+                'schema': EXTENSION_SCHEMA,
+                'revision': revision,
+                'motions': {'30497': base['rings']['30120']},
+                'same_sex': {'30120': {
+                    sex: {'revision': revision, 'motion': digit * 64 + '.json.gz'}
+                    for sex, digit in [('male', '1'), ('female', '2')]
+                }},
+                'ornaments': {'30120': effect},
+                'effects': {'30852': {**effect, 'duration': 2}},
+            }
+            path = Path(folder) / 'couple-preview-extension.json'
+            path.write_text(json.dumps(extra), encoding='utf8')
+            row = {'revision': base['revision'], 'preview_available': False, 'model': None}
+            action = shop.serialize({**row, 'id': 30497, 'category': '504'})
+            self.assertIn(revision, action['couple_preview']['motion'])
+            self.assertEqual(action['couple_preview']['bindings'], original['bindings'])
+            updated = preview(folder, 30120)
+            self.assertEqual(updated['motion'], original['motion'])
+            self.assertIn(revision, updated['same_sex_motions']['female'])
+            self.assertIn(revision, updated['ornament']['model'])
+            ornament = shop.serialize({**row, 'id': 30852, 'category': '507'})
+            self.assertIsNone(ornament['couple_preview'])
+            self.assertEqual(ornament['effect_preview']['duration'], 2)
+            self.assertFalse(ornament['preview_available'])
+            extra['effects']['30852']['animation'] = '../../private'
+            path.write_text(json.dumps(extra), encoding='utf8')
+            self.assertEqual(preview(folder, 30120), original)
+            self.assertNotIn('couple_preview', shop.serialize({**row, 'id': 30497, 'category': '504'}))
 
     def test_optional_lobby_and_action_models_have_versioned_public_urls(self):
         with tempfile.TemporaryDirectory() as folder:

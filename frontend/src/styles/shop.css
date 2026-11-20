@@ -25,6 +25,10 @@
 @media(max-width:800px){.shop-preview-grid .shop-slots{grid-template-columns:1fr}}@media(max-width:550px){.shop-login{min-width:62px;padding:6px 8px;font-size:10px!important}.shop-header{gap:12px}.shop-favorite-picker{padding:14px;gap:9px!important}.shop-favorite-items{grid-template-columns:1fr}.shop-favorite-status{font-size:10px}}
 .shop-couple-preview-button{display:block;width:100%;margin:16px 0 10px;padding:12px;border:1px solid #7bc7fa;border-radius:9px;background:#7bc7fa;color:#142339;font:inherit;font-weight:700;cursor:pointer}
 .shop-couple-preview-button:disabled{background:#263246;border-color:#465166;color:#98a5b8;cursor:not-allowed}
+.shop-couple-dialog.shop-effect-dialog{width:min(720px,calc(100% - 20px))}
+.shop-effect-controls{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.shop-couple-dialog.shop-effect-dialog:not(.shop-outfit-dialog)>.shop-couple-heading{display:flex;align-items:center}
+.shop-effect-dialog>.shop-couple-heading button{flex:none}
 .shop-couple-dialog{position:fixed;inset:0;width:min(1080px,calc(100% - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:22px;border:1px solid #465166;border-radius:16px;background:#151e2e;color:#e8eef8;overflow:auto}
 .shop-couple-dialog::backdrop{background:rgba(3,8,17,.8)}
 .shop-couple-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}

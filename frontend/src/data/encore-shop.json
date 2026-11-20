@@ -1297,7 +1297,13 @@
           "sex": "female",
           "slot": "accessory",
           "thumbnail": "/api/shop/assets/c69768318bc4be6f8098/thumbnails/bbf899eaa8d6ceaefcb1560a2ad007649fca043085fc5d979331609cdb2a72c8.webp",
-          "preview": false
+          "preview": false,
+          "effectPreview": {
+            "model": "/api/shop/assets/78d88aec19bc473464ed/models/60a4e6f3fa00401569970b8b221f9dd3bf5aaad925f1d2a354fa201c3e4644f9.json.gz",
+            "animation": "/api/shop/assets/78d88aec19bc473464ed/motions/eb2fa531ba78fe7d480265a6b316718a9dc3c2e5a04497c312adf8e3204ab791.json.gz",
+            "particles": "/api/shop/assets/78d88aec19bc473464ed/motions/7164ce2f4382922bda47dbb84b8d4c60b214cd1382200740c28b69f0856fb491.json.gz",
+            "duration": 1.0
+          }
         }
       ]
     },

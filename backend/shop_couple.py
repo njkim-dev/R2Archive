@@ -5,9 +5,46 @@ import re
 
 
 SCHEMA = 'shop-couple-motion-v1'
+EXTENSION_SCHEMA = 'shop-couple-preview-extension-v1'
 REVISION = re.compile(r'^[a-f0-9]{20}$')
 MOTION = re.compile(r'^[a-f0-9]{64}\.json\.gz$')
 AUDIO = re.compile(r'^[a-f0-9]{64}\.(?:mp3|ogg)$')
+ITEM_ID = re.compile(r'^\d{1,12}$')
+SEXES = {'male', 'female'}
+
+
+def _duration(value):
+    return type(value) in (int, float) and 0 < value <= 180
+
+
+def _effect(effect):
+    return isinstance(effect, dict) and MOTION.fullmatch(effect.get('model', '')) and MOTION.fullmatch(effect.get('animation', '')) and (
+        'particles' not in effect or MOTION.fullmatch(effect['particles'])
+    )
+
+
+def _same_sex(entries):
+    return isinstance(entries, dict) and entries.keys() == SEXES and all(
+        isinstance(entry, dict) and REVISION.fullmatch(entry.get('revision', '')) and MOTION.fullmatch(entry.get('motion', ''))
+        for entry in entries.values()
+    )
+
+
+def _motion(item):
+    if not isinstance(item, dict) or not MOTION.fullmatch(item.get('motion', '')) or not AUDIO.fullmatch(item.get('audio', '')) or not _duration(item.get('duration')):
+        return False
+    if 'same_sex' in item and not _same_sex(item['same_sex']):
+        return False
+    effects = item.get('effects', [])
+    return isinstance(effects, list) and len(effects) <= 8 and all(
+        _effect(effect) and effect.get('sex') in SEXES for effect in effects
+    ) and ('ornament' not in item or _effect(item['ornament']))
+
+
+def _items(entries, predicate):
+    return isinstance(entries, dict) and len(entries) <= 1000 and all(
+        ITEM_ID.fullmatch(item_id) and predicate(entry) for item_id, entry in entries.items()
+    )
 
 
 @lru_cache(maxsize=1)
@@ -17,58 +54,85 @@ def _load(path, modified, size):
     data = json.loads(Path(path).read_text(encoding='utf8'))
     if data.get('schema') != SCHEMA or not REVISION.fullmatch(data.get('revision', '')) or not MOTION.fullmatch(data.get('bindings', '')):
         return None
-    rings = data.get('rings')
-    if not isinstance(rings, dict) or len(rings) > 1000:
+    return data if _items(data.get('rings'), _motion) else None
+
+
+@lru_cache(maxsize=1)
+def _load_extension(path, modified, size):
+    if size > 1024 * 1024:
         return None
-    for item_id, item in rings.items():
-        if not re.fullmatch(r'\d{1,12}', item_id) or not isinstance(item, dict) or not MOTION.fullmatch(item.get('motion', '')) or not AUDIO.fullmatch(item.get('audio', '')):
-            return None
-        if not isinstance(item.get('duration'), (int, float)) or not 0 < item['duration'] <= 180:
-            return None
-        if 'same_sex' in item:
-            if str(item_id) not in {'30855','30854','30846'} or set(item['same_sex'])!={'male','female'}:
-                return None
-            if any(not REVISION.fullmatch(entry.get('revision','')) or not MOTION.fullmatch(entry.get('motion','')) for entry in item['same_sex'].values()):
-                return None
-        effects = item.get('effects', [])
-        if not isinstance(effects, list) or len(effects) > 8:
-            return None
-        for effect in [*effects, *([item['ornament']] if 'ornament' in item else [])]:
-            if not isinstance(effect, dict) or not MOTION.fullmatch(effect.get('model', '')) or not MOTION.fullmatch(effect.get('animation', '')):
-                return None
-            if 'particles' in effect and not MOTION.fullmatch(effect.get('particles', '')):
-                return None
-        if any(effect.get('sex') not in ['male', 'female'] for effect in effects):
-            return None
-    return data
+    data = json.loads(Path(path).read_text(encoding='utf8'))
+    if data.get('schema') != EXTENSION_SCHEMA or not REVISION.fullmatch(data.get('revision', '')):
+        return None
+    sections = {
+        'motions': _motion,
+        'same_sex': _same_sex,
+        'ornaments': _effect,
+        'effects': lambda entry: _effect(entry) and _duration(entry.get('duration')),
+    }
+    return data if all(_items(data.get(key, {}), predicate) for key, predicate in sections.items()) else None
 
 
-def catalog(shop_dir):
-    path = Path(shop_dir) / 'couple-catalog.json'
+def _read(path, loader):
     try:
         stat = path.stat()
-        return _load(str(path), stat.st_mtime_ns, stat.st_size)
+        return loader(str(path), stat.st_mtime_ns, stat.st_size)
     except (OSError, ValueError, TypeError, AttributeError):
         return None
 
 
+def catalog(shop_dir):
+    return _read(Path(shop_dir) / 'couple-catalog.json', _load)
+
+
+def extension(shop_dir):
+    return _read(Path(shop_dir) / 'couple-preview-extension.json', _load_extension)
+
+
+def _effect_urls(revision, effect):
+    prefix = f'/api/shop/assets/{revision}'
+    result = {'model': f"{prefix}/models/{effect['model']}", 'animation': f"{prefix}/motions/{effect['animation']}"}
+    if 'particles' in effect:
+        result['particles'] = f"{prefix}/motions/{effect['particles']}"
+    return result
+
+
 def preview(shop_dir, item_id):
     data = catalog(shop_dir)
-    item = data['rings'].get(str(item_id)) if data else None
+    if not data:
+        return None
+    item_id = str(item_id)
+    extra = extension(shop_dir) or {}
+    item = data['rings'].get(item_id)
+    revision = data['revision']
+    if not item and (item := extra.get('motions', {}).get(item_id)):
+        revision = extra['revision']
     if not item:
         return None
-    prefix = f"/api/shop/assets/{data['revision']}"
-    result = {'motion': f"{prefix}/motions/{item['motion']}", 'bindings': f"{prefix}/motions/{data['bindings']}", 'audio': f"{prefix}/audio/{item['audio']}", 'duration': item['duration']}
-    if item.get('same_sex'):
-        result['same_sex_motions']={sex:f"/api/shop/assets/{entry['revision']}/motions/{entry['motion']}" for sex,entry in item['same_sex'].items()}
-        result['actor_roles']=item.get('actor_roles',{})
-    def effect_urls(effect):
-        urls = {'model': f"{prefix}/models/{effect['model']}", 'animation': f"{prefix}/motions/{effect['animation']}"}
-        if effect.get('particles'):
-            urls['particles'] = f"{prefix}/motions/{effect['particles']}"
-        return urls
-    if 'ornament' in item:
-        result['ornament'] = effect_urls(item['ornament'])
+    prefix = f'/api/shop/assets/{revision}'
+    result = {'motion': f"{prefix}/motions/{item['motion']}", 'bindings': f"/api/shop/assets/{data['revision']}/motions/{data['bindings']}", 'audio': f"{prefix}/audio/{item['audio']}", 'duration': item['duration']}
+    same_sex = item.get('same_sex') or extra.get('same_sex', {}).get(item_id)
+    if same_sex:
+        result['same_sex_motions'] = {sex: f"/api/shop/assets/{entry['revision']}/motions/{entry['motion']}" for sex, entry in same_sex.items()}
+        result['actor_roles'] = item.get('actor_roles', {})
+    ornament = extra.get('ornaments', {}).get(item_id)
+    if ornament:
+        result['ornament'] = _effect_urls(extra['revision'], ornament)
+    elif 'ornament' in item:
+        result['ornament'] = _effect_urls(revision, item['ornament'])
     if item.get('effects'):
-        result['effects'] = [{**effect_urls(effect), 'sex': effect['sex']} for effect in item['effects']]
+        result['effects'] = [{**_effect_urls(revision, effect), 'sex': effect['sex']} for effect in item['effects']]
     return result
+
+
+def effect_preview(shop_dir, item_id):
+    data = extension(shop_dir)
+    effect = data.get('effects', {}).get(str(item_id)) if data else None
+    if effect:
+        return {**_effect_urls(data['revision'], effect), 'duration': effect['duration']}
+    return None
+
+
+def effect_item_ids(shop_dir):
+    data = extension(shop_dir)
+    return [int(item_id) for item_id in data.get('effects', {})] if data else []

@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test'
-import {coupleFixture,coupleRing} from './coupleFixtures.js'
-import {version,copiedShopUrl, openShopFilters } from './shopFixtures.js'
+import {coupleFixture,coupleRing,coupleRoot} from './coupleFixtures.js'
+import {version,copiedShopUrl,openShopFilters,mesh,root} from './shopFixtures.js'
 import {watchLayout} from './layout.js'
 
 test('recovered unreleased ring opens without an unavailable tag and preserves outfits and layout while loading',async({page})=>{
@@ -37,4 +37,76 @@ test('recovered unreleased ring opens without an unavailable tag and preserves o
   await dialog.getByRole('button',{name:'커플 모션 미리보기 닫기',exact:true}).click()
   await expect(dialog).not.toBeVisible()
   expect(new URL(page.url()).searchParams.get('top')).toBe('201')
+})
+
+test('recovered couple action opens from its item and restores from its shared URL', async ({page}) => {
+  const action = {...coupleRing,id:'30497',name:'커플액션-사르르댄스',category:'504',group:'emote'}
+  await coupleFixture(page, {loggedIn:false,extraItems:[action]})
+  await page.goto(`/shop?v=${version}&item=${action.id}`)
+  await page.getByRole('button',{name:'커플액션 미리보기',exact:true}).click()
+  const dialog = page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true})
+  await expect(dialog.locator('canvas')).toHaveAttribute('data-motion-frame',/\d+/)
+  await dialog.getByRole('button',{name:'URL 복사',exact:true}).click()
+  const shared = await copiedShopUrl(page)
+  expect(Object.fromEntries(shared.searchParams)).toMatchObject({view:'couple',item:action.id})
+  await page.goto(shared.pathname+shared.search)
+  await dialog.getByRole('button',{name:'커플 모션 시작',exact:true}).click()
+  await expect(dialog.locator('canvas')).toHaveAttribute('data-motion-frame',/\d+/)
+  await expect(dialog.getByText(action.name,{exact:true})).toBeVisible()
+})
+
+test('the composition controls change both actors and preserve the shared combination', async ({page}) => {
+  await coupleFixture(page,{sameSex:true,loggedIn:false})
+  await page.goto(`/shop?v=${version}&view=couple&item=30854&sex=male`)
+  const dialog = page.getByRole('dialog',{name:'커플 모션 미리보기',exact:true})
+  const group = dialog.getByRole('group',{name:'커플 조합'})
+  await group.getByRole('button',{name:'여여',exact:true}).click()
+  await expect(group.getByRole('button',{name:'여여',exact:true})).toHaveAttribute('aria-pressed','true')
+  await expect(dialog.locator('[data-actor="primary"]')).toContainText('여성')
+  await expect(dialog.locator('[data-actor="partner"]')).toContainText('여성')
+  await dialog.getByRole('button',{name:'커플 모션 시작',exact:true}).click()
+  await expect(dialog.locator('canvas')).toHaveAttribute('data-motion-frame',/\d+/)
+  await group.getByRole('button',{name:'남남',exact:true}).click()
+  await expect(dialog.locator('[data-actor="primary"]')).toContainText('남성')
+  await expect(dialog.locator('[data-actor="partner"]')).toContainText('남성')
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  await dialog.getByRole('button',{name:'URL 복사',exact:true}).click()
+  const shared = await copiedShopUrl(page)
+  expect(Object.fromEntries(shared.searchParams)).toMatchObject({sex:'male',partnerSex:'male'})
+  await page.goto(shared.pathname+shared.search)
+  await expect(group.getByRole('button',{name:'남남',exact:true})).toHaveAttribute('aria-pressed','true')
+  await group.getByRole('button',{name:'남녀',exact:true}).click()
+  await expect(dialog.locator('[data-actor="partner"]')).toContainText('여성')
+})
+
+test('an ornament-only ring opens without audio and its loading state keeps the layout stable', async ({page}) => {
+  let release
+  const gate = new Promise(resolve => {release = resolve})
+  const effect = {model:root+'/models/'+'e'.repeat(64)+'.json.gz',animation:coupleRoot+'f'.repeat(64)+'.json.gz',duration:1}
+  const ring = {...coupleRing,id:'30852',name:'브릴리언트 스타즈',couple_preview:null,effect_preview:effect}
+  await coupleFixture(page,{loggedIn:false,extraItems:[ring]})
+  const matrices = Array.from({length:2},() => [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]).flat()
+  await page.route('**'+effect.model,route => route.fulfill({json:{...mesh,texture_revision:version}}))
+  await page.route('**'+effect.animation,async route => {
+    await gate
+    return route.fulfill({json:{schema:'shop-couple-effect-v1',frame_count:2,bounds:[[-20,20,0],[20,280,0]],meshes:[{name:'Waist',frames:matrices}]}})
+  })
+  await page.goto(`/shop?v=${version}&item=${ring.id}`)
+  await expect(page.locator('.shop-detail .shop-preview-unavailable')).toHaveCount(0)
+  await expect(page.getByRole('button',{name:'선택한 커플링 미리보기',exact:true})).toHaveCount(0)
+  await page.getByRole('button',{name:'장식 미리보기',exact:true}).click()
+  const dialog = page.getByRole('dialog',{name:'장식 미리보기',exact:true})
+  await expect(dialog.getByRole('img',{name:'장식 효과 3D 미리보기'})).toBeVisible()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('3D 모델을 준비 중입니다.')
+  const layout = await watchLayout(page,['.shop-effect-dialog .shop-couple-heading','.shop-effect-dialog .shop-stage','.shop-effect-controls'])
+  await layout.expectStable()
+  release()
+  await expect(dialog.locator('.shop-stage-status')).toHaveText('')
+  await layout.expectStable()
+  await layout.stop()
+  await dialog.getByRole('button',{name:'일시정지',exact:true}).click()
+  await expect(dialog.getByRole('button',{name:'재생',exact:true})).toBeVisible()
+  expect(await page.evaluate(() => window.__coupleAudio.length)).toBe(0)
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
 })

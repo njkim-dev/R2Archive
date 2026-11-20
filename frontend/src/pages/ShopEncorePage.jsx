@@ -116,7 +116,7 @@ function EncorePreview({ offer, version, sex, onSex }) {
         {items.map(item => <li key={item.name}>
           <button type="button" aria-pressed={part === item} onClick={() => setPartName(item.name)}>
             <EncoreThumb item={item} />
-            <span>{item.name}<small>{item.slot ? SLOT_LABELS[item.slot] : '의상'}{!item.preview && ' · 아이콘 보기'}</small></span>
+            <span>{item.name}<small>{item.slot ? SLOT_LABELS[item.slot] : '의상'}{!item.preview && (item.effectPreview ? ' · 장식 효과 보기' : ' · 아이콘 보기')}</small></span>
           </button>
         </li>)}
       </ul>

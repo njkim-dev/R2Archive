@@ -35,7 +35,7 @@ async function model(url) {
   return modelCache.get(url)
 }
 
-export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, effectPreview = null, effectPlaying = true, audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange, onReady, onFailure, partnerSex,disposeContext=false }) {
+export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, effectPreview = null, effectPlaying = true, effectLabel = '단짝 효과 3D 미리보기', audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange, onReady, onFailure, partnerSex,disposeContext=false }) {
   const otherSex=partnerSex||(sex==='male'?'female':'male')
   const canvasRef = useRef(null)
   const rendererRef = useRef(null)
@@ -391,7 +391,7 @@ export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle
   }, [angle, zoom, panX, panY, status, motion, couplePreview, effectPreview, effectPlaying])
   useEffect(()=>{if(status)return;const frame=requestAnimationFrame(()=>callbacks.current.onReady?.(canvasRef.current));return()=>cancelAnimationFrame(frame)},[status])
   return <div className="shop-stage">
-    <canvas ref={canvasRef} tabIndex={0} data-view-mode={mode} role="img" aria-label={effectPreview ? '단짝 효과 3D 미리보기' : pair ? '두 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
+    <canvas ref={canvasRef} tabIndex={0} data-view-mode={mode} role="img" aria-label={effectPreview ? effectLabel : pair ? '두 캐릭터의 전신 의상 미리보기' : '선택한 아이템을 착용한 전신 캐릭터'} />
     <div className="shop-stage-status" role={failed ? 'alert' : 'status'}>{status}</div>
     {!effectPreview && <div className="shop-character-labels"><span data-actor="primary">{sex==='male'?'남성':'여성'} ㆍ {sex===selectedSex?'선택한 의상':'대응 의상'}</span>{pair&&<span data-actor="partner">{otherSex==='male'?'남성':'여성'} ㆍ 대응 의상</span>}</div>}
   </div>

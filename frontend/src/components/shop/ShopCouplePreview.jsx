@@ -17,10 +17,27 @@ import ShopViewer from './ShopViewer'
 const empty=()=>Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,null]))
 const renderSlots=slots=>({...slots,pet:null,accessory:null,summon:null})
 const mainSlots=mains=>Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,mains.find(main=>main.slot===slot&&main.item.preview_available&&main.item.model)?.item||null]))
+const compositions = [['mixed', '남녀'], ['male', '남남'], ['female', '여여']]
+
+function compose(actors, choice) {
+  if (!actors || !choice) return actors
+  const { primary, partner } = actors
+  if (choice === 'mixed') {
+    if (primary.sex !== partner.sex) return actors
+    return { primary, partner: { sex: primary.sex === 'male' ? 'female' : 'male', slots: empty() } }
+  }
+  if (primary.sex === choice && partner.sex === choice) return actors
+  const selected = primary.sex === choice ? primary : partner.sex === choice ? partner : { sex: choice, slots: empty() }
+  return { primary: selected, partner: { sex: choice, slots: empty() } }
+}
 
 export default function ShopCouplePreview({selection,meta,onStart,onClose}){
   const dialog=useRef(null),[camera,setCamera]=useState({angle:selection.angle??180,zoom:selection.zoom??100,panX:selection.panX??0,panY:selection.panY??0}),[mode,setMode]=useState('rotate')
-  const [actors,setActors]=useState(null),[error,setError]=useState(''),[toast,setToast]=useState(''),[fallback,setFallback]=useState(''),[urlPicker,setUrlPicker]=useState(false),[ownPicker,setOwnPicker]=useState(false)
+  const [resolvedActors,setResolvedActors]=useState(null),[error,setError]=useState(''),[toast,setToast]=useState(''),[fallback,setFallback]=useState(''),[urlPicker,setUrlPicker]=useState(false),[ownPicker,setOwnPicker]=useState(false)
+  const [composition, setComposition] = useState(null)
+  const actors = useMemo(() => compose(resolvedActors, composition), [resolvedActors, composition])
+  const selectedComposition = actors && (actors.primary.sex === actors.partner.sex ? actors.primary.sex : 'mixed')
+  const sameSex = selection.item.couple_preview.same_sex_motions
   const timer=useRef(null),fallbackInput=useRef(null),active=useRef(true)
   const couples=useCouples(),partnerReads=useRef(new Map()),fallbackNotified=useRef(false)
   const [fallbackNotice,setFallbackNotice]=useState(false),[viewerReady,setViewerReady]=useState(false)
@@ -60,7 +77,7 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
         if(other.sex===partner.sex&&other.slot===key&&other.preview_available&&other.model)partner.slots[key]=other
       }))
       if(partner.sex===primary.sex&&!selection.item.couple_preview.same_sex_motions?.[primary.sex])throw new Error('동성 커플이 불가능한 반지입니다.')
-      if(!cancelled)setActors({primary,partner})
+      if(!cancelled)setResolvedActors({primary,partner})
     }
     restore().catch(e=>{if(!cancelled)setError(e.message||'선택한 의상을 불러오지 못했습니다.')})
     return()=>{cancelled=true}
@@ -88,7 +105,9 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
     if(entry.character.sex===actors.primary.sex&&!selection.item.couple_preview.same_sex_motions?.[actors.primary.sex]){alert('동성 커플이 불가능한 반지입니다.');return false}
     const slots=empty()
     for(const main of entry.mains)if(SHOP_SLOTS.includes(main.slot)&&main.item.preview_available&&main.item.model)slots[main.slot]=main.item
-    setActors(previous=>({...previous,partner:{sex:entry.character.sex,slots}}));return true
+    setResolvedActors({ primary: actors.primary, partner: { sex: entry.character.sex, slots } })
+    setComposition(null)
+    return true
   }
   return <dialog ref={dialog} className="shop-couple-dialog" aria-label="커플 모션 미리보기" onCancel={event=>{event.preventDefault();onClose()}}>
     <div className="shop-couple-heading"><div><h2>커플 모션 미리보기</h2><p>{selection.item.name||`커플링 ${selection.item.id}`}</p></div><div className="shop-couple-actions">{(selection.shared||actors&&!registeredPartner)&&<button disabled={!actors||selection.shared&&(!authLoaded||!user)} data-tooltip={selection.shared&&!user?'로그인하세요':undefined} onClick={()=>selection.shared?setOwnPicker(true):setUrlPicker(true)}>{selection.shared?'내 캐릭터 의상 불러오기':'내 커플 의상 불러오기'}</button>}<button disabled={!actors} onClick={copy}><Copy size={16}/><span>URL 복사</span></button><button aria-label="커플 모션 미리보기 닫기" onClick={onClose}><X size={22}/><span>닫기</span></button></div></div>
@@ -97,6 +116,11 @@ export default function ShopCouplePreview({selection,meta,onStart,onClose}){
       {fallbackNotice&&viewerReady&&<div className="shop-couple-fallback-notice" role="status" aria-live="polite"><span>동성 커플은 이성 커플 정보를 볼 수 없어, 동일한 이성 의상으로 대체합니다.</span><button aria-label="의상 대체 안내 닫기" onClick={()=>setFallbackNotice(false)}><X size={16}/></button></div>}
       {!selection.started&&actors&&!error&&<div className="shop-couple-start"><button onClick={onStart}>커플 모션 시작</button><p>버튼을 누르면 모션과 소리가 함께 재생됩니다.</p></div>}
     </div>
+    {sameSex && <div className="shop-view-controls" role="group" aria-label="커플 조합">
+      {compositions.filter(([value]) => value === 'mixed' || sameSex[value]).map(([value, label]) =>
+        <button key={value} type="button" disabled={!actors} aria-pressed={selectedComposition === value}
+          onClick={() => setComposition(value)}>{label}</button>)}
+    </div>}
     <ShopViewModes mode={mode} onChange={setMode}/>
     <p className="shop-couple-note">선택하지 않은 부위와 대응 아이템이 없는 부위는 기본 의상으로 표시됩니다.</p>
     <p className="shop-couple-purchase-note">게임 내 아이템과는 차이가 있을 수 있습니다. 반드시 인 게임에서 상세히 확인 후 구매하시기 바랍니다.</p>

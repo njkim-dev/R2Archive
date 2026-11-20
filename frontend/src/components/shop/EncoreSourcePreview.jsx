@@ -1,36 +1,19 @@
 import { useState } from 'react'
-import ShopViewer from './ShopViewer'
-import ShopViewModes from './ShopViewModes'
+import ShopEffectPreview from './ShopEffectPreview'
 
-const empty = {}
-const initialCamera = { angle: 180, zoom: 100, panX: 0, panY: 0 }
 const shouldPlay = () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 function PlaybackButton({ playing, onToggle }) {
   return <button type="button" onClick={onToggle}>{playing ? '일시정지' : '재생'}</button>
 }
 
-function RoomEffect({ effect }) {
-  const [playing, setPlaying] = useState(shouldPlay)
-  const [camera, setCamera] = useState(initialCamera)
-  const [mode, setMode] = useState('rotate')
-  return <>
-    <div className="encore-stage">
-      <ShopViewer effectPreview={effect} effectPlaying={playing} slots={empty} counterparts={empty}
-        {...camera} mode={mode} onViewChange={setCamera} disposeContext />
-    </div>
-    <div className="encore-preview-controls encore-source-controls">
-      <ShopViewModes mode={mode} onChange={setMode} />
-      <div className="encore-filter"><PlaybackButton playing={playing} onToggle={() => setPlaying(value => !value)} /></div>
-    </div>
-  </>
-}
-
 export default function EncoreSourcePreview({ item }) {
   const [choice, setChoice] = useState(0)
   const [playing, setPlaying] = useState(shouldPlay)
   const [failedUrl, setFailedUrl] = useState(null)
-  if (item.effectPreview) return <RoomEffect effect={item.effectPreview} />
+  if (item.effectPreview) return <ShopEffectPreview effect={item.effectPreview}
+    effectLabel={item.slot === 'accessory' ? '장식 효과 3D 미리보기' : undefined}
+    stageClass="encore-stage" controlsClass="encore-preview-controls encore-source-controls" />
 
   const media = item.imagePreview
   const variant = media.variants?.[choice]
