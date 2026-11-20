@@ -9,19 +9,19 @@ def archive_index(pak):
         return []
     with pak.open('rb') as stream:
         stream.seek(-9, 2)
-        hint, _, marker = struct.unpack('<IIB', stream.read())
-        if marker != 18 or hint >= size:
+        hint, count, marker = struct.unpack('<IIB', stream.read())
+        if marker not in (0, 18) or hint > size - 9:
             raise ValueError('Unsupported game archive footer')
-        origin = max(0, hint - 256)
+        origin = hint if marker == 0 else max(0, hint - 256)
         stream.seek(origin)
         data = stream.read(size - 9 - origin)
     roots = re.finditer(rb'([\x01-\xff])\x02\x00{12}([A-Za-z0-9_]+)\x00', data)
     root = next((entry for entry in roots if entry[1][0] == len(entry[2])), None)
-    if root is None:
+    if root is None or (marker == 0 and root.start() != 0):
         if size <= 32:
             return []
         raise ValueError('Game archive directory missing')
-    cursor, entries = root.start(), []
+    cursor, entry_count, entries = root.start(), 0, []
     while cursor < len(data):
         length, kind, start, packed, unpacked = struct.unpack_from('<BBIII', data, cursor)
         cursor += 14
@@ -29,6 +29,7 @@ def archive_index(pak):
         if not length or cursor + length >= len(data) or data[cursor + length] != 0:
             raise ValueError('Invalid game archive filename')
         cursor += length + 1
+        entry_count += 1
         try:
             relative = name.decode('cp949').replace('\\', '/')
         except UnicodeError:
@@ -40,6 +41,8 @@ def archive_index(pak):
         if start + packed > origin + root.start() or unpacked > 256 * 1024 * 1024:
             raise ValueError('Invalid game archive data bounds')
         entries.append((pak, relative, kind, start, packed, unpacked))
+    if marker == 0 and entry_count != count:
+        raise ValueError('Invalid game archive entry count')
     return entries
 
 

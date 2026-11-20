@@ -116,6 +116,22 @@ class ResourceRecoveryTests(unittest.TestCase):
             self.assertEqual(source.resolve(entries[0][1]).read_bytes(), b'A')
             self.assertFalse(source.archive_errors)
 
+    def test_archive_reads_zero_marker_directory_at_footer_offset(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            payload = b'\0A'
+            index = bytearray()
+            for name, kind, packed, unpacked in [(b'rnr_room_fx', 2, 0, 0), (b'rnr_room_fx/clip.ani', 1, 2, 1)]:
+                index += struct.pack('<BBIII', len(name), kind, 0, packed, unpacked) + name + b'\0'
+            pak = root / 'rnr_room_fx_f_005.pak'
+            pak.write_bytes(payload + index + struct.pack('<IIB', len(payload), 2, 0))
+            source = ArchiveSource(root, root / 'extracted')
+            self.assertEqual(source.resolve('rnr_room_fx/clip.ani').read_bytes(), b'A')
+            self.assertFalse(source.archive_errors)
+            pak.write_bytes(payload + index + struct.pack('<IIB', len(payload), 3, 0))
+            with self.assertRaisesRegex(ValueError, 'Invalid game archive entry count'):
+                archive_index(pak)
+
     def test_missing_texture_requires_an_explicit_reviewed_alias(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
