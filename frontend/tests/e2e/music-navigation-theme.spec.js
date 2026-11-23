@@ -20,7 +20,7 @@ for (const width of [1440, 390]) test(`music navigation shares the archive theme
   })
   await page.goto('/')
   const mobile = width < 768
-  const selectors = mobile ? ['.app-mobile', '.mob-top', '.archive-mobile-bottom'] : ['.main', '.topbar', '.archive-sidebar .archive-primary-nav']
+  const selectors = mobile ? ['.app-mobile', '.mob-top', '.archive-mobile-bottom'] : ['.main', '.topbar', '.archive-mobile-header .archive-desktop-nav']
   await expect(page.locator(selectors[0])).toBeVisible()
   const loading = await watchLayout(page, selectors)
   release()
@@ -41,7 +41,6 @@ for (const width of [1440, 390]) test(`music navigation shares the archive theme
     semantic.push(await category.evaluate(node => getComputedStyle(node).color))
     await transition.expectStable()
     await transition.stop()
-    if (mobile) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
     const current = page.getByRole('link', { name: '곡 목록', exact: true })
     await expect(current).toBeVisible()
     expect(await current.evaluate(node => getComputedStyle(node).color)).toBe(color)
@@ -51,7 +50,6 @@ for (const width of [1440, 390]) test(`music navigation shares the archive theme
       expect(await current.evaluate(node => getComputedStyle(node).backgroundColor)).toBe(await primary.evaluate(node => getComputedStyle(node).backgroundColor))
       expect(await current.evaluate(node => getComputedStyle(node, '::before').display)).toBe('none')
     }
-    if (mobile) await page.keyboard.press('Escape')
   }
   expect(new Set(semantic).size).toBe(3)
   await page.getByRole('button', { name: /^상세 필터/ }).click()

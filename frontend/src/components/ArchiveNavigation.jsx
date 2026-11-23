@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil, ShieldCheck, ShoppingBag, Store, UserRound, Wrench, X } from 'lucide-react'
+import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil, ShieldCheck, ShoppingBag, UserRound, Wrench, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { archiveSection, navigationTarget } from '../utils/archiveNavigation'
 import PageNavigation from './PageNavigation'
-import { ARCHIVE_BASE, isXyxMode, SERVER_MODE } from '../utils/serverMode'
+import { ARCHIVE_BASE, SERVER_MODE } from '../utils/serverMode'
 import { makeSearchRestoreState, saveCurrentListState, withRestoreListParam } from '../utils/listState'
 import { lockShopScroll } from './shop/shopModalScroll'
 import { rememberShopReturn } from '../utils/shopUrl'
@@ -12,7 +12,7 @@ import { rememberShopReturn } from '../utils/shopUrl'
 const ArchiveLoginContext = createContext(null)
 
 const titles = { music: '음악', kr: '한국 서버 음악', xyx: '중국 서버 음악', encore: '앙코르 상점', shop: '상점', home: '마이홈', repair: '게임 복구', feedback: '피드백', admin: '관리자 도구' }
-const primary = [['kr', Music2], ['xyx', Music2], ['encore', Store], ['shop', ShoppingBag], ['home', Home]]
+const primary = [['music', Music2], ['shop', ShoppingBag], ['home', Home], ['repair', Wrench]]
 
 function useNativeDialog() {
   const [blocked, setBlocked] = useState(false)
@@ -48,7 +48,7 @@ function NavigationItem({ section, active, onNavigate, children, className = '' 
 }
 
 export function ArchivePrimaryNavigation({ section, onNavigate, className = '' }) {
-  return <nav className={`archive-primary-nav ${className}`} aria-label="주요 페이지">{primary.map(([key, Icon]) => <NavigationItem key={key} section={key} active={section === 'music' ? key === (isXyxMode() ? 'xyx' : 'kr') : section === key || section === 'admin' && key === 'shop'} onNavigate={onNavigate} className="archive-primary-item"><Icon size={18} aria-hidden="true" /><span>{titles[key]}</span></NavigationItem>)}</nav>
+  return <nav className={`archive-primary-nav ${className}`} aria-label="주요 페이지">{primary.map(([key, Icon]) => <NavigationItem key={key} section={key} active={section === key || ['encore', 'admin'].includes(section) && key === 'shop'} onNavigate={onNavigate} className="archive-primary-item"><Icon size={18} aria-hidden="true" /><span>{titles[key]}</span></NavigationItem>)}</nav>
 }
 
 function ArchiveAccount({ onNavigate }) {
@@ -67,15 +67,16 @@ function ArchiveAccount({ onNavigate }) {
 
 function ArchiveNavigationFooter({ section, onNavigate }) {
   const { adminLoaded, isAdmin } = useStore()
-  return <footer className="archive-navigation-footer"><NavigationItem section="repair" active={section === 'repair'} onNavigate={onNavigate} className="archive-footer-item"><Wrench size={17} />게임 복구</NavigationItem><NavigationItem section="feedback" active={section === 'feedback'} onNavigate={onNavigate} className="archive-footer-item"><MessageCircle size={17} />피드백</NavigationItem><div className="archive-admin-slot">{adminLoaded && isAdmin && <NavigationItem section="admin" active={section === 'admin'} onNavigate={onNavigate} className="archive-footer-item"><ShieldCheck size={17} />관리자 도구</NavigationItem>}</div><ArchiveAccount onNavigate={onNavigate} /></footer>
+  return <footer className="archive-navigation-footer"><NavigationItem section="feedback" active={section === 'feedback'} onNavigate={onNavigate} className="archive-footer-item"><MessageCircle size={17} />피드백</NavigationItem><div className="archive-admin-slot">{adminLoaded && isAdmin && <NavigationItem section="admin" active={section === 'admin'} onNavigate={onNavigate} className="archive-footer-item"><ShieldCheck size={17} />관리자 도구</NavigationItem>}</div><ArchiveAccount onNavigate={onNavigate} /></footer>
 }
 
-export function ArchiveSidebar({ children, className = '', section: override, inactive = false }) {
-  const location = useLocation(), blocked = useNativeDialog(), section = override || archiveSection(location.pathname)
-  return <aside className={`side archive-sidebar ${className}`} aria-label="사이트 탐색" aria-hidden={blocked || inactive || undefined} inert={blocked || inactive ? '' : undefined}><ArchiveBrand /><ArchivePrimaryNavigation section={section} /><div className="archive-sidebar-context">{children}</div><ArchiveNavigationFooter section={section} /></aside>
+export function ArchiveSidebar({ children, className = '', inactive = false }) {
+  const blocked = useNativeDialog()
+  if (!children) return null
+  return <aside className={`side archive-sidebar ${className}`} aria-label="사이트 탐색" aria-hidden={blocked || inactive || undefined} inert={blocked || inactive ? '' : undefined}><div className="archive-sidebar-context">{children}</div></aside>
 }
 
-export function ArchiveMobileNavigation({ context, section: override }) {
+export function ArchiveNavigation({ context, section: override, inactive = false }) {
   const location = useLocation(), section = override || archiveSection(location.pathname), [open, setOpen] = useState(false), dialog = useRef(null), opener = useRef(null), blocked = useNativeDialog()
   useEffect(() => { setOpen(false) }, [location.pathname, location.search])
   useLayoutEffect(() => {
@@ -85,9 +86,35 @@ export function ArchiveMobileNavigation({ context, section: override }) {
     return () => { node.close(); release(); setTimeout(() => opener.current?.focus(), 0) }
   }, [open])
   const close = () => setOpen(false)
-  return <><header className="archive-mobile-header" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><button type="button" aria-label="전체 메뉴 열기" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={21} /></button><a href="https://r2archive.com/?refresh=home" aria-label="R2 Archive 메인 홈페이지">R2 ARCHIVE</a><div className="archive-mobile-account"><ArchiveAccount /></div></header><div className="archive-mobile-bottom" aria-hidden={blocked || undefined} inert={blocked ? '' : undefined}><ArchivePrimaryNavigation section={section} /><button className="archive-more" type="button" onClick={event => { opener.current = event.currentTarget; setOpen(true) }}><Menu size={20} /><span>전체 메뉴</span></button></div><dialog ref={dialog} className="archive-menu-dialog" aria-label="전체 메뉴" onCancel={event => { event.preventDefault(); close() }} onClick={event => { const box = event.currentTarget.getBoundingClientRect(); if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right)) close() }}>{open && <><div className="archive-menu-heading"><ArchiveBrand /><button aria-label="전체 메뉴 닫기" type="button" onClick={close}><X size={21} /></button></div><ArchivePrimaryNavigation section={section} onNavigate={close} /><div className="archive-menu-context" onClick={event => { if (event.target.closest('a,button')) close() }}>{context || (section === 'music' ? <PageNavigation onNavigate={close} /> : null)}</div><ArchiveNavigationFooter section={section} onNavigate={close} /></>}</dialog></>
+  const unavailable = blocked || inactive
+  const showMenu = event => { opener.current = event.currentTarget; setOpen(true) }
+  const music = section === 'music'
+  return <>
+    <header className="archive-mobile-header" aria-hidden={unavailable || undefined} inert={unavailable ? '' : undefined}>
+      <ArchiveBrand />
+      <ArchivePrimaryNavigation section={section} className="archive-desktop-nav" />
+      <div className="archive-mobile-account"><ArchiveAccount /></div>
+      <button type="button" aria-label="전체 메뉴 열기" onClick={showMenu}><Menu size={21} /></button>
+    </header>
+    {music && <div className="archive-music-bar" aria-hidden={unavailable || undefined} inert={unavailable ? '' : undefined}>
+      <nav aria-label="음악 서버" className="archive-server-tabs">{['kr', 'xyx'].map(key =>
+        <NavigationItem key={key} section={key} active={key === SERVER_MODE} className="archive-server" ><span aria-label={titles[key]}>{key === 'kr' ? '한국' : '중국'}</span></NavigationItem>)}</nav>
+      <PageNavigation onNavigate={() => useStore.getState().closeModal()} />
+    </div>}
+    <div className="archive-mobile-bottom" aria-hidden={unavailable || undefined} inert={unavailable ? '' : undefined}><ArchivePrimaryNavigation section={section} /></div>
+    <dialog ref={dialog} className="archive-menu-dialog" aria-label="전체 메뉴" onCancel={event => { event.preventDefault(); close() }} onClick={event => {
+      const box = event.currentTarget.getBoundingClientRect()
+      if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right)) close()
+    }}>{open && <>
+      <div className="archive-menu-heading"><ArchiveBrand /><button aria-label="전체 메뉴 닫기" type="button" onClick={close}><X size={21} /></button></div>
+      <ArchivePrimaryNavigation section={section} onNavigate={close} />
+      {context && <div className="archive-menu-context" onClick={event => { if (event.target.closest('a,button')) close() }}>{context}</div>}
+      <ArchiveNavigationFooter section={section} onNavigate={close} />
+    </>}</dialog>
+  </>
+
 }
 
 export function ArchivePageLayout({ children, context, section = 'shop', className = '', headerTools, inactive = false, onLogin }) {
-  return <ArchiveLoginContext.Provider value={onLogin}><div className={`archive-page-layout ${className}`}><ArchiveSidebar section={section} inactive={inactive}>{context}</ArchiveSidebar><ArchiveMobileNavigation section={section} context={context} /><div className="archive-page-content"><header className="archive-page-topbar shop-header" aria-hidden={inactive || undefined} inert={inactive ? '' : undefined}><div className="archive-breadcrumb"><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><ChevronRight size={14} /><span>{titles[section]}</span></div><div className="shop-header-actions">{headerTools}</div></header>{children}</div></div></ArchiveLoginContext.Provider>
+  return <ArchiveLoginContext.Provider value={onLogin}><div className={`archive-page-layout ${className}`}><ArchiveSidebar inactive={inactive}>{context}</ArchiveSidebar><ArchiveNavigation section={section} context={context} inactive={inactive} /><div className="archive-page-content"><header className="archive-page-topbar shop-header" aria-hidden={inactive || undefined} inert={inactive ? '' : undefined}><div className="archive-breadcrumb"><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><ChevronRight size={14} /><span>{titles[section]}</span></div>{['shop', 'encore'].includes(section) && <nav className="archive-shop-tabs" aria-label="상점 종류"><NavigationItem section="shop" active={section === 'shop'}>아이템</NavigationItem><NavigationItem section="encore" active={section === 'encore'}>앙코르 상점</NavigationItem></nav>}<div className="shop-header-actions">{headerTools}</div></header>{children}</div></div></ArchiveLoginContext.Provider>
 }

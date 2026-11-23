@@ -8,10 +8,8 @@ import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
 import { filterSongs, sortSongs } from '../utils/helpers'
 import SongsTable from '../components/SongsTable'
 import UserChip from '../components/UserChip'
-import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
-import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import CategoryCollaborationToggles from '../components/CategoryCollaborationToggles'
 
@@ -800,7 +798,7 @@ export default function PersonalCategoryDetailPage() {
                 </button>
               </div>
             </div>
-            <MobilePageNav />
+
           </div>
         </header>
         <PersonalCategoryMobileFilterSheet
@@ -859,8 +857,6 @@ export default function PersonalCategoryDetailPage() {
   return (
     <div className={`app song-list-layout${catalogPanelOpen ? ' catalog-panel-open' : ''}`} data-cat={levelCategory || undefined}>
       <ArchiveSidebar>
-
-        <PageNavigation />
         <div className="side-section">
           <button className="gd-back-link" onClick={() => navigate('/personal-categories')}>
             <span style={{ fontSize: 11 }}>←</span>

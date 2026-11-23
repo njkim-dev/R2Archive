@@ -7,7 +7,6 @@ import { useMobile } from '../hooks/useMobile'
 import FeedbackMobileHeader from '../components/feedback/FeedbackMobileHeader'
 import FeedbackComposeSheet from '../components/feedback/FeedbackComposeSheet'
 import { HelpButton } from '../components/HelpTour'
-import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
 const BUG_TYPES = [
@@ -507,8 +506,6 @@ export default function FeedbackPage() {
   return (
     <div className="app">
       <ArchiveSidebar>
-
-        <PageNavigation />
       </ArchiveSidebar>
       <main className="main">
         <div className="topbar">

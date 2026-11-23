@@ -4,7 +4,6 @@ import { filterSongs } from '../utils/helpers'
 import { isXyxMode } from '../utils/serverMode'
 import { LockKeyhole, SlidersHorizontal } from 'lucide-react'
 import { detailedFilterCount, selectedPersonalCategorySongIds, visibleQuickFilters } from '../utils/catalogFilters'
-import PageNavigation from './PageNavigation'
 import { ArchiveSidebar } from './ArchiveNavigation'
 
 const CATEGORIES = [
@@ -82,10 +81,6 @@ export default function Sidebar({ songs, filtered, loading = false, error = null
 
   return (
     <ArchiveSidebar>
-
-
-      <PageNavigation onNavigate={closeModal} />
-
       <div className="side-section">
         <button type="button" className="detailed-filter-trigger" onClick={openMobileSheet} aria-haspopup="dialog" aria-expanded={mobileSheetOpen}>
           <SlidersHorizontal size={16} aria-hidden="true" />상세 필터

@@ -18,7 +18,7 @@ import PageMetadata from './components/PageMetadata'
 import './styles/archive-backdrop.css'
 import './styles/archive-navigation.css'
 import './styles/music-navigation.css'
-import { ArchiveMobileNavigation, ArchivePageLayout } from './components/ArchiveNavigation'
+import { ArchiveNavigation, ArchivePageLayout } from './components/ArchiveNavigation'
 import CreatePersonalCategoryModal, { takePendingCategoryCreate } from './components/CreatePersonalCategoryModal'
 import SecurityNotice, { shouldOpenSecurityNotice } from './components/SecurityNotice'
 
@@ -95,7 +95,7 @@ export default function App() {
   const { songs, loadCatalog, refreshUser, user, openOnboarding, restoreListState } = useStore()
   const xyxMode = isXyxMode()
   const portalHost = window.location.hostname === 'r2archive.com'&&!ARCHIVE_BASE
-  const navigationVisible = !(portalHost && appLocation.pathname === '/') && !appLocation.pathname.startsWith('/short/')
+  const navigationVisible = !appLocation.pathname.startsWith('/short/')
   const standaloneNavigation = /^\/(shop|myhome|game-repair)(\/|$)/.test(appLocation.pathname)
 
   useEffect(() => { refreshUser() }, [])  // eslint-disable-line
@@ -173,7 +173,7 @@ export default function App() {
       <CloseModalOnCataloglessRoutes />
       <AnalyticsTracker />
       <div className={navigationVisible ? `archive-app${xyxMode ? ' archive-xyx' : ''}` : 'archive-root'}>
-      {navigationVisible && !standaloneNavigation && <ArchiveMobileNavigation />}
+      {navigationVisible && !standaloneNavigation && <ArchiveNavigation section={portalHost && appLocation.pathname === '/' ? 'portal' : undefined} />}
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={portalHost ? <ArchiveHomePage onOpenSecurityNotice={() => setSecurityNoticeMode('all')} /> : <SongsPage />} />

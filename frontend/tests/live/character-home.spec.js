@@ -8,12 +8,12 @@ test.beforeEach(async({page})=>{
   })
 })
 
-test('live portal preserves service order and disables guest myhome',async({page})=>{
+test('live portal links to the catalog and opens login for a guest wardrobe',async({page})=>{
   await page.goto('/')
-  await expect(page.locator('.service h2')).toHaveText(['음악 아카이브','게임 복구','아이템 상점','마이홈'])
-  await expect(page.getByRole('button',{name:'마이홈 둘러보기',exact:true})).toBeDisabled()
-  await expect(page.getByRole('link',{name:'음악 아카이브 둘러보기',exact:true})).toHaveAttribute('href','/music/')
-  await expect(page.locator('.myhome-service')).toContainText('내 의상을 저장해서 언제든지 불러오고 친구에게 공유할 수 있어요')
+  await expect(page.locator('.services strong')).toHaveText(['음악 둘러보기','의상 입어보기','내 옷장 열기','게임 복구하기'])
+  await expect(page.getByRole('link',{name:/음악 둘러보기/}).first()).toHaveAttribute('href','/music/')
+  await page.getByRole('button',{name:/내 옷장 열기/}).click()
+  await expect(page.locator('.login-modal')).toBeVisible()
 })
 
 test('live short snapshot keeps both outfits after profile main changes',async({page})=>{

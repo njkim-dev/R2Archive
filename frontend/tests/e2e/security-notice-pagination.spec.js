@@ -59,7 +59,7 @@ test('paginates unread notices with stable layout during pending artwork and nav
   await expect(notice.locator('section p')).toHaveText(paragraphs)
   await layout.expectStable()
   release()
-  await expect.poll(() => page.locator('.artwork img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
+  await expect.poll(() => page.locator('.masthead img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
   await layout.expectStable()
   await notice.getByRole('button', { name: '확인', exact: true }).click()
   await expect(notice).toHaveCount(0)

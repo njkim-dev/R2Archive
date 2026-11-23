@@ -66,7 +66,7 @@ test('guest item browsing keeps the first results above the mobile navigation', 
   const listGate = new Promise(resolve => { releaseList = resolve })
   await setup(page, { loggedIn: false, items: [femaleShirt], authGate, listGate })
   await page.goto('/shop')
-  await expect(page.locator('.shop-list-status')).toHaveText('성별을 먼저 선택해주세요.')
+  await expect(page.getByRole('button', { name: '전체 성별', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByLabel('저장할 캐릭터')).toHaveCount(0)
   const disclosure = page.locator('.shop-advanced-filters > summary')
   const filter = page.getByRole('checkbox', { name: '미출시 아이템 가리기', exact: true })
@@ -606,11 +606,11 @@ test('functional item links restore selected item and price without adding it to
   expect(copied.searchParams.get('price')).toBe('P7')
 })
 
-test('the shop first asks for gender and can preview the default outfit without selecting items', async ({ page }) => {
+test('the shop browses all genders and can preview the default outfit without selecting items', async ({ page }) => {
   const requests = await setup(page)
   await page.goto('/shop')
-  await expect(page.locator('.shop-list-status')).toContainText('성별을 먼저 선택해주세요.')
-  expect(requests).not.toContain('/api/shop/items')
+  await expect(page.locator('.shop-card').first()).toBeVisible()
+  expect(requests).toContain('/api/shop/items')
   await expect(page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '남성', exact: true }).click()
   await expect(page.locator('.shop-card')).toHaveCount(1)

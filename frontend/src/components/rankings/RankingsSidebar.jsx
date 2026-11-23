@@ -2,7 +2,6 @@ import { useState } from 'react'
 import useRankingsStore from '../../store/useRankingsStore'
 import useStore from '../../store/useStore'
 import UserPin from './UserPin'
-import PageNavigation from '../PageNavigation'
 import { ArchiveSidebar } from '../ArchiveNavigation'
 
 const GROUPS_INITIAL_LIMIT = 5
@@ -56,10 +55,6 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
 
   return (
     <ArchiveSidebar>
-
-
-      <PageNavigation />
-
       <UserPin />
 
       <div className="side-section">

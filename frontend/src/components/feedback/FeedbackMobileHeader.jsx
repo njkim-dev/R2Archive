@@ -1,5 +1,4 @@
 import useStore from '../../store/useStore'
-import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
 
 export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearchChange, searchPlaceholder = '제목 · 내용 검색' }) {
@@ -39,7 +38,6 @@ export default function FeedbackMobileHeader({ tab, onTabChange, search, onSearc
           </div>
         </div>
 
-        <MobilePageNav />
 
         <label className={`mob-search${search ? ' has-val' : ''}`}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--fg-4)' }}>

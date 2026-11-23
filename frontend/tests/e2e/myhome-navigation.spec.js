@@ -15,7 +15,7 @@ for (const width of [1440, 390]) test(`myhome character shortcuts load without m
   await openMenu()
   const menu = page.getByRole('navigation', { name: '마이홈 메뉴', exact: true })
   await expect(menu.getByRole('link')).toHaveText(['내 캐릭터', '모든 의상'])
-  const watcher = await watchLayout(page, mobile ? ['.archive-mobile-header', '.archive-mobile-bottom', '.shop-character-home h1'] : ['.archive-sidebar .archive-primary-nav', '.shop-header', '.shop-character-home h1'])
+  const watcher = await watchLayout(page, mobile ? ['.archive-mobile-header', '.archive-mobile-bottom', '.shop-character-home h1'] : ['.archive-mobile-header .archive-desktop-nav', '.shop-header', '.shop-character-home h1'])
   release()
   await expect(menu.getByRole('link')).toHaveText(['내 캐릭터', 'A 의상', 'B 의상', '모든 의상'])
   await watcher.expectStable()

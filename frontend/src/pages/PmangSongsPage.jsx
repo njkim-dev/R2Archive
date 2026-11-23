@@ -3,7 +3,6 @@ import { getPmangSongs } from '../api/client'
 import { filterPmangSongs, sortPmangSongs } from '../utils/pmang'
 import useStore from '../store/useStore'
 import { useMobile } from '../hooks/useMobile'
-import MobilePageNav from '../components/MobilePageNav'
 import PmangSidebar from '../components/pmang/PmangSidebar'
 import PmangFilterBar from '../components/pmang/PmangFilterBar'
 import PmangSongsTable from '../components/pmang/PmangSongsTable'
@@ -485,7 +484,6 @@ export default function PmangSongsPage() {
               </div>
             </div>
 
-            <MobilePageNav />
 
             <div className="mob-search">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--fg-4)', flexShrink: 0 }}>

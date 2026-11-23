@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import useStore from '../../store/useStore'
 import { filterPmangSongs } from '../../utils/pmang'
-import PageNavigation from '../PageNavigation'
 import { ArchiveSidebar } from '../ArchiveNavigation'
 
 const CATEGORIES = [
@@ -83,10 +82,6 @@ export default function PmangSidebar({
 
   return (
     <ArchiveSidebar>
-
-
-      <PageNavigation onNavigate={onNavigate} />
-
       <div className="side-section">
         <div className="side-label"><span>빠른 필터</span></div>
         <div className="nav" role="group" aria-label="빠른 필터">

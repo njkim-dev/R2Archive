@@ -18,7 +18,7 @@ test('shared feedback link retains the music router and a single visible account
   })
   await page.goto('http://r2archive.com/shop')
   await expect(page.getByRole('heading', { name: '아이템 상점', exact: true })).toBeVisible()
-  if (page.viewportSize().width <= 800) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
+  await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
   await page.getByRole('link', { name: '피드백', exact: true }).click()
   await expect(page).toHaveURL('https://r2archive.com/music/feedback')
   await expect(page.locator('.fb-tabs,.fb-mob-body')).toBeVisible()
@@ -37,9 +37,9 @@ for (const width of [1440, 390]) test(`shared service navigation and account res
   await expect(home).toBeDisabled()
   const primary = page.getByRole('navigation', { name: '주요 페이지' })
   await expect(primary).toBeVisible()
-  await expect(primary.locator('.archive-primary-item')).toHaveText(['한국 서버 음악', '중국 서버 음악', '앙코르 상점', '상점', '마이홈'])
+  await expect(primary.locator('.archive-primary-item')).toHaveText(['음악', '상점', '마이홈', '게임 복구'])
   await expect(page.locator('.server-switcher,.main-home-link')).toHaveCount(0)
-  const primarySelector = width > 800 ? '.archive-sidebar .archive-primary-nav' : '.archive-mobile-bottom'
+  const primarySelector = width > 800 ? '.archive-mobile-header .archive-desktop-nav' : '.archive-mobile-bottom'
   const watcher = await watchLayout(page, [primarySelector, '.archive-page-topbar', '.shop-grid'])
   release()
   await expect(home).toBeEnabled()

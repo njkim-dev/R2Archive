@@ -17,11 +17,11 @@ const songs = [
 const ids = result => [...result.exact, ...result.fuzzy].map(item => item.id)
 const filters = overrides => ({ ...defaultDetailedFilters(meta), category: null, search: '', favorites: new Set([1, 5]), played: new Set([5]), ...overrides })
 
-test('reset selects the sun channel', () => {
+test('reset includes all difficulty channels', () => {
   const reset = defaultDetailedFilters(meta)
-  assert.equal(defaultDetailedFilters().category, 'sun')
-  assert.equal(reset.category, 'sun')
-  assert.deepEqual(ids(filterSongs(songs, filters(reset))), [1, 2, 3, 4, 5, 6])
+  assert.equal(defaultDetailedFilters().category, null)
+  assert.equal(reset.category, null)
+  assert.deepEqual(ids(filterSongs(songs, filters(reset))), [1, 2, 3, 4, 5, 6, 7])
 })
 
 test('AI filtering uses the API flag rather than artist names', () => {

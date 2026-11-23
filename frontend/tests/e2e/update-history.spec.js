@@ -187,23 +187,15 @@ test('song row opens the highest difficulty and level buttons open their own cat
   await expect(page.getByRole('complementary', { name: 'ECHOES OF TIME (PREQUEL I) 곡 상세' })).toBeVisible()
 })
 
-test('desktop and mobile navigation place update history between songs and rankings', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium-1920', 'single navigation coverage')
+test('desktop and mobile can reach updates with Pmang directly accessible', async ({ page }) => {
   await mockApis(page, releases)
   await page.goto('/')
-
-  const desktopLinks = page.locator('.side .page-nav-item')
-  await expect(desktopLinks.nth(0)).toHaveText('곡 목록')
-  await expect(desktopLinks.nth(1)).toHaveText('업데이트 내역')
-  await expect(desktopLinks.nth(2)).toHaveText('개인 성과')
-  await desktopLinks.nth(1).click()
+  const nav = page.getByRole('navigation', { name: '음악 메뉴' })
+  await expect(nav.getByRole('link', { name: '과거 피망곡' })).toBeVisible()
+  if (page.viewportSize().width <= 800) await nav.getByRole('button', { name: '더보기' }).click()
+  await nav.getByRole('link', { name: '업데이트 내역' }).click()
   await expect(page).toHaveURL(/\/updates$/)
-
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.reload()
-  const mobileLinks = page.locator('.rh-mobile-head .mob-pnav-item')
-  await expect(mobileLinks.nth(0)).toHaveText('곡')
-  await expect(mobileLinks.nth(1)).toHaveText('업데이트 내역')
-  await expect(mobileLinks.nth(2)).toHaveText('성과')
-  await expect(mobileLinks.nth(1)).toHaveClass(/\bon\b/)
+  await nav.getByRole('button', { name: '더보기' }).click()
+  await expect(nav.getByRole('link', { name: '업데이트 내역' })).toHaveAttribute('aria-current', 'page')
 })

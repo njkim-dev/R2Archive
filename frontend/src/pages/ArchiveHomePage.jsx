@@ -1,57 +1,69 @@
-import { Link,useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowUpRight, ChevronRight, House, Music2, Shirt, Wrench } from 'lucide-react'
 import useStore from '../store/useStore'
-import wideBackground from '../assets/archive-home/r2beat-aquarium-wide.png'
-import portraitBackground from '../assets/archive-home/r2beat-aquarium-portrait.png'
-import logoImage from '../assets/archive-home/r2beat-logo-transparent.png'
+import { staticUrl } from '../utils/helpers'
+import { outfitShareUrl } from '../utils/shopUrl'
+import encore from '../data/encore-shop.json'
+import lobby from '../assets/archive-home/lobby.webp'
+import blackDress from '../assets/archive-home/black-dress.webp'
 import '../styles/archive-home.css'
+
+const actions = [
+  [Music2, '음악 둘러보기', '한국 · 중국 · 과거 피망곡', '/music/'],
+  [Shirt, '의상 입어보기', '아이템과 앙코르 의상', '/shop'],
+  [House, '내 옷장 열기', '내가 담아 둔 의상', '/myhome'],
+  [Wrench, '게임 복구하기', '실행 오류와 곡 튕김', '/game-repair'],
+]
+
+function RecentSongs() {
+  const [songs, setSongs] = useState(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/songs/recent', { signal: controller.signal }).then(response => {
+      if (!response.ok) throw Error()
+      return response.json()
+    }).then(data => setSongs(Array.isArray(data) ? data : [])).catch(() => {
+      if (!controller.signal.aborted) setFailed(true)
+    })
+    return () => controller.abort()
+  }, [])
+  return <section>
+    <div className="portal-section-heading"><h2>최근 추가된 곡</h2><a href="/music/">음악 전체 <ChevronRight size={15} /></a></div>
+    <div className="portal-albums" aria-busy={songs === null && !failed}>
+      {failed || songs?.length === 0 ? <p>{failed ? '곡 목록을 불러오지 못했습니다.' : '아직 등록된 곡이 없습니다.'} <a href="/music/">전체 곡 목록 열기</a></p>
+        : (songs ?? [null, null, null]).map((song, index) => song ? <a className="portal-album" key={song.id} href={'/music/#song=' + song.id}>
+          <span>{song.image ? <img src={staticUrl(song.image)} alt="" /> : <Music2 aria-hidden="true" />}</span>
+          <strong>{song.name}</strong><small>{song.artist}</small>
+        </a> : <div className="portal-album" key={index} aria-hidden="true"><span /><strong> </strong><small> </small></div>)}
+    </div>
+  </section>
+}
+
+function EncoreFeature() {
+  const outfit = encore.offers.find(offer => offer.id === 'black-formal')
+  const slots = Object.fromEntries((outfit?.items || []).filter(item => item.sex === 'female' && item.preview).map(item => [item.slot, item.id]))
+  const target = outfit ? new URL(outfitShareUrl({ version: encore.catalogVersion, sex: 'female', slots, angle: 180, zoom: 100 })) : null
+  return <section>
+    <div className="portal-section-heading"><h2>앙코르 상점</h2><Link to="/shop/encore">판매 목록 <ChevronRight size={15} /></Link></div>
+    {target ? <Link className="portal-feature" to={target.pathname + target.search}>
+      <img src={blackDress} alt="" /><div><small>{encore.label}</small><strong>블랙 드레스</strong><span>착용 모습 보기 <ArrowUpRight size={15} /></span></div>
+    </Link> : <Link to="/shop/encore">이번 회차 의상 보기</Link>}
+  </section>
+}
 
 export default function ArchiveHomePage({ onOpenSecurityNotice }) {
   const { user, authLoaded, openLogin } = useStore()
   const navigate = useNavigate()
-  const myHomeAction = user ? '마이홈 둘러보기' : '로그인하고 마이홈 열기'
-  return <main className="archive-portal">
-    <picture className="artwork" aria-hidden="true"><source media="(max-aspect-ratio: 4/3)" srcSet={portraitBackground} /><img src={wideBackground} alt="" width="1672" height="941" /></picture>
-    <svg className="game-logo" viewBox="40 55 2120 595" role="img" aria-label="R2Beat" xmlns="http://www.w3.org/2000/svg"><image href={logoImage} width="2172" height="724"/></svg>
-    <header className="masthead">
-      <Link className="brand" to="/" aria-label="R2 Archive 처음으로"><span className="brand-name"><b>R<span>2</span></b> ARCHIVE</span><span className="brand-caption">알투비트 팬 아카이브</span></Link>
-      <nav aria-label="공식 홈페이지"><a href="https://vfunkr.valofe.com/library/r2beat-ko" target="_blank" rel="noopener noreferrer">공식 홈페이지 ↗</a></nav>
-    </header>
-    <section className="content" aria-labelledby="hero-title">
-      <div className="intro">
-        <p className="eyebrow">MUSIC, MEMORIES & PLAY</p>
-        <h1 id="hero-title">함께 즐기는,<br /><span>알투비트의 모든 순간.</span></h1>
-        <p className="lead">좋아하는 음악을 들으며 추억을 쌓아요.</p>
-      </div>
-      <div className="services">
-
-        <a className="service music" href="/music/" aria-label="음악 아카이브 둘러보기">
-          <span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M25 43V17l27-6v27M25 24l27-6" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/><ellipse cx="17" cy="46" rx="10" ry="8" fill="currentColor"/><ellipse cx="44" cy="40" rx="10" ry="8" fill="currentColor"/></svg><i></i></span>
-          <span className="service-kicker">MUSIC ARCHIVE</span>
-          <h2>음악 아카이브</h2>
-          <p>예전 서비스 음악부터 새로운 음악까지,<br />알투비트 곡들을 만나보세요.</p>
-          <span className="service-cta">아카이브 둘러보기 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
-        </a>
-        <Link className="service repair" to="/game-repair" aria-label="게임 복구 파일 검사 시작">
-          <span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M39 10a16 16 0 0 0-19 20L7 44a8 8 0 0 0 12 11l14-15A16 16 0 0 0 53 21l-10 10-10-10 10-10Z" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="14" cy="48" r="2" fill="currentColor"/></svg><i></i></span>
-          <span className="service-kicker">GAME REPAIR</span>
-          <h2>게임 복구</h2>
-          <p>게임이 튕기시나요?<br />게임 파일을 검사하고 복구하세요.</p>
-          <span className="service-cta">파일 검사 시작 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
-        </Link>
-        <Link className="service shop-service" to="/shop" aria-label="아이템 상점 둘러보기"><span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M16 23h32l4 32H12l4-32ZM23 24V16a9 9 0 0 1 18 0v8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/></svg><i /></span><span className="service-kicker">ITEM SHOP</span><h2>아이템 상점</h2><p>아이템을 찾아보고,<br />나만의 의상을 미리 확인해보세요.</p><span className="service-cta">상점 둘러보기 →</span></Link>
-        <button type="button" className="service myhome-service" disabled={!authLoaded} onClick={() => user ? navigate('/myhome') : openLogin('/myhome')} aria-label={myHomeAction}>
-          <span className="service-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M10 30 32 10l22 20v25H10V30ZM25 55V36h14v19" stroke="currentColor" strokeWidth="4" strokeLinejoin="round"/></svg></span>
-          <span className="service-kicker">MY HOME</span>
-          <h2>마이홈</h2>
-          <p>내 의상을 저장해서 언제든지 불러오고 친구에게 공유할 수 있어요</p>
-          <span className="service-cta">{myHomeAction}</span>
-        </button>
-      </div>
-      <p className="small-note"><span aria-hidden="true">♫</span> 음악을 찾고, 다시 신나게 달려보세요.</p>
-    </section>
-    <footer>
-      <span>R2 Archive <span className="footer-caption">· 알투비트를 함께 즐기는 공간</span></span>
-      <button type="button" className="security-notice-link" onClick={onOpenSecurityNotice}>보안 안내</button>
-    </footer>
-  </main>
+  return <main className="archive-portal"><div className="portal-wrap">
+    <header className="masthead"><img src={lobby} alt="" fetchPriority="high" /><h1>알투비트<br /><span>아카이브</span></h1></header>
+    <nav className="services" aria-label="아카이브 바로가기">{actions.map(([Icon, title, note, path]) => {
+      const content = <><i><Icon size={20} aria-hidden="true" /></i><span><strong>{title}</strong><small>{note}</small></span><ChevronRight size={15} aria-hidden="true" /></>
+      if (path === '/myhome') return <button key={path} className="myhome-service" disabled={!authLoaded} onClick={() => user ? navigate(path) : openLogin(path)}>{content}</button>
+      return path === '/music/' ? <a key={path} href={path}>{content}</a> : <Link key={path} to={path}>{content}</Link>
+    })}</nav>
+    <div className="portal-discover"><RecentSongs /><EncoreFeature /></div>
+    <footer><span>R2 ARCHIVE</span><a href="https://vfunkr.valofe.com/library/r2beat-ko" target="_blank" rel="noopener noreferrer">공식 홈페이지 ↗</a><button type="button" onClick={onOpenSecurityNotice}>보안 안내</button></footer>
+  </div></main>
 }

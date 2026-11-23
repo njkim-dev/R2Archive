@@ -116,6 +116,19 @@ def get_meta():
     )
 
 
+@router.get("/songs/recent")
+def get_recent_songs():
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, name, artist, image FROM ("
+            " SELECT DISTINCT ON (name, artist) id, name, artist, image, game_release_date"
+            f" FROM songs WHERE {ACTIVE_SONG_SQL} AND game_release_date <= CURRENT_DATE"
+            " ORDER BY name, artist, game_release_date DESC, level DESC NULLS LAST, id"
+            ") AS recent ORDER BY game_release_date DESC, name, artist, id LIMIT 3"
+        )
+        return [dict(id=r[0], name=r[1], artist=r[2], image=r[3]) for r in cur.fetchall()]
+
+
 @router.get("/songs", response_model=list[SongListItem])
 def get_songs(include_removed: bool = False):
     """전체 곡 목록 — 클라이언트 사이드 필터링용."""

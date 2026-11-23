@@ -24,7 +24,7 @@ async function mockCatalog(page, data = songs, {
   currentUser = { id: 1, nickname: 'Test', onboarded: true },
   removedSongs = [],
   deferRemoved = false,
-  clearDefaultCategory = true,
+  sunOnly = false,
 } = {}) {
   const writes = []
   const errors = []
@@ -77,7 +77,7 @@ async function mockCatalog(page, data = songs, {
   })
   await page.goto('/')
   await expect(page.locator('[data-song-id="1"]')).toBeVisible()
-  if (clearDefaultCategory) await page.locator('.cat-group .cat-btn').filter({ hasText: '해' }).click()
+  if (sunOnly) await page.locator('[data-channel="sun"]:visible').first().click()
   return {
     writes,
     errors,
@@ -93,7 +93,7 @@ test('catalog search shows its scope and offers recovery without moving the tool
     song(1, 8, 'Northern Sky'),
     song(2, 5, 'Cobalt Waltz'),
   ], {
-    clearDefaultCategory: false,
+    sunOnly: true,
     deferRemoved: true,
     removedSongs: [{ ...song(90, 8, 'Retired Melody'), is_removed: true }],
   })
@@ -159,7 +159,7 @@ test('popular quick filter sorts by displayed plays and keeps the catalog stable
     isAdmin: true,
     removedSongs: [removedSong],
     deferRemoved: true,
-    clearDefaultCategory: false,
+    sunOnly: true,
   })
   const rowIds = () => page.locator('[data-song-id]').evaluateAll(rows => rows.map(row => Number(row.dataset.songId)))
   await expect.poll(rowIds).toEqual([1, 2, 3, 4])
@@ -243,7 +243,7 @@ test('anonymous category creation waits for login', async ({ page }) => {
 
 test('pending category creation resumes after login', async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem('r2b_pending_category_create', 'filter'))
-  await mockCatalog(page, songs, { clearDefaultCategory: false })
+  await mockCatalog(page, songs)
 
   await expect(page.locator('.grp-modal')).toBeVisible()
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('r2b_pending_category_create'))).toBeNull()

@@ -8,7 +8,6 @@ import { useMobile } from '../hooks/useMobile'
 import GroupsMobileHeader from '../components/groups/GroupsMobileHeader'
 import GroupsMobileList from '../components/groups/GroupsMobileList'
 import { HelpButton } from '../components/HelpTour'
-import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
 const PENDING_JOIN_KEY = 'r2b_pending_join_code'
@@ -232,8 +231,6 @@ export default function GroupsPage() {
     return (
       <div className="app">
         <ArchiveSidebar>
-
-          <PageNavigation />
         </ArchiveSidebar>
         <main className="main">
           <div className="grp-empty">
@@ -282,9 +279,6 @@ export default function GroupsPage() {
   return (
     <div className="app">
       <ArchiveSidebar>
-
-        <PageNavigation />
-
         <div className="side-section">
           <div className="side-label"><span>액션</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

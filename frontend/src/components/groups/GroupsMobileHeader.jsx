@@ -1,5 +1,4 @@
 import useStore from '../../store/useStore'
-import MobilePageNav from '../MobilePageNav'
 import { HelpButton } from '../HelpTour'
 
 export default function GroupsMobileHeader({ onCreate, onJoin, pendingCount = 0 }) {
@@ -39,7 +38,6 @@ export default function GroupsMobileHeader({ onCreate, onJoin, pendingCount = 0 
           </div>
         </div>
 
-        <MobilePageNav />
 
         {user && (
           <div className="mob-action-row">

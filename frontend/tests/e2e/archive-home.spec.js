@@ -11,6 +11,10 @@ async function portalRoute(page, baseURL, gate) {
   await page.route('https://r2archive.com/**', async route => {
     const url = new URL(route.request().url())
     if (url.pathname === '/api/game-repair/status') return route.fulfill({ json: { enabled: true, revision: 'initial', message: '' } })
+    if (url.pathname === '/api/songs/recent') {
+      await gate
+      return route.fulfill({ json: [1, 2, 3].map(id => ({ id, name: '신곡 ' + id, artist: '테스트' })) })
+    }
     if (url.pathname.startsWith('/api/')) return route.fulfill({ json: { user: null } })
     if (route.request().resourceType() === 'image' && url.pathname.includes('/assets/archive-home/')) await gate
     const response = await route.fetch({ url: `${baseURL}${url.pathname}${url.search}` })
@@ -25,18 +29,17 @@ for (const portrait of [false, true]) {
     const gate = new Promise(resolve => { release = resolve })
     await portalRoute(page, baseURL, gate)
     await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: '함께 즐기는, 알투비트의 모든 순간.' })).toBeVisible()
-    const watcher = await watchLayout(page, ['.archive-portal .masthead', '.archive-portal .intro', '.archive-portal .services', '.archive-portal footer'])
+    await expect(page.getByRole('heading', { name: /알투비트\s*아카이브/ })).toBeVisible()
+    const watcher = await watchLayout(page, ['.archive-portal .masthead', '.portal-albums', '.archive-portal .services', '.archive-portal footer'])
     await watcher.expectStable()
     release()
-    await expect.poll(() => page.locator('.artwork img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
+    await expect.poll(() => page.locator('.masthead img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
     await watcher.expectStable()
     await watcher.stop()
-    await expect(page.locator('.music p')).toHaveText('예전 서비스 음악부터 새로운 음악까지,알투비트 곡들을 만나보세요.')
-    await expect(page.getByRole('link', { name: '아이템 상점 둘러보기', exact: true })).toHaveAttribute('href', '/shop')
-    await expect(page.locator('.shop-service')).not.toContainText('ADMIN')
-    await expect(page.locator('.repair p')).toHaveText('게임이 튕기시나요?게임 파일을 검사하고 복구하세요.')
-    await expect(page.locator('.game-logo image')).toHaveAttribute('href', /r2beat-logo-transparent/)
+    await expect(page.locator('.services strong')).toHaveText(['음악 둘러보기', '의상 입어보기', '내 옷장 열기', '게임 복구하기'])
+    await expect(page.getByRole('link', { name: /의상 입어보기/ })).toHaveAttribute('href', '/shop')
+    await expect(page.getByRole('link', { name: /신곡 1/ })).toHaveAttribute('href', '/music/#song=1')
+    await expect(page.getByRole('link', { name: /착용 모습 보기/ })).toHaveAttribute('href', /view=preview.*sex=female/)
     const official = page.getByRole('link', { name: '공식 홈페이지 ↗' })
     await expect(official).toHaveAttribute('href', 'https://vfunkr.valofe.com/library/r2beat-ko')
     await expect(official).toHaveAttribute('target', '_blank')
@@ -45,12 +48,8 @@ for (const portrait of [false, true]) {
     await official.click({ trial: true })
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
     expect(await page.locator('.archive-portal').evaluate(node => getComputedStyle(node).backgroundImage.includes('url('))).toBe(false)
-    if (portrait) {
-      expect(await page.locator('.artwork img').evaluate(image => image.currentSrc)).toContain('r2beat-aquarium-portrait')
-      expect(await page.locator('.services').evaluate(node => node.getBoundingClientRect().left > innerWidth / 2)).toBe(true)
-    }
-    await expect(page.locator('.archive-portal .lead')).toHaveText('좋아하는 음악을 들으며 추억을 쌓아요.')
-    await page.locator('.repair').click()
+    expect(await page.locator('.services').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(page.viewportSize().width <= 800 ? 2 : 4)
+    await page.getByRole('link', { name: /게임 복구하기/ }).click()
     await expect(page.getByRole('heading', { name: '게임 설치 파일 검사 및 복구' })).toBeVisible()
     await page.getByRole('link', { name: '게임 실행이 안되거나 게임이 튕기시나요?' }).click()
     await expect(page.locator('.repair-guide')).toContainText('경로를 모르면 VLauncher에서 게임 실행 버튼 좌측의 설정 버튼을 클릭하면, 설치 경로를 확인할 수 있습니다.')
@@ -60,6 +59,20 @@ for (const portrait of [false, true]) {
     await page.unrouteAll({ behavior: 'wait' })
   })
 }
+
+test('recent songs preserve the home layout when the service is unavailable', async ({ page, baseURL }) => {
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await portalRoute(page, baseURL)
+  await page.route('**/api/songs/recent', async route => { await gate; await route.fulfill({ status: 503 }) })
+  await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.portal-albums')).toHaveAttribute('aria-busy', 'true')
+  const layout = await watchLayout(page, ['.portal-albums', '.portal-feature', '.archive-portal footer'])
+  release()
+  await expect(page.getByRole('link', { name: '전체 곡 목록 열기' })).toBeVisible()
+  await layout.expectStable()
+  await layout.stop()
+})
 
 test('guest My Home card starts login and returns to My Home', async ({ page, baseURL }, testInfo) => {
   if (testInfo.project.use.viewport.width <= 768) await page.setViewportSize({ width: 390, height: 900 })
@@ -75,7 +88,7 @@ test('guest My Home card starts login and returns to My Home', async ({ page, ba
     await route.fulfill({ status: 204 })
   })
   await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
-  const card = page.getByRole('button', { name: '로그인하고 마이홈 열기' })
+  const card = page.getByRole('button', { name: /내 옷장 열기/ })
   await card.scrollIntoViewIfNeeded()
   await expect(card).toBeDisabled()
   const layout = await watchLayout(page, ['.archive-portal .masthead', '.archive-portal .services', '.myhome-service'])

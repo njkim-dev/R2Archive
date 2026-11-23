@@ -7,7 +7,6 @@ import UserChip from '../components/UserChip'
 import { useMobile } from '../hooks/useMobile'
 import GroupDetailMobileHeader from '../components/groups/GroupDetailMobileHeader'
 import { HelpButton } from '../components/HelpTour'
-import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import { Hero, TabsStrip } from '../components/groups/GroupDetailHeader'
 import LeaderboardTab from '../components/groups/GroupLeaderboardTab'
@@ -56,8 +55,6 @@ export default function GroupDetailPage() {
   const desktopShell = (content) => (
     <div className="app">
       <ArchiveSidebar>
-
-        <PageNavigation />
       </ArchiveSidebar>
       <main className="main">{content}</main>
     </div>
@@ -153,9 +150,6 @@ export default function GroupDetailPage() {
   return (
     <div className="app">
       <ArchiveSidebar>
-
-        <PageNavigation />
-
         <div className="side-section">
           <button className="gd-back-link" onClick={() => navigate('/groups')}>
             <span style={{ fontSize: 11 }}>←</span>

@@ -112,3 +112,89 @@ body:has(.archive-app) .shop-image-search-restore{left:calc(max(0px,calc((100vw 
 @media(max-width:800px){.archive-page-layout .archive-page-topbar.shop-header{top:var(--archive-mobile-top);z-index:35}.archive-page-layout .shop-floating-top{bottom:calc(var(--archive-mobile-bottom) + 14px)}}
 
 .archive-mobile-bottom .archive-primary-item>span{max-width:100%;font-size:10px;line-height:1.2;text-align:center;word-break:keep-all}.archive-mobile-bottom .archive-primary-item{padding-block:6px}
+
+.archive-app {
+  --shell-top: 56px;
+  --section-top: 0px;
+  --shell-bottom: 0px;
+}
+.archive-app:has(.archive-music-bar) { --section-top: 50px; }
+.archive-app[class] { padding-block: calc(var(--shell-top) + var(--section-top)) var(--shell-bottom); }
+.archive-app .archive-mobile-header {
+  position: fixed; inset: 0 0 auto; z-index: 42; display: flex; align-items: center; gap: 16px;
+  height: var(--shell-top); padding: 0 max(16px,calc((100vw - 1230px)/2));
+  color: var(--archive-nav-text); background: var(--archive-nav-bg); border-bottom: 1px solid var(--archive-nav-line);
+}
+.archive-mobile-header .archive-brand { flex: none; }
+.archive-mobile-header .archive-desktop-nav { display: flex; flex-flow: row nowrap; align-items: center; gap: 4px; }
+.archive-mobile-header .archive-primary-item { justify-content: center; width: auto; min-width: 78px; }
+.archive-mobile-header .archive-primary-item::after { display: none; }
+.archive-mobile-header .archive-mobile-account { margin-left: auto; }
+.archive-mobile-header .archive-account { padding: 0; margin: 0; min-height: 40px; border: 0; }
+.archive-app .archive-mobile-header > button { order: 4; display: grid; place-items: center; width: 40px; height: 40px; color: var(--archive-nav-text); }
+.archive-music-bar {
+  position: fixed; z-index: 40; inset: var(--shell-top) 0 auto; display: flex; align-items: center; gap: 20px;
+  height: var(--section-top); padding: 0 max(16px,calc((100vw - 1230px)/2)); background: var(--archive-nav-bg);
+  color: var(--archive-nav-muted); border-bottom: 1px solid var(--archive-nav-line);
+}
+.archive-server-tabs, .archive-shop-tabs, .archive-music-tabs { display: flex; align-items: center; gap: 3px; }
+.archive-server-tabs, .archive-shop-tabs { padding: 2px; border-radius: 9px; background: var(--archive-nav-soft); }
+.archive-server, .archive-shop-tabs a { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; font-size: 13px; border-radius: 7px; white-space: nowrap; color: var(--archive-nav-muted); }
+.archive-server[aria-current], .archive-shop-tabs [aria-current], .archive-music-tabs [aria-current] { color: var(--archive-nav-accent); background: var(--archive-nav-active); }
+.archive-music-tabs { height: 100%; }
+.music-tab, .music-overflow > button, .music-overflow-list a { display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 8px 11px; border-radius: 7px; font-size: 13px; color: inherit; white-space: nowrap; }
+.music-overflow { display: none; position: relative; }
+.music-overflow.has-admin { display: block; }
+.music-overflow-list { position: absolute; right: 0; top: 100%; z-index: 1; width: max-content; padding: 6px; border-radius: 8px; border: 1px solid var(--archive-nav-line); background: var(--archive-nav-bg); box-shadow: 0 8px 24px #0003; }
+.music-overflow-list a { display: flex; justify-content: flex-start; }
+.music-overflow-list .extra-tab { display: none; }
+.archive-app .archive-page-layout > .side.archive-sidebar { top: var(--shell-top); }
+.archive-app .archive-sidebar-context { border: 0; padding-top: 0; }
+.archive-app .archive-page-topbar.shop-header { top: var(--shell-top); }
+.archive-app .archive-shop-tabs { margin-right: auto; }
+.archive-app .archive-page-layout:has(.repair-page){ height:calc(100dvh - var(--shell-top) - var(--shell-bottom)); }
+.archive-page-layout .repair-page{ max-height:100%; }
+.archive-app .app,.archive-app .app > .main,.archive-app .side.archive-sidebar,.archive-app .app-mobile {
+  height: calc(100dvh - var(--shell-top) - var(--section-top) - var(--shell-bottom));
+}
+@media (max-width: 800px) {
+  .archive-app[class] { --shell-bottom: var(--archive-mobile-bottom); }
+  .archive-app:not(.archive-xyx):not(:has(.archive-page-layout)) { padding: calc(var(--shell-top) + var(--section-top)) 0 var(--shell-bottom); }
+  .archive-app:not(.archive-xyx):not(:has(.archive-page-layout)) > .archive-mobile-header { display:flex; }
+  .archive-app .archive-mobile-header { padding-inline: 10px; gap: 6px; }
+  .archive-app .archive-mobile-header .archive-desktop-nav { display: none; }
+  .archive-app .archive-mobile-bottom, .archive-app:not(.archive-xyx):not(:has(.archive-page-layout)) > .archive-mobile-bottom { display:block; }
+  .archive-app .archive-mobile-bottom > .archive-primary-nav { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .archive-app .archive-mobile-bottom .archive-primary-item > span { font-size: 12px; }
+  .archive-app .archive-music-bar { padding-inline: 6px; gap: 5px; }
+  .archive-server { padding: 7px; }
+  .archive-music-tabs { flex: 1; justify-content: space-evenly; gap: 0; }
+  .music-tab, .music-overflow > button { padding: 8px 4px; font-size: 12px; }
+  .secondary-tab { display: none; }
+  .music-overflow, .music-overflow-list .extra-tab { display: block; }
+  .archive-page-layout .archive-breadcrumb { display: none; }
+  .archive-app:not(.archive-xyx) .app,.archive-app:not(.archive-xyx) .main { height:calc(100dvh - var(--shell-top) - var(--section-top) - var(--shell-bottom)); }
+}
+@media (min-width:801px) and (max-width:1099px) {
+  .archive-app.archive-xyx { padding-block:calc(var(--shell-top) + var(--section-top)) 0; }
+  .archive-app.archive-xyx .archive-mobile-bottom { display:none; }
+  .archive-app.archive-xyx .app-mobile { height:calc(100dvh - var(--shell-top) - var(--section-top)); }
+}
+
+.archive-mobile-header .archive-desktop-nav { display: grid; grid-template-columns: repeat(4,96px); gap: 4px; }
+.archive-mobile-header .archive-desktop-nav .archive-primary-item { width: 100%; }
+.archive-app .archive-page-layout { min-height: calc(100dvh - var(--shell-top) - var(--shell-bottom)); }
+.archive-music-tabs .music-tab::before { display: none; }
+
+.archive-app .archive-page-layout:not(:has(> .archive-sidebar)),
+.archive-app .app:not(:has(> .archive-sidebar)):has(> .main) {
+  grid-template-columns: minmax(0,1fr);
+}
+.archive-app .archive-page-layout:not(:has(> .archive-sidebar)) > .archive-page-content,
+.archive-app .app:not(:has(> .archive-sidebar)) > .main {
+  grid-column: 1;
+  justify-self: center;
+}
+.shop-character-home .shop-character-cards {
+  max-width: clamp(600px,calc((100dvh - 260px) * 1.7),1140px);
+}

@@ -5,10 +5,8 @@ import { getPersonalCategoryByCode } from '../api/client'
 import useStore from '../store/useStore'
 import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
 import UserChip from '../components/UserChip'
-import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
-import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 
 function roleLabel(role) {
@@ -176,7 +174,7 @@ export default function PersonalCategorySubscribersPage() {
                 )}
               </div>
             </div>
-            <MobilePageNav />
+
           </div>
         </header>
         <div className="pcat-subscriber-mobile-body">{body}</div>
@@ -187,8 +185,6 @@ export default function PersonalCategorySubscribersPage() {
   return (
     <div className="app">
       <ArchiveSidebar>
-
-        <PageNavigation />
         <div className="side-section">
           <button className="gd-back-link" onClick={() => navigate(`/personal-categories/${code}`)}>
             <span style={{ fontSize: 11 }}>←</span>

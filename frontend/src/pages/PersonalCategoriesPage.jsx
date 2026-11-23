@@ -5,10 +5,8 @@ import { useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
 import usePersonalCategoriesStore from '../store/usePersonalCategoriesStore'
 import UserChip from '../components/UserChip'
-import MobilePageNav from '../components/MobilePageNav'
 import { useMobile } from '../hooks/useMobile'
 import { HelpButton } from '../components/HelpTour'
-import PageNavigation from '../components/PageNavigation'
 import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import { queueCategoryCreateAfterLogin } from '../components/CreatePersonalCategoryModal'
 
@@ -215,7 +213,7 @@ export default function PersonalCategoriesPage() {
                 </button>
               </div>
             </div>
-            <MobilePageNav />
+
             <Tabs activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} user={user} />
           </div>
         </header>
@@ -265,9 +263,6 @@ export default function PersonalCategoriesPage() {
   return (
     <div className="app">
       <ArchiveSidebar>
-
-        <PageNavigation />
-
         <div className="side-section">
           <div className="side-label"><span>액션</span></div>
           <button className="grp-btn primary" onClick={openCreate}>

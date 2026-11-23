@@ -3,24 +3,12 @@ import { Link } from 'react-router-dom'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { VariableSizeList } from 'react-window'
 import { ChevronDown, ExternalLink, Search } from 'lucide-react'
-import MobilePageNav from '../components/MobilePageNav'
-import PageNavigation from '../components/PageNavigation'
-import { ArchiveSidebar } from '../components/ArchiveNavigation'
 import ReleaseDatePicker from '../components/update-history/ReleaseDatePicker'
 import { useMobile } from '../hooks/useMobile'
 import { filterReleaseHistory, formatReleaseDate, formatReleaseTitle, releaseWeekday } from '../utils/releaseHistory'
 import { levelBarColor, staticUrl } from '../utils/helpers'
 import useStore from '../store/useStore'
 import '../styles/update-history.css'
-
-function HistorySidebar() {
-  return (
-    <ArchiveSidebar className="rh-sidebar">
-
-      <PageNavigation />
-    </ArchiveSidebar>
-  )
-}
 
 function HistoryMobileHeader() {
   return (
@@ -31,7 +19,7 @@ function HistoryMobileHeader() {
           <span>R2Music Archive</span>
         </Link>
       </div>
-      <MobilePageNav />
+
     </header>
   )
 }
@@ -285,5 +273,5 @@ export default function UpdateHistoryPage() {
   if (mobile) {
     return <div className="app-mobile rh-mobile-page"><HistoryMobileHeader />{content}</div>
   }
-  return <div className="app rh-app"><HistorySidebar />{content}</div>
+  return <div className="app rh-app">{content}</div>
 }

@@ -9,7 +9,7 @@ for (const width of [2560, 1920, 1024, 390]) test(`music, shop and myhome keep t
   await setup(page, { authGate: gate })
   await page.goto('/')
   const mobile = width <= 800
-  const selectors = mobile ? ['.archive-mobile-header', '.archive-mobile-bottom'] : ['.archive-sidebar .archive-brand', '.archive-sidebar .archive-primary-nav']
+  const selectors = mobile ? ['.archive-mobile-header', '.archive-mobile-bottom'] : ['.archive-mobile-header .archive-brand', '.archive-mobile-header .archive-desktop-nav']
   await expect(page.locator(selectors[0])).toBeVisible()
   const originalNavigation = await page.locator(selectors[1]).boundingBox()
   const transition = await watchLayout(page, selectors)
@@ -49,7 +49,7 @@ for (const width of [2560, 1920, 1024, 390]) test(`music, shop and myhome keep t
     const paddedMenu = await page.locator('.archive-page-layout>.archive-sidebar').boundingBox(), paddedBody = await page.locator('.shop-main').boundingBox()
     expect(paddedMenu.x + paddedMenu.width).toBeCloseTo(paddedBody.x, 1)
     await page.evaluate(() => { document.body.style.paddingRight = ''; scrollTo(0, 300) })
-    expect((await page.locator('.archive-page-layout>.archive-sidebar').boundingBox()).y).toBe(0)
+    expect((await page.locator('.archive-page-layout>.archive-sidebar').boundingBox()).y).toBe(56)
     await page.evaluate(() => scrollTo(0, 0))
   }
   await check()
@@ -59,7 +59,7 @@ for (const width of [2560, 1920, 1024, 390]) test(`music, shop and myhome keep t
   await check()
   await page.screenshot({ path: test.info().outputPath(`attached-myhome-${width}.png`) })
   const returnTransition = await watchLayout(page, selectors)
-  await page.getByRole('link', { name: '한국 서버 음악', exact: true }).click()
+  await page.getByRole('link', { name: '음악', exact: true }).click()
   await expect(page.locator(mobile ? '.app-mobile' : '.app>.main')).toBeVisible()
   await returnTransition.expectStable()
   await returnTransition.stop()
