@@ -1,18 +1,21 @@
 # R2Archive
 
-알투비트 곡 정보를 한곳에서 찾아보기 위해 만든 개인 프로젝트입니다.
-현재 서비스 중인 곡과 과거 피망에서 서비스했던 곡을 함께 정리하고 있습니다.
+R2Archive는 알투비트의 음악과 의상 정보를 모아 둔 개인 프로젝트입니다. 한국ㆍ중국 서버와 과거 피망 시절의 곡을 찾아보고, 게임 의상을 3D로 입어볼 수 있습니다.
 
-## 서비스 주소
+**[R2Archive 바로가기](https://r2archive.com/)**
 
-- https://music.r2archive.com
+## 주요 기능
 
-곡명이나 아티스트로 검색할 수 있으며, 난이도와 BPM 등으로 목록을 필터링할 수 있습니다.
-곡을 선택하면 BPM, 콤보와 다른 난이도의 곡 정보를 확인할 수 있습니다.
+| 메뉴 | 소개 |
+|---|---|
+| 음악 | 곡명이나 아티스트로 게임에 수록된 음악을 찾을 수 있습니다. [한국 서버](https://r2archive.com/music/) ㆍ [중국 서버](https://r2archive.com/xyx/) ㆍ [과거 피망곡](https://r2archive.com/music/pmang-songs) |
+| 상점 | 아이템을 찾아 의상을 조합하고 3D로 착용 모습을 확인할 수 있습니다. 앙코르 상점에서는 현재 회차의 판매 목록과 세트 구성품을 볼 수 있습니다. [아이템 상점](https://r2archive.com/shop) ㆍ [앙코르 상점](https://r2archive.com/shop/encore) |
+| 마이홈 | 로그인하면 캐릭터별로 소장 의상과 대표 착장을 관리하고, 마이홈 링크를 공유할 수 있습니다. [마이홈](https://r2archive.com/myhome) |
 
-## 사용 기술
+## 기술 구성
 
-- Frontend: React, Vite, Zustand
-- Backend: Python 3.11+, FastAPI, PostgreSQL/PostGIS
-- Web: Caddy, Uvicorn
-- Deployment: Kubernetes(k3s), GHCR
+| 구분 | 사용 기술 |
+|---|---|
+| 프론트엔드 | React, Vite, Zustand |
+| API ㆍ 데이터베이스 | Python, FastAPI, Uvicorn, PostgreSQL |
+| 웹 ㆍ 배포 | Caddy, GitHub Actions, GitHub Container Registry, K3s |
