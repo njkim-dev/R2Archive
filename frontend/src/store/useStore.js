@@ -233,7 +233,7 @@ const useStore = create((set, get) => ({
   levelMax: null,
   bpmMin: null,
   bpmMax: null,
-  category: null,
+  category: 'sun',
   personalCategoryId: null,
   quick: 'all',
   flagNew: false,

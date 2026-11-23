@@ -18,7 +18,7 @@ test('shared feedback link retains the music router and a single visible account
   })
   await page.goto('http://r2archive.com/shop')
   await expect(page.getByRole('heading', { name: '아이템 상점', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
+  if (page.viewportSize().width <= 800) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
   await page.getByRole('link', { name: '피드백', exact: true }).click()
   await expect(page).toHaveURL('https://r2archive.com/music/feedback')
   await expect(page.locator('.fb-tabs,.fb-mob-body')).toBeVisible()
@@ -71,4 +71,49 @@ for (const width of [1440, 390]) test(`shared service navigation and account res
   await expect(page.getByRole('dialog', { name: '전체 메뉴', exact: true })).toBeHidden()
   await expect(page.getByRole('tab', { name: '즐겨찾기', exact: true })).toHaveAttribute('aria-selected', 'true')
   await page.screenshot({ path: test.info().outputPath(`navigation-${width}.png`), fullPage: true })
+})
+
+test('music, shop and wardrobe follow system colors without moving navigation or content', async ({ page }) => {
+  const mobile = page.viewportSize().width <= 800
+  if (mobile) await page.setViewportSize({ width: 390, height: 900 })
+  let resolveAuth
+  await setup(page, { authGate: new Promise(resolve => { resolveAuth = resolve }) })
+  const luminance = async (selector, property) => page.locator(selector).first().evaluate((node, key) => {
+    const ctx = document.createElement('canvas').getContext('2d')
+    ctx.fillStyle = getComputedStyle(node)[key]
+    ctx.fillRect(0, 0, 1, 1)
+    const [r, g, b] = Array.from(ctx.getImageData(0, 0, 1, 1).data).map(v => {
+      const s = v / 255
+      return s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4
+    })
+    return .2126 * r + .7152 * g + .0722 * b
+  }, property)
+  for (const [url, surface, content] of [
+    ['/shop', '.archive-page-layout', '.shop-search'],
+    ['/myhome', '.archive-page-layout', '.shop-character-cards'],
+    ['/music/', mobile ? '.app-mobile' : '.app > .main', mobile ? '.mob-top' : '.topbar'],
+  ]) {
+    await page.emulateMedia({ colorScheme: 'light' })
+    await page.goto(url)
+    await expect(page.locator(content).first()).toBeVisible()
+    const nav = '.archive-mobile-header'
+    const layout = await watchLayout(page, [nav, content])
+    if (url === '/shop') {
+      await expect(page.getByRole('button', { name: '마이홈', exact: true })).toBeDisabled()
+      resolveAuth()
+      await expect(page.getByRole('button', { name: '마이홈', exact: true })).toBeEnabled()
+    }
+    for (const theme of ['light','dark','light']) {
+      await page.emulateMedia({ colorScheme: theme })
+      for (const selector of [surface, nav]) {
+        const bg = await luminance(selector, 'backgroundColor')
+        const fg = await luminance(selector, 'color')
+        if (theme === 'dark') expect(bg).toBeLessThan(.1)
+        else expect(bg).toBeGreaterThan(.8)
+        expect((Math.max(bg, fg) + .05) / (Math.min(bg, fg) + .05)).toBeGreaterThanOrEqual(4.5)
+      }
+      await layout.expectStable()
+    }
+    await layout.stop()
+  }
 })

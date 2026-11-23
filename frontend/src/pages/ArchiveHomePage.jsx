@@ -44,7 +44,7 @@ function RecentSongs() {
 function EncoreFeature() {
   const outfit = encore.offers.find(offer => offer.id === 'black-formal')
   const slots = Object.fromEntries((outfit?.items || []).filter(item => item.sex === 'female' && item.preview).map(item => [item.slot, item.id]))
-  const target = outfit ? new URL(outfitShareUrl({ version: encore.catalogVersion, sex: 'female', slots, angle: 180, zoom: 100 })) : null
+  const target = outfit ? new URL(outfitShareUrl({ version: encore.catalogVersion, sex: 'female', slots, angle: 180, zoom: 100, fromEncore: true })) : null
   return <section>
     <div className="portal-section-heading"><h2>앙코르 상점</h2><Link to="/shop/encore">판매 목록 <ChevronRight size={15} /></Link></div>
     {target ? <Link className="portal-feature" to={target.pathname + target.search}>

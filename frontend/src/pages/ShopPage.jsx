@@ -431,14 +431,15 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     navigate(location.pathname + location.search + location.hash, { state: { ...location.state, shopNavigation: { owner: navigationOwner, view: 'preview', fromBrowse: true } } })
   }
   function browse() {
-    if (navigation?.owner === navigationOwner && navigation.fromBrowse) navigate(-1)
+    if (initial.fromEncore) navigate('/shop/encore', { replace: true })
+    else if (navigation?.owner === navigationOwner && navigation.fromBrowse) navigate(-1)
     else navigate(location.pathname + location.search + location.hash, { replace: true, state: { ...location.state, shopNavigation: { owner: navigationOwner, view: 'browse' } } })
   }
   function login() {
     let target = location.pathname + location.search
     if (sharedToken) { rememberShopReturn(target); openLogin(); return }
     if (view === 'preview' && applied && meta) {
-      const url = new URL(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan }))
+      const url = new URL(outfitShareUrl({ version: meta.revision, ...applied, pair, angle, zoom, ...pan, fromEncore: initial.fromEncore }))
       target = url.pathname + url.search
     } else if (detail && department !== 'wearable') {
       const url = new URL(itemShareUrl(detail, sex, selectedPrice?.key))

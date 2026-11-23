@@ -9,6 +9,7 @@ export function readShopUrl(search) {
   const params = new URLSearchParams(search)
   const version = /^[a-f0-9]{12,64}$/.test(params.get('v') || '') ? params.get('v') : null
   return {
+    fromEncore: params.get('view') === 'preview' && params.get('from') === 'encore',
     version, item: validId(params.get('item')), preview: params.get('view') === 'preview', couple: params.get('view') === 'couple',
     sex: ['male', 'female'].includes(params.get('sex')) ? params.get('sex') : null,
     partner: ['male','female'].includes(params.get('partnerSex'))?{sex:params.get('partnerSex'),slots:Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,validId(params.get('partner_'+slot))]))}:null,
@@ -27,9 +28,10 @@ export function itemShareUrl(item, sex, price) {
   return url.href
 }
 
-export function outfitShareUrl({ version, sex, slots, pair, angle, zoom, panX = 0, panY = 0 }) {
+export function outfitShareUrl({ version, sex, slots, pair, angle, zoom, panX = 0, panY = 0, fromEncore = false }) {
   const url = new URL('/shop', SHOP_ORIGIN)
   for (const [key, value] of Object.entries({ view: 'preview', v: version, sex, pair: pair ? '1' : '0', angle: String(angle), zoom: String(zoom) })) url.searchParams.set(key, value)
+  if (fromEncore) url.searchParams.set('from', 'encore')
   if (panX) url.searchParams.set('panX', String(panX))
   if (panY) url.searchParams.set('panY', String(panY))
   for (const slot of SHOP_SLOTS) if (slots[slot]) url.searchParams.set(slot, String(slots[slot].id || slots[slot]))

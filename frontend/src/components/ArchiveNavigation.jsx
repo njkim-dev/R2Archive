@@ -65,9 +65,16 @@ function ArchiveAccount({ onNavigate }) {
   </div>
 }
 
-function ArchiveNavigationFooter({ section, onNavigate }) {
+function ArchiveUtilities({ section, onNavigate, className = '' }) {
   const { adminLoaded, isAdmin } = useStore()
-  return <footer className="archive-navigation-footer"><NavigationItem section="feedback" active={section === 'feedback'} onNavigate={onNavigate} className="archive-footer-item"><MessageCircle size={17} />피드백</NavigationItem><div className="archive-admin-slot">{adminLoaded && isAdmin && <NavigationItem section="admin" active={section === 'admin'} onNavigate={onNavigate} className="archive-footer-item"><ShieldCheck size={17} />관리자 도구</NavigationItem>}</div><ArchiveAccount onNavigate={onNavigate} /></footer>
+  return <nav className={className} aria-label="지원 메뉴">
+    <NavigationItem section="feedback" active={section === 'feedback'} onNavigate={onNavigate} className="archive-footer-item">
+      <MessageCircle size={17} aria-hidden="true" /><span>피드백</span>
+    </NavigationItem>
+    {adminLoaded && isAdmin && <NavigationItem section="admin" active={section === 'admin'} onNavigate={onNavigate} className="archive-footer-item">
+      <ShieldCheck size={17} aria-hidden="true" /><span>관리자 도구</span>
+    </NavigationItem>}
+  </nav>
 }
 
 export function ArchiveSidebar({ children, className = '', inactive = false }) {
@@ -83,7 +90,15 @@ export function ArchiveNavigation({ context, section: override, inactive = false
     if (!open) return
     const node = dialog.current, release = lockShopScroll()
     node.showModal()
-    return () => { node.close(); release(); setTimeout(() => opener.current?.focus(), 0) }
+    const desktop = window.matchMedia('(min-width: 801px)')
+    const onResize = () => { if (desktop.matches) setOpen(false) }
+    desktop.addEventListener('change', onResize)
+    return () => {
+      desktop.removeEventListener('change', onResize)
+      node.close()
+      release()
+      if (!desktop.matches) requestAnimationFrame(() => opener.current?.focus({ preventScroll: true }))
+    }
   }, [open])
   const close = () => setOpen(false)
   const unavailable = blocked || inactive
@@ -91,10 +106,11 @@ export function ArchiveNavigation({ context, section: override, inactive = false
   const music = section === 'music'
   return <>
     <header className="archive-mobile-header" aria-hidden={unavailable || undefined} inert={unavailable ? '' : undefined}>
+      <button type="button" className="archive-menu-toggle" aria-label="전체 메뉴 열기" aria-haspopup="dialog" onClick={showMenu}><Menu size={21} /></button>
       <ArchiveBrand />
       <ArchivePrimaryNavigation section={section} className="archive-desktop-nav" />
+      <ArchiveUtilities section={section} className="archive-desktop-utilities" />
       <div className="archive-mobile-account"><ArchiveAccount /></div>
-      <button type="button" aria-label="전체 메뉴 열기" onClick={showMenu}><Menu size={21} /></button>
     </header>
     {music && <div className="archive-music-bar" aria-hidden={unavailable || undefined} inert={unavailable ? '' : undefined}>
       <nav aria-label="음악 서버" className="archive-server-tabs">{['kr', 'xyx'].map(key =>
@@ -109,7 +125,7 @@ export function ArchiveNavigation({ context, section: override, inactive = false
       <div className="archive-menu-heading"><ArchiveBrand /><button aria-label="전체 메뉴 닫기" type="button" onClick={close}><X size={21} /></button></div>
       <ArchivePrimaryNavigation section={section} onNavigate={close} />
       {context && <div className="archive-menu-context" onClick={event => { if (event.target.closest('a,button')) close() }}>{context}</div>}
-      <ArchiveNavigationFooter section={section} onNavigate={close} />
+      <footer className="archive-navigation-footer"><ArchiveUtilities section={section} onNavigate={close} /><ArchiveAccount onNavigate={close} /></footer>
     </>}</dialog>
   </>
 

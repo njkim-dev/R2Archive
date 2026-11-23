@@ -4,7 +4,7 @@
   transition: transform .1s, background .1s;
 }
 .login-btn:hover { background: oklch(0.82 0.15 var(--accent-h)); transform: translateY(-1px); }
-.topbar-error { color: oklch(0.76 0.18 25); font-weight: 600; }
+.topbar-error { color: light-dark(oklch(0.46 0.18 25),oklch(0.76 0.18 25)); font-weight: 600; }
 
 .catalog-loading,
 .catalog-error {
@@ -71,7 +71,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: oklch(0.76 0.18 25);
+  color: light-dark(oklch(0.46 0.18 25),oklch(0.76 0.18 25));
   background: oklch(0.70 0.18 25 / 0.12);
   border: 1px solid oklch(0.70 0.18 25 / 0.28);
   font-size: 20px;
@@ -363,7 +363,7 @@
   background: oklch(0 0 0 / 0.5); color: var(--fg-2);
   border: 0; display: grid; place-items: center; cursor: pointer;
 }
-.mob-delete-btn:hover { color: oklch(0.70 0.20 25); }
+.mob-delete-btn:hover { color: light-dark(oklch(0.46 0.20 25),oklch(0.70 0.20 25)); }
 .new-tag {
   font-size: 9.5px; font-weight: 600; padding: 1px 5px; border-radius: 3px;
   background: var(--new-dim); color: var(--new); letter-spacing: 0.04em; text-transform: uppercase;
@@ -392,7 +392,7 @@
   padding: 1px 5px;
   border-radius: 3px;
   background: oklch(0.80 0.18 70 / 0.14);
-  color: oklch(0.82 0.18 70);
+  color: light-dark(oklch(0.46 0.18 70),oklch(0.82 0.18 70));
   letter-spacing: 0.02em;
   border: 1px solid oklch(0.80 0.18 70 / 0.38);
 }
@@ -434,19 +434,19 @@
 /* BPM 구간 색상보다 행 hover 색상을 우선한다. */
 .tbl-row[data-bpm-tier="hot"]  .title-main,
 .tbl-row[data-bpm-tier="hot"]  .artist-cell,
-.tbl-row[data-bpm-tier="hot"]  .bpm-num   { color: oklch(0.72 0.20 25); }
+.tbl-row[data-bpm-tier="hot"]  .bpm-num   { color: light-dark(oklch(0.46 0.20 25),oklch(0.72 0.20 25)); }
 .tbl-row[data-bpm-tier="warm"] .title-main,
 .tbl-row[data-bpm-tier="warm"] .artist-cell,
-.tbl-row[data-bpm-tier="warm"] .bpm-num   { color: oklch(0.80 0.16 60); }
+.tbl-row[data-bpm-tier="warm"] .bpm-num   { color: light-dark(oklch(0.46 0.16 60),oklch(0.80 0.16 60)); }
 .tbl-row[data-bpm-tier="cool"] .title-main,
 .tbl-row[data-bpm-tier="cool"] .artist-cell,
-.tbl-row[data-bpm-tier="cool"] .bpm-num   { color: oklch(0.78 0.14 150); }
+.tbl-row[data-bpm-tier="cool"] .bpm-num   { color: light-dark(oklch(0.46 0.14 150),oklch(0.78 0.14 150)); }
 
 .tbl-row:hover .title-main { color: var(--accent); }
 .tbl-row[data-restored-focus="true"]:hover .title-main { color: var(--fg); }
-.tbl-row[data-restored-focus="true"][data-bpm-tier="hot"]:hover .title-main { color: oklch(0.72 0.20 25); }
-.tbl-row[data-restored-focus="true"][data-bpm-tier="warm"]:hover .title-main { color: oklch(0.80 0.16 60); }
-.tbl-row[data-restored-focus="true"][data-bpm-tier="cool"]:hover .title-main { color: oklch(0.78 0.14 150); }
+.tbl-row[data-restored-focus="true"][data-bpm-tier="hot"]:hover .title-main { color: light-dark(oklch(0.46 0.20 25),oklch(0.72 0.20 25)); }
+.tbl-row[data-restored-focus="true"][data-bpm-tier="warm"]:hover .title-main { color: light-dark(oklch(0.46 0.16 60),oklch(0.80 0.16 60)); }
+.tbl-row[data-restored-focus="true"][data-bpm-tier="cool"]:hover .title-main { color: light-dark(oklch(0.46 0.14 150),oklch(0.78 0.14 150)); }
 .tbl-row.is-catalog-active .title-main,
 .tbl-row.is-catalog-active:hover .title-main,
 .tbl-row.is-catalog-active[data-bpm-tier] .title-main { color: var(--cat-accent); }

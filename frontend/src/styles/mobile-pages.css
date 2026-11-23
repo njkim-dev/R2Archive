@@ -20,13 +20,13 @@
 [data-cat="star"] .mob-pnav-item.on {
   background: oklch(0.40 0.12 90 / 0.22);
   border-color: oklch(0.82 0.16 90);
-  color: oklch(0.82 0.16 90);
+  color: light-dark(oklch(0.46 0.16 90),oklch(0.82 0.16 90));
 }
 [data-cat="sun"] .mob-chip.on,
 [data-cat="sun"] .mob-pnav-item.on {
   background: oklch(0.40 0.14 20 / 0.22);
   border-color: oklch(0.78 0.18 20);
-  color: oklch(0.78 0.18 20);
+  color: light-dark(oklch(0.46 0.18 20),oklch(0.78 0.18 20));
 }
 
 @media (max-width: 767px) {
@@ -112,8 +112,8 @@
 
   .gd-mob-top {
     background:
-      linear-gradient(135deg, oklch(0.30 0.18 var(--group-h, 280) / 0.18), oklch(0.155 0.012 270 / 0.92) 70%),
-      oklch(0.155 0.012 270 / 0.92);
+      linear-gradient(135deg, oklch(0.30 0.18 var(--group-h, 280) / 0.18), light-dark(rgb(255 255 255 / 96%),oklch(0.155 0.012 270 / 0.92)) 70%),
+      light-dark(rgb(255 255 255 / 96%),oklch(0.155 0.012 270 / 0.92));
   }
   .gd-mob-title-area { flex: 1; min-width: 0; }
   .gd-mob-title {
@@ -189,7 +189,7 @@
   }
   .gd-lb-mob-rank.gold { color: var(--gold); }
   .gd-lb-mob-rank.silver { color: var(--fg-2); }
-  .gd-lb-mob-rank.bronze { color: oklch(0.65 0.12 50); }
+  .gd-lb-mob-rank.bronze { color: light-dark(oklch(0.46 0.12 50),oklch(0.65 0.12 50)); }
   .gd-lb-mob-name {
     flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px;
     font-size: 14px; font-weight: 600; color: var(--fg);
@@ -298,7 +298,7 @@
     position: sticky; top: 0; z-index: 5;
     display: flex; align-items: center; gap: 10px;
     padding: calc(var(--safe-top) + 10px) 14px 10px;
-    background: oklch(0.155 0.012 270 / 0.92);
+    background: light-dark(rgb(255 255 255 / 96%),oklch(0.155 0.012 270 / 0.92));
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--line-soft);
   }

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { createServer } from 'node:http'
 import { watchLayout } from './layout.js'
+import { setup, femaleShirt } from './shopFixtures.js'
+import encore from '../../src/data/encore-shop.json' with { type: 'json' }
 
 test.afterEach(async ({ page, context }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
@@ -59,6 +61,34 @@ for (const portrait of [false, true]) {
     await page.unrouteAll({ behavior: 'wait' })
   })
 }
+
+test('closing the featured outfit opens the Encore list and Back preserves the home entry', async ({ page, baseURL }) => {
+  if (page.viewportSize().width <= 800) await page.setViewportSize({ width: 390, height: 900 })
+  const outfit = encore.offers.find(offer => offer.id === 'black-formal')
+  const items = outfit.items.filter(item => item.sex === 'female' && item.preview)
+    .map(item => ({ ...femaleShirt, id: item.id, slot: item.slot, name: item.name }))
+  await setup(page, { items, loggedIn: false, admin: false })
+  await page.route('https://r2archive.com/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.startsWith('/api/')) return route.fallback()
+    await route.fulfill({ response: await route.fetch({ url: baseURL + url.pathname + url.search }) })
+  })
+  await page.goto('https://r2archive.com/')
+  const feature = page.getByRole('link', { name: /착용 모습 보기/ })
+  await feature.click()
+  const dialog = page.getByRole('dialog', { name: '의상 미리보기' })
+  await expect(dialog).toBeVisible()
+  await page.reload()
+  await dialog.getByRole('button', { name: '의상 미리보기 닫기' }).click()
+  await expect(page).toHaveURL('https://r2archive.com/shop/encore')
+  await expect(page.locator('.encore-offer').first()).toBeVisible()
+  await page.goBack()
+  await expect(feature).toBeVisible()
+  await feature.click()
+  await expect(dialog).toBeVisible()
+  await page.goBack()
+  await expect(feature).toBeVisible()
+})
 
 test('recent songs preserve the home layout when the service is unavailable', async ({ page, baseURL }) => {
   let release

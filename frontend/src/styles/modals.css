@@ -135,7 +135,7 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
   padding: 12px 32px;
   border-bottom: 1px solid oklch(0.68 0.20 25 / 0.28);
   background: oklch(0.68 0.20 25 / 0.08);
-  color: oklch(0.74 0.20 25);
+  color: light-dark(oklch(0.46 0.20 25),oklch(0.74 0.20 25));
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
@@ -343,7 +343,7 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
 .practice-delete-btn {
   font-size: 12px;
   padding: 6px 10px;
-  color: oklch(0.72 0.18 25);
+  color: light-dark(oklch(0.46 0.18 25),oklch(0.72 0.18 25));
   white-space: nowrap;
 }
 
@@ -387,7 +387,7 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
 .bpm-table-delta { font-size: 11px; font-weight: 600; }
 .bpm-tooltip {
   position: absolute; z-index: 5; pointer-events: none;
-  background: oklch(0.11 0.015 280 / 0.96); backdrop-filter: blur(8px);
+  background: light-dark(var(--surface-1), oklch(0.11 0.015 280 / 0.96)); backdrop-filter: blur(8px);
   border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
   box-shadow: 0 8px 20px -4px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(0 0 0 / 0.2);
   opacity: 0; transform: translateY(2px); transition: opacity .1s, transform .1s;
@@ -528,7 +528,7 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
 }
 .difficulty-level {
   font-family: "JetBrains Mono", monospace;
-  color: oklch(0.78 0.15 220);
+  color: light-dark(oklch(0.46 0.15 220),oklch(0.78 0.15 220));
   background: oklch(0.38 0.10 220 / 0.18);
   border: 1px solid oklch(0.78 0.15 220 / 0.35);
   border-radius: 999px;
@@ -537,17 +537,17 @@ body:has(.song-list-layout.catalog-panel-open) .song-catalog-backdrop {
   white-space: nowrap;
 }
 .difficulty-menu button[data-cat="star"] .difficulty-level {
-  color: oklch(0.82 0.16 90);
+  color: light-dark(oklch(0.46 0.16 90),oklch(0.82 0.16 90));
   background: oklch(0.40 0.12 90 / 0.20);
   border-color: oklch(0.82 0.16 90 / 0.38);
 }
 .difficulty-menu button[data-cat="moon"] .difficulty-level {
-  color: oklch(0.78 0.15 220);
+  color: light-dark(oklch(0.46 0.15 220),oklch(0.78 0.15 220));
   background: oklch(0.38 0.10 220 / 0.20);
   border-color: oklch(0.78 0.15 220 / 0.38);
 }
 .difficulty-menu button[data-cat="sun"] .difficulty-level {
-  color: oklch(0.78 0.18 20);
+  color: light-dark(oklch(0.46 0.18 20),oklch(0.78 0.18 20));
   background: oklch(0.40 0.14 20 / 0.20);
   border-color: oklch(0.78 0.18 20 / 0.38);
 }

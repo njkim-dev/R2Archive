@@ -124,7 +124,7 @@
   background: var(--accent-dim); color: var(--accent); font-weight: 600;
   display: inline-flex; align-items: center; gap: 4px;
 }
-.rr-field .ai-chip.failed { background: oklch(0.40 0.19 25 / 0.22); color: oklch(0.70 0.19 25); }
+.rr-field .ai-chip.failed { background: oklch(0.40 0.19 25 / 0.22); color: light-dark(oklch(0.46 0.19 25),oklch(0.70 0.19 25)); }
 .rr-field input {
   width: 100%; padding: 10px 12px; background: var(--surface-1);
   border: 1px solid var(--line-soft); border-radius: 8px;

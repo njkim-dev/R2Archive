@@ -10,7 +10,7 @@
   padding: 24px; background: oklch(0.08 0.01 270 / 0.65);
 }
 .detailed-filter-dialog {
-  color-scheme: dark;
+  color-scheme: inherit;
   width: 820px; max-width: 100%; max-height: calc(100dvh - 48px); display: flex; flex-direction: column;
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface-1);
   box-shadow: 0 16px 48px oklch(0 0 0 / 0.3); color: var(--fg); overflow: hidden;
@@ -39,9 +39,9 @@
 .detailed-channels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
 .detailed-channels button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 36px; border: 1px solid var(--line-soft); border-radius: 5px; font-size: 12px; background: var(--surface-0); }
 .detailed-channels button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-dim); }
-.detailed-channels [data-channel="star"] svg { color: oklch(0.82 0.16 90); }
-.detailed-channels [data-channel="moon"] svg { color: oklch(0.78 0.15 220); }
-.detailed-channels [data-channel="sun"] svg { color: oklch(0.78 0.18 20); }
+.detailed-channels [data-channel="star"] svg { color: light-dark(oklch(0.46 0.16 90),oklch(0.82 0.16 90)); }
+.detailed-channels [data-channel="moon"] svg { color: light-dark(oklch(0.46 0.15 220),oklch(0.78 0.15 220)); }
+.detailed-channels [data-channel="sun"] svg { color: light-dark(oklch(0.46 0.18 20),oklch(0.78 0.18 20)); }
 .detailed-range { display: grid; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr); align-items: center; gap: 8px; }
 .detailed-range > span { color: var(--fg-4); text-align: center; }
 .detailed-range input { width: 100%; min-width: 0; height: 36px; padding: 7px 10px; border: 1px solid var(--line-soft); border-radius: 5px; background: var(--surface-0); font-size: 13px; font-variant-numeric: tabular-nums; }

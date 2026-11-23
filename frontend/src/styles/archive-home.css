@@ -63,8 +63,3 @@
   .portal-albums { gap: 8px; }
   .portal-album strong { font-size: 14px; }
 }
-
-@media (prefers-color-scheme: light) {
-  .archive-app:has(.archive-portal) { --archive-nav-bg: #fff; --archive-nav-text: #171e32; --archive-nav-muted: #526078; --archive-nav-line: #dce1eb; --archive-nav-soft: #edf2ff; --archive-nav-active: #e4ecff; --archive-nav-accent: #194ac8; }
-  .archive-app:has(.archive-portal) .archive-brand-mark { color: white; }
-}

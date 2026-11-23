@@ -2,17 +2,17 @@
   --bg:var(--archive-nav-bg);
   --surface-0:var(--archive-nav-bg);
   --surface-1:var(--archive-nav-soft);
-  --surface-2:#2c3548;
+  --surface-2:light-dark(#e5ebf3,#2c3548);
   --line:var(--archive-nav-line);
-  --line-soft:#2b3547;
+  --line-soft:light-dark(#dce1eb,#2b3547);
   --fg:var(--archive-nav-text);
   --fg-2:var(--archive-nav-muted);
   --fg-3:var(--archive-nav-muted);
-  --fg-4:#8596af;
+  --fg-4:light-dark(#606d82,#8596af);
   --accent:var(--archive-nav-accent);
-  --accent-2:#6bb9ef;
+  --accent-2:light-dark(#143c9e,#6bb9ef);
   --accent-dim:var(--archive-nav-active);
-  --accent-ink:#142435;
+  --accent-ink:light-dark(#fff,#142435);
 }
 
 :is(.archive-sidebar-context,.archive-menu-context) .side-section { margin-top:20px; }
@@ -40,7 +40,7 @@
   background:var(--archive-nav-soft);color:var(--archive-nav-muted);font-family:inherit;
   font-size:10px;font-weight:500;font-variant-numeric:tabular-nums;line-height:20px;text-align:right;
 }
-:is(.archive-sidebar-context,.archive-menu-context) .nav button.active .tag { background:#35516e;color:var(--archive-nav-accent); }
+:is(.archive-sidebar-context,.archive-menu-context) .nav button.active .tag { background:light-dark(#d5e2ff,#35516e);color:var(--archive-nav-accent); }
 :is(.archive-sidebar-context,.archive-menu-context) .nav button.locked { cursor:not-allowed; }
 .archive-filter-lock { flex-shrink:0;color:var(--archive-nav-muted); }
 .archive-sidebar-context .side-section:has(>.detailed-filter-trigger) { border-top:1px solid var(--archive-nav-line);padding-top:16px;margin-top:16px; }
@@ -54,9 +54,9 @@
 .archive-sidebar-context .cat-btn { border-radius:8px;background:var(--archive-nav-soft);border-color:var(--archive-nav-line); }
 .archive-sidebar-context .cat-btn:hover { background:var(--surface-2); }
 
-[data-channel="star"] { --music-channel-color:oklch(0.82 0.16 90); }
-[data-channel="moon"] { --music-channel-color:oklch(0.78 0.15 220); }
-[data-channel="sun"] { --music-channel-color:oklch(0.78 0.18 20); }
+[data-channel="star"] { --music-channel-color:light-dark(#785500,oklch(0.82 0.16 90)); }
+[data-channel="moon"] { --music-channel-color:light-dark(#245fa1,oklch(0.78 0.15 220)); }
+[data-channel="sun"] { --music-channel-color:light-dark(#a53136,oklch(0.78 0.18 20)); }
 .archive-sidebar-context .cat-btn svg { color:var(--music-channel-color);opacity:.75; }
 .archive-sidebar-context .cat-btn.active,
 .archive-app .mob-chip[data-channel].on,

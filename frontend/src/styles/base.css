@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark;
   --bg:         oklch(0.155 0.012 270);
   --surface-0:  oklch(0.18 0.013 270);
   --surface-1:  oklch(0.215 0.014 270);
@@ -31,8 +32,35 @@
   --silver:     oklch(0.80 0.02 270);
   --bronze:     oklch(0.70 0.12 50);
 
+  --bg-2: var(--surface-1);
   --row-h:      44px;
   --font-ui:    13px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fb;
+    --surface-0: #fff;
+    --surface-1: #f2f5fa;
+    --surface-2: #e5ebf3;
+    --line: #c6d0df;
+    --line-soft: #dce1eb;
+    --fg: #171e32;
+    --fg-2: #39465d;
+    --fg-3: #526078;
+    --fg-4: #606d82;
+    --accent: #194ac8;
+    --accent-2: #143c9e;
+    --accent-dim: #e4ecff;
+    --accent-ink: #fff;
+    --new: #19683e;
+    --new-dim: #def3e6;
+    --warn: #805800;
+    --ok: #19683e;
+    --gold: #805800;
+    --silver: #536579;
+    --bronze: #814c20;
+  }
 }
 
 /* 별은 노랑, 달은 파랑, 해는 빨강을 사용한다. */
@@ -56,6 +84,11 @@
   --cat-accent:     oklch(0.78 0.18 20);
   --cat-accent-2:   oklch(0.68 0.20 20);
   --cat-accent-dim: oklch(0.40 0.14 20 / 0.22);
+}
+
+@media (prefers-color-scheme: light) {
+  [data-cat="sun"] { --accent-h: 20; --accent: #a53136; --accent-2: #84252c; --accent-dim: #fbe8e8; --accent-ink: #fff; --cat-accent: var(--accent); --cat-accent-2: var(--accent-2); --cat-accent-dim: var(--accent-dim); }
+  [data-cat="star"] { --accent-h: 90; --accent: #785500; --accent-2: #654600; --accent-dim: #faf0d0; --accent-ink: #fff; --cat-accent: var(--accent); --cat-accent-2: var(--accent-2); --cat-accent-dim: var(--accent-dim); }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

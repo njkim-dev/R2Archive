@@ -77,7 +77,9 @@ async function mockCatalog(page, data = songs, {
   })
   await page.goto('/')
   await expect(page.locator('[data-song-id="1"]')).toBeVisible()
-  if (sunOnly) await page.locator('[data-channel="sun"]:visible').first().click()
+  const sun = page.locator('[data-channel="sun"]:visible').first()
+  await expect(sun).toHaveAttribute('aria-pressed', 'true')
+  if (!sunOnly) await sun.click()
   return {
     writes,
     errors,
@@ -243,7 +245,7 @@ test('anonymous category creation waits for login', async ({ page }) => {
 
 test('pending category creation resumes after login', async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem('r2b_pending_category_create', 'filter'))
-  await mockCatalog(page, songs)
+  await mockCatalog(page, songs, { sunOnly: true })
 
   await expect(page.locator('.grp-modal')).toBeVisible()
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('r2b_pending_category_create'))).toBeNull()
