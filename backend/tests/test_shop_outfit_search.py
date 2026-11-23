@@ -1,4 +1,5 @@
 import os
+import random
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,65 @@ import shop_outfit_search as search
 
 
 class OutfitTests(unittest.TestCase):
+    def test_full_outfit_screens_every_eligible_bottom_without_using_the_cpu_shortlist(self):
+        region = {'bbox_xyxy': [0, 0, 1000, 1000], 'polygon_xy': [[0, 0], [1000, 0], [0, 1000]]}
+        model = search.OutfitSearch.__new__(search.OutfitSearch)
+        model.catalog_revisions = {'v'}
+        model.catalog_font = search.ImageFont.load_default()
+        model.encoder_sha256 = 'mock'
+        model.hair_palettes = None
+        model.thumbnail = MagicMock(return_value=Image.new('RGBA', (32, 32)))
+        allowed = {str(n): {'id': str(n), 'thumbnail': f'thumb-{n}', 'slot': 'bottom', 'sex': 'female'}
+                   for n in range(1, 6)}
+        allowed['5']['sex'] = 'common'
+        allowed['6'] = {**allowed['1'], 'id': '6', 'thumbnail': 'wrong-sex', 'sex': 'male'}
+        allowed['7'] = {**allowed['1'], 'id': '7', 'thumbnail': None}
+        allowed['8'] = {**allowed['1'], 'id': '8', 'slot': 'top', 'thumbnail': 'top'}
+        image = Image.new('RGB', (32, 32))
+        model.shortlist = MagicMock(return_value=([allowed['8']], image, [{'id': '8', 'score': .5}]))
+        model.compare = MagicMock(return_value=({'id': '8'}, {'cost_estimate_usd': .005}))
+
+        def analyze(prompt, images, limit):
+            measured = {'usage': {'total_tokens': 10}, 'cost_estimate_usd': .01}
+            if prompt == search.BOTTOM_SELECTION_PROMPT:
+                self.assertEqual(len(images), 3)
+                self.assertTrue(images[2]['image_url'].startswith('data:image/jpeg;'))
+                return {'candidates': ['0001', '1', 2, '0003', '0005', '0006']}, measured
+            if prompt == search.BOTTOM_MATCH_PROMPT:
+                return {'selected': 5, 'alternatives': ['0003', '0005', '0006'], 'confidence': 'medium'}, measured
+            return {'sex': 'female', 'parts': {'top': region, 'bottom': region}}, measured
+
+        order = list('12345')
+        random.Random(20261124).shuffle(order)
+        with patch.object(search, 'BOTTOM_BATCH_SIZE', 2), patch.object(search, 'call', side_effect=analyze):
+            result = model.search(image, allowed, 'v', ('top', 'bottom'))
+        model.shortlist.assert_called_once_with(image, region, 'female', 'top', allowed, ())
+        self.assertEqual(list(result['parts']), ['top', 'bottom'])
+        self.assertEqual(result['parts']['bottom'], {'id': order[4], 'alternatives': [order[2]],
+                                                   'confidence': 'medium', 'exact_match_supported': False})
+        self.assertEqual(result['shortlists']['bottom'], [order[n] for n in (0, 1, 2, 4)])
+        self.assertEqual(result['candidate_search']['bottom']['items_examined'], 5)
+        self.assertEqual(result['candidate_search']['bottom']['batches_completed'], 3)
+        self.assertEqual({entry.args[1] for entry in model.thumbnail.call_args_list},
+                         {f'thumb-{n}' for n in range(1, 6)})
+        self.assertEqual([call['stage'] for call in result['calls']],
+                         ['localization', *(['candidate_selection'] * 3), 'final_comparison', 'final_comparison'])
+        self.assertAlmostEqual(result['cost_estimate_usd'], .055)
+
+    def test_bottom_batch_failure_records_partial_usage_and_stops_the_remaining_batches(self):
+        model = search.OutfitSearch.__new__(search.OutfitSearch)
+        model.bottom_batches = MagicMock(return_value=[(('0001',), ())] * 5)
+        paid = {'usage': {'total_tokens': 56}, 'cost_estimate_usd': .001}
+        allowed = {'1': {'thumbnail': 'thumb', 'slot': 'bottom', 'sex': 'common'}}
+        calls, diagnostics = [], {}
+        image = Image.new('RGB', (32, 32))
+        with patch.object(search, 'call', side_effect=search.SearchUnavailable('outage', {'calls': [paid]})) as call:
+            with self.assertRaises(search.SearchUnavailable):
+                model.search_bottom_catalogue({}, image, 'female', allowed, 'v', calls, diagnostics)
+        self.assertEqual(call.call_count, 4)
+        self.assertEqual([record['batch'] for record in calls], [1, 2, 3, 4])
+        self.assertEqual(diagnostics['batches_completed'], 0)
+
     def test_catalog_transition_accepts_only_declared_revisions_before_paid_analysis(self):
         primary, previous, unknown = 'c69768318bc4be6f8098', '0022d250cbfa8a408b3b', 'f' * 20
         model = search.OutfitSearch.__new__(search.OutfitSearch)

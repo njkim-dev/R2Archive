@@ -18,34 +18,38 @@ async function openSearch(page) {
 }
 
 for (const width of [1440, 390]) {
-  test(`remaining estimate stays stable through overrun and minimized restore at ${width}px`, async ({ page }) => {
+  test(`bottom estimate stays stable through overrun and minimized restore at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 })
     await page.clock.install()
     await setup(page, { admin: false })
-    let estimateCalls = 0, release
-    await page.route('**/api/shop/image-search/estimate?*', route => { estimateCalls++; return route.fulfill({ json: { min_seconds: 8, max_seconds: 18 } }) })
+    let bottomEstimateCalls = 0, release
+    await page.route('**/api/shop/image-search/estimate?*', route => {
+      if (new URL(route.request().url()).searchParams.get('slot') === 'bottom') bottomEstimateCalls++
+      return route.fulfill({ status: 503, json: {} })
+    })
     await page.route('**/api/shop/image-search', async route => {
       await new Promise(resolve => { release = resolve })
-      return route.fulfill({ json: { version, sex: 'female', groups: [], items: [] } })
+      return route.fulfill({ json: { version, sex: 'female', groups: [{ slot: 'bottom', items: [] }], items: [] } })
     })
     const modal = await openSearch(page)
-    await expect.poll(() => estimateCalls).toBeGreaterThan(0)
-    const initialEstimateCalls = estimateCalls
+    await modal.getByLabel('찾을 부위', { exact: true }).selectOption('bottom')
+    await expect.poll(() => bottomEstimateCalls).toBe(1)
     await modal.getByRole('button', { name: '비슷한 아이템 찾기', exact: true }).scrollIntoViewIfNeeded()
     const watch = await watchLayout(page, ['.shop-image-search-submit', '.shop-image-search-status', '.shop-image-search-actions'])
     await modal.getByRole('button', { name: '비슷한 아이템 찾기', exact: true }).click()
-    await expect(modal.locator('.shop-image-search-status')).toContainText('예상 남은 시간 약 8~18초')
-    await page.clock.fastForward(5000)
-    await expect(modal.locator('.shop-image-search-status')).toContainText('약 3~13초')
+    await expect(modal.locator('.shop-image-search-status')).toContainText('예상 남은 시간 약 30~65초')
+    await page.clock.fastForward(25000)
+    await expect(modal.locator('.shop-image-search-status')).toContainText('약 5~40초')
     await watch.expectStable(); await watch.stop()
     await modal.getByRole('button', { name: '이미지 검색 최소화' }).click()
-    await page.clock.fastForward(14000)
+    await page.clock.fastForward(41000)
     await page.getByRole('button', { name: /이미지 검색 다시 열기/ }).click()
     await expect(modal.locator('.shop-image-search-status')).toContainText('예상보다 오래 걸리고 있습니다.')
-    expect(estimateCalls).toBe(initialEstimateCalls)
+    expect(bottomEstimateCalls).toBe(1)
     release()
     await expect(modal.getByRole('button', { name: '다시 찾기', exact: true })).toBeVisible()
     await expect(modal.locator('.shop-image-search-status')).not.toContainText('예상 남은 시간')
+    await expect(modal.getByRole('heading', { name: '하의', exact: true })).toBeAttached()
   })
 
   test(`unreleased models apply while missing models are explicitly identified at ${width}px`, async ({ page }) => {

@@ -1,6 +1,11 @@
+const initialEstimates = { bottom: [30, 65], all: [35, 80] }
+
 export function searchEstimate(value, slot = 'all') {
   const lower = Number(value?.min_seconds), upper = Number(value?.max_seconds)
-  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower < 1 || upper <= lower || upper > 150) return { min_seconds: slot === 'all' ? 20 : 10, max_seconds: slot === 'all' ? 50 : 30 }
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower < 1 || upper <= lower || upper > 150) {
+    const [min_seconds, max_seconds] = initialEstimates[slot] || [10, 30]
+    return { min_seconds, max_seconds }
+  }
   return { min_seconds: Math.floor(lower), max_seconds: Math.ceil(upper) }
 }
 

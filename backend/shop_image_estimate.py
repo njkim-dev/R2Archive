@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 def summarize(durations, slot):
     samples = sorted(float(value) for value in durations if value is not None and math.isfinite(float(value)) and 1 <= float(value) <= 140)
     if len(samples) < 5:
-        return {'min_seconds': 20 if slot == 'all' else 10, 'max_seconds': 50 if slot == 'all' else 30, 'basis': 'initial'}
+        lower, upper = {'bottom': (30, 65), 'all': (35, 80)}.get(slot, (10, 30))
+        return {'min_seconds': lower, 'max_seconds': upper, 'basis': 'initial'}
 
     def percentile(fraction):
         position = (len(samples) - 1) * fraction

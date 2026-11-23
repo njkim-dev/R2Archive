@@ -4,7 +4,8 @@ import { searchEstimate, searchProgress } from '../src/utils/shopImageEstimate.j
 
 test('estimate validation uses broad per-slot fallbacks', () => {
   for (const value of [null, [], { min_seconds: 0, max_seconds: 10 }, { min_seconds: 20, max_seconds: 10 }, { min_seconds: 10, max_seconds: 999 }]) {
-    assert.deepEqual(searchEstimate(value), { min_seconds: 20, max_seconds: 50 })
+    assert.deepEqual(searchEstimate(value), { min_seconds: 35, max_seconds: 80 })
+    assert.deepEqual(searchEstimate(value, 'bottom'), { min_seconds: 30, max_seconds: 65 })
     assert.deepEqual(searchEstimate(value, 'hair'), { min_seconds: 10, max_seconds: 30 })
   }
   assert.deepEqual(searchEstimate({ min_seconds: 8, max_seconds: 18 }), { min_seconds: 8, max_seconds: 18 })

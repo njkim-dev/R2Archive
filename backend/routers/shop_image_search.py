@@ -47,7 +47,7 @@ def image_search_status():
 @router.get('/estimate')
 @limiter.limit('60/minute', key_func=user_key)
 def image_search_estimate(request: Request, slot: Literal['all', 'hair', 'top', 'bottom', 'shoes'] = 'all'):
-    return JSONResponse(estimates.estimate(slot, outfit.MODEL, history.PIPELINE_VERSION), headers={'Cache-Control': 'private, no-store'})
+    return JSONResponse(estimates.estimate(slot, outfit.MODEL, history.pipeline_version(slot)), headers={'Cache-Control': 'private, no-store'})
 
 
 def find_outfit(content, sex, slot, version, include_unreleased, user_id=None, filename='search.png', search_id=None):

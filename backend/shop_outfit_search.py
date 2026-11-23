@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 import math
 import os
+import random
 import re
 from threading import Lock
 import time
@@ -21,7 +22,26 @@ from shop_image_search import BACKGROUND, SEARCH_DIR, engine, image_tensor
 
 SLOTS = ('hair', 'top', 'bottom', 'shoes')
 MODEL = 'gpt-6.1-terra'
-RETRIEVAL_VERSION = 'hair-palette-views-v2'
+RETRIEVAL_VERSION = 'terra-bottom-catalog-v1'
+BOTTOM_BATCH_SIZE = 180
+BOTTOM_SELECTION_PROMPT = (
+    'You are retrieving wearable lower-body items for a video game avatar. Image 1 is the user screenshot and image 2 is '
+    'the automatic lower-body crop from that screenshot. The remaining panels are a random subset of catalogue '
+    'thumbnails, with random numeric labels and no item names. Select plausible matches for the actual pants, shorts, '
+    'or skirt worn. Ignore hair, tops, skin, shoes, sparkling overlays, and background. Compare the garment silhouette, '
+    'waistband, pattern, panels and hems. The thumbnails may show an angled pose or baseline shading. Similar color alone '
+    'is insufficient. A match may be absent from any one panel. Aim to retain the correct garment candidate if it is '
+    'visually plausible. Return JSON {"candidates":["label", ...]} with up to 8 different catalogue labels in decreasing '
+    'order of visual match. Never return labels that are not displayed. Include no explanation.'
+)
+BOTTOM_MATCH_PROMPT = (
+    'Find the exact lower-body garment worn by the avatar in image 1. Image 2 is the automatic lower-body crop. '
+    'The later panels show the proposed candidate thumbnails with random numeric labels. Compare shape, waistband, '
+    'fabric panels and hem against the reference. Ignore hair, skin, shoes, and sparkle overlays. Treat different '
+    'viewpoint and lighting as possible. Return compact JSON {"selected": "label" or null, '
+    '"alternatives": [up to 3 displayed labels], "confidence": "high", "medium", or "low"}. '
+    'Return null if you cannot identify an exact match.'
+)
 _client = httpx.Client(timeout=httpx.Timeout(65, connect=10), limits=httpx.Limits(max_connections=8, max_keepalive_connections=8))
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='shop-match')
 _results = OrderedDict()
@@ -50,10 +70,14 @@ def configured():
     return bool(os.environ.get('OPENAI_API_KEY')) and (SEARCH_DIR/'outfit-manifest.json').is_file()
 
 
-def image_content(image):
+def image_content(image, *, jpeg=False):
     buffer = BytesIO()
-    image.convert('RGB').save(buffer, format='PNG')
-    return {'type': 'input_image', 'image_url': 'data:image/png;base64,'+base64.b64encode(buffer.getvalue()).decode(), 'detail': 'high'}
+    if jpeg:
+        image.convert('RGB').save(buffer, format='JPEG', quality=94, subsampling=0)
+    else:
+        image.convert('RGB').save(buffer, format='PNG')
+    mime_type = 'image/jpeg' if jpeg else 'image/png'
+    return {'type': 'input_image', 'image_url': f'data:{mime_type};base64,'+base64.b64encode(buffer.getvalue()).decode(), 'detail': 'high'}
 
 
 def call(prompt, images, limit):
@@ -61,6 +85,7 @@ def call(prompt, images, limit):
     if not key:
         raise SearchUnavailable('이미지 검색 설정을 확인해주세요.')
     started = time.perf_counter()
+    measured = None
     try:
         response = _client.post('https://api.openai.com/v1/responses', headers={'Authorization': 'Bearer '+key}, json={
             'model': MODEL, 'store': False, 'service_tier': 'default', 'reasoning': {'effort': 'low'},
@@ -69,21 +94,30 @@ def call(prompt, images, limit):
         if response.status_code != 200:
             raise SearchUnavailable('이미지 분석 서비스가 응답하지 않습니다. 잠시 후 다시 시도해주세요.')
         data = response.json()
+        usage = data.get('usage', {})
+        details = usage.get('input_tokens_details', {})
+        cached, written = details.get('cached_tokens', 0), details.get('cache_write_tokens', 0)
+        cost = ((usage.get('input_tokens', 0)-cached-written)+cached*.05+written*1.25+usage.get('output_tokens', 0)*5)/1_000_000
+        measured = {'seconds': round(time.perf_counter()-started, 3), 'usage': usage, 'cost_estimate_usd': cost,
+                    'response_id': data.get('id'), 'request_id': response.headers.get('x-request-id'),
+                    'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest()}
         if data.get('status') != 'completed':
             raise ValueError('Incomplete analysis')
         output = ''.join(c.get('text', '') for item in data.get('output', []) for c in item.get('content', []) if c.get('type') == 'output_text')
         result = json.loads(output)
         if not isinstance(result, dict):
             raise ValueError('Invalid analysis')
-        usage = data.get('usage', {})
-        details = usage.get('input_tokens_details', {})
-        cached, written = details.get('cached_tokens', 0), details.get('cache_write_tokens', 0)
-        cost = ((usage.get('input_tokens', 0)-cached-written)+cached*.05+written*1.25+usage.get('output_tokens', 0)*5)/1_000_000
-        return result, {'seconds': round(time.perf_counter()-started, 3), 'usage': usage, 'cost_estimate_usd': cost,
-                        'response_id': data.get('id'), 'request_id': response.headers.get('x-request-id'),
-                        'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest()}
+        return result, measured
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
-        raise SearchUnavailable('이미지 분석을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.') from None
+        diagnostics = {'calls': [measured]} if measured else None
+        raise SearchUnavailable('이미지 분석을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.', diagnostics) from None
+
+
+def panel_labels(values, displayed, limit):
+    if not isinstance(values, list):
+        return []
+    labels = (str(value).zfill(4) for value in values if type(value) in (str, int))
+    return list(dict.fromkeys(label for label in labels if label in displayed))[:limit]
 
 
 def valid_region(part, size):
@@ -138,6 +172,7 @@ class OutfitSearch:
             self.hair_palettes = palettes.astype(np.float32, copy=False)
             self.hair_palette_indices = {self.by_id[item]: n for n,item in enumerate(ids)}
         self.font = ImageFont.load_default(size=15)
+        self.catalog_font = ImageFont.load_default(size=17)
 
     @lru_cache(maxsize=512)
     def thumbnail(self, revision, filename):
@@ -230,13 +265,93 @@ class OutfitSearch:
         selected = result.get('selected_id')
         selected = str(selected) if selected is not None else None
         if selected is not None and selected not in ids:
-            raise SearchUnavailable('이미지 검색 결과를 확인하지 못했습니다. 다시 시도해주세요.')
+            raise SearchUnavailable('이미지 검색 결과를 확인하지 못했습니다. 다시 시도해주세요.', {'calls': [usage]})
         alternatives = result.get('alternative_ids', [])
         if not isinstance(alternatives, list):
             alternatives = []
         return {'id': selected, 'alternatives': list(dict.fromkeys(str(i) for i in alternatives if str(i) in ids and str(i) != selected))[:3],
                 'confidence': result.get('confidence') if result.get('confidence') in ('high', 'medium', 'low') else 'low',
                 'exact_match_supported': selected is not None and result.get('confidence') == 'high' and result.get('exact_match_supported') is True}, usage
+
+    def catalogue_panels(self, entries, revision, *, final=False):
+        columns, rows, width, height = (6, 6, 158, 143) if final else (9, 10, 118, 113)
+        page = columns * rows
+        for start in range(0, len(entries), page):
+            visible = entries[start:start+page]
+            board = Image.new('RGB', (columns*width, math.ceil(len(visible)/columns)*height), '#e7ebf1')
+            draw = ImageDraw.Draw(board)
+            for n, (label, thumbnail) in enumerate(visible):
+                x, y = n % columns * width, n // columns * height
+                draw.rectangle((x+2, y+2, x+width-3, y+height-3), fill='#f5f6f8', outline='#d2dbe5')
+                tile = self.thumbnail(revision, thumbnail).copy()
+                tile.thumbnail((width-12, height-28), Image.Resampling.LANCZOS)
+                board.paste(tile, (x+(width-tile.width)//2, y+4+(height-27-tile.height)//2), tile)
+                draw.text((x+width//2, y+height-13), label, font=self.catalog_font, anchor='mm', fill='#152233')
+            yield image_content(board, jpeg=True)
+
+    @lru_cache(maxsize=4)
+    def bottom_batches(self, revision, entries):
+        panels = tuple((f'{n:04d}', thumbnail) for n, (_, thumbnail) in enumerate(entries, 1))
+        batches = []
+        for start in range(0, len(panels), BOTTOM_BATCH_SIZE):
+            batch = panels[start:start+BOTTOM_BATCH_SIZE]
+            batches.append((tuple(label for label, _ in batch), tuple(self.catalogue_panels(batch, revision))))
+        return tuple(batches)
+
+    def search_bottom_catalogue(self, original, crop, sex, allowed, revision, calls, diagnostics):
+        started = time.perf_counter()
+        entries = [(item_id, row['thumbnail']) for item_id, row in allowed.items()
+                   if row['slot'] == 'bottom' and row['sex'] in (sex, 'common') and row.get('thumbnail')]
+        entries.sort(key=lambda entry: int(entry[0]))
+        random.Random(20261124).shuffle(entries)
+        labels = {f'{n:04d}': entry for n, entry in enumerate(entries, 1)}
+        diagnostics.update(method='terra_catalogue', catalogue_items=len(labels), items_examined=0, batches_completed=0)
+        batches = self.bottom_batches(revision, tuple(entries))
+        references = [original, image_content(crop)]
+        shortlist = []
+        for start in range(0, len(batches), 4):
+            wave = batches[start:start+4]
+            futures = [_pool.submit(call, BOTTOM_SELECTION_PROMPT, references+list(panels), 1000) for _, panels in wave]
+            failed = False
+            for i, (future, (displayed, _)) in enumerate(zip(futures, wave), start+1):
+                tags = {'stage': 'candidate_selection', 'slot': 'bottom', 'batch': i}
+                try:
+                    result, measured = future.result()
+                except SearchUnavailable as exc:
+                    calls.extend({**entry, **tags} for entry in exc.diagnostics.get('calls', []))
+                    failed = True
+                    continue
+                calls.append({**measured, **tags})
+                if not isinstance(result.get('candidates'), list):
+                    failed = True
+                    continue
+                shortlist.extend(panel_labels(result['candidates'], displayed, 8))
+                diagnostics['items_examined'] += len(displayed)
+                diagnostics['batches_completed'] += 1
+            if failed:
+                raise SearchUnavailable('일부 하의 후보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')
+        diagnostics['selection_seconds'] = round(time.perf_counter()-started, 3)
+        diagnostics['shortlist'] = [labels[label][0] for label in shortlist]
+        if not shortlist:
+            return {'id': None, 'alternatives': [], 'confidence': 'low', 'exact_match_supported': False}
+        random.Random(20261125).shuffle(shortlist)
+        panels = self.catalogue_panels([(label, labels[label][1]) for label in shortlist], revision, final=True)
+        tags = {'stage': 'final_comparison', 'slot': 'bottom'}
+        try:
+            result, measured = call(BOTTOM_MATCH_PROMPT, [*references, *panels], 1000)
+        except SearchUnavailable as exc:
+            calls.extend({**entry, **tags} for entry in exc.diagnostics.get('calls', []))
+            raise
+        calls.append({**measured, **tags})
+        selected = panel_labels([result.get('selected')], shortlist, 1)
+        if 'selected' not in result or (result['selected'] is not None and not selected):
+            raise SearchUnavailable('하의 검색 결과를 확인하지 못했습니다. 다시 시도해주세요.')
+        selected_id = labels[selected[0]][0] if selected else None
+        alternatives = panel_labels(result.get('alternatives'), set(shortlist)-set(selected), 3)
+        confidence = result.get('confidence')
+        return {'id': selected_id, 'alternatives': [labels[label][0] for label in alternatives],
+                'confidence': confidence if confidence in ('high', 'medium', 'low') else 'low',
+                'exact_match_supported': selected_id is not None and confidence == 'high'}
 
     def search(self, image, allowed, revision, slots=SLOTS, sex_hint=None, examples=()):
         started = time.perf_counter()
@@ -255,41 +370,56 @@ class OutfitSearch:
         if sex_hint:
             prompt += ' The user has specified the character sex as '+sex_hint+'.'
         localized, usage = call(prompt, [original], 1900)
+        calls = [{**usage, 'stage': 'localization'}]
         sex = sex_hint or localized.get('sex')
         if sex not in ('male', 'female') or not isinstance(localized.get('parts'), dict):
-            raise SearchUnavailable('캐릭터를 인식하지 못했습니다. 다른 이미지를 사용해주세요.')
+            raise SearchUnavailable('캐릭터를 인식하지 못했습니다. 다른 이미지를 사용해주세요.', {'calls': calls})
+        futures = {}
         try:
-            futures = {}
-            for slot in slots:
-                valid_region(localized['parts'][slot], image.size)
+            boxes = {slot: valid_region(localized['parts'][slot], image.size)[0] for slot in slots}
             preparation = time.perf_counter()
             shortlists = {}
             scored = {}
             for slot in slots:
+                if slot == 'bottom':
+                    continue
                 candidates, crop, scored[slot] = self.shortlist(image, localized['parts'][slot], sex, slot, allowed, examples)
                 shortlists[slot] = [str(r['id']) for r in candidates]
                 futures[slot] = _pool.submit(self.compare, slot, original, crop, candidates, revision)
             prepared = time.perf_counter()-preparation
-            parts, calls = {}, [usage]
-            errors = []
-            for slot,future in futures.items():
-                try:
-                    parts[slot], measured = future.result()
-                    if measured:
-                        calls.append(measured)
-                except Exception as exc:
-                    errors.append(exc)
-            if errors:
-                raise SearchUnavailable('일부 부위의 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.',
-                                        {'localization': localized['parts'], 'shortlists': shortlists, 'scored_candidates': scored, 'calls': calls})
         except (ValueError, KeyError, TypeError):
             for future in futures.values():
                 future.cancel()
-            raise SearchUnavailable('부위를 인식하지 못했습니다. 다른 이미지를 사용해주세요.', {'localization': localized.get('parts'), 'calls': [usage]}) from None
-        return {'sex': sex, 'parts': parts, 'model': MODEL,
+            raise SearchUnavailable('부위를 인식하지 못했습니다. 다른 이미지를 사용해주세요.', {'localization': localized.get('parts'), 'calls': calls}) from None
+        parts, candidate_search, errors = {}, {}, []
+        if 'bottom' in slots:
+            bottom = candidate_search['bottom'] = {}
+            try:
+                with image.crop(boxes['bottom']) as crop:
+                    parts['bottom'] = self.search_bottom_catalogue(original, crop, sex, allowed, revision, calls, bottom)
+            except (SearchUnavailable, OSError) as exc:
+                errors.append(str(exc) if isinstance(exc, SearchUnavailable) else '하의 미리보기 자료를 불러오지 못했습니다.')
+            shortlists['bottom'] = bottom.pop('shortlist', [])
+        for slot, future in futures.items():
+            tags = {'stage': 'final_comparison', 'slot': slot}
+            try:
+                parts[slot], measured = future.result()
+                if measured:
+                    calls.append({**measured, **tags})
+            except SearchUnavailable as exc:
+                calls.extend({**entry, **tags} for entry in exc.diagnostics.get('calls', []))
+                errors.append(str(exc))
+            except Exception:
+                errors.append('일부 부위의 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.')
+        diagnostics = {'calls': calls, 'cost_estimate_usd': sum(c['cost_estimate_usd'] for c in calls),
+                       'shortlists': shortlists, 'scored_candidates': scored, 'candidate_search': candidate_search,
+                       'localization': localized['parts']}
+        if errors:
+            raise SearchUnavailable(errors[0], diagnostics)
+        prepared += candidate_search.get('bottom', {}).get('selection_seconds', 0)
+        return {'sex': sex, 'parts': {slot: parts[slot] for slot in slots}, 'model': MODEL,
                 'timing': {'total_seconds': round(time.perf_counter()-started, 3), 'candidate_seconds': round(prepared, 3)},
-                'calls': calls, 'cost_estimate_usd': sum(c['cost_estimate_usd'] for c in calls), 'shortlists': shortlists,
-                'scored_candidates': scored, 'localization': localized['parts'], 'encoder_sha256': self.encoder_sha256,
+                **diagnostics, 'encoder_sha256': self.encoder_sha256,
                 'approved_example_count': len(examples), 'retrieval_version': RETRIEVAL_VERSION,
                 'hair_palette_ready': self.hair_palettes is not None,
                 'hair_palette_views': 5 if 'hair' in slots and self.hair_palettes is not None else 0}

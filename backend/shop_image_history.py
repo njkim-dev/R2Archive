@@ -27,6 +27,10 @@ _training = {'generation': None, 'rows': []}
 logger = logging.getLogger(__name__)
 
 
+def pipeline_version(slot):
+    return 'terra-bottom-catalog-v1' if slot in ('bottom', 'all') else PIPELINE_VERSION
+
+
 @contextmanager
 def transaction(write=False):
     with get_conn() as conn:
@@ -86,7 +90,7 @@ def create(content, uid, sex, slot, revision, filename, model, guest_id=None):
                 (id,user_id,status,sex,slot,catalog_revision,model,pipeline_version,image_key,source_sha256,image_format,
                  image_bytes,image_width,image_height,original_filename,diagnostics)
                 VALUES(%s,%s,'running',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
-                (str(search_id),uid,sex,slot,revision,model,PIPELINE_VERSION,image_key,sha256(content).hexdigest(),image_format,
+                (str(search_id),uid,sex,slot,revision,model,pipeline_version(slot),image_key,sha256(content).hexdigest(),image_format,
                  len(content),width,height,Path(filename.replace('\\','/')).name[:255],Json({'guest_id': guest_id} if guest_id else {})))
     except BaseException:
         path.unlink(missing_ok=True)

@@ -10,8 +10,9 @@ class ImageEstimateTests(unittest.TestCase):
 
     def test_small_samples_use_slot_specific_fallback_and_ignore_invalid_times(self):
         self.assertEqual(estimates.summarize([None, 0, -1, float('nan'), float('inf'), 200, 3], 'all'),
-                         {'min_seconds': 20, 'max_seconds': 50, 'basis': 'initial'})
+                         {'min_seconds': 35, 'max_seconds': 80, 'basis': 'initial'})
         self.assertEqual(estimates.summarize([12] * 4, 'hair')['max_seconds'], 30)
+        self.assertEqual(estimates.summarize([], 'bottom'), {'min_seconds': 30, 'max_seconds': 65, 'basis': 'initial'})
 
     def test_quantiles_allow_for_real_variation_and_enforce_bounds(self):
         self.assertEqual(estimates.summarize([20, 25, 30, 35, 40], 'all'),
