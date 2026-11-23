@@ -24,6 +24,7 @@ SLOTS = ('hair', 'top', 'bottom', 'shoes')
 MODEL = 'gpt-6.1-terra'
 RETRIEVAL_VERSION = 'terra-bottom-catalog-v1'
 BOTTOM_BATCH_SIZE = 180
+PARALLEL_CALLS = 4
 BOTTOM_SELECTION_PROMPT = (
     'You are retrieving wearable lower-body items for a video game avatar. Image 1 is the user screenshot and image 2 is '
     'the automatic lower-body crop from that screenshot. The remaining panels are a random subset of catalogue '
@@ -43,7 +44,7 @@ BOTTOM_MATCH_PROMPT = (
     'Return null if you cannot identify an exact match.'
 )
 _client = httpx.Client(timeout=httpx.Timeout(65, connect=10), limits=httpx.Limits(max_connections=8, max_keepalive_connections=8))
-_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='shop-match')
+_pool = ThreadPoolExecutor(max_workers=PARALLEL_CALLS, thread_name_prefix='shop-match')
 _results = OrderedDict()
 _cache_lock = Lock()
 _engine_lock = Lock()
@@ -289,14 +290,16 @@ class OutfitSearch:
                 draw.text((x+width//2, y+height-13), label, font=self.catalog_font, anchor='mm', fill='#152233')
             yield image_content(board, jpeg=True)
 
-    @lru_cache(maxsize=4)
-    def bottom_batches(self, revision, entries):
-        panels = tuple((f'{n:04d}', thumbnail) for n, (_, thumbnail) in enumerate(entries, 1))
-        batches = []
-        for start in range(0, len(panels), BOTTOM_BATCH_SIZE):
-            batch = panels[start:start+BOTTOM_BATCH_SIZE]
-            batches.append((tuple(label for label, _ in batch), tuple(self.catalogue_panels(batch, revision))))
-        return tuple(batches)
+    @lru_cache(maxsize=80)
+    def selection_panels(self, revision, batch):
+        return tuple(self.catalogue_panels(batch, revision))
+
+    def select_bottom_batch(self, references, batch, revision):
+        started = time.perf_counter()
+        panels = self.selection_panels(revision, batch)
+        panel_seconds = round(time.perf_counter()-started, 3)
+        result, measured = call(BOTTOM_SELECTION_PROMPT, [*references, *panels], 1000)
+        return result, {**measured, 'panel_seconds': panel_seconds}
 
     def search_bottom_catalogue(self, original, crop, sex, allowed, revision, calls, diagnostics):
         started = time.perf_counter()
@@ -306,14 +309,15 @@ class OutfitSearch:
         random.Random(20261124).shuffle(entries)
         labels = {f'{n:04d}': entry for n, entry in enumerate(entries, 1)}
         diagnostics.update(method='terra_catalogue', catalogue_items=len(labels), items_examined=0, batches_completed=0)
-        batches = self.bottom_batches(revision, tuple(entries))
+        panels = tuple((label, thumbnail) for label, (_, thumbnail) in labels.items())
+        batches = [panels[start:start+BOTTOM_BATCH_SIZE] for start in range(0, len(panels), BOTTOM_BATCH_SIZE)]
         references = [original, image_content(crop)]
         shortlist = []
-        for start in range(0, len(batches), 4):
-            wave = batches[start:start+4]
-            futures = [_pool.submit(call, BOTTOM_SELECTION_PROMPT, references+list(panels), 1000) for _, panels in wave]
+        for start in range(0, len(batches), PARALLEL_CALLS):
+            wave = batches[start:start+PARALLEL_CALLS]
+            futures = [_pool.submit(self.select_bottom_batch, references, batch, revision) for batch in wave]
             failed = False
-            for i, (future, (displayed, _)) in enumerate(zip(futures, wave), start+1):
+            for i, (future, batch) in enumerate(zip(futures, wave), start+1):
                 tags = {'stage': 'candidate_selection', 'slot': 'bottom', 'batch': i}
                 try:
                     result, measured = future.result()
@@ -321,12 +325,15 @@ class OutfitSearch:
                     calls.extend({**entry, **tags} for entry in exc.diagnostics.get('calls', []))
                     failed = True
                     continue
+                except OSError:
+                    failed = True
+                    continue
                 calls.append({**measured, **tags})
                 if not isinstance(result.get('candidates'), list):
                     failed = True
                     continue
-                shortlist.extend(panel_labels(result['candidates'], displayed, 8))
-                diagnostics['items_examined'] += len(displayed)
+                shortlist.extend(panel_labels(result['candidates'], dict(batch), 8))
+                diagnostics['items_examined'] += len(batch)
                 diagnostics['batches_completed'] += 1
             if failed:
                 raise SearchUnavailable('일부 하의 후보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')

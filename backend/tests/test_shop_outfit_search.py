@@ -58,12 +58,13 @@ class OutfitTests(unittest.TestCase):
 
     def test_bottom_batch_failure_records_partial_usage_and_stops_the_remaining_batches(self):
         model = search.OutfitSearch.__new__(search.OutfitSearch)
-        model.bottom_batches = MagicMock(return_value=[(('0001',), ())] * 5)
+        model.selection_panels = MagicMock(return_value=())
         paid = {'usage': {'total_tokens': 56}, 'cost_estimate_usd': .001}
-        allowed = {'1': {'thumbnail': 'thumb', 'slot': 'bottom', 'sex': 'common'}}
+        allowed = {str(n): {'thumbnail': 'thumb', 'slot': 'bottom', 'sex': 'common'} for n in range(1, 6)}
         calls, diagnostics = [], {}
         image = Image.new('RGB', (32, 32))
-        with patch.object(search, 'call', side_effect=search.SearchUnavailable('outage', {'calls': [paid]})) as call:
+        with patch.object(search, 'call', side_effect=search.SearchUnavailable('outage', {'calls': [paid]})) as call, \
+             patch.object(search, 'BOTTOM_BATCH_SIZE', 1):
             with self.assertRaises(search.SearchUnavailable):
                 model.search_bottom_catalogue({}, image, 'female', allowed, 'v', calls, diagnostics)
         self.assertEqual(call.call_count, 4)
