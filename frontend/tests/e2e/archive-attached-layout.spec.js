@@ -11,6 +11,11 @@ for (const width of [2560, 1920, 1024, 390]) test(`music, shop and myhome keep t
   const mobile = width <= 800
   const selectors = mobile ? ['.archive-mobile-header', '.archive-mobile-bottom'] : ['.archive-mobile-header .archive-brand', '.archive-mobile-header .archive-desktop-nav']
   await expect(page.locator(selectors[0])).toBeVisible()
+  if (!mobile) {
+    const repair = page.locator('.archive-desktop-nav').getByRole('link', { name: '게임 복구' })
+    const lines = await repair.locator('span').evaluate(node => { const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects().length })
+    expect(lines).toBe(1)
+  }
   const originalNavigation = await page.locator(selectors[1]).boundingBox()
   const transition = await watchLayout(page, selectors)
   await page.getByRole('link', { name: '상점', exact: true }).click()

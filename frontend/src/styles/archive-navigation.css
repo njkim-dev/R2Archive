@@ -182,7 +182,7 @@ body:has(.archive-app) .shop-image-search-restore{left:calc(max(0px,calc((100vw 
 }
 
 .archive-mobile-header .archive-desktop-nav { display: grid; grid-template-columns: repeat(4,96px); gap: 4px; }
-.archive-mobile-header .archive-desktop-nav .archive-primary-item { width: 100%; }
+.archive-mobile-header .archive-desktop-nav .archive-primary-item { width: 100%; padding-inline: 7px; gap: 7px; white-space: nowrap; }
 .archive-app .archive-page-layout { min-height: calc(100dvh - var(--shell-top) - var(--shell-bottom)); }
 .archive-music-tabs .music-tab::before { display: none; }
 
