@@ -35,13 +35,14 @@
 .portal-section-heading h2 { margin: 0; font-size: clamp(18px,2.1vw,23px); letter-spacing: -.055em; }
 .portal-section-heading a, .portal-feature span { display: inline-flex; align-items: center; gap: 3px; min-height: 36px; font-size: 13px; }
 .portal-albums { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; position: relative; }
-.portal-albums:before { content: ''; grid-area: 1/1; width: 100%; aspect-ratio: 1.75; margin-bottom: 54px; pointer-events: none; }
+.portal-albums:before { content: ''; grid-area: 1/1; width: 100%; aspect-ratio: 1.75; margin-bottom: 72px; pointer-events: none; }
 .portal-album { grid-row: 1; min-width: 0; }
 .portal-album:first-of-type { grid-column: 1; }
 .portal-album > span { display: grid; place-items: center; aspect-ratio: 1.75; background: var(--line); border-radius: 9px; overflow: hidden; }
+.portal-album > span > * { grid-area: 1 / 1; }
 .portal-album img { width: 100%; height: 100%; object-fit: cover; }
 .portal-album :is(strong,small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.portal-album strong { margin-top: 7px; line-height: 22px; font-size: 16px; }
+.portal-album strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; margin-top: 7px; line-height: 22px; font-size: 16px; }
 .portal-album small { color: var(--muted); font-size: 12px; line-height: 20px; }
 .portal-albums > p { margin: 0; grid-area: 1/1/2/4; align-self: center; color: var(--muted); }
 .portal-albums > p a { text-decoration: underline; }

@@ -34,7 +34,7 @@ function RecentSongs() {
     <div className="portal-albums" aria-busy={songs === null && !failed}>
       {failed || songs?.length === 0 ? <p>{failed ? '곡 목록을 불러오지 못했습니다.' : '아직 등록된 곡이 없습니다.'} <a href="/music/">전체 곡 목록 열기</a></p>
         : (songs ?? [null, null, null]).map((song, index) => song ? <a className="portal-album" key={song.id} href={'/music/#song=' + song.id}>
-          <span>{song.image ? <img src={staticUrl(song.image)} alt="" /> : <Music2 aria-hidden="true" />}</span>
+          <span><Music2 aria-hidden="true" />{song.image && <img src={staticUrl(song.image)} alt="" onError={event => { event.currentTarget.hidden = true }} />}</span>
           <strong>{song.name}</strong><small>{song.artist}</small>
         </a> : <div className="portal-album" key={index} aria-hidden="true"><span /><strong> </strong><small> </small></div>)}
     </div>

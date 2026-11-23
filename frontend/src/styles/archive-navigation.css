@@ -198,3 +198,19 @@ body:has(.archive-app) .shop-image-search-restore{left:calc(max(0px,calc((100vw 
 .shop-character-home .shop-character-cards {
   max-width: clamp(600px,calc((100dvh - 260px) * 1.7),1140px);
 }
+
+@media (max-width:550px) {
+  .shop-app:has(.archive-shop-tabs) :is(.shop-departments,.shop-filters) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .shop-app:has(.archive-shop-tabs) .shop-departments > button,
+  .shop-app:has(.archive-shop-tabs) .shop-departments > button[role=tab]:not(.shop-favorites-tab),
+  .shop-app:has(.archive-shop-tabs) .shop-filters > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-height: 40px;
+    padding-inline: 11px;
+  }
+}
