@@ -517,6 +517,7 @@ export default function PmangSongsPage() {
                   <button
                     key={c.key}
                     className={`mob-chip${isOn ? ' on' : ''}`}
+                    data-channel={c.key === 'all' ? undefined : c.key}
                     aria-pressed={isOn}
                     onClick={() => {
                       if (c.key === 'all') {

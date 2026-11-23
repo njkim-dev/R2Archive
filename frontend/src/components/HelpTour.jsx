@@ -197,7 +197,7 @@ const PAGE_HELP = {
     steps: [
       {
         title: '페이지별 도움말',
-        body: 'F1을 누르거나 도움말 버튼을 클릭하면 현재 페이지에서 사용할 수 있는 기능을 단계별로 볼 수 있어요.',
+        body: 'F1을 누르면 현재 페이지에서 사용할 수 있는 기능을 단계별로 볼 수 있어요.',
         target: '.topbar, .mob-top',
       },
       {
@@ -209,6 +209,7 @@ const PAGE_HELP = {
 }
 
 export function HelpButton({ className = '' }) {
+  /*
   return (
     <button
       className={`help-topbar-btn${className ? ` ${className}` : ''}`}
@@ -221,6 +222,8 @@ export function HelpButton({ className = '' }) {
       <span>도움말</span>
     </button>
   )
+  */
+  return null
 }
 
 function getHelpKey(pathname) {

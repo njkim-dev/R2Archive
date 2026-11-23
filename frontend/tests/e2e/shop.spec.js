@@ -107,7 +107,7 @@ test('my home saves first mains preserves later additions switches mains and res
   const gate = new Promise(resolve => { release = resolve })
   await setup(page, { items, wardrobeSaveGate: gate })
   await page.goto('/shop?sex=male')
-  await page.getByLabel('저장할 캐릭터',{exact:true}).selectOption('1')
+  await expect(page.getByLabel('저장할 캐릭터', { exact: true })).toHaveValue('1')
   const firstCard = page.locator('[data-item-id="200"]'), secondCard = page.locator('[data-item-id="202"]')
   await expect(firstCard.getByRole('button', { name: '내 의상으로 저장', exact: true })).toBeEnabled()
   await firstCard.getByRole('button', { name: '내 의상으로 저장', exact: true }).scrollIntoViewIfNeeded()

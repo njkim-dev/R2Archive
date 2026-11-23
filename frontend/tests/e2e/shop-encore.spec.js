@@ -26,7 +26,6 @@ const standAloneParticles = {
 test('Encore opens a same-page couple modal with the selected character and their partner', async ({ page }) => {
   const width = test.info().project.use.viewport.width <= 768 ? 390 : 1440
   await page.setViewportSize({ width, height: 940 })
-  await page.addInitScript(() => sessionStorage.setItem('r2_active_character', '1'))
   const wardrobe = { ...shirt, id: '211', name: '두 번째 캐릭터 메인' }
   const partnerTop = { ...femaleShirt, id: '212', name: '커플 캐릭터 메인' }
   const first = { id: '1', name: '첫 번째 캐릭터', sex: 'female', ids: ['201'], mains: [{ sex: 'female', slot: 'top', item: femaleShirt }] }

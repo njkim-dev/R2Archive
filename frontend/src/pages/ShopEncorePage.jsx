@@ -14,7 +14,7 @@ import { useMobile } from '../hooks/useMobile'
 import useStore from '../store/useStore'
 import { startCoupleAudio } from '../utils/shopPreview'
 import { SLOT_LABELS } from '../utils/shopUrl'
-import { readStorageCharacter, writeStorageCharacter } from '../utils/shopWardrobeSession'
+import { readStorageCharacter, resolveStorageCharacter, writeStorageCharacter } from '../utils/shopWardrobeSession'
 import '../styles/shop.css'
 import '../styles/shopCharacters.css'
 import '../styles/shopEncore.css'
@@ -140,13 +140,13 @@ export default function ShopEncorePage() {
   const [selectedId, setSelectedId] = useState(null)
   const [preferredSex, setPreferredSex] = useState('female')
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [targetCharacter, setTargetCharacter] = useState(readStorageCharacter)
+  const [preferredCharacter, setPreferredCharacter] = useState(readStorageCharacter)
   const [couple, setCouple] = useState(null)
   const { authLoaded, user } = useStore()
   const userId = authLoaded ? user?.id : null
   const characters = useCharacters(userId, round?.catalogVersion)
-  const character = characters.items.find(entry => entry.character.id === targetCharacter)?.character
-  const characterPending = !!targetCharacter && (!authLoaded || !!userId && !characters.ready)
+  const character = resolveStorageCharacter(characters.items, preferredCharacter)
+  const characterPending = !authLoaded || (!!userId && !characters.ready)
   const motionItemId = couple?.item.id
   const audioContext = couple?.audioContext
 
@@ -195,7 +195,7 @@ export default function ShopEncorePage() {
   }
 
   function chooseCharacter(value) {
-    setTargetCharacter(value || null)
+    setPreferredCharacter(value)
     writeStorageCharacter(value)
   }
 

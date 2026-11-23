@@ -172,6 +172,8 @@ function PersonalCategoryFilterPanel({
             <button
               key={key}
               className={`cat-btn${filters.category === key ? ' active' : ''}`}
+              data-channel={key}
+              aria-pressed={filters.category === key}
               onClick={() => onCategory(filters.category === key ? null : key)}
               data-tooltip={`${label} (난이도 ${rng})`}
             >
@@ -260,6 +262,8 @@ function PersonalCategoryMobileFilters({ filters, counts, user, onCategory, onQu
           <button
             key={key}
             className={`mob-chip${filters.category === key ? ' on' : ''}`}
+            data-channel={key}
+            aria-pressed={filters.category === key}
             onClick={() => onCategory(filters.category === key ? null : key)}
           >
             <span className="pcat-category-icon" aria-hidden="true">{icon}</span>

@@ -88,22 +88,25 @@ test('old NGINX acknowledgement preserves the new notice and unseen OpenJDK', as
   await expect(notice.locator('section p')).toHaveText(paragraphs)
   await expect(notice.getByRole('button', { name: '다음', exact: true })).toBeVisible()
   await notice.getByRole('button', { name: '확인', exact: true }).click()
-  expect(await stored(page)).toEqual(['1', '1', null])
-  await page.reload()
-  await expect(notice).toContainText('OpenJDK')
-  await expect(notice).not.toContainText('NGINX')
-  await page.keyboard.press('Escape')
   expect(await stored(page)).toEqual(['1', '1', '1'])
+  await page.reload()
+  await expect(notice).toHaveCount(0)
 })
 
-test('Escape acknowledges only pages actually visited', async ({ page, baseURL }) => {
+test('showing the first page acknowledges the current notices before navigating away', async ({ page, baseURL }) => {
   const notice = await enter(page, baseURL)
-  await page.keyboard.press('Escape')
-  expect(await stored(page)).toEqual([null, '1', null])
-  await page.reload()
-  await expect(notice).toContainText('OpenJDK')
-  await page.keyboard.press('Escape')
+  await expect(notice).toContainText('NGINX')
   expect(await stored(page)).toEqual([null, '1', '1'])
+  await page.goto('https://r2archive.com/shop', { waitUntil: 'domcontentloaded' })
+  await expect(notice).toHaveCount(0)
+})
+
+test('a previously acknowledged first page covers the second notice', async ({ page, baseURL }) => {
+  const notice = await enter(page, baseURL, [nginxKey])
+  await expect(notice).toHaveCount(0)
+  await page.getByRole('button', { name: '보안 안내', exact: true }).click()
+  await notice.getByRole('button', { name: '다음', exact: true }).click()
+  await expect(notice).toContainText('OpenJDK')
 })
 
 test('unread OpenJDK remains available through Next during the new NGINX campaign', async ({ page, baseURL }) => {
@@ -138,12 +141,12 @@ test('manual reopening includes acknowledged pages', async ({ page, baseURL }) =
   await page.keyboard.press('Escape')
 })
 
-test('direct shop entry repeats only NGINX for acknowledged OpenJDK visitors', async ({ page, baseURL }) => {
+test('an acknowledged OpenJDK visitor sees NGINX only once across menus', async ({ page, baseURL }) => {
   await enter(page, baseURL, [jdkKey])
-  await page.goto('https://r2archive.com/shop', { waitUntil: 'domcontentloaded' })
   await expect(dialog(page)).toContainText('NGINX')
   await expect(dialog(page)).not.toContainText('OpenJDK')
-  await page.keyboard.press('Escape')
+  await page.goto('https://r2archive.com/shop', { waitUntil: 'domcontentloaded' })
+  await expect(dialog(page)).toHaveCount(0)
   await page.goto('https://r2archive.com/', { waitUntil: 'domcontentloaded' })
   await expect(dialog(page)).toHaveCount(0)
 })

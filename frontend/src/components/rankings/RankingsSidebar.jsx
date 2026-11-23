@@ -124,6 +124,8 @@ export default function RankingsSidebar({ rankedSongCount, mineSongCount, myGrou
             <button
               key={key}
               className={`cat-btn${category === key ? ' active' : ''}`}
+              data-channel={key}
+              aria-pressed={category === key}
               onClick={() => setCategory(key)}
               data-tooltip={`${label} (난이도 ${rng})`}
             >

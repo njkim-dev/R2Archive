@@ -67,4 +67,14 @@ for (const width of [1440, 390]) test(`music navigation shares the archive theme
   if (mobile) await page.getByRole('button', { name: '전체 메뉴 열기', exact: true }).click()
   else await page.locator('.archive-sidebar').evaluate(node => { node.scrollTop = 0 })
   await page.screenshot({ path: test.info().outputPath(`music-navigation-theme-${width}.png`) })
+  for (const path of ['/pmang-songs', '/rankings']) {
+    await page.goto(path)
+    await expect(page.getByRole('button', { name: '도움말 열기' })).toHaveCount(0)
+    for (const [index, key] of ['star', 'moon', 'sun'].entries()) {
+      const button = page.locator(`button[data-channel="${key}"]:visible`).first()
+      await button.click()
+      await expect(button).toHaveAttribute('aria-pressed', 'true')
+      await expect.poll(() => button.evaluate(node => getComputedStyle(node).color)).toBe(semantic[index])
+    }
+  }
 })

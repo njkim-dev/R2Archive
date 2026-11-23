@@ -118,6 +118,7 @@ export default function PmangSidebar({
             <button
               key={key}
               className={`cat-btn${category === key ? ' active' : ''}`}
+              data-channel={key}
               onClick={() => setCategory(key)}
               data-tooltip={`${label} (난이도 ${rng})`}
               aria-pressed={category === key}

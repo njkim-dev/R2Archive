@@ -153,6 +153,8 @@ export default function RankingsMobileHeader({ totalFiltered, onFilterClick }) {
               <button
                 key={key}
                 className={`mob-chip${isOn ? ' on' : ''}`}
+                data-channel={range ? key : undefined}
+                aria-pressed={isOn}
                 onClick={() => handleChip(key)}
               >
                 {icon && <span className="mob-chip-icon">{icon}</span>}

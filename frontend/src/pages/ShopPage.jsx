@@ -9,7 +9,7 @@ import { itemShareUrl, outfitShareUrl, readShopUrl, rememberShopReturn, SHOP_SLO
 import { SHOP_GROUPS, PET_GROUPS, PET_SUPPLY_GROUPS } from '../utils/shopCategories'
 import ShopOutfitPreview from '../components/shop/ShopOutfitPreview'
 import ShopImageSearch from '../components/shop/ShopImageSearch'
-import { readStorageCharacter, writeStorageCharacter, readWardrobeSession, saveWardrobeSession } from '../utils/shopWardrobeSession'
+import { readStorageCharacter, resolveStorageCharacter, writeStorageCharacter, readWardrobeSession, saveWardrobeSession } from '../utils/shopWardrobeSession'
 import ShopViewModes from '../components/shop/ShopViewModes'
 import ShopViewer from '../components/shop/ShopViewer'
 import ItemImage, { ShopImageSession } from '../components/shop/ShopImage'
@@ -68,13 +68,14 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   useEffect(() => { setFavoriteSlot(null) }, [user?.id])
   const initial = useRef(readShopUrl(search)).current
   const [meta, setMeta] = useState(null)
-  const [targetCharacter,setTargetCharacter]=useState(readStorageCharacter)
+  const [preferredCharacter, setPreferredCharacter] = useState(readStorageCharacter)
   const [saveRequest,setSaveRequest]=useState(null)
   const [savingOwned,setSavingOwned]=useState(false),saveLock=useRef(false)
-  const storageCharacter=characterId||(!privateHome?targetCharacter:null)
-  const coupleRelation=couples.items.find(item=>item.character.id===(characterId||partnerOf||storageCharacter))
   const characters=useCharacters(authLoaded?user?.id:null,meta?.revision)
-  const owned = useShopWardrobe(authLoaded ? user?.id : null, meta?.revision,storageCharacter)
+  const targetCharacter = resolveStorageCharacter(characters.items, preferredCharacter)?.id
+  const storageCharacter = characterId || (!privateHome && !publicHome ? targetCharacter : null)
+  const coupleRelation=couples.items.find(item=>item.character.id===(characterId||partnerOf||storageCharacter))
+  const owned = useShopWardrobe(authenticated && (privateHome || publicHome || characters.ready) ? user.id : null, meta?.revision, storageCharacter)
   const [homeOnly, setHomeOnly] = useState(!!publicHome||privateHome)
   const sharing = useMyHomeLink(authLoaded && !publicHome ? user?.id : null,characterId)
   const publicData = usePublicHome(publicHome, meta?.revision)
@@ -157,7 +158,9 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const visibleTotal = Math.max(0, listing.total - (listing.items.length - visibleItems.length))
   const listKey = JSON.stringify([ready, meta?.revision, department, listSex, slot, group, subgroup, query, pairedOnly, hideUnavailable, hideUnreleased, favoritesOnly, homeOnly,characterId,homeOnly?[...owned.ids].join(','):'', (favoritesOnly || homeOnly) ? user?.id : null, favoritesOnly && favorites.ready, homeOnly && homeData.ready, publicHome, publicData.epoch])
   useEffect(()=>{setSaveRequest(null)},[user?.id])
-  useEffect(()=>{const active=characterId||targetCharacter;if(!active||!authenticated||partnerOf)return;if(!characterId&&characters.ready&&!characters.items.some(entry=>entry.character.id===active)){setTargetCharacter(null);return}writeStorageCharacter(active)},[characterId,targetCharacter,authenticated,characters.ready,characters.items,partnerOf])
+  useEffect(() => {
+    if (authenticated && characterId && !partnerOf) writeStorageCharacter(characterId)
+  }, [authenticated, characterId, partnerOf])
   useEffect(()=>{if(homeOnly&&homeData.character?.sex)setSex(homeData.character.sex)},[homeOnly,homeData.character?.sex,sex])
   useEffect(() => { if (!authenticated) { setFavoritesOnly(false); if (!publicHome&&!privateHome) setHomeOnly(false) } }, [authenticated, publicHome,privateHome])
   useEffect(() => () => clearTimeout(toastTimer.current), [])
@@ -276,9 +279,12 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   }
   function selectStorageCharacter(value){
     const id=value||null;pendingStorageCharacter.current=id;if(id)touched.current={male:new Set(),female:new Set()}
-    if (!id) writeStorageCharacter(null)
     if(id===targetCharacter&&owned.ready&&owned.character?.id===id){pendingStorageCharacter.current=null;applyStorageCharacter(owned)}
-    setTargetCharacter(id)
+    rememberStorageCharacter(value)
+  }
+  function rememberStorageCharacter(value) {
+    setPreferredCharacter(value || '')
+    writeStorageCharacter(value)
   }
   useEffect(()=>{
     if(!pendingStorageCharacter.current||privateHome||publicHome||!ready||!owned.ready||owned.character?.id!==pendingStorageCharacter.current)return
@@ -404,7 +410,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
       else await saveCharacterItems(entry.character.id,action.ids,meta.revision)
       if(owner!==currentOwner.current)return
       if(action.mode==='privacy'){const value=privacyResult.private_ids.includes(action.ids[0]);setListing(previous=>({...previous,items:previous.items.map(item=>{if(item.id!==action.ids[0])return item;const owners=(item.owners||[]).map(owner=>owner.id===entry.character.id?{...owner,is_private:value}:owner);return{...item,owners,is_private:characterId?value:owners.length?owners.every(owner=>owner.is_private):value}})}))}
-      if(!homeOnly&&!publicHome)setTargetCharacter(entry.character.id)
+      if(!homeOnly&&!publicHome)rememberStorageCharacter(entry.character.id)
       characters.reload();owned.reload();setSaveRequest(null);notify(action.mode==='privacy'?'공개 설정을 변경했습니다':action.mode==='remove'?'내 의상에서 제거했습니다':'내 의상으로 저장했습니다')
     }finally{saveLock.current=false;setSavingOwned(false)}
   }

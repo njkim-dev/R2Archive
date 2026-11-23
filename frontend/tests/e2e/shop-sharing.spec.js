@@ -34,7 +34,7 @@ test('short links and live public homes preserve outfits while save and removal 
   const top = page.locator('button[aria-label="상의 내 의상으로 저장"]')
   await expect(top).toBeEnabled(); await top.scrollIntoViewIfNeeded()
   let watcher = await watchLayout(page, ['.shop-slots', '.shop-slot-actions'])
-  await top.click(); await page.getByRole('button',{name:'남성캐릭터 캐릭터 선택',exact:true}).click();await expect(top).toBeDisabled();await watcher.expectStable()
+  await top.click(); await expect(top).toBeDisabled(); await watcher.expectStable()
   releaseSave(); await expect(top).toHaveText('저장됨'); await watcher.expectStable(); await watcher.stop()
   if (narrow) await panel.getByRole('button', { name: '아이템 현황 닫기', exact: true }).click()
   await preview.getByRole('button', { name: '전부 내 의상으로 저장', exact: true }).click()

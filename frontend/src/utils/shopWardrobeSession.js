@@ -6,6 +6,11 @@ export function readStorageCharacter() {
   try { return sessionStorage.getItem(characterKey) || null } catch { return null }
 }
 
+export function resolveStorageCharacter(items, preferredId) {
+  if (preferredId === '') return null
+  return (items.find(({ character }) => character.id === preferredId) || items[0])?.character || null
+}
+
 export function writeStorageCharacter(id) {
   try {
     if (id) sessionStorage.setItem(characterKey, id)

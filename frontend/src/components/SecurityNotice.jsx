@@ -3,10 +3,11 @@ import { ShieldCheck } from 'lucide-react'
 import { lockShopScroll } from './shop/shopModalScroll'
 import '../styles/security-notice.css'
 
+const nginxNoticeKey = 'r2archive:notice:nginx-traefik-2026-11-20'
 const notices = [
   {
     id: 'nginx-http2',
-    key: 'r2archive:notice:nginx-traefik-2026-11-20',
+    key: nginxNoticeKey,
     autoShowUntil: Date.parse('2026-11-27T00:00:00+09:00'),
     title: 'NGINX 보안 취약점 안내',
     paragraphs: [
@@ -19,6 +20,7 @@ const notices = [
   {
     id: 'openjdk',
     key: 'r2archive:notice:CVE-2026-114938',
+    acknowledgedWith: nginxNoticeKey,
     autoShowUntil: Date.parse('2026-11-25T00:00:00+09:00'),
     title: 'OpenJDK 보안 이슈 안내',
     paragraphs: [
@@ -30,8 +32,10 @@ const notices = [
   },
 ]
 
-function isUnread(notice) {
-  try { return localStorage.getItem(notice.key) !== '1' } catch { return true }
+function isUnread({ key, acknowledgedWith }) {
+  try {
+    return localStorage.getItem(key) !== '1' && (!acknowledgedWith || localStorage.getItem(acknowledgedWith) !== '1')
+  } catch { return true }
 }
 
 function unreadNotices() {
@@ -54,33 +58,29 @@ export default function SecurityNotice({ onClose, showAll = false }) {
   const confirm = useRef(null)
   const [visibleNotices] = useState(() => showAll ? notices : unreadNotices())
   const [page, setPage] = useState(0)
-  const visited = useRef(new Set())
   const notice = visibleNotices[page]
 
   useLayoutEffect(() => {
     const node = dialog.current
+    if (!node) return
     const releaseScroll = lockShopScroll()
     node.showModal()
-    confirm.current.focus({ preventScroll: true })
-    node.scrollTop = 0
+    for (const { key } of visibleNotices) {
+      try { localStorage.setItem(key, '1') } catch {}
+    }
     return () => {
       node.close()
       releaseScroll()
     }
-  }, [])
+  }, [visibleNotices])
 
   useLayoutEffect(() => {
-    if (notice) visited.current.add(notice.key)
+    if (!notice) return
     dialog.current.scrollTop = 0
     confirm.current.focus({ preventScroll: true })
   }, [notice])
 
-  function dismiss() {
-    for (const key of visited.current) {
-      try { localStorage.setItem(key, '1') } catch {}
-    }
-    onClose()
-  }
+  if (!notice) return null
 
   return (
     <dialog
@@ -88,7 +88,7 @@ export default function SecurityNotice({ onClose, showAll = false }) {
       className="security-notice"
       aria-labelledby="security-notice-title"
       aria-describedby={`security-notice-summary-${notice.id}`}
-      onCancel={event => { event.preventDefault(); dismiss() }}
+      onCancel={event => { event.preventDefault(); onClose() }}
     >
       <header>
         <ShieldCheck size={24} aria-hidden="true" />
@@ -106,7 +106,7 @@ export default function SecurityNotice({ onClose, showAll = false }) {
       <footer>
         {page > 0 && <button className="security-notice-nav" type="button" onClick={() => setPage(value => value - 1)}>이전</button>}
         {page < visibleNotices.length - 1 && <button className="security-notice-nav" type="button" onClick={() => setPage(value => value + 1)}>다음</button>}
-        <button ref={confirm} type="button" onClick={dismiss}>확인</button>
+        <button ref={confirm} type="button" onClick={onClose}>확인</button>
       </footer>
     </dialog>
   )
