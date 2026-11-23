@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { createServer } from 'node:http'
 import { watchLayout } from './layout.js'
-import { setup, femaleShirt } from './shopFixtures.js'
-import encore from '../../src/data/encore-shop.json' with { type: 'json' }
+import { setup } from './shopFixtures.js'
 
 test.afterEach(async ({ page, context }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
@@ -41,7 +40,7 @@ for (const portrait of [false, true]) {
     await expect(page.locator('.services strong')).toHaveText(['음악 둘러보기', '의상 입어보기', '내 옷장 열기', '게임 복구하기'])
     await expect(page.getByRole('link', { name: /의상 입어보기/ })).toHaveAttribute('href', '/shop')
     await expect(page.getByRole('link', { name: /신곡 1/ })).toHaveAttribute('href', '/music/#song=1')
-    await expect(page.getByRole('link', { name: /착용 모습 보기/ })).toHaveAttribute('href', /view=preview.*sex=female/)
+    await expect(page.getByRole('link', { name: /앙코르 상점 바로 보러 가기/ })).toHaveAttribute('href', '/shop/encore')
     const official = page.getByRole('link', { name: '공식 홈페이지 ↗' })
     await expect(official).toHaveAttribute('href', 'https://vfunkr.valofe.com/library/r2beat-ko')
     await expect(official).toHaveAttribute('target', '_blank')
@@ -62,30 +61,19 @@ for (const portrait of [false, true]) {
   })
 }
 
-test('closing the featured outfit opens the Encore list and Back preserves the home entry', async ({ page, baseURL }) => {
+test('the home Encore card opens the sales list directly and Back returns home', async ({ page, baseURL }) => {
   if (page.viewportSize().width <= 800) await page.setViewportSize({ width: 390, height: 900 })
-  const outfit = encore.offers.find(offer => offer.id === 'black-formal')
-  const items = outfit.items.filter(item => item.sex === 'female' && item.preview)
-    .map(item => ({ ...femaleShirt, id: item.id, slot: item.slot, name: item.name }))
-  await setup(page, { items, loggedIn: false, admin: false })
+  await setup(page, { loggedIn: false, admin: false })
   await page.route('https://r2archive.com/**', async route => {
     const url = new URL(route.request().url())
     if (url.pathname.startsWith('/api/')) return route.fallback()
     await route.fulfill({ response: await route.fetch({ url: baseURL + url.pathname + url.search }) })
   })
   await page.goto('https://r2archive.com/')
-  const feature = page.getByRole('link', { name: /착용 모습 보기/ })
+  const feature = page.getByRole('link', { name: /앙코르 상점 바로 보러 가기/ })
   await feature.click()
-  const dialog = page.getByRole('dialog', { name: '의상 미리보기' })
-  await expect(dialog).toBeVisible()
-  await page.reload()
-  await dialog.getByRole('button', { name: '의상 미리보기 닫기' }).click()
   await expect(page).toHaveURL('https://r2archive.com/shop/encore')
   await expect(page.locator('.encore-offer').first()).toBeVisible()
-  await page.goBack()
-  await expect(feature).toBeVisible()
-  await feature.click()
-  await expect(dialog).toBeVisible()
   await page.goBack()
   await expect(feature).toBeVisible()
 })

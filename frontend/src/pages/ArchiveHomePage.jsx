@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowUpRight, ChevronRight, House, Music2, Shirt, Wrench } from 'lucide-react'
 import useStore from '../store/useStore'
 import { staticUrl } from '../utils/helpers'
-import { outfitShareUrl } from '../utils/shopUrl'
 import encore from '../data/encore-shop.json'
 import lobby from '../assets/archive-home/lobby.webp'
 import blackDress from '../assets/archive-home/black-dress.webp'
@@ -42,14 +41,11 @@ function RecentSongs() {
 }
 
 function EncoreFeature() {
-  const outfit = encore.offers.find(offer => offer.id === 'black-formal')
-  const slots = Object.fromEntries((outfit?.items || []).filter(item => item.sex === 'female' && item.preview).map(item => [item.slot, item.id]))
-  const target = outfit ? new URL(outfitShareUrl({ version: encore.catalogVersion, sex: 'female', slots, angle: 180, zoom: 100, fromEncore: true })) : null
   return <section>
     <div className="portal-section-heading"><h2>앙코르 상점</h2><Link to="/shop/encore">판매 목록 <ChevronRight size={15} /></Link></div>
-    {target ? <Link className="portal-feature" to={target.pathname + target.search}>
-      <img src={blackDress} alt="" /><div><small>{encore.label}</small><strong>블랙 드레스</strong><span>착용 모습 보기 <ArrowUpRight size={15} /></span></div>
-    </Link> : <Link to="/shop/encore">이번 회차 의상 보기</Link>}
+    <Link className="portal-feature" to="/shop/encore">
+      <img src={blackDress} alt="" /><div><small>{encore.label}</small><strong>앙코르 상점</strong><span>바로 보러 가기 <ArrowUpRight size={15} aria-hidden="true" /></span></div>
+    </Link>
   </section>
 }
 
