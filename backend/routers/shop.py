@@ -182,9 +182,10 @@ def items(
         current = catalog(cur, version)
         conditions = ["revision = %s", SHOP_ITEM_VISIBLE, ACCESSIBLE if include_unreleased else "show"]
         args = [current["revision"]]
-        if q.strip():
-            conditions.append("position(lower(%s) in lower(name)) > 0")
-            args.append(q.strip())
+        query = "".join(q.split())
+        if query:
+            conditions.append("position(lower(%s) in regexp_replace(lower(name), '[[:space:]\u0085\u00a0\u2007\u202f]+', '', 'g')) > 0")
+            args.append(query)
         for column, value in [(f"({DEPARTMENT_SQL})", department), (f"({SLOT_SQL})", slot), ("category", category), (f"({GROUP_SQL})", group), (f"({SUBGROUP_SQL})", subgroup)]:
             if value:
                 conditions.append(f"{column} = %s")

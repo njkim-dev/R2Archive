@@ -980,10 +980,15 @@ test('full outfit links restore camera, gender, both characters and default unse
 
 test('pending catalog and search responses never move the item toolbar or grid', async ({ page }) => {
   await page.setViewportSize({ width: test.info().project.use.viewport.width <= 768 ? 390 : 1440, height: 1000 })
-  let releaseMeta, releaseList
+  let releaseMeta, releaseList, releaseSearch
   const metaGate = new Promise(resolve => { releaseMeta = resolve })
   const listGate = new Promise(resolve => { releaseList = resolve })
+  const searchGate = new Promise(resolve => { releaseSearch = resolve })
   await setup(page, { metaGate, listGate })
+  await page.route(/\/api\/shop\/items\?/, async route => {
+    if (new URL(route.request().url()).searchParams.get('q')) await searchGate
+    return route.fallback()
+  })
   await page.goto('/shop')
   await expect(page.locator('.shop-grid')).toBeVisible()
   await page.getByRole('button', { name: '남성', exact: true }).click()
@@ -994,8 +999,14 @@ test('pending catalog and search responses never move the item toolbar or grid',
   releaseList()
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await watcher.expectStable()
-  await page.getByLabel('아이템 이름으로 검색').fill('검증')
+  const searchRequest = page.waitForRequest(request => new URL(request.url()).searchParams.get('q') === '검증셔츠')
+  await page.getByLabel('아이템 이름으로 검색').fill('검증셔츠')
+  await searchRequest
+  await expect(page.locator('.shop-grid')).toHaveAttribute('aria-busy', 'true')
+  await watcher.expectStable()
+  releaseSearch()
   await expect(page.locator('.shop-card')).toHaveCount(1)
+  await expect(page.locator('.shop-card')).toContainText(shirt.name)
   await watcher.expectStable()
   await watcher.stop()
 })

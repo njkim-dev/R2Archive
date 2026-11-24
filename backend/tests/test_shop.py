@@ -131,7 +131,26 @@ class ShopTests(unittest.TestCase):
         for call in cursor.execute.call_args_list:
             self.assertNotIn(query, call.args[0])
             self.assertIn("show", call.args[0])
-            self.assertIn(query, call.args[1])
+            self.assertIn("%'ORtrue--", call.args[1])
+
+    def test_item_search_removes_whitespace_and_ignores_blank_queries(self):
+        version = "a" * 20
+        cursor, context = self.database([])
+        client = self.client()
+        with patch.object(shop, "catalog", return_value={"revision": version}), patch.object(shop, "get_conn", return_value=context):
+            for query in ("화사한유혹치마", " 화사한  유혹\t치마 ", "화사한\u00a0유혹\u3000치마", "\t \u3000"):
+                with self.subTest(query=query):
+                    cursor.reset_mock()
+                    self.assertEqual(client.get("/api/shop/items", params={"q": query}).status_code, 200)
+                    self.assertEqual(len(cursor.execute.call_args_list), 2)
+                    for call in cursor.execute.call_args_list:
+                        sql, args = call.args
+                        if query.strip():
+                            self.assertIn("regexp_replace(lower(name)", sql)
+                            self.assertEqual(args[1], "화사한유혹치마")
+                        else:
+                            self.assertNotIn("regexp_replace", sql)
+                            self.assertNotIn("", args)
 
     def test_duplicate_unreleased_ring_is_excluded_from_catalog_reads(self):
         version = 'a' * 20
