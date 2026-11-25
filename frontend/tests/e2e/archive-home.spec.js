@@ -61,6 +61,19 @@ for (const portrait of [false, true]) {
   })
 }
 
+for (const [path, width, brand] of [
+  ['/music/updates', 390, '.rh-mobile-brand'],
+  ['/xyx/', 980, '.mob-brand-tablet'],
+]) test(`R2 icon on ${path} at ${width}px returns to the portal`, async ({ page, baseURL }) => {
+  await page.setViewportSize({ width, height: 900 })
+  await portalRoute(page, baseURL)
+  await page.route(/\/api\/(?:xyx\/songs|release-history)(?:\?|$)/, route => route.fulfill({ json: [] }))
+  await page.goto('https://r2archive.com' + path)
+  await page.locator(brand).getByText('R2', { exact: true }).click()
+  await expect(page).toHaveURL('https://r2archive.com/?refresh=home')
+  await expect(page.getByRole('navigation', { name: '아카이브 바로가기' })).toBeVisible()
+})
+
 test('the home Encore card opens the sales list directly and Back returns home', async ({ page, baseURL }) => {
   if (page.viewportSize().width <= 800) await page.setViewportSize({ width: 390, height: 900 })
   await setup(page, { loggedIn: false, admin: false })

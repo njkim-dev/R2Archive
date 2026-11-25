@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import ArchiveBrand from '../components/ArchiveBrand'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { VariableSizeList } from 'react-window'
 import { ChevronDown, ExternalLink, Search } from 'lucide-react'
@@ -14,10 +14,10 @@ function HistoryMobileHeader() {
   return (
     <header className="rh-mobile-head">
       <div className="rh-mobile-head-row">
-        <Link to="/" className="rh-mobile-brand" aria-label="곡 목록으로 이동">
+        <ArchiveBrand className="rh-mobile-brand">
           <span className="brand-mark" aria-hidden="true">R2</span>
           <span>R2Music Archive</span>
-        </Link>
+        </ArchiveBrand>
       </div>
 
     </header>

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import useStore from '../store/useStore'
 import { HelpButton } from './HelpTour'
+import ArchiveBrand from './ArchiveBrand'
 import { isXyxMode } from '../utils/serverMode'
 import { detailedFilterCount } from '../utils/catalogFilters'
 
@@ -78,13 +79,13 @@ export default function MobileHeader({ searchScope }) {
       <h1 className="sr-only">R2Music Archive</h1>
       <div className="mob-top-inner">
         <div className="mob-top-row">
-          <div className="mob-brand-tablet" aria-hidden="true">
+          <ArchiveBrand className="mob-brand-tablet">
             <div className="brand-mark">R2</div>
             <div>
               <div className="brand-title">R2Music Archive</div>
               <div className="brand-sub">{isXyxMode() ? 'XYX Catalog' : 'Music Catalog'}</div>
             </div>
-          </div>
+          </ArchiveBrand>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HelpButton />
             {user ? (

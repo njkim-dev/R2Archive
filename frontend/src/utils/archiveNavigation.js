@@ -1,5 +1,7 @@
 import { ARCHIVE_BASE, isXyxMode, SERVER_LINKS } from './serverMode.js'
 
+export const ARCHIVE_HOME_URL = 'https://r2archive.com/?refresh=home'
+
 export function archiveSection(pathname) {
   if (pathname === '/shop/encore' || pathname === '/shop/encore/') return 'encore'
   if (pathname.startsWith('/shop/admin')) return 'admin'

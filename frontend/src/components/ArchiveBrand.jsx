@@ -1,11 +1,12 @@
-export default function ArchiveBrand() {
+import { ARCHIVE_HOME_URL } from '../utils/archiveNavigation'
+
+export default function ArchiveBrand({ className = 'archive-brand', children }) {
   return (
-    <div className="brand">
-      <div className="brand-mark" aria-hidden="true">R2</div>
-      <div>
-        <h1 className="brand-title">R2Music Archive</h1>
-        <div className="brand-sub">Music Catalog</div>
-      </div>
-    </div>
+    <a className={className} href={ARCHIVE_HOME_URL} aria-label="R2 Archive 메인 홈페이지">
+      {children ?? <>
+        <span className="archive-brand-mark">R2</span>
+        <span>ARCHIVE<small>알투비트 아카이브</small></span>
+      </>}
+    </a>
   )
 }

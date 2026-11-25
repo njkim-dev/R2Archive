@@ -77,7 +77,7 @@ for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
     const other = page.getByRole('link', { name: archive === 'music' ? '중국 서버 음악' : '한국 서버 음악', exact: true })
     await expect(other).toHaveAttribute('href', archive === 'music' ? 'https://r2archive.com/xyx/' : 'https://r2archive.com/music/')
     if(!loggedIn){await myhome.locator('..').hover();await expect(page.getByRole('tooltip')).toHaveText('로그인하세요');await page.mouse.move(1,1);await expect(page.getByRole('tooltip')).toHaveCount(0)}
-    const home = page.getByRole('link', { name: 'R2 Archive 메인 홈페이지', exact: true })
+    const home = page.locator('.archive-mobile-header').getByRole('link', { name: 'R2 Archive 메인 홈페이지', exact: true })
     await expect(home).toBeVisible()
     await expect(home).toHaveAttribute('href', 'https://r2archive.com/?refresh=home')
     if (!mobile) {
@@ -103,9 +103,8 @@ for (const archive of ['music','xyx']) for(const loggedIn of [false,true]) {
       await expect(other).toHaveAttribute('aria-current', 'page')
       await expect(sun).toHaveAttribute('aria-pressed', 'false')
     }
-    await page.route('https://r2archive.com/?refresh=home', route => route.fulfill({ contentType: 'text/html', body: '<h1>Main homepage</h1>' }))
     await home.click()
     await expect(page).toHaveURL('https://r2archive.com/?refresh=home')
-    await expect(page.getByRole('heading', { name: 'Main homepage' })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: '아카이브 바로가기' })).toBeVisible()
   })
 }

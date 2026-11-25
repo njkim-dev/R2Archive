@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Home, LogIn, LogOut, Menu, MessageCircle, Music2, Pencil, ShieldCheck, ShoppingBag, UserRound, Wrench, X } from 'lucide-react'
 import useStore from '../store/useStore'
-import { archiveSection, navigationTarget } from '../utils/archiveNavigation'
+import { ARCHIVE_HOME_URL, archiveSection, navigationTarget } from '../utils/archiveNavigation'
+import ArchiveBrand from './ArchiveBrand'
 import PageNavigation from './PageNavigation'
 import { ARCHIVE_BASE, SERVER_MODE } from '../utils/serverMode'
 import { makeSearchRestoreState, saveCurrentListState, withRestoreListParam } from '../utils/listState'
@@ -24,10 +25,6 @@ function useNativeDialog() {
     return () => observer.disconnect()
   }, [])
   return blocked
-}
-
-export function ArchiveBrand() {
-  return <a className="archive-brand" href="https://r2archive.com/?refresh=home" aria-label="R2 Archive 메인 홈페이지"><span className="archive-brand-mark">R2</span><span>ARCHIVE<small>알투비트 아카이브</small></span></a>
 }
 
 function NavigationItem({ section, active, onNavigate, children, className = '' }) {
@@ -132,5 +129,5 @@ export function ArchiveNavigation({ context, section: override, inactive = false
 }
 
 export function ArchivePageLayout({ children, context, section = 'shop', className = '', headerTools, inactive = false, onLogin }) {
-  return <ArchiveLoginContext.Provider value={onLogin}><div className={`archive-page-layout ${className}`}><ArchiveSidebar inactive={inactive}>{context}</ArchiveSidebar><ArchiveNavigation section={section} context={context} inactive={inactive} /><div className="archive-page-content"><header className="archive-page-topbar shop-header" aria-hidden={inactive || undefined} inert={inactive ? '' : undefined}><div className="archive-breadcrumb"><a href="https://r2archive.com/?refresh=home">R2 ARCHIVE</a><ChevronRight size={14} /><span>{titles[section]}</span></div>{['shop', 'encore'].includes(section) && <nav className="archive-shop-tabs" aria-label="상점 종류"><NavigationItem section="shop" active={section === 'shop'}>아이템</NavigationItem><NavigationItem section="encore" active={section === 'encore'}>앙코르 상점</NavigationItem></nav>}<div className="shop-header-actions">{headerTools}</div></header>{children}</div></div></ArchiveLoginContext.Provider>
+  return <ArchiveLoginContext.Provider value={onLogin}><div className={`archive-page-layout ${className}`}><ArchiveSidebar inactive={inactive}>{context}</ArchiveSidebar><ArchiveNavigation section={section} context={context} inactive={inactive} /><div className="archive-page-content"><header className="archive-page-topbar shop-header" aria-hidden={inactive || undefined} inert={inactive ? '' : undefined}><div className="archive-breadcrumb"><a href={ARCHIVE_HOME_URL}>R2 ARCHIVE</a><ChevronRight size={14} /><span>{titles[section]}</span></div>{['shop', 'encore'].includes(section) && <nav className="archive-shop-tabs" aria-label="상점 종류"><NavigationItem section="shop" active={section === 'shop'}>아이템</NavigationItem><NavigationItem section="encore" active={section === 'encore'}>앙코르 상점</NavigationItem></nav>}<div className="shop-header-actions">{headerTools}</div></header>{children}</div></div></ArchiveLoginContext.Provider>
 }
