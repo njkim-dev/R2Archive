@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowUp, Box, Check, Copy, Search, Star, Users, X } from 'lucide-react'
+import { ArrowUp, Box, Check, Copy, RotateCcw, Search, Star, Users, X } from 'lucide-react'
 import { ArchivePageLayout } from '../components/ArchiveNavigation'
 import MyHomeNavigation from '../components/shop/MyHomeNavigation'
 import useStore from '../store/useStore'
@@ -457,6 +457,13 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     if (sex) wardrobes.current[sex] = slots
     setSex(next); setSlots(wardrobes.current[next] || emptySlots()); setDetail(null); setQuery(''); setListing({ items: [], total: 0, has_more: false }); setLoading(true)
   }
+  const canRestoreMainOutfit = authenticated && ready && owned.ready && !!owned.character && !owned.pending && !savingOwned
+  function restoreMainOutfit() {
+    if (!canRestoreMainOutfit) return
+    shopSexChosen.current = true
+    touched.current[owned.character.sex].clear()
+    applyStorageCharacter(owned)
+  }
   function preview() {
     if (!sex || !meta) return
     scrollPosition.current = window.scrollY
@@ -546,14 +553,14 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
         <ShopViewModes mode={viewMode} onChange={setViewMode} />
         <button className="shop-pair" aria-pressed={pair} disabled={pairLoading} onClick={() => setPair(value => !value)}><Users size={17} /> 이성 아이템 함께 보기</button>
         <div className="shop-pair-note">{pair && !pairLoading && SHOP_SLOTS.filter(key => key !== 'pet' && applied.slots[key] && !counterparts[key]).length > 0 ? '대응 아이템이 없는 부위는 상대 캐릭터의 기본 의상으로 표시합니다.' : '선택하지 않은 부위는 기본 의상으로 표시됩니다.'}</div>
-      </section>{framePanel(<aside className="shop-panel">{panelHeading('선택한 의상')}{wardrobe(applied.slots, false)}</aside>)}</div>
+      </section>{framePanel(<aside className="shop-panel">{panelHeading('선택한 의상')}<div className="shop-panel-content">{wardrobe(applied.slots, false)}</div></aside>)}</div>
       <p className="shop-couple-purchase-note">게임 내 아이템과는 차이가 있을 수 있습니다. 반드시 인 게임에서 상세히 확인 후 구매하시기 바랍니다.</p>
       </ShopOutfitPreview>
     </> : <>
       <div className="shop-departments" role="tablist" aria-label="상점 분류">{(homeOnly ? DEPARTMENTS.slice(0, 2) : DEPARTMENTS).map(([value, label]) => <button key={value} role="tab" aria-selected={!favoritesOnly && department === value} onClick={() => changeDepartment(value)}>{label}</button>)}{!homeOnly && <><button className="shop-clear-favorites" disabled={!authenticated || !favorites.ready || favorites.clearing || favorites.pending.size > 0 || !favorites.ids.size} onClick={() => { if (window.confirm('등록된 모든 즐겨찾기가 전부 제거됩니다. 계속 하시겠습니까?')) favorites.clear() }}>즐겨찾기 초기화</button><button className="shop-favorites-tab" role="tab" aria-selected={favoritesOnly} disabled={!authenticated || !favorites.ready} data-tooltip={!authenticated ? '로그인 후 사용할 수 있습니다.' : '저장한 모든 아이템 보기'} onClick={openFavorites}><Star size={15} /> 즐겨찾기</button></>}</div>
       {homeOnly && !publicHome && characterId && <><div className="shop-home-share"><div className="shop-home-url-controls"><button ref={copyHomeAnchor} disabled={!sharing.ready || sharing.busy} onClick={() => copyHome()}>내 마이홈 URL 복사</button><button style={{visibility:sharing.handle?undefined:'hidden'}} disabled={!sharing.handle||sharing.busy} onClick={sharing.remove}>내 마이홈 URL 제거</button></div><ShopCoupleActions characterId={characterId}/></div><p className="shop-home-disclosure" style={{whiteSpace:'pre-line'}}>{HOME_DISCLOSURE}</p></>}
       {favoritesOnly && <div className="shop-favorite-categories" role="group" aria-label="즐겨찾기 아이템 분류">{[['', '전체'], ...DEPARTMENTS].map(([value, label]) => <button key={value} aria-pressed={department === value} onClick={() => { setFavoriteDepartment(value); resetFilters() }}>{label}</button>)}</div>}
-      <div className="shop-gender-row">{favoritesOnly ? <><b>성별</b><div>{[['', '전체 성별'], ['female', '여성'], ['male', '남성']].map(([value, label]) => <button key={value} aria-pressed={favoriteSex === value} onClick={() => setFavoriteSex(value)}>{label}</button>)}</div>{showWardrobe && <button className="shop-mobile-preview" aria-label="선택한 아이템으로 미리보기" disabled={!sex || !ready} onClick={preview}>미리보기 ({chosenCount})</button>}</> : department === 'wearable' ? <><b>캐릭터 성별</b><div>{[...(!homeOnly ? [[null, '전체 성별']] : []), ['female', '여성'], ['male', '남성']].map(([value, label]) => <button key={value ?? 'all'} aria-pressed={sex === value} disabled={!!characterId||!!publicHome} onClick={() => changeSex(value)}>{label}</button>)}</div><button className="shop-mobile-preview" aria-label="선택한 아이템으로 미리보기" disabled={!sex || !ready} onClick={preview}>미리보기 ({chosenCount})</button></> : <><b>{department === 'functional' ? '기능성ㆍ소모품' : '기타 아이템'}</b><span>아이템 설명과 기간별 가격을 확인해보세요.</span></>}</div>
+      <div className="shop-gender-row">{favoritesOnly ? <><b>성별</b><div>{[['', '전체 성별'], ['female', '여성'], ['male', '남성']].map(([value, label]) => <button key={value} aria-pressed={favoriteSex === value} onClick={() => setFavoriteSex(value)}>{label}</button>)}</div>{showWardrobe && <button className="shop-mobile-preview" aria-label="선택한 아이템 미리보기" disabled={!sex || !ready} onClick={preview}>미리보기 ({chosenCount})</button>}</> : department === 'wearable' ? <><b>캐릭터 성별</b><div>{[...(!homeOnly ? [[null, '전체 성별']] : []), ['female', '여성'], ['male', '남성']].map(([value, label]) => <button key={value ?? 'all'} aria-pressed={sex === value} disabled={!!characterId||!!publicHome} onClick={() => changeSex(value)}>{label}</button>)}</div><button className="shop-mobile-preview" aria-label="선택한 아이템 미리보기" disabled={!sex || !ready} onClick={preview}>미리보기 ({chosenCount})</button></> : <><b>{department === 'functional' ? '기능성ㆍ소모품' : '기타 아이템'}</b><span>아이템 설명과 기간별 가격을 확인해보세요.</span></>}</div>
       <div className="shop-workspace"><section className="shop-library" aria-label="아이템 목록">
         <div className="shop-search-tools"><label className="shop-search"><Search size={17} /><input aria-label="아이템 이름으로 검색" type="search" maxLength={120} placeholder="아이템 이름으로 검색" value={query} onChange={event => { setQuery(event.target.value) }} /></label>{!homeOnly && <span className="shop-image-search-open-anchor" data-tooltip={imageAccess.tooltip} tabIndex={imageAccess.tooltip ? 0 : undefined}><button className="shop-image-search-open" disabled={!canSearchImage || !ready || !meta} onClick={() => setImageSearchOpen(true)}>이미지로 찾기</button></span>}</div>
         <div className="shop-filters" role="group" aria-label="아이템 세부 분류"><button aria-pressed={department === 'wearable' ? !slot : !group} onClick={() => { setSlot(''); setGroup(''); setSubgroup('') }}>전체</button>{department === 'wearable' ? SHOP_SLOTS.map(key => <button key={key} aria-pressed={slot === key} onClick={() => { setSlot(key); setSubgroup('') }}>{SLOT_LABELS[key]}</button>) : (SHOP_GROUPS[department] || []).filter(([key])=>!homeOnly||['couple','friend'].includes(key)).map(([key, label]) => <button key={key} aria-pressed={group === key} onClick={() => { setGroup(key); setSubgroup('') }}>{label}</button>)}</div>
@@ -575,9 +582,18 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
         <ShopVirtualGrid minCardWidth={homeOnly&&!publicHome?240:undefined} key={listKey} resetKey={listKey} scrollPosition={scrollPosition} restoreScroll={restoreScroll} items={visibleItems} hasMore={listing.has_more} loading={loading} error={error} loadMore={loadMore} renderItem={renderCard} empty={<div className="shop-empty">{needsSex ? <>어떤 캐릭터로 입어볼까요?<br />위에서 성별을 선택해주세요.</> : !ready || loading || homeOnly && !homeData.ready ? '아이템을 불러오는 중입니다.' : error ? '목록을 불러오지 못했습니다.' : homeOnly ? <>저장한 의상이 없습니다.<br />상점에서 내 의상으로 저장해주세요.</> : favoritesOnly ? <>표시할 즐겨찾기가 없습니다.<br />아이템의 ☆를 눌러 등록해주세요.</> : <>표시할 아이템이 없습니다.<br />다른 이름이나 분류로 검색해보세요.</>}</div>} />
       </section>{framePanel(<aside className="shop-panel">
         {panelHeading(panelShowsOutfit ? '선택한 의상' : '아이템 정보')}{panelTabs}
-        {panelShowsOutfit ? <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p><button className="shop-primary" disabled={!sex || !ready} onClick={preview}><Box size={17} /> 선택한 아이템으로 미리보기</button></> : null}
+        <div className="shop-panel-content">
+        {panelShowsOutfit && <><p className="shop-panel-count">직접 선택 {chosenCount}개</p>{wardrobe(slots)}<p className="shop-panel-note">선택하지 않은 부위는 기본 의상으로 표시됩니다.</p>
+          <div className="shop-outfit-actions">
+            {!homeOnly && <span className="shop-outfit-reset-anchor" data-tooltip={!authenticated ? '로그인 하세요' : undefined} tabIndex={!authenticated ? 0 : undefined}>
+              <button className="shop-outfit-reset" disabled={!canRestoreMainOutfit} onClick={restoreMainOutfit}><RotateCcw size={15} /> 되돌리기</button>
+            </span>}
+            <button className="shop-primary shop-outfit-preview-button" disabled={!sex || !ready} onClick={preview}><Box size={16} /> <span>선택한 아이템 미리보기</span></button>
+          </div>
+        </>}
         {detail && <section className="shop-detail" hidden={mobile && !detailOnly && panelMode !== 'detail'} aria-label="선택한 아이템 정보">{!detailOnly&&<h2>아이템 정보</h2>}<div className="shop-detail-image"><ItemImage item={detail} />{tags(detail)}{!canPreviewItem(detail) && <span className="shop-preview-unavailable">미리보기 불가능</span>}</div><h3>{detail.name}</h3>{!detail.is_unreleased && <><div className="shop-price-options" role="group" aria-label="가격 옵션">{detail.prices.map(price => <button key={price.key} aria-pressed={selectedPrice?.key === price.key} onClick={() => setPriceKey(price.key)}>{price.label}</button>)}</div><div className="shop-detail-price">{selectedPrice ? <>{selectedPrice.amount.toLocaleString()} <small>{currency(selectedPrice.currency)}</small></> : '가격 정보 없음'}</div></>}{!homeOnly&&<><h4>아이템 설명</h4><p className="shop-description">{detail.description || '등록된 추가 설명이 없습니다.'}</p></>}{(detail.couple_preview || detail.category === '507' && !detail.effect_preview) && <button className="shop-couple-preview-button" disabled={!detail.couple_preview} onClick={openCouple}>{detail.category === '507' ? '선택한 커플링 미리보기' : '커플액션 미리보기'}</button>}{detail.effect_preview && <button className="shop-couple-preview-button" onClick={() => setEffectItem(detail)}>장식 미리보기</button>}<button className="shop-copy-item" onClick={() => copy(itemShareUrl(detail, detail.sex === 'common' ? sex : detail.sex, selectedPrice?.key))}><Copy size={15} /> 이 아이템 URL 복사</button></section>}
         {!detail && !panelShowsOutfit && <div className="shop-info-empty">아이템을 누르면 설명과 가격을 확인할 수 있습니다.</div>}
+        </div>
       </aside>)}</div>
     </>}
     {mobile && awayFromTop && !panelOpen && <button className="shop-floating-top" aria-label="페이지 맨 위로 이동" onClick={top}><ArrowUp size={18} /><span>맨 위로</span></button>}

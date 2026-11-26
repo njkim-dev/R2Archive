@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { watchLayout } from './layout.js'
+import { waitForFrames, watchLayout } from './layout.js'
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } })
 import { version, hash, root, hero, shirt, femaleShirt, pet, mesh, petMesh, png, setup, copiedShopUrl, openShopFilters } from './shopFixtures.js'
@@ -245,6 +245,83 @@ async function openOutfitPanel(page) {
   if (await outfit.count()) await outfit.click()
 }
 
+test('outfit panel keeps the heading above the scroll area and the preview label on one line', async ({ page }) => {
+  const mobile = test.info().project.use.viewport.width <= 768
+  await page.setViewportSize({ width: mobile ? 390 : 1024, height: 660 })
+  await setup(page, { loggedIn: false })
+  await page.goto('/shop?sex=male')
+  await expect(page.locator('.shop-card').first()).toBeVisible()
+  await openOutfitPanel(page)
+  if (!mobile) await page.locator('.shop-workspace').evaluate(node => scrollBy(0, node.getBoundingClientRect().top - 16))
+  await page.evaluate(() => document.fonts.ready)
+  await waitForFrames(page)
+
+  const panel = page.locator('.shop-panel')
+  const heading = panel.getByRole('heading', { name: '선택한 의상', exact: true })
+  const content = panel.locator('.shop-panel-content')
+  const initialHeading = await heading.boundingBox()
+  expect((await content.boundingBox()).y).toBeGreaterThan(initialHeading.y + initialHeading.height)
+  await content.evaluate(node => { node.scrollTop = node.scrollHeight })
+  await waitForFrames(page)
+  expect(await content.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
+  expect(await heading.boundingBox()).toEqual(initialHeading)
+  await expect(panel.locator('.shop-slot').first()).not.toBeInViewport()
+  await expect(panel.locator('.shop-slot').last()).toBeInViewport()
+
+  const preview = panel.getByRole('button', { name: '선택한 아이템 미리보기', exact: true })
+  expect(await preview.evaluate(button => {
+    const range = document.createRange()
+    range.selectNodeContents(button.querySelector('span'))
+    const [text, ...otherLines] = Array.from(range.getClientRects())
+    const bounds = button.getBoundingClientRect()
+    return otherLines.length === 0 && text.left >= bounds.left && text.right <= bounds.right
+  })).toBe(true)
+  await expect(panel.getByRole('button', { name: '되돌리기', exact: true })).toBeDisabled()
+  await panel.locator('.shop-outfit-reset-anchor').hover()
+  await expect(page.getByRole('tooltip')).toHaveText('로그인 하세요')
+})
+
+test('reset restores the selected character’s My Home outfit after wardrobe data loads', async ({ page }) => {
+  const mobile = test.info().project.use.viewport.width <= 768
+  await page.setViewportSize({ width: mobile ? 390 : 1024, height: 780 })
+  const triedTop = { ...femaleShirt, id: '202', name: '입어본 상의' }
+  let release
+  const wardrobeGate = new Promise(resolve => { release = resolve })
+  await setup(page, {
+    items: [shirt, femaleShirt, triedTop, pet],
+    wardrobeIds: [femaleShirt.id],
+    wardrobeMains: [{ sex: 'female', slot: 'top', item: femaleShirt }],
+    wardrobeGate,
+  })
+  await page.addInitScript(() => sessionStorage.setItem('r2_active_character', '2'))
+  await page.goto('/shop')
+  await expect(page.getByRole('button', { name: '여성', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: `${triedTop.name} 의상 선택`, exact: true }).click()
+  await page.getByRole('button', { name: `${pet.name} 의상 선택`, exact: true }).click()
+  await openOutfitPanel(page)
+
+  const panel = page.locator('.shop-panel')
+  const reset = panel.getByRole('button', { name: '되돌리기', exact: true })
+  await reset.scrollIntoViewIfNeeded()
+  const watcher = await watchLayout(page, ['.shop-search', '.shop-grid', '.shop-panel-heading', '.shop-panel-content', '.shop-outfit-actions'])
+  try {
+    await expect(reset).toBeDisabled()
+    await expect(panel.locator('.shop-slots')).toContainText(triedTop.name)
+    await watcher.expectStable()
+    release()
+    await expect(reset).toBeEnabled()
+    await watcher.expectStable()
+    await reset.click()
+    await expect(panel.locator('.shop-slots')).toContainText(femaleShirt.name)
+    await expect(panel.locator('.shop-slots')).not.toContainText(triedTop.name)
+    await expect(panel.locator('.shop-slots')).toContainText('선택한 펫 없음')
+    await watcher.expectStable()
+  } finally {
+    release()
+    await watcher.stop()
+  }
+})
+
 async function closeMobilePanel(page) {
   const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
   if (await panel.isVisible()) await panel.getByRole('button', { name: '아이템 현황 닫기', exact: true }).click()
@@ -254,8 +331,8 @@ async function previewSelection(page) {
   const panel = page.getByRole('dialog', { name: '아이템 현황', exact: true })
   if (await panel.isVisible()) {
     await openOutfitPanel(page)
-    await panel.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
-  } else await page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true }).click()
+    await panel.getByRole('button', { name: '선택한 아이템 미리보기', exact: true }).click()
+  } else await page.getByRole('button', { name: '선택한 아이템 미리보기', exact: true }).click()
 }
 
 test('browser back restores the loaded catalog filters selection and scroll and forward restores preview', async ({ page }) => {
@@ -607,12 +684,12 @@ test('functional item links restore selected item and price without adding it to
   expect(copied.searchParams.get('price')).toBe('P7')
 })
 
-test('the shop browses all genders and can preview the default outfit without selecting items', async ({ page }) => {
-  const requests = await setup(page)
+test('guests can browse all genders and preview the default outfit without selecting items', async ({ page }) => {
+  const requests = await setup(page, { loggedIn: false })
   await page.goto('/shop')
   await expect(page.locator('.shop-card').first()).toBeVisible()
   expect(requests).toContain('/api/shop/items')
-  await expect(page.getByRole('button', { name: '선택한 아이템으로 미리보기', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '선택한 아이템 미리보기', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '남성', exact: true }).click()
   await expect(page.locator('.shop-card')).toHaveCount(1)
   await expect(page.locator('.shop-slots')).toContainText('기본 머리 착용')
