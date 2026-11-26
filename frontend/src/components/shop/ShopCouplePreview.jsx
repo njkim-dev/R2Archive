@@ -15,7 +15,10 @@ import ShopViewModes from './ShopViewModes'
 import ShopViewer from './ShopViewer'
 
 const empty=()=>Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,null]))
-const renderSlots=slots=>({...slots,pet:null,accessory:null,summon:null})
+const renderSlots=(slots,sex)=>({
+  ...Object.fromEntries(Object.entries(slots).filter(([,item])=>item&&(item.sex===sex||item.sex==='common'))),
+  pet:null,accessory:null,summon:null,
+})
 const mainSlots=mains=>Object.fromEntries(SHOP_SLOTS.map(slot=>[slot,mains.find(main=>main.slot===slot&&main.item.preview_available&&main.item.model)?.item||null]))
 export default function ShopCouplePreview({selection,meta,loadError='',onStart,onClose}){
   const dialog=useRef(null),[camera,setCamera]=useState({angle:selection.angle??180,zoom:selection.zoom??100,panX:selection.panX??0,panY:selection.panY??0}),[mode,setMode]=useState('rotate')
@@ -69,7 +72,14 @@ export default function ShopCouplePreview({selection,meta,loadError='',onStart,o
     restore().catch(e=>{if(!cancelled)setError(e.message||'선택한 의상을 불러오지 못했습니다.')})
     return()=>{cancelled=true}
   },[selection.slots,selection.sex,selection.partner,selection.item,selection.characterId,selection.useCharacterMains,meta,authLoaded])
-  const figures=useMemo(()=>actors?{primary:renderSlots(actors.primary.slots),partner:renderSlots(actors.partner.slots)}:null,[actors])
+  const figures=useMemo(()=>{
+    if(!actors)return null
+    const partnerSex=actors.primary.sex==='male'?'female':'male'
+    return {
+      primary:renderSlots(actors.primary.slots,actors.primary.sex),
+      partner:actors.partner.sex===partnerSex?renderSlots(actors.partner.slots,partnerSex):empty(),
+    }
+  },[actors])
   const previewError=loadError||error
   const motion=selection.started?selection.item.couple_preview:null
   function notify(message){clearTimeout(timer.current);setToast(message);timer.current=setTimeout(()=>setToast(''),2600)}
@@ -89,13 +99,15 @@ export default function ShopCouplePreview({selection,meta,loadError='',onStart,o
     if(entry.character.sex===actors.primary.sex){alert('커플 모션은 남녀 조합으로 재생됩니다.');return false}
     const slots=empty()
     for(const main of entry.mains)if(SHOP_SLOTS.includes(main.slot)&&main.item.preview_available&&main.item.model)slots[main.slot]=main.item
-    setActors(previous=>({...previous,partner:{sex:entry.character.sex,slots}}))
+    setActors(previous=>previous&&previous.primary.sex!==entry.character.sex
+      ? {...previous,partner:{sex:entry.character.sex,slots}}
+      : previous)
     return true
   }
   return <dialog ref={dialog} className="shop-couple-dialog" aria-label="커플 모션 미리보기" onCancel={event=>{event.preventDefault();onClose()}}>
     <div className="shop-couple-heading"><div><h2>커플 모션 미리보기</h2><p>{selection.item.name||`커플링 ${selection.item.id}`}</p></div><div className="shop-couple-actions">{(selection.shared||actors&&!registeredPartner)&&<button disabled={!actors||selection.shared&&(!authLoaded||!user)} data-tooltip={selection.shared&&!user?'로그인하세요':undefined} onClick={()=>selection.shared?setOwnPicker(true):setUrlPicker(true)}>{selection.shared?'내 캐릭터 의상 불러오기':'내 커플 의상 불러오기'}</button>}<button disabled={!actors} onClick={copy}><Copy size={16}/><span>URL 복사</span></button><button aria-label="커플 모션 미리보기 닫기" onClick={onClose}><X size={22}/><span>닫기</span></button></div></div>
     <div className="shop-couple-viewport">
-      {actors&&!previewError?<ShopViewer meta={meta} sex={actors.primary.sex} partnerSex={actors.partner.sex} slots={figures.primary} counterparts={figures.partner} pair selectedSex={actors.primary.sex} angle={camera.angle} zoom={camera.zoom} panX={camera.panX} panY={camera.panY} mode={mode} onViewChange={setCamera} onReady={()=>setViewerReady(true)} couplePreview={selection.item.couple_preview} motion={motion} audioContext={selection.audioContext} audioReady={selection.audioReady}/>:<div className="shop-stage"><div className="shop-stage-status" role={previewError?'alert':'status'}>{previewError||'선택한 의상을 준비 중입니다.'}</div></div>}
+      {actors&&!previewError?<ShopViewer meta={meta} sex={actors.primary.sex} slots={figures.primary} counterparts={figures.partner} pair selectedSex={actors.primary.sex} angle={camera.angle} zoom={camera.zoom} panX={camera.panX} panY={camera.panY} mode={mode} onViewChange={setCamera} onReady={()=>setViewerReady(true)} couplePreview={selection.item.couple_preview} motion={motion} audioContext={selection.audioContext} audioReady={selection.audioReady}/>:<div className="shop-stage"><div className="shop-stage-status" role={previewError?'alert':'status'}>{previewError||'선택한 의상을 준비 중입니다.'}</div></div>}
       {fallbackNotice&&viewerReady&&<div className="shop-couple-fallback-notice" role="status" aria-live="polite"><span>커플 모션은 남녀 조합으로 재생되며, 상대에게 대응 의상을 적용했습니다.</span><button aria-label="의상 대체 안내 닫기" onClick={()=>setFallbackNotice(false)}><X size={16}/></button></div>}
       {!selection.started&&actors&&!previewError&&<div className="shop-couple-start"><button onClick={onStart}>커플 모션 시작</button><p>버튼을 누르면 모션과 소리가 함께 재생됩니다.</p></div>}
     </div>

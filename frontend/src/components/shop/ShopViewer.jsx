@@ -35,8 +35,8 @@ async function model(url) {
   return modelCache.get(url)
 }
 
-export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, effectPreview = null, effectPlaying = true, effectLabel = '단짝 효과 3D 미리보기', audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange, onReady, onFailure, partnerSex,disposeContext=false }) {
-  const otherSex=partnerSex||(sex==='male'?'female':'male')
+export default function ShopViewer({ meta, sex, slots, counterparts, pair, angle, zoom, motion = null, couplePreview = null, effectPreview = null, effectPlaying = true, effectLabel = '단짝 효과 3D 미리보기', audioContext = null, audioReady = null, selectedSex = sex, panX = 0, panY = 0, mode = 'rotate', onViewChange, onReady, onFailure, disposeContext=false }) {
+  const otherSex = sex === 'male' ? 'female' : 'male'
   const canvasRef = useRef(null)
   const rendererRef = useRef(null)
   const effectClock = useRef({ elapsed: 0, started: null })
