@@ -139,12 +139,13 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function openCouple() {
     if (!detail?.couple_preview) return
     const previewCharacter = publicHome ? null : characterId || targetCharacter
+    const allGenders = sex === null || (favoritesOnly && favoriteSex === '')
     setCouple({
       item: detail,
       sex: sex || 'male',
       slots: { ...slots },
       characterId: previewCharacter,
-      useCharacterMains: !!previewCharacter && (homeOnly || sex === null),
+      useCharacterMains: !!previewCharacter && (homeOnly || allGenders),
       disableAutoPartner: !!publicHome,
       ...startCoupleAudio(),
     })
