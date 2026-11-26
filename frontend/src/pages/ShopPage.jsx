@@ -67,12 +67,17 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const [favoriteSlot, setFavoriteSlot] = useState(null)
   useEffect(() => { setFavoriteSlot(null) }, [user?.id])
   const initial = useRef(readShopUrl(search)).current
+  const linkedOutfit = initial.item || initial.preview || initial.couple || SHOP_SLOTS.some(key => initial.slots[key])
+  const useDefaultCharacter = !privateHome && !publicHome && !initial.sex && !linkedOutfit
   const [meta, setMeta] = useState(null)
   const [preferredCharacter, setPreferredCharacter] = useState(readStorageCharacter)
   const [saveRequest,setSaveRequest]=useState(null)
   const [savingOwned,setSavingOwned]=useState(false),saveLock=useRef(false)
   const characters=useCharacters(authLoaded?user?.id:null,meta?.revision)
-  const targetCharacter = resolveStorageCharacter(characters.items, preferredCharacter)?.id
+  const selectedCharacter = resolveStorageCharacter(characters.items, preferredCharacter)
+  const targetCharacter = selectedCharacter?.id
+  const selectedCharacterEntry = characters.items.find(entry => entry.character === selectedCharacter)
+  const waitingForDefaultCharacter = useDefaultCharacter && (!authLoaded || (authenticated && !characters.ready))
   const storageCharacter = characterId || (!privateHome && !publicHome ? targetCharacter : null)
   const coupleRelation=couples.items.find(item=>item.character.id===(characterId||partnerOf||storageCharacter))
   const owned = useShopWardrobe(authenticated && (privateHome || publicHome || characters.ready) ? user.id : null, meta?.revision, storageCharacter)
@@ -94,6 +99,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const [favoriteSex, setFavoriteSex] = useState('')
   const department = favoritesOnly ? favoriteDepartment : catalogDepartment
   const [sex, setSex] = useState(initial.sex || (publicHome ? 'female' : null))
+  const shopSexChosen = useRef(false)
   const [slot, setSlot] = useState('')
   const [group, setGroup] = useState('')
   const [subgroup, setSubgroup] = useState('')
@@ -139,13 +145,13 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function openCouple() {
     if (!detail?.couple_preview) return
     const previewCharacter = publicHome ? null : characterId || targetCharacter
-    const allGenders = sex === null || (favoritesOnly && favoriteSex === '')
+    const previewSex = sex || (previewCharacter === targetCharacter ? selectedCharacter?.sex : null) || 'male'
     setCouple({
       item: detail,
-      sex: sex || 'male',
-      slots: { ...slots },
+      sex: previewSex,
+      slots: { ...(sex ? slots : wardrobes.current[previewSex]) },
       characterId: previewCharacter,
-      useCharacterMains: !!previewCharacter && (homeOnly || allGenders),
+      useCharacterMains: homeOnly && !!previewCharacter,
       disableAutoPartner: !!publicHome,
       ...startCoupleAudio(),
     })
@@ -165,7 +171,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const needsSex = homeOnly && !favoritesOnly && department === 'wearable' && !sex
   const visibleItems = publicHome ? listing.items : homeOnly ? listing.items.filter(item => owned.ids.has(item.id)) : favoritesOnly ? listing.items.filter(item => favorites.ids.has(item.id)) : listing.items
   const visibleTotal = Math.max(0, listing.total - (listing.items.length - visibleItems.length))
-  const listKey = JSON.stringify([ready, meta?.revision, department, listSex, slot, group, subgroup, query, pairedOnly, hideUnavailable, hideUnreleased, favoritesOnly, homeOnly,characterId,homeOnly?[...owned.ids].join(','):'', (favoritesOnly || homeOnly) ? user?.id : null, favoritesOnly && favorites.ready, homeOnly && homeData.ready, publicHome, publicData.epoch])
+  const listKey = JSON.stringify([ready, waitingForDefaultCharacter, meta?.revision, department, listSex, slot, group, subgroup, query, pairedOnly, hideUnavailable, hideUnreleased, favoritesOnly, homeOnly,characterId,homeOnly?[...owned.ids].join(','):'', (favoritesOnly || homeOnly) ? user?.id : null, favoritesOnly && favorites.ready, homeOnly && homeData.ready, publicHome, publicData.epoch])
   useEffect(()=>{setSaveRequest(null)},[user?.id])
   useEffect(() => {
     if (authenticated && characterId && !partnerOf) writeStorageCharacter(characterId)
@@ -266,19 +272,27 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     return () => { cancelled = true }
   }, [initial])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const ownerKey = publicHome ? `${publicHome}:${homeData.epoch}` : characterId?`character:${characterId}`:user?.id
-    if (!ready || !homeData.ready || mainOwner.current === ownerKey) return
+    const shopCharacter = !privateHome && !publicHome ? selectedCharacterEntry : null
+    if (!ready || (!shopCharacter && !homeData.ready) || mainOwner.current === ownerKey) return
     mainOwner.current = ownerKey
-    if (initial.item || initial.preview || initial.couple || SHOP_SLOTS.some(key => initial.slots[key])) return
+    if (linkedOutfit) return
+    const defaultSex = useDefaultCharacter && !shopSexChosen.current ? shopCharacter?.character.sex : null
+    const mains = shopCharacter?.mains || homeData.mains
+    const activeSex = (privateHome || publicHome ? homeData.character?.sex : null) || sex
     for (const gender of ['male', 'female']) {
-      const defaults = homeData.mains.filter(main => main.sex === gender && !touched.current[gender].has(main.slot) && main.item.preview_available && main.item.model)
+      const defaults = mains.filter(main => main.sex === gender && !touched.current[gender].has(main.slot) && main.item.preview_available && main.item.model)
       const updates = Object.fromEntries(defaults.map(main => [main.slot, main.item]))
-      if (publicHome) for (const key of SHOP_SLOTS) if (!touched.current[gender].has(key) && !updates[key]) updates[key] = null
+      if (publicHome || gender === defaultSex) for (const key of SHOP_SLOTS) if (!touched.current[gender].has(key) && !updates[key]) updates[key] = null
       wardrobes.current[gender] = { ...wardrobes.current[gender], ...updates }
-      if (gender === (homeData.character?.sex||sex) && Object.keys(updates).length) setSlots(current => ({ ...current, ...updates }))
+      if (!defaultSex && gender === activeSex && Object.keys(updates).length) setSlots(current => ({ ...current, ...updates }))
     }
-  }, [ready, homeData.ready, homeData.mains, homeData.epoch, user?.id, initial, sex, publicHome])
+    if (defaultSex) {
+      setSex(defaultSex)
+      setSlots(wardrobes.current[defaultSex])
+    }
+  }, [ready, homeData.ready, homeData.mains, homeData.character?.sex, homeData.epoch, user?.id, linkedOutfit, useDefaultCharacter, selectedCharacterEntry, sex, publicHome, privateHome, characterId])
 
   function applyStorageCharacter(entry){
     const gender=entry.character.sex,updates=Object.fromEntries(SHOP_SLOTS.map(key=>[key,entry.mains.find(main=>main.slot===key&&main.item.preview_available&&main.item.model)?.item||null]))
@@ -338,7 +352,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   useEffect(() => {
     scrollPosition.current = 0
     setListing({ items: [], total: 0, has_more: false })
-    if (!ready || !meta || needsSex || favoritesOnly && (!authenticated || !favorites.ready) || homeOnly && (publicHome ? !publicData.ready : !authenticated || !owned.ready)) { listRequest.current = null; setLoading(false); return }
+    if (!ready || !meta || waitingForDefaultCharacter || needsSex || favoritesOnly && (!authenticated || !favorites.ready) || homeOnly && (publicHome ? !publicData.ready : !authenticated || !owned.ready)) { listRequest.current = null; setLoading(waitingForDefaultCharacter); return }
     const context = { controller: new AbortController(), cursor: '', hasMore: true, busy: false, error: false, params: { version: meta.revision, department: department || undefined, sex: listSex || undefined, slot: slot || undefined, group: group || undefined, subgroup: subgroup || undefined, q: query, paired_only: !homeOnly && department === 'wearable' && pairedOnly, preview_only: !homeOnly && department === 'wearable' && hideUnavailable, include_unreleased: homeOnly || ['wearable','functional'].includes(department) && !hideUnreleased, owned_only: !publicHome && homeOnly || undefined, character_id:characterId||undefined, partner_of:partnerOf||undefined, home: partnerOf?undefined:publicHome || undefined, favorites_only: favoritesOnly || undefined, page_size: 24 } }
     listRequest.current = context
     setError('')
@@ -388,6 +402,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     const available = items.filter(item => SHOP_SLOTS.includes(item.slot) && item.preview_available && item.model && ['common', gender].includes(item.sex))
     const unavailable = items.filter(item => !available.includes(item))
     if (available.length) {
+      shopSexChosen.current = true
       if (sex && sex !== gender) wardrobes.current[sex] = slots
       const next = { ...(gender === sex ? slots : wardrobes.current[gender] || emptySlots()) }
       for (const item of available) { next[item.slot] = item; touched.current[gender].add(item.slot) }
@@ -436,7 +451,12 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   function saveAllOwned(){const ids=[...new Set(Object.values(applied?.slots||{}).filter(Boolean).map(item=>item.id))];if(ids.length)requestOwned({mode:'save',ids,sex:applied.sex})}
   async function copyHome(data) { if (data) { sharing.published(data); setIdDialog(false) } if (data?.handle || sharing.handle) await copy(myHomeUrl(data?.handle || sharing.handle), false); else setIdDialog(true) }
   function openFavorites() { setFavoritesOnly(true); setFavoriteDepartment(''); setFavoriteSex(sex || ''); resetFilters() }
-  function changeSex(next) { if (sex !== next) { if (sex) wardrobes.current[sex] = slots; setSex(next); setSlots(wardrobes.current[next] || emptySlots()); setDetail(null); setQuery(''); setListing({ items: [], total: 0, has_more: false }); setLoading(true) } }
+  function changeSex(next) {
+    shopSexChosen.current = true
+    if (sex === next) return
+    if (sex) wardrobes.current[sex] = slots
+    setSex(next); setSlots(wardrobes.current[next] || emptySlots()); setDetail(null); setQuery(''); setListing({ items: [], total: 0, has_more: false }); setLoading(true)
+  }
   function preview() {
     if (!sex || !meta) return
     scrollPosition.current = window.scrollY
