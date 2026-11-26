@@ -138,8 +138,16 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   }, [couple])
   function openCouple() {
     if (!detail?.couple_preview) return
-    const previewCharacter=publicHome?null:characterId||targetCharacter
-    setCouple({ item: detail, sex: sex || 'male', slots: { ...slots }, characterId:previewCharacter,useCharacterMains:homeOnly&&!!previewCharacter,disableAutoPartner:!!publicHome, ...startCoupleAudio() })
+    const previewCharacter = publicHome ? null : characterId || targetCharacter
+    setCouple({
+      item: detail,
+      sex: sex || 'male',
+      slots: { ...slots },
+      characterId: previewCharacter,
+      useCharacterMains: !!previewCharacter && (homeOnly || sex === null),
+      disableAutoPartner: !!publicHome,
+      ...startCoupleAudio(),
+    })
     navigate(location.pathname + location.search, { state: { ...location.state, shopCoupleMotion: navigationOwner }, preventScrollReset: true })
   }
   function startCouple() {
