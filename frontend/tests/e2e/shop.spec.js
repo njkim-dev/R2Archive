@@ -1727,7 +1727,8 @@ test('all-favorite reset requires confirmation preserves favorites on failure an
 })
 
 test('male and female clothing selections survive gender switches and reload within a tab while shared outfits override session memory', async ({ page }) => {
-  await setup(page, { items: [shirt, femaleShirt, pet] })
+  const savedTop = { ...shirt, id: '202', name: '마이홈 메인 상의' }
+  await setup(page, { items: [shirt, femaleShirt, pet, savedTop], wardrobeIds: [savedTop.id], wardrobeMains: [{ sex: 'male', slot: 'top', item: savedTop }] })
   await page.goto('/shop?sex=female')
   await page.getByRole('button', { name: femaleShirt.name + ' 의상 선택', exact: true }).click()
   await page.getByRole('button', { name: '남성', exact: true }).click()

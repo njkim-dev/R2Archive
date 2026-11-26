@@ -111,6 +111,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   const [loading, setLoading] = useState(true)
   const [slots, setSlots] = useState(emptySlots)
   const wardrobes = useRef({ male: emptySlots(), female: emptySlots() })
+  const restoredWardrobe = useRef(null)
   const [detail, setDetail] = useState(null)
   const [priceKey, setPriceKey] = useState(initial.price)
   const navigation = location.state?.shopNavigation
@@ -213,6 +214,7 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
         if (cancelled) return
         setMeta(catalog)
         const saved = publicHome||privateHome ? null : readWardrobeSession(catalog.revision)
+        restoredWardrobe.current = saved
         const remembered = { male: emptySlots(), female: emptySlots() }
         if (saved) await Promise.all(['male', 'female'].flatMap(gender => SHOP_SLOTS.map(async key => {
           const id = saved.wardrobes[gender][key]
@@ -279,9 +281,12 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
     mainOwner.current = ownerKey
     if (linkedOutfit) return
     const defaultSex = useDefaultCharacter && !shopSexChosen.current ? shopCharacter?.character.sex : null
+    const draft = restoredWardrobe.current
+    const keepDraft = draft && (draft.characterId === undefined || draft.characterId === shopCharacter?.character.id)
     const mains = shopCharacter?.mains || homeData.mains
     const activeSex = (privateHome || publicHome ? homeData.character?.sex : null) || sex
     for (const gender of ['male', 'female']) {
+      if (gender === defaultSex && keepDraft) continue
       const defaults = mains.filter(main => main.sex === gender && !touched.current[gender].has(main.slot) && main.item.preview_available && main.item.model)
       const updates = Object.fromEntries(defaults.map(main => [main.slot, main.item]))
       if (publicHome || gender === defaultSex) for (const key of SHOP_SLOTS) if (!touched.current[gender].has(key) && !updates[key]) updates[key] = null
@@ -315,10 +320,10 @@ function ShopContent({ search, publicHome,characterId,privateHome,partnerOf }) {
   },[ready,owned.ready,owned.character,owned.mains,targetCharacter,privateHome,publicHome])
 
   useEffect(() => {
-    if (publicHome || privateHome || !ready || !meta || !sex) return
+    if (publicHome || privateHome || !ready || !meta || !sex || waitingForDefaultCharacter || pendingStorageCharacter.current) return
     wardrobes.current[sex] = slots
-    saveWardrobeSession(meta.revision, sex, wardrobes.current)
-  }, [ready, meta, sex, slots])
+    saveWardrobeSession(meta.revision, sex, wardrobes.current, targetCharacter ?? null)
+  }, [ready, meta, sex, slots, waitingForDefaultCharacter, targetCharacter, publicHome, privateHome])
 
   const requestPage = useCallback(async (context) => {
     if (context !== listRequest.current || context.busy || !context.hasMore) return
